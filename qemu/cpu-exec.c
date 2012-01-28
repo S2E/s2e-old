@@ -16,11 +16,40 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010-2012, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "config.h"
 #include "cpu.h"
 #include "disas.h"
 #include "tcg.h"
 #include "qemu-barrier.h"
+
+#ifdef CONFIG_S2E
+#include "s2e/s2e_qemu.h"
+#endif
+
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+const int has_llvm_engine = 1;
+int generate_llvm = 0;
+int execute_llvm = 0;
+#else
+const int has_llvm_engine = 0;
+int generate_llvm = 0;
+int execute_llvm = 0;
+#endif
+
 
 int tb_invalidated_flag;
 
@@ -34,7 +63,7 @@ bool qemu_cpu_has_work(CPUState *env)
 void cpu_loop_exit(CPUState *env)
 {
     env->current_tb = NULL;
-    longjmp(env->jmp_env, 1);
+    s2e_longjmp(env->jmp_env, 1);
 }
 
 /* exit the current TB from a signal handler. The host registers are
@@ -46,7 +75,7 @@ void cpu_resume_from_signal(CPUState *env, void *puc)
     /* XXX: restore cpu registers saved in host registers */
 
     env->exception_index = -1;
-    longjmp(env->jmp_env, 1);
+    s2e_longjmp(env->jmp_env, 1);
 }
 #endif
 
@@ -58,6 +87,10 @@ static void cpu_exec_nocache(CPUState *env, int max_cycles,
     unsigned long next_tb;
     TranslationBlock *tb;
 
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+    assert(execute_llvm == 0);
+#endif
+
     /* Should never happen.
        We only end up here when an existing TB is too long.  */
     if (max_cycles > CF_COUNT_MASK)
@@ -67,7 +100,15 @@ static void cpu_exec_nocache(CPUState *env, int max_cycles,
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
+
+#ifdef CONFIG_S2E
+    env->s2e_current_tb = tb;
+    next_tb = s2e_qemu_tb_exec(env, tb);
+    env->s2e_current_tb = NULL;
+#else
     next_tb = tcg_qemu_tb_exec(env, tb->tc_ptr);
+#endif
+
     env->current_tb = NULL;
 
     if ((next_tb & 3) == 2) {
@@ -204,10 +245,11 @@ int cpu_exec(CPUState *env)
 
 #if defined(TARGET_I386)
     /* put eflags in CPU temporary format */
-    CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
+    /* S2E: We no longer need this - eflags is always in that format */
+    /* CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
     DF = 1 - (2 * ((env->eflags >> 10) & 1));
     CC_OP = CC_OP_EFLAGS;
-    env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
+    env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C); */
 #elif defined(TARGET_SPARC)
 #elif defined(TARGET_M68K)
     env->cc_op = CC_OP_FLAGS;
@@ -233,7 +275,12 @@ int cpu_exec(CPUState *env)
 
     /* prepare setjmp context for exception handling */
     for(;;) {
-        if (setjmp(env->jmp_env) == 0) {
+        if (s2e_setjmp(env->jmp_env) == 0) {
+            #ifdef CONFIG_S2E
+            g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
+            s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
+            #endif
+
             /* if an exception is pending, we execute it here */
             if (env->exception_index >= 0) {
                 if (env->exception_index >= EXCP_INTERRUPT) {
@@ -515,10 +562,10 @@ int cpu_exec(CPUState *env)
                 if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
                     /* restore flags in standard format */
 #if defined(TARGET_I386)
-                    env->eflags = env->eflags | cpu_cc_compute_all(env, CC_OP)
-                        | (DF & DF_MASK);
+                    /*env->eflags = env->eflags | cpu_cc_compute_all(env, CC_OP)
+                        | (DF & DF_MASK); */
                     log_cpu_state(env, X86_DUMP_CCOP);
-                    env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
+                    //env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
 #elif defined(TARGET_M68K)
                     cpu_m68k_flush_flags(env, env->cc_op);
                     env->cc_op = CC_OP_FLAGS;
@@ -563,7 +610,21 @@ int cpu_exec(CPUState *env)
                 if (likely(!env->exit_request)) {
                     tc_ptr = tb->tc_ptr;
                 /* execute the generated code */
+#if defined(CONFIG_S2E)
+                    env->s2e_current_tb = tb;
+                    next_tb = s2e_qemu_tb_exec(env, tb);
+                    env->s2e_current_tb = NULL;
+#elif defined(CONFIG_LLVM)
+                    if(execute_llvm) {
+                        //assert(false && "Not ported yet");
+                        next_tb = tcg_llvm_qemu_tb_exec(env, tb);
+                    } else {
+                        next_tb = tcg_qemu_tb_exec(env, tc_ptr);
+                    }
+#else
                     next_tb = tcg_qemu_tb_exec(env, tc_ptr);
+#endif
+
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
                         int insns_left;
@@ -597,17 +658,32 @@ int cpu_exec(CPUState *env)
                    only be set by a memory fault) */
             } /* for(;;) */
         } else {
-            /* Reload env after longjmp - the compiler may have smashed all
-             * local variables as longjmp is marked 'noreturn'. */
+            /* Reload env after s2e_longjmp - the compiler may have smashed all
+             * local variables as s2e_longjmp is marked 'noreturn'. */
             env = cpu_single_env;
+#ifdef CONFIG_S2E
+            //cpu_restore_icount(env);
+            s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, NULL);
+#endif
+
         }
     } /* for(;;) */
 
 
 #if defined(TARGET_I386)
+#ifdef CONFIG_S2E
+    s2e_set_cc_op_eflags(g_s2e, g_s2e_state);
+#else
     /* restore flags in standard format */
-    env->eflags = env->eflags | cpu_cc_compute_all(env, CC_OP)
-        | (DF & DF_MASK);
+    WR_cpu(env, cc_src, cpu_cc_compute_all(env, CC_OP));
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    //WR_cpu(env, eflags, RR_cpu(env, eflags) |
+    //       helper_cc_compute_all(CC_OP) | (DF & DF_MASK));
+    /* restore flags in standard format */
+    //env->eflags = env->eflags | cpu_cc_compute_all(env, CC_OP)
+    //    | (DF & DF_MASK);
+#endif
+
 #elif defined(TARGET_ARM)
     /* XXX: Save/restore host fpu exception state?.  */
 #elif defined(TARGET_UNICORE32)

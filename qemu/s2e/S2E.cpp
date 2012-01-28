@@ -831,6 +831,7 @@ void s2e_debug_print(const char *fmtstr, ...)
 
 //Print a klee expression.
 //Useful for invocations from GDB
+void s2e_print_expr(void *expr);
 void s2e_print_expr(void *expr) {
     klee::ref<klee::Expr> e = *(klee::ref<klee::Expr>*)expr;
     std::stringstream ss;
@@ -838,6 +839,7 @@ void s2e_print_expr(void *expr) {
     g_s2e->getDebugStream() << ss.str() << '\n';
 }
 
+void s2e_print_value(void *value);
 void s2e_print_value(void *value) {
     llvm::Value *v = (llvm::Value*)value;
     g_s2e->getDebugStream() << *v << '\n';

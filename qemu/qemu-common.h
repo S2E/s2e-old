@@ -298,6 +298,7 @@ void qemu_progress_print(float delta, int max);
 
 #define QEMU_FILE_TYPE_BIOS   0
 #define QEMU_FILE_TYPE_KEYMAP 1
+#define QEMU_FILE_TYPE_LIB    2
 char *qemu_find_file(int type, const char *name);
 
 /* OS specific functions */

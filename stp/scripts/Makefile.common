@@ -41,7 +41,7 @@ endif
 
 
 LDFLAGS += $(LDFLAGS_BASE)
-CFLAGS += $(CFLAGS_BASE) $(CFLAGS_M32)
+CFLAGS += $(CFLAGS_BASE) $(CFLAGS_M32) $(CFLAGS_FPIC)
 
 
 #Required by minisat2.2

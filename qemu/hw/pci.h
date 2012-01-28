@@ -430,7 +430,7 @@ pci_quad_test_and_set_mask(uint8_t *config, uint64_t mask)
 }
 
 typedef int (*pci_qdev_initfn)(PCIDevice *dev);
-typedef struct {
+typedef struct _PCIDeviceInfo {
     DeviceInfo qdev;
     pci_qdev_initfn init;
     PCIUnregisterFunc *exit;
@@ -490,14 +490,14 @@ static inline uint32_t pci_config_size(const PCIDevice *d)
 static inline int pci_dma_rw(PCIDevice *dev, dma_addr_t addr,
                              void *buf, dma_addr_t len, DMADirection dir)
 {
-    cpu_physical_memory_rw(addr, buf, len, dir == DMA_DIRECTION_FROM_DEVICE);
+    cpu_physical_memory_rw(addr, (uint8_t*) buf, len, dir == DMA_DIRECTION_FROM_DEVICE);
     return 0;
 }
 
 static inline int pci_dma_read(PCIDevice *dev, dma_addr_t addr,
                                void *buf, dma_addr_t len)
 {
-    return pci_dma_rw(dev, addr, buf, len, DMA_DIRECTION_TO_DEVICE);
+    return pci_dma_rw(dev, addr, (uint8_t*) buf, len, DMA_DIRECTION_TO_DEVICE);
 }
 
 static inline int pci_dma_write(PCIDevice *dev, dma_addr_t addr,

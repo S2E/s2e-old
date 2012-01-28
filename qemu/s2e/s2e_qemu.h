@@ -247,7 +247,7 @@ void s2e_tb_free(struct S2E* s2e, struct TranslationBlock *tb);
     in order to update tb->s2e_tb->llvm_function */
 void s2e_set_tb_function(struct S2E* s2e, struct TranslationBlock *tb);
 
-uintptr_t s2e_qemu_tb_exec(struct TranslationBlock *tb);
+uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env, struct TranslationBlock *tb);
 
 /* Called by QEMU when execution is aborted using longjmp */
 void s2e_qemu_cleanup_tb_exec(
@@ -260,19 +260,16 @@ void s2e_qemu_finalize_tb_exec(struct S2E *s2e, struct S2EExecutionState* state)
 void s2e_init_timers(struct S2E* s2e);
 
 
-/* Called by the load/savevm functions to restore/save the state of the vm */
-extern int s2e_dev_snapshot_enable;
 void s2e_init_device_state(struct S2EExecutionState *s);
-void *s2e_qemu_get_first_se(void);
-void *s2e_qemu_get_next_se(void *se);
-const char *s2e_qemu_get_se_idstr(void *se);
-void s2e_qemu_save_state(void *se);
-void s2e_qemu_load_state(void *se);
 
+#if 0
 void s2e_qemu_put_byte(struct S2EExecutionState *s, int v);
 int s2e_qemu_get_byte(struct S2EExecutionState *s);
+int s2e_qemu_peek_byte(struct S2EExecutionState *s);
 int s2e_qemu_get_buffer(struct S2EExecutionState *s, uint8_t *buf, int size1);
+int s2e_qemu_peek_buffer(struct S2EExecutionState *s, uint8_t *buf, int size1);
 void s2e_qemu_put_buffer(struct S2EExecutionState *s, const uint8_t *buf, int size);
+#endif
 
 void s2e_dump_state(void);
 

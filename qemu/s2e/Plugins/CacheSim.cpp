@@ -63,6 +63,7 @@ using namespace klee;
 
 /** Returns the floor form of binary logarithm for a 32 bit integer.
     (unsigned) -1 is returned if n is 0. */
+uint64_t floorLog2(uint64_t n);
 uint64_t floorLog2(uint64_t n) {
     int pos = 0;
     if (n >= 1<<16) { n >>= 16; pos += 16; }

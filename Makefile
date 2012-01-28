@@ -85,6 +85,9 @@ ASAN_DIR=$(S2EBUILD)/llvm-asan/projects/compiler-rt/lib/asan_clang_linux
 ASAN_CC=$(ASAN_DIR)/bin/clang
 ASAN_CXX=$(ASAN_DIR)/bin/clang++
 
+CLANG_CC=$(S2EBUILD)/llvm-native/Release/bin/clang
+CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
+
 ########
 # LLVM #
 ########
@@ -150,8 +153,8 @@ stamps/stp-copy:
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
-	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp
-	cd stp && cp src/c_interface/c_interface.h include/stp
+	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC)
+	#cd stp && cp src/c_interface/c_interface.h include/stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS

@@ -36,8 +36,7 @@
 
 // XXX: qemu stuff should be included before anything from KLEE or LLVM !
 extern "C" {
-#include <tcg.h>
-#include <tcg-op.h>
+#include "tcg-op.h"
 #include <qemu-timer.h>
 
 extern struct CPUX86State *env;
@@ -51,6 +50,9 @@ extern struct CPUX86State *env;
 #include <s2e/S2EExecutor.h>
 
 #include <s2e/s2e_qemu.h>
+#include <s2e/s2e_config.h>
+#include <s2e/S2ESJLJ.h>
+
 
 using namespace std;
 
@@ -69,15 +71,15 @@ static void s2e_timer_cb(void *opaque)
 
     g_s2e->getExecutor()->updateStats(g_s2e_state);
     c->onTimer.emit();
-    qemu_mod_timer(c->getTimer(), qemu_get_clock(rt_clock) + 1000);
+    qemu_mod_timer(c->getTimer(), qemu_get_clock_ns(rt_clock) + 1000000000);
 }
 
 void CorePlugin::initializeTimers()
 {
     s2e()->getDebugStream() << "Initializing periodic timer" << '\n';
     /* Initialize the timer handler */
-    m_Timer = qemu_new_timer(rt_clock, s2e_timer_cb, this);
-    qemu_mod_timer(m_Timer, qemu_get_clock(rt_clock) + 1000);
+    m_Timer = qemu_new_timer_ns(rt_clock, s2e_timer_cb, this);
+    qemu_mod_timer(m_Timer, qemu_get_clock_ns(rt_clock) + 1000);
 }
 
 void CorePlugin::initialize()
@@ -115,7 +117,7 @@ void s2e_tcg_custom_instruction_handler(uint64_t arg)
 
 void s2e_tcg_emit_custom_instruction(S2E*, uint64_t arg)
 {
-    TCGv_ptr t0 = tcg_temp_new_i64();
+    TCGv_i64 t0 = tcg_temp_new_i64();
     tcg_gen_movi_i64(t0, arg);
 
     TCGArg args[1];
@@ -130,7 +132,7 @@ void s2e_tcg_emit_custom_instruction(S2E*, uint64_t arg)
 /* Next pc, when != -1, indicates with which value to update the program counter
    before calling the annotation. This is useful when instrumenting instructions
    that do not explicitely update the program counter by themselves. */
-void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc, uint64_t nextpc=-1)
+static void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc, uint64_t nextpc=-1)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
     TCGv_i64 t1 = tcg_temp_new_i64();
@@ -150,10 +152,10 @@ void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc, uint64_
 
 #if TCG_TARGET_REG_BITS == 64
     const int sizemask = 4 | 2;
-    tcg_gen_movi_i64(t0, (tcg_target_ulong) signal);
+    tcg_gen_movi_i64(TCGV_PTR_TO_NAT(t0), (tcg_target_ulong) signal);
 #else
     const int sizemask = 4;
-    tcg_gen_movi_i32(t0, (tcg_target_ulong) signal);
+    tcg_gen_movi_i32(TCGV_PTR_TO_NAT(t0), (tcg_target_ulong) signal);
 #endif
 
     tcg_gen_movi_i64(t1, pc);

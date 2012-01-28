@@ -40,9 +40,12 @@
 extern "C" {
 #include <qemu-common.h>
 #include <cpu-all.h>
+#include <tcg.h>
 #include <tcg-llvm.h>
 #include <exec-all.h>
+#include <ioport.h>
 #include <sysemu.h>
+#include <cpus.h>
 
 extern struct CPUX86State *env;
 void QEMU_NORETURN raise_exception(int exception_index);
@@ -51,8 +54,12 @@ extern const uint8_t parity_table[256];
 extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
 
-uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
-                  target_ulong next_eip, int is_hw);
+void do_interrupt_all(int intno, int is_int, int error_code,
+                             target_ulong next_eip, int is_hw);
+
+
+void s2e_do_interrupt_all(int intno, int is_int, int error_code,
+                             target_ulong next_eip, int is_hw);
 uint64_t helper_set_cc_op_eflags(void);
 }
 #include <malloc.h>
@@ -626,7 +633,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_inb)
     __DEFINE_EXT_FUNCTION(cpu_inw)
     __DEFINE_EXT_FUNCTION(cpu_inl)
-    __DEFINE_EXT_FUNCTION(cpu_restore_icount)
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
     __DEFINE_EXT_FUNCTION(cpu_abort)
     __DEFINE_EXT_FUNCTION(cpu_loop_exit)
@@ -642,6 +648,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(tlb_flush_page)
     __DEFINE_EXT_FUNCTION(tlb_flush)
 
+    /*XXX: Disable for now
     __DEFINE_EXT_FUNCTION(io_readb_mmu)
     __DEFINE_EXT_FUNCTION(io_readw_mmu)
     __DEFINE_EXT_FUNCTION(io_readl_mmu)
@@ -651,6 +658,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(io_writew_mmu)
     __DEFINE_EXT_FUNCTION(io_writel_mmu)
     __DEFINE_EXT_FUNCTION(io_writeq_mmu)
+    */
 
     __DEFINE_EXT_FUNCTION(s2e_ensure_symbolic)
 
@@ -663,8 +671,11 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(s2e_is_mmio_symbolic_q)
 
 
+    /* XXX: disable for now
     __DEFINE_EXT_FUNCTION(s2e_ismemfunc)
     __DEFINE_EXT_FUNCTION(s2e_notdirty_mem_write)
+    */
+
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
     __DEFINE_EXT_FUNCTION(can_do_io)
 
@@ -693,7 +704,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
             /* Optimize= */ true, /* CheckDivZero= */ false,
             m_tcgLLVMContext->getFunctionPassManager());
 
-    qemu_free(filename);
+    g_free(filename);
 
 #else
     ModuleOptions MOpts(vector<string>(),
@@ -1115,7 +1126,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
         //copyInConcretes(*oldState);
         oldState->getDeviceState()->saveDeviceState();
-        oldState->m_qemuIcount = qemu_icount;
+        //oldState->m_qemuIcount = qemu_icount;
         *oldState->m_timersState = timers_state;
 
         uint8_t *oldStore = oldState->m_cpuSystemObject->getConcreteStore();
@@ -1126,7 +1137,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     if(newState) {
         timers_state = *newState->m_timersState;
-        qemu_icount = newState->m_qemuIcount;
+        //qemu_icount = newState->m_qemuIcount;
         newState->getDeviceState()->restoreDeviceState();
     }
 
@@ -1589,7 +1600,7 @@ uintptr_t S2EExecutor::executeTranslationBlockConcrete(S2EExecutionState *state,
         memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
         throw CpuExitException();
     } else {
-        ret = tcg_qemu_tb_exec(tb->tc_ptr);
+        ret = tcg_qemu_tb_exec(env, tb->tc_ptr);
     }
 
     memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
@@ -1932,7 +1943,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
             newState->m_needFinalizeTBExec = true;
 
             newState->getDeviceState()->saveDeviceState();
-            newState->m_qemuIcount = qemu_icount;
+            //newState->m_qemuIcount = qemu_icount;
             *newState->m_timersState = timers_state;
 
             /* Save CPU state */
@@ -2112,7 +2123,7 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
         if(!state->m_runningConcrete)
             switchToConcrete(state);
         //TimerStatIncrementer t(stats::concreteModeTime);
-        helper_do_interrupt(intno, is_int, error_code, next_eip, is_hw);
+        s2e_do_interrupt_all(intno, is_int, error_code, next_eip, is_hw);
     } else {
         if(state->m_runningConcrete)
             switchToSymbolic(state);
@@ -2124,7 +2135,7 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
         args[4] = klee::ConstantExpr::create(is_hw, sizeof(int)*8);
         try {
             TimerStatIncrementer t(stats::symbolicModeTime);
-            executeFunction(state, "helper_do_interrupt", args);
+            executeFunction(state, "s2e_do_interrupt_all", args);
         } catch(s2e::CpuExitException&) {
             updateStates(state);
             s2e_longjmp(env->jmp_env, 1);
@@ -2262,7 +2273,7 @@ S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
     return s2e->getExecutor()->selectNextState(state);
 }
 
-uintptr_t s2e_qemu_tb_exec(struct TranslationBlock* tb)
+uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env, struct TranslationBlock* tb)
 {
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc() << std::dec
@@ -2307,17 +2318,16 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
  *  plugins to enable/disable tracing upon exiting/entering
  *  the emulation code.
  */
-void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
-                      int intno, int is_int, int error_code,
-                      uint64_t next_eip, int is_hw)
+void do_interrupt_all(int intno, int is_int, int error_code,
+                      target_ulong next_eip, int is_hw)
 {
-    state->setRunningExceptionEmulationCode(true);
+    g_s2e_state->setRunningExceptionEmulationCode(true);
     s2e_on_exception(intno);
 
-    s2e->getExecutor()->doInterrupt(state, intno, is_int, error_code,
+    g_s2e->getExecutor()->doInterrupt(g_s2e_state, intno, is_int, error_code,
                                     next_eip, is_hw);
 
-    state->setRunningExceptionEmulationCode(false);
+    g_s2e_state->setRunningExceptionEmulationCode(false);
 }
 
 /**

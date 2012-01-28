@@ -19,4 +19,14 @@ void set_cpu_log(const char *optarg);
 void set_cpu_log_filename(const char *optarg);
 void list_cpus(FILE *f, fprintf_function cpu_fprintf, const char *optarg);
 
+typedef struct TimersState {
+    int64_t cpu_ticks_prev;
+    int64_t cpu_ticks_offset;
+    int64_t cpu_clock_offset;
+    int32_t cpu_ticks_enabled;
+    int64_t dummy;
+} TimersState;
+
+extern TimersState timers_state;
+
 #endif

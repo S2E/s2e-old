@@ -275,7 +275,7 @@ sdl_config="${SDL_CONFIG-${cross_prefix}sdl-config}"
 
 # default flags for all hosts
 CFLAGS="-g $CFLAGS"
-CXXFLAGS="-g $CXXFLAGS"
+CXXFLAGS="-Wno-mismatched-tags -g $CXXFLAGS"
 LDFLAGS="-g $LDFLAGS"
 
 QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
@@ -948,7 +948,7 @@ case "$cpu" in
 esac
 
 if [ "x$address_sanitizer" = "xyes" ]; then
-	CFLAGS="-fstack-protector-all $CFLAGS"
+    CFLAGS="-fstack-protector-all $CFLAGS"
     CXXFLAGS="-fstack-protector-all -Wno-mismatched-tags $CXXFLAGS"
     #This is required for probing LLVM and KLEE, as they
     #might be compiled with AddressSanitizer instrumentation.
@@ -3399,6 +3399,7 @@ fi
 if test "$compileallwithclang" = "yes"; then
   echo "CONFIG_CLANG=y" >> $config_host_mak
   echo "LLVMCC:=$clang" >> $config_host_mak
+  echo "LLVMCXX:=${clang}++" >> $config_host_mak
 fi
 if test "$xen" = "yes" ; then
   echo "CONFIG_XEN_BACKEND=y" >> $config_host_mak

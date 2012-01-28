@@ -16,6 +16,20 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -29,6 +43,15 @@
 #include "disas.h"
 #include "tcg.h"
 #include "qemu-timer.h"
+
+#ifdef CONFIG_LLVM
+#include "tcg-llvm.h"
+#endif
+
+#ifdef CONFIG_S2E
+#include "s2e/s2e_qemu.h"
+#endif
+
 
 /* code generation context */
 TCGContext tcg_ctx;
@@ -89,6 +112,18 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 #endif
     gen_code_size = tcg_gen_code(s, gen_code_buf);
     *gen_code_size_ptr = gen_code_size;
+
+#ifdef CONFIG_S2E
+    tcg_calc_regmask(s, &tb->reg_rmask, &tb->reg_wmask,
+                     &tb->helper_accesses_mem);
+#endif
+
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+    if(generate_llvm)
+        tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
+#endif
+
+
 #ifdef CONFIG_PROFILER
     s->code_time += profile_getclock();
     s->code_in_len += tb->size;
@@ -102,6 +137,17 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
         qemu_log("\n");
         qemu_log_flush();
     }
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+    if(generate_llvm && qemu_loglevel_mask(CPU_LOG_LLVM_ASM)
+            && tb->llvm_tc_ptr) {
+        ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;
+        qemu_log("OUT (LLVM ASM) [size=%ld] (%s)\n", size,
+                    tcg_llvm_get_func_name(tb));
+        log_disas((void*) tb->llvm_tc_ptr, size);
+        qemu_log("\n");
+        qemu_log_flush();
+    }
+#endif
 #endif
     return 0;
 }
@@ -111,6 +157,13 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 int cpu_restore_state(TranslationBlock *tb,
                       CPUState *env, unsigned long searched_pc)
 {
+/**
+ *  The retranslation mechanism interferes with S2E's instrumentation.
+ *  We get rid of the retranslation by saving the pc and flags explicitely
+ *  before each instruction.
+ */
+#ifndef CONFIG_S2E
+
     TCGContext *s = &tcg_ctx;
     int j;
     unsigned long tc_ptr;
@@ -159,5 +212,33 @@ int cpu_restore_state(TranslationBlock *tb,
     s->restore_time += profile_getclock() - ti;
     s->restore_count++;
 #endif
+#endif //CONFIG_S2E
     return 0;
 }
+
+#ifdef CONFIG_S2E
+
+/** Generates LLVM code for already translated TB */
+int cpu_gen_llvm(CPUState *env, TranslationBlock *tb)
+{
+    TCGContext *s = &tcg_ctx;
+    assert(tb->llvm_function == NULL);
+
+    tcg_func_start(s);
+    gen_intermediate_code_pc(env, tb);
+    tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
+    s2e_set_tb_function(g_s2e, tb);
+
+    if(qemu_loglevel_mask(CPU_LOG_LLVM_ASM) && tb->llvm_tc_ptr) {
+        ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;
+        qemu_log("OUT (LLVM ASM) [size=%ld] (%s)\n", size,
+                    tcg_llvm_get_func_name(tb));
+        log_disas((void*) tb->llvm_tc_ptr, size);
+        qemu_log("\n");
+        qemu_log_flush();
+    }
+
+    return 0;
+}
+
+#endif

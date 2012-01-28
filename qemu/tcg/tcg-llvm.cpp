@@ -34,6 +34,10 @@
  *
  */
 
+extern "C" {
+#include "tcg.h"
+}
+
 #include "tcg-llvm.h"
 
 extern "C" {
@@ -652,14 +656,15 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     v2 = m_builder.CreateCall(funcAddr, argValues.begin(), argValues.end());
 
 #else
-    m_builder.CreateStore(
-        ConstantInt::get(wordType(),
-                ld ? (uint64_t) qemu_ld_helpers[bits>>4]:
-                     (uint64_t) qemu_st_helpers[bits>>4]),
+    uintptr_t helperFunc = ld ? (uint64_t) qemu_ld_helpers[bits>>4]:
+                           (uint64_t) qemu_st_helpers[bits>>4];
+
+/*    m_builder.CreateStore(
+        ConstantInt::get(wordType(), helperFunc),
         m_builder.CreateIntToPtr(
             ConstantInt::get(wordType(),
                 (uint64_t) &tcg_llvm_runtime.helper_call_addr),
-            wordPtrType()));
+            wordPtrType()));*/
 
     std::vector<Type*> argTypes; argTypes.reserve(3);
     for(int i=0; i<(ld?2:3); ++i)
@@ -671,14 +676,14 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
                     argTypes, false),
             0);
 
-#ifdef CONFIG_S2E
-    Value* funcAddr = m_builder.CreateBitCast(
-            m_helperWrapperFunction, helperFunctionPtrTy);
-#else
+//#ifdef CONFIG_S2E
+//    Value* funcAddr = m_builder.CreateBitCast(
+//           m_helperWrapperFunction, helperFunctionPtrTy);
+//#else
     Value* funcAddr = m_builder.CreateIntToPtr(
-            ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
+            ConstantInt::get(wordType(), helperFunc),
             helperFunctionPtrTy);
-#endif
+//#endif
     v2 = m_builder.CreateCall(funcAddr, ArrayRef<Value*>(argValues));
 #endif
 
@@ -827,22 +832,19 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
                                           ArrayRef<Value*>(argValues));
 
 #else
-            m_builder.CreateStore(helperAddr, m_builder.CreateIntToPtr(
+            /*m_builder.CreateStore(helperAddr, m_builder.CreateIntToPtr(
                         ConstantInt::get(wordType(),
                             (uint64_t) &tcg_llvm_runtime.helper_call_addr),
                         wordPtrType()));
+            */
 
             Type* helperFunctionPtrTy = PointerType::get(
                     FunctionType::get(retType, argTypes, false), 0);
 
-#ifdef CONFIG_S2E
-            Value* funcAddr = m_builder.CreateBitCast(
-                    m_helperWrapperFunction, helperFunctionPtrTy);
-#else
             Value* funcAddr = m_builder.CreateIntToPtr(
-                    ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
+                    //ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
+                    helperAddr,
                     helperFunctionPtrTy);
-#endif
 
             Value* result = m_builder.CreateCall(funcAddr,
                                 ArrayRef<Value*>(argValues));
@@ -1239,6 +1241,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
 {
     /* Create new function for current translation block */
+    /* TODO: compute the checksum of the tb to see if we can reuse some code */
     std::ostringstream fName;
     fName << "tcg-llvm-tb-" << (m_tbCount++) << "-" << std::hex << tb->pc;
 
@@ -1443,11 +1446,10 @@ const char* tcg_llvm_get_func_name(TranslationBlock *tb)
     return buf;
 }
 
-uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
-                            void* volatile* saved_AREGs)
+uintptr_t tcg_llvm_qemu_tb_exec(void *env, TranslationBlock *tb)
 {
 #ifndef CONFIG_S2E
     tcg_llvm_runtime.last_tb = tb;
 #endif
-    return ((uintptr_t (*)(void* volatile*)) tb->llvm_tc_ptr)(saved_AREGs);
+    return ((uintptr_t (*)(void*)) tb->llvm_tc_ptr)(env);
 }

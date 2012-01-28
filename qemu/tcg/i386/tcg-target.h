@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #define TCG_TARGET_I386 1
 
 #if defined(__x86_64__)
@@ -131,3 +132,4 @@ typedef enum {
 static inline void flush_icache_range(unsigned long start, unsigned long stop)
 {
 }
+

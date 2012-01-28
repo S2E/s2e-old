@@ -21,6 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "qemu-common.h"
 
 /* Target word size (must be identical to pointer size). */
@@ -299,7 +313,7 @@ static inline TCGCond tcg_swap_cond(TCGCond c)
 
 static inline TCGCond tcg_unsigned_cond(TCGCond c)
 {
-    return (c >= TCG_COND_LT && c <= TCG_COND_GT ? c + 4 : c);
+    return (TCGCond)(c >= TCG_COND_LT && c <= TCG_COND_GT ? c + 4 : c);
 }
 
 #define TEMP_VAL_DEAD  0
@@ -331,6 +345,9 @@ typedef struct TCGTemp {
 typedef struct TCGHelperInfo {
     tcg_target_ulong func;
     const char *name;
+    uint64_t reg_rmask;
+    uint64_t reg_wmask;
+    uint64_t accesses_mem;
 } TCGHelperInfo;
 
 typedef struct TCGContext TCGContext;
@@ -576,6 +593,9 @@ TCGArg *tcg_optimize(TCGContext *s, uint16_t *tcg_opc_ptr, TCGArg *args,
 /* only used for debugging purposes */
 void tcg_register_helper(void *func, const char *name);
 const char *tcg_helper_get_name(TCGContext *s, void *func);
+void tcg_helper_get_reg_mask(TCGContext *s, void *func,
+                             uint64_t* reg_rmask, uint64_t* reg_wmask,
+                             uint64_t* accesses_mem);
 void tcg_dump_ops(TCGContext *s, FILE *outfile);
 
 void dump_ops(const uint16_t *opc_buf, const TCGArg *opparam_buf);
@@ -590,4 +610,9 @@ extern uint8_t code_gen_prologue[];
 #if !defined(tcg_qemu_tb_exec)
 # define tcg_qemu_tb_exec(env, tb_ptr) \
     ((long REGPARM (*)(void *, void *))code_gen_prologue)(env, tb_ptr)
+#endif
+
+#ifdef CONFIG_S2E
+void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
+                      uint64_t *accesses_mem);
 #endif

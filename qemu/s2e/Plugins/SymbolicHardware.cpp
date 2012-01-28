@@ -36,9 +36,10 @@
 
 extern "C"
 {
-    #include "hw/hw.h"
-    #include "hw/pci.h"
-    #include "hw/isa.h"
+#include "cpu.h"
+#include "hw/hw.h"
+#include "hw/pci.h"
+#include "hw/isa.h"
 }
 
 #include "SymbolicHardware.h"
@@ -87,9 +88,7 @@ extern "C" {
     static int pci_symbhw_uninit(PCIDevice *pci_dev);
     static int isa_symbhw_init(ISADevice *dev);
 
-    static uint32_t symbhw_read8(void *opaque, uint32_t address);
-    static uint32_t symbhw_read16(void *opaque, uint32_t address);
-    static uint32_t symbhw_read32(void *opaque, uint32_t address);
+#if 0
     static void symbhw_write8(void *opaque, uint32_t address, uint32_t data);
     static void symbhw_write16(void *opaque, uint32_t address, uint32_t data);
     static void symbhw_write32(void *opaque, uint32_t address, uint32_t data);
@@ -100,6 +99,7 @@ extern "C" {
     static uint32_t symbhw_mmio_readb(void *opaque, target_phys_addr_t addr);
     static uint32_t symbhw_mmio_readw(void *opaque, target_phys_addr_t addr);
     static uint32_t symbhw_mmio_readl(void *opaque, target_phys_addr_t addr);
+#endif
 }
 
 
@@ -604,13 +604,13 @@ void PciDeviceDescriptor::setInterrupt(bool state)
     g_s2e->getDebugStream() << "PciDeviceDescriptor::setInterrupt " << state << '\n';
     assert(m_qemuIrq);
     if (state) {
-       s2e_print_apic(env);
+       //s2e_print_apic(env);
         qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
-        s2e_print_apic(env);
+       // s2e_print_apic(env);
     }else {
-        s2e_print_apic(env);
+        //s2e_print_apic(env);
        qemu_irq_lower(*(qemu_irq*)m_qemuIrq);
-       s2e_print_apic(env);
+       //s2e_print_apic(env);
     }
 }
 
@@ -621,84 +621,31 @@ void PciDeviceDescriptor::assignIrq(void *irq)
 
 /////////////////////////////////////////////////////////////////////
 /* Dummy I/O functions for symbolic devices. Unused for now. */
-static void symbhw_write8(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << '\n';
-}
 
-static void symbhw_write16(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << '\n';
-}
-
-static void symbhw_write32(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << '\n';
-}
-
-/* These will never be called */
-static uint32_t symbhw_read8(void *opaque, uint32_t address)
+/////////////////////////////////////////////////////////////////////
+/* Dummy I/O functions for symbolic devices. Unused for now. */
+static uint64_t symbhw_read(void *opaque, target_phys_addr_t addr,
+                            unsigned size)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << '\n';
     return 0;
 }
 
-static uint32_t symbhw_read16(void *opaque, uint32_t address)
+static void symbhw_write(void *opaque, target_phys_addr_t addr,
+                         uint64_t data, unsigned size)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << '\n';
-    return 0;
+
 }
 
-static uint32_t symbhw_read32(void *opaque, uint32_t address)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << '\n';
-    return 0;
-}
-
-static void symbhw_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << '\n';
-}
-
-static void symbhw_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << '\n';
-}
-
-static void symbhw_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << '\n';
-}
-
-static uint32_t symbhw_mmio_readb(void *opaque, target_phys_addr_t addr)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << '\n';
-    return 0;
-}
-
-static uint32_t symbhw_mmio_readw(void *opaque, target_phys_addr_t addr)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << '\n';
-    return 0;
-}
-
-static uint32_t symbhw_mmio_readl(void *opaque, target_phys_addr_t addr)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << '\n';
-    return 0;
-}
-
-static CPUReadMemoryFunc * const symbhw_mmio_read[3] = {
-    symbhw_mmio_readb,
-    symbhw_mmio_readw,
-    symbhw_mmio_readl,
+static const MemoryRegionOps symbhw_io_ops = {
+    .read = symbhw_read,
+    .write = symbhw_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static CPUWriteMemoryFunc * const symbhw_mmio_write[3] = {
-    symbhw_mmio_writeb,
-    symbhw_mmio_writew,
-    symbhw_mmio_writel,
-};
 
 /////////////////////////////////////////////////////////////////////
 
+#if 0
 static void pci_symbhw_map(PCIDevice *pci_dev, int region_num,
                        pcibus_t addr, pcibus_t size, int type)
 {
@@ -728,7 +675,7 @@ static void pci_symbhw_map(PCIDevice *pci_dev, int region_num,
         shw->setSymbolicMmioRange(g_s2e_state, addr, size);
     }
 }
-
+#endif
 
 static int isa_symbhw_init(ISADevice *dev)
 {
@@ -752,6 +699,9 @@ static int isa_symbhw_init(ISADevice *dev)
     uint32_t addr = s->getResource().portBase;
     uint32_t irq = s->getResource().irq;
 
+    assert(false && "Not implemented");
+
+#if 0
     register_ioport_write(addr, size, 1, symbhw_write8, s);
     register_ioport_read(addr, size, 1, symbhw_read8, s);
 
@@ -760,6 +710,7 @@ static int isa_symbhw_init(ISADevice *dev)
 
     register_ioport_write(addr, size, 4, symbhw_write32, s);
     register_ioport_read(addr, size, 4, symbhw_read32, s);
+#endif
 
     hw->setSymbolicPortRange(addr, size, true);
 
@@ -806,15 +757,16 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
         type |= res.isIo ? PCI_BASE_ADDRESS_SPACE_IO : PCI_BASE_ADDRESS_SPACE_MEMORY;
         type |= res.prefetchable ? PCI_BASE_ADDRESS_MEM_PREFETCH : 0;
 
-        pci_register_bar(&d->dev, i, res.size,
-                                   type, pci_symbhw_map);
+        assert(false && "not ported yet");
+        //pci_register_bar(&d->dev, i, type, pci_symbhw_map);
 
         ++i;
     }
 
     /* I/O handler for memory-mapped I/O */
-    dd->mmio_io_addr =
-    cpu_register_io_memory(symbhw_mmio_read, symbhw_mmio_write, d);
+    assert(false && "not ported yet");
+    //dd->mmio_io_addr =
+    //cpu_register_io_memory(symbhw_mmio_read, symbhw_mmio_write, d);
 
     dd->assignIrq(&d->dev.irq[0]);
 

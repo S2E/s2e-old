@@ -21,6 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -118,6 +132,7 @@ int main(int argc, char **argv)
 #include "hw/usb.h"
 #include "hw/pcmcia.h"
 #include "hw/pc.h"
+#include "hw/fakepci.h"
 #include "hw/isa.h"
 #include "hw/baum.h"
 #include "hw/bt.h"
@@ -165,6 +180,21 @@ int main(int argc, char **argv)
 #include "cpus.h"
 #include "arch_init.h"
 
+#ifdef CONFIG_LLVM
+struct TCGLLVMContext;
+
+extern struct TCGLLVMContext* tcg_llvm_ctx;
+extern int generate_llvm;
+extern int execute_llvm;
+extern const int has_llvm_engine;
+
+struct TCGLLVMContext* tcg_llvm_initialize(void);
+void tcg_llvm_close(struct TCGLLVMContext *l);
+#endif
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
 #include "ui/qemu-spice.h"
 
 //#define DEBUG_NET
@@ -212,7 +242,7 @@ int smp_threads = 1;
 const char *vnc_display;
 #endif
 int acpi_enabled = 1;
-int no_hpet = 0;
+int no_hpet = 1;
 int fd_bootchk = 1;
 int no_reboot = 0;
 int no_shutdown = 0;
@@ -234,6 +264,9 @@ uint8_t *boot_splash_filedata;
 int boot_splash_filedata_size;
 uint8_t qemu_extra_params_fw[2];
 
+#if !defined(CONFIG_S2E)
+fake_pci_t g_fake_pci;
+#endif
 typedef struct FWBootEntry FWBootEntry;
 
 struct FWBootEntry {
@@ -556,6 +589,26 @@ static void configure_rtc(QemuOpts *opts)
         }
     }
 }
+
+#ifdef CONFIG_S2E
+static void s2e_cleanup(void)
+{
+    if(g_s2e) {
+        s2e_close(g_s2e);
+        g_s2e = NULL;
+    }
+}
+#endif
+
+#ifdef CONFIG_LLVM
+static void tcg_llvm_cleanup(void)
+{
+    if(tcg_llvm_ctx) {
+        tcg_llvm_close(tcg_llvm_ctx);
+        tcg_llvm_ctx = NULL;
+    }
+}
+#endif
 
 /***********************************************************/
 /* Bluetooth support */
@@ -1705,6 +1758,10 @@ char *qemu_find_file(int type, const char *name)
         return g_strdup(name);
     }
     switch (type) {
+    case QEMU_FILE_TYPE_LIB:
+        /* XXX: Terrible hack. Redo it properly! */
+        subdir="../i386-s2e-softmmu/";
+        break;
     case QEMU_FILE_TYPE_BIOS:
         subdir = "";
         break;
@@ -2168,6 +2225,15 @@ int main(int argc, char **argv, char **envp)
     const char *loadvm = NULL;
     QEMUMachine *machine;
     const char *cpu_model;
+
+#ifdef CONFIG_S2E
+    const char *s2e_config_file = NULL;
+    const char *s2e_output_dir = NULL;
+    int execute_always_klee = 0;
+    int s2e_verbose = 0;
+    int s2e_max_processes = 1;
+#endif
+
     const char *pid_file = NULL;
     const char *incoming = NULL;
 #ifdef CONFIG_VNC
@@ -2285,6 +2351,70 @@ int main(int argc, char **argv, char **envp)
                     cpu_model = optarg;
                 }
                 break;
+#ifdef CONFIG_S2E
+            case QEMU_OPTION_s2e_config_file:
+              s2e_config_file = optarg;
+              break;
+            case QEMU_OPTION_s2e_output_dir:
+              s2e_output_dir = optarg;
+              break;
+#else
+            case QEMU_OPTION_fake_pci_name:
+              g_fake_pci.fake_pci_name = optarg;
+              break;
+            case QEMU_OPTION_fake_pci_vendor_id:
+              g_fake_pci.fake_pci_vendor_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_device_id:
+              g_fake_pci.fake_pci_device_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_revision_id:
+              g_fake_pci.fake_pci_revision_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_class_code:
+              g_fake_pci.fake_pci_class_code = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_ss_vendor_id:
+              g_fake_pci.fake_pci_ss_vendor_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_ss_id:
+              g_fake_pci.fake_pci_ss_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_resource_io:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), PCI_BASE_ADDRESS_SPACE_IO, NULL, NULL};
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_mem:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), PCI_BASE_ADDRESS_SPACE_MEMORY, NULL, NULL };
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_mem_prefetch:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), PCI_BASE_ADDRESS_MEM_PREFETCH, NULL, NULL };
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_rom:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), PCI_ROM_ADDRESS, NULL, NULL};
+                g_fake_pci.fake_pci_num_resources = PCI_NUM_REGIONS;
+                g_fake_pci.fake_pci_resources[PCI_ROM_SLOT] = region;
+              }
+              break;
+
+#endif
+
             case QEMU_OPTION_initrd:
                 initrd_filename = optarg;
                 break;
@@ -3057,9 +3187,42 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+            case QEMU_OPTION_execute_llvm:
+                if (!has_llvm_engine) {
+                    fprintf(stderr, "Cannot execute un LLVM mode (S2E mode present or LLVM mode missing)\n");
+                    exit(1);
+                }
+                generate_llvm = 1;
+                execute_llvm = 1;
+                break;
+            case QEMU_OPTION_generate_llvm:
+                if (!has_llvm_engine) {
+                    fprintf(stderr, "Cannot execute un LLVM mode (S2E mode present or LLVM mode missing)\n");
+                    exit(1);
+                }
+
+                generate_llvm = 1;
+                break;
+#endif
+#ifdef CONFIG_S2E
+            case QEMU_OPTION_always_klee:
+                execute_always_klee = 1;
+                break;
+            case QEMU_OPTION_s2e_verbose:
+                s2e_verbose = 1;
+                break;
+            case QEMU_OPTION_s2e_max_processes:
+                s2e_max_processes = strtol(optarg, NULL, 0);
+                if (s2e_max_processes == 0) {
+                    s2e_max_processes = 1;
+                }
+                break;
+#endif
             default:
                 os_parse_cmd_args(popt->index, optarg);
-            }
+
+        }
         }
     }
     loc_set_none();
@@ -3094,6 +3257,24 @@ int main(int argc, char **argv, char **envp)
         fprintf(stderr, "No machine found.\n");
         exit(1);
     }
+#ifdef CONFIG_LLVM
+    tcg_llvm_ctx = tcg_llvm_initialize();
+#endif
+
+#ifdef CONFIG_S2E
+    if (!s2e_config_file) {
+      fprintf(stderr, "Warning: S2E configuration file was not specified, "
+                        "using the default (empty) file\n");
+    }
+    g_s2e = s2e_initialize(argc, argv, tcg_llvm_ctx,
+                           s2e_config_file, s2e_output_dir,
+                           s2e_verbose, s2e_max_processes);
+
+    g_s2e_state = s2e_create_initial_state(g_s2e);
+
+    atexit(s2e_cleanup);
+    //atexit(tcg_llvm_cleanup);
+#endif
 
     /*
      * Default to max_cpus = smp_cpus, in case the user doesn't
@@ -3332,6 +3513,13 @@ int main(int argc, char **argv, char **envp)
     if (foreach_device_config(DEV_DEBUGCON, debugcon_parse) < 0)
         exit(1);
 
+#ifdef CONFIG_S2E
+    s2e_on_device_registration(g_s2e);
+#else
+    void fake_register_devices(fake_pci_t *fake);
+    fake_register_devices(&g_fake_pci);
+#endif
+
     module_call_init(MODULE_INIT_DEVICE);
 
     if (qemu_opts_foreach(qemu_find_opts("device"), device_help_func, NULL, 0) != 0)
@@ -3467,6 +3655,11 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+#ifdef CONFIG_S2E
+   s2e_init_device_state(g_s2e_state);
+   s2e_init_timers(g_s2e);
+#endif
+
     if (incoming) {
         runstate_set(RUN_STATE_INMIGRATE);
         int ret = qemu_start_incoming_migration(incoming);
@@ -3487,6 +3680,14 @@ int main(int argc, char **argv, char **envp)
     pause_all_vcpus();
     net_cleanup();
     res_free();
+
+#ifdef CONFIG_S2E
+    s2e_cleanup();
+#endif
+
+#ifdef CONFIG_LLVM
+    tcg_llvm_cleanup();
+#endif
 
     return 0;
 }

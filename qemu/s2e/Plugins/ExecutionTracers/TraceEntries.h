@@ -42,6 +42,15 @@
 #include <string>
 #include <vector>
 
+#undef EAX
+#undef EBX
+#undef ECX
+#undef EDX
+#undef EDI
+#undef ESI
+#undef EBP
+#undef ESP
+
 namespace s2e {
 namespace plugins {
 

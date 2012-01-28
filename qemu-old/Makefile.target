@@ -403,7 +403,7 @@ libs2e.a: $(s2eobj-y)
 
 $(s2eobj-y): QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS) $(S2E_CXXFLAGS)
 
-ARLIBS += libs2e.a
+ARLIBS+=libs2e.a
 
 #########################################################
 # S2E-llvm library

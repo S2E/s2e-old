@@ -801,7 +801,7 @@
 ##
 { 'type': 'PciDeviceInfo',
   'data': {'bus': 'int', 'slot': 'int', 'function': 'int',
-           'class_info': {'*desc': 'str', 'class': 'int'},
+           'class_info': {'*desc': 'str', 'dev_class': 'int'},
            'id': {'device': 'int', 'vendor': 'int'},
            '*irq': 'int', 'qdev_id': 'str', '*pci_bridge': 'PciBridgeInfo',
            'regions': ['PciMemoryRegion']} }

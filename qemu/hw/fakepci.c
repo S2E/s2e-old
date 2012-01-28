@@ -44,6 +44,8 @@
 #include "qemu-common.h"
 #include "hw/hw.h"
 #include "hw/pci.h"
+#include "fakepci.h"
+#undef CONFIG_S2E
 
 #ifndef CONFIG_S2E
 
@@ -54,87 +56,30 @@ PCIDevice *fake_pci_dev;
 
 /////////////////////////////////////////////////////////////////////
 /* Dummy I/O functions for symbolic devices. Unused for now. */
-static void symbhw_write8(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
-}
-
-static void symbhw_write16(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
-}
-
-static void symbhw_write32(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
-}
-
-/* These will never be called */
-static uint32_t symbhw_read8(void *opaque, uint32_t address)
+static uint64_t fake_read(void *opaque, target_phys_addr_t addr,
+                            unsigned size)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
     return 0;
 }
 
-static uint32_t symbhw_read16(void *opaque, uint32_t address)
+static void fake_write(void *opaque, target_phys_addr_t addr,
+                         uint64_t data, unsigned size)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
-    return 0;
+
 }
 
-static uint32_t symbhw_read32(void *opaque, uint32_t address)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
-    return 0;
-}
-
-static void symbhw_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
-}
-
-static void symbhw_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
-}
-
-static void symbhw_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
-}
-
-static uint32_t symbhw_mmio_readb(void *opaque, target_phys_addr_t addr)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
-    return 0;
-}
-
-static uint32_t symbhw_mmio_readw(void *opaque, target_phys_addr_t addr)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
-    return 0;
-}
-
-static uint32_t symbhw_mmio_readl(void *opaque, target_phys_addr_t addr)
-{
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
-    return 0;
-}
-
-static CPUReadMemoryFunc * const symbhw_mmio_read[3] = {
-    symbhw_mmio_readb,
-    symbhw_mmio_readw,
-    symbhw_mmio_readl,
+static const MemoryRegionOps fake_ops = {
+    .read = fake_read,
+    .write = fake_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
-
-static CPUWriteMemoryFunc * const symbhw_mmio_write[3] = {
-    symbhw_mmio_writeb,
-    symbhw_mmio_writew,
-    symbhw_mmio_writel,
-};
-
 
 typedef struct _PCIFakeState {
     PCIDevice dev;
+    MemoryRegion io[PCI_NUM_REGIONS];
 }PCIFakeState;
 
+#if 0
 static void pci_fake_map(PCIDevice *pci_dev, int region_num,
                        pcibus_t addr, pcibus_t size, int type)
 {
@@ -155,6 +100,7 @@ static void pci_fake_map(PCIDevice *pci_dev, int region_num,
         cpu_register_physical_memory(addr, size, s_fake_pci->mmioidx);
     }
 }
+#endif
 
 
 static int pci_fake_init(PCIDevice *pci_dev)
@@ -173,16 +119,13 @@ static int pci_fake_init(PCIDevice *pci_dev)
     for(i=0; i<s_fake_pci->fake_pci_num_resources; ++i) {
         int type = s_fake_pci->fake_pci_resources[i].type;
 
-        pci_register_bar(&d->dev, i, s_fake_pci->fake_pci_resources[i].size,
-                                   type, pci_fake_map);
-
-        ++i;
+        memory_region_init_io(&d->io[i], &fake_ops, d, "fake", s_fake_pci->fake_pci_resources[i].size);
+        pci_register_bar(&d->dev, i, type, &d->io[i]); //, pci_fake_map
     }
 
     /* I/O handler for memory-mapped I/O */
-    s_fake_pci->mmioidx =
-    cpu_register_io_memory(symbhw_mmio_read, symbhw_mmio_write, d);
-
+    //s_fake_pci->mmioidx =
+    //cpu_register_io_memory(symbhw_mmio_read, symbhw_mmio_write, d);
 
     return 0;
 }

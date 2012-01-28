@@ -27,6 +27,50 @@ STEXI
 Display version information and exit
 ETEXI
 
+#ifdef CONFIG_S2E
+DEF("s2e-config-file", HAS_ARG, QEMU_OPTION_s2e_config_file,
+    "s2e-config-file   file      Path to S2E configuration file\n", QEMU_ARCH_ALL)
+DEF("s2e-output-dir", HAS_ARG, QEMU_OPTION_s2e_output_dir,
+    "s2e-output-dir    dir       Path to S2E output directory\n", QEMU_ARCH_ALL)
+DEF("s2e-max-processes", HAS_ARG, QEMU_OPTION_s2e_max_processes,
+    "s2e-max-processes num       Maximum number of processes to fork\n", QEMU_ARCH_ALL)
+#else
+DEF("fake-pci-name", HAS_ARG, QEMU_OPTION_fake_pci_name,
+    "fake-pci-name name        Name of the fake PCI device (used in snapshots)\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-vendor-id", HAS_ARG, QEMU_OPTION_fake_pci_vendor_id,
+    "fake-pci-vendor-id vendorid        Vendor ID\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-device-id", HAS_ARG, QEMU_OPTION_fake_pci_device_id,
+    "fake-pci-device-id deviceid        Device ID\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-revision-id", HAS_ARG, QEMU_OPTION_fake_pci_revision_id,
+    "fake-pci-revision-id revision        Revision ID\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-class-code", HAS_ARG, QEMU_OPTION_fake_pci_class_code,
+    "fake-pci-class-code code         Class code\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-ss-vendor-id", HAS_ARG, QEMU_OPTION_fake_pci_ss_vendor_id,
+    "fake-pci-ss-vendor-id vendorid       SS Vendor ID\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-ss-id", HAS_ARG, QEMU_OPTION_fake_pci_ss_id,
+    "fake-pci-ss-id ssid       SS ID\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-resource-io", HAS_ARG, QEMU_OPTION_fake_pci_resource_io,
+    "fake-pci-resource-io size  Size of the port range\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-resource-mem", HAS_ARG, QEMU_OPTION_fake_pci_resource_mem,
+    "fake-pci-resource-mem size  Size of the memory range\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-resource-mem-prefetch", HAS_ARG, QEMU_OPTION_fake_pci_resource_mem_prefetch,
+    "fake-pci-resource-mem-prefetch size  Size of the memory range\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-resource-rom", HAS_ARG, QEMU_OPTION_fake_pci_resource_rom,
+    "fake-pci-resource-rom\n", QEMU_ARCH_ALL)
+
+#endif
+
+
 DEF("machine", HAS_ARG, QEMU_OPTION_machine, \
     "-machine [type=]name[,prop[=value][,...]]\n"
     "                selects emulated machine (-machine ? for list)\n"
@@ -2597,6 +2641,20 @@ This option is only available if QEMU has been compiled with
 the @var{simple} tracing backend.
 @end table
 ETEXI
+
+#if defined(CONFIG_LLVM)
+#if defined(CONFIG_S2E)
+DEF("s2e-verbose", 0, QEMU_OPTION_s2e_verbose,
+    "-s2e-verbose    show more information during execution\n", QEMU_ARCH_ALL)
+DEF("always-klee", 0, QEMU_OPTION_always_klee,
+    "-always-klee    execute everything using KLEE interpreter\n", QEMU_ARCH_ALL)
+#else
+DEF("llvm", 0, QEMU_OPTION_execute_llvm,
+    "-llvm           execute code using LLVM JIT\n", QEMU_ARCH_ALL)
+DEF("generate-llvm", 0, QEMU_OPTION_generate_llvm,
+    "-generate-llvm  translate code into LLVM but don't execute it\n", QEMU_ARCH_ALL)
+#endif
+#endif
 
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI

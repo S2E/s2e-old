@@ -75,13 +75,6 @@ static QEMUTimer *icount_warp_timer;
 static int64_t vm_clock_warp_start;
 static int64_t qemu_icount;
 
-typedef struct TimersState {
-    int64_t cpu_ticks_prev;
-    int64_t cpu_ticks_offset;
-    int64_t cpu_clock_offset;
-    int32_t cpu_ticks_enabled;
-    int64_t dummy;
-} TimersState;
 
 TimersState timers_state;
 

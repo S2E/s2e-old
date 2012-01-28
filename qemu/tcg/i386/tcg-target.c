@@ -2022,3 +2022,4 @@ static void tcg_target_init(TCGContext *s)
 
     tcg_add_target_add_op_defs(x86_op_defs);
 }
+

@@ -38,6 +38,7 @@ extern "C" {
 #include "config.h"
 #include "qemu-common.h"
 #include "sysemu.h"
+#include "cpus.h"
 
 #include "tcg-llvm.h"
 #include "cpu.h"
@@ -577,7 +578,7 @@ uint64_t S2EExecutionState::getHostAddress(uint64_t address,
         /* We can not use qemu_get_ram_ptr directly. Mapping of IO memory
            can be modified after memory registration and qemu_get_ram_ptr will
            return incorrect values in such cases */
-        hostAddress = (uint64_t) qemu_get_phys_ram_ptr(hostAddress);
+        hostAddress = (uint64_t) qemu_get_ram_ptr(hostAddress);
         if(!hostAddress)
             return (uint64_t) -1;
 

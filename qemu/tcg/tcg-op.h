@@ -679,7 +679,7 @@ static inline void tcg_gen_div_i32(TCGv_i32 ret, TCGv_i32 arg1, TCGv_i32 arg2)
         sizemask |= tcg_gen_sizemask(0, 0, 1);
         sizemask |= tcg_gen_sizemask(1, 0, 1);
         sizemask |= tcg_gen_sizemask(2, 0, 1);
-        tcg_gen_helper32(tcg_helper_div_i32, sizemask, ret, arg1, arg2);
+        tcg_gen_helper32((void*) tcg_helper_div_i32, sizemask, ret, arg1, arg2);
     }
 }
 
@@ -698,7 +698,7 @@ static inline void tcg_gen_rem_i32(TCGv_i32 ret, TCGv_i32 arg1, TCGv_i32 arg2)
         sizemask |= tcg_gen_sizemask(0, 0, 1);
         sizemask |= tcg_gen_sizemask(1, 0, 1);
         sizemask |= tcg_gen_sizemask(2, 0, 1);
-        tcg_gen_helper32(tcg_helper_rem_i32, sizemask, ret, arg1, arg2);
+        tcg_gen_helper32((void*) tcg_helper_rem_i32, sizemask, ret, arg1, arg2);
     }
 }
 
@@ -717,7 +717,7 @@ static inline void tcg_gen_divu_i32(TCGv_i32 ret, TCGv_i32 arg1, TCGv_i32 arg2)
         sizemask |= tcg_gen_sizemask(0, 0, 0);
         sizemask |= tcg_gen_sizemask(1, 0, 0);
         sizemask |= tcg_gen_sizemask(2, 0, 0);
-        tcg_gen_helper32(tcg_helper_divu_i32, sizemask, ret, arg1, arg2);
+        tcg_gen_helper32((void*) tcg_helper_divu_i32, sizemask, ret, arg1, arg2);
     }
 }
 
@@ -736,7 +736,7 @@ static inline void tcg_gen_remu_i32(TCGv_i32 ret, TCGv_i32 arg1, TCGv_i32 arg2)
         sizemask |= tcg_gen_sizemask(0, 0, 0);
         sizemask |= tcg_gen_sizemask(1, 0, 0);
         sizemask |= tcg_gen_sizemask(2, 0, 0);
-        tcg_gen_helper32(tcg_helper_remu_i32, sizemask, ret, arg1, arg2);
+        tcg_gen_helper32((void*) tcg_helper_remu_i32, sizemask, ret, arg1, arg2);
     }
 }
 
@@ -1239,7 +1239,7 @@ static inline void tcg_gen_div_i64(TCGv_i64 ret, TCGv_i64 arg1, TCGv_i64 arg2)
         sizemask |= tcg_gen_sizemask(0, 1, 1);
         sizemask |= tcg_gen_sizemask(1, 1, 1);
         sizemask |= tcg_gen_sizemask(2, 1, 1);
-        tcg_gen_helper64(tcg_helper_div_i64, sizemask, ret, arg1, arg2);
+        tcg_gen_helper64((void*) tcg_helper_div_i64, sizemask, ret, arg1, arg2);
     }
 }
 
@@ -1258,7 +1258,7 @@ static inline void tcg_gen_rem_i64(TCGv_i64 ret, TCGv_i64 arg1, TCGv_i64 arg2)
         sizemask |= tcg_gen_sizemask(0, 1, 1);
         sizemask |= tcg_gen_sizemask(1, 1, 1);
         sizemask |= tcg_gen_sizemask(2, 1, 1);
-        tcg_gen_helper64(tcg_helper_rem_i64, sizemask, ret, arg1, arg2);
+        tcg_gen_helper64((void*) tcg_helper_rem_i64, sizemask, ret, arg1, arg2);
     }
 }
 
@@ -1277,7 +1277,7 @@ static inline void tcg_gen_divu_i64(TCGv_i64 ret, TCGv_i64 arg1, TCGv_i64 arg2)
         sizemask |= tcg_gen_sizemask(0, 1, 0);
         sizemask |= tcg_gen_sizemask(1, 1, 0);
         sizemask |= tcg_gen_sizemask(2, 1, 0);
-        tcg_gen_helper64(tcg_helper_divu_i64, sizemask, ret, arg1, arg2);
+        tcg_gen_helper64((void*) tcg_helper_divu_i64, sizemask, ret, arg1, arg2);
     }
 }
 
@@ -1296,7 +1296,7 @@ static inline void tcg_gen_remu_i64(TCGv_i64 ret, TCGv_i64 arg1, TCGv_i64 arg2)
         sizemask |= tcg_gen_sizemask(0, 1, 0);
         sizemask |= tcg_gen_sizemask(1, 1, 0);
         sizemask |= tcg_gen_sizemask(2, 1, 0);
-        tcg_gen_helper64(tcg_helper_remu_i64, sizemask, ret, arg1, arg2);
+        tcg_gen_helper64((void*) tcg_helper_remu_i64, sizemask, ret, arg1, arg2);
     }
 }
 #endif /* TCG_TARGET_REG_BITS == 32 */

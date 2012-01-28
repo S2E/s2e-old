@@ -17,6 +17,19 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #ifndef _EXEC_ALL_H_
 #define _EXEC_ALL_H_
 
@@ -81,6 +94,11 @@ void gen_intermediate_code_pc(CPUState *env, struct TranslationBlock *tb);
 void restore_state_to_opc(CPUState *env, struct TranslationBlock *tb,
                           int pc_pos);
 
+#ifdef CONFIG_S2E
+int cpu_gen_llvm(CPUState *env, TranslationBlock *tb);
+#endif
+
+
 void cpu_gen_init(void);
 int cpu_gen_code(CPUState *env, struct TranslationBlock *tb,
                  int *gen_code_size_ptr);
@@ -126,6 +144,36 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
 #define USE_DIRECT_JUMP
 #endif
 
+#ifdef CONFIG_LLVM
+struct TCGLLVMTranslationBlock;
+struct TCGLLVMContext;
+#ifdef __cplusplus
+namespace llvm { class Function; }
+namespace s2e { class S2ETranslationBlock; }
+using llvm::Function;
+using s2e::S2ETranslationBlock;
+#else
+struct Function;
+struct S2ETranslationBlock;
+#endif
+#endif
+
+enum ETranslationBlockType
+{
+    TB_DEFAULT=0,
+    TB_JMP, TB_JMP_IND,
+    TB_COND_JMP, TB_COND_JMP_IND,
+    TB_CALL, TB_CALL_IND, TB_REP, TB_RET
+};
+
+#ifdef CONFIG_S2E
+enum JumpType
+{
+    JT_RET, JT_LRET
+};
+#endif
+
+
 struct TranslationBlock {
     target_ulong pc;   /* simulated PC corresponding to this block (EIP + CS base) */
     target_ulong cs_base; /* CS base for this block */
@@ -159,6 +207,26 @@ struct TranslationBlock {
     struct TranslationBlock *jmp_next[2];
     struct TranslationBlock *jmp_first;
     uint32_t icount;
+
+#ifdef CONFIG_LLVM
+    /* pointer to LLVM translated code */
+    struct TCGLLVMContext *tcg_llvm_context;
+    struct Function *llvm_function;
+    uint8_t *llvm_tc_ptr;
+    uint8_t *llvm_tc_end;
+#endif
+
+#ifdef CONFIG_S2E
+    uint64_t reg_rmask; /* Registers that TB reads (before overwritting) */
+    uint64_t reg_wmask; /* Registers that TB writes */
+    uint64_t helper_accesses_mem; /* True if contains helpers that access mem */
+
+    enum ETranslationBlockType s2e_tb_type;
+    struct S2ETranslationBlock* s2e_tb;
+    struct TranslationBlock* s2e_tb_next[2];
+    uint64_t pcOfLastInstr; /* XXX: hack for call instructions */
+#endif
+
 };
 
 static inline unsigned int tb_jmp_cache_hash_page(target_ulong pc)
@@ -267,6 +335,10 @@ static inline void tb_add_jump(TranslationBlock *tb, int n,
         /* add in TB jmp circular list */
         tb->jmp_next[n] = tb_next->jmp_first;
         tb_next->jmp_first = (TranslationBlock *)((long)(tb) | (n));
+
+#ifdef CONFIG_S2E
+        tb->s2e_tb_next[n] = tb_next;
+#endif
     }
 }
 
@@ -303,7 +375,8 @@ extern CPUWriteMemoryFunc *io_mem_write[IO_MEM_NB_ENTRIES][4];
 extern CPUReadMemoryFunc *io_mem_read[IO_MEM_NB_ENTRIES][4];
 extern void *io_mem_opaque[IO_MEM_NB_ENTRIES];
 
-void tlb_fill(CPUState *env1, target_ulong addr, int is_write, int mmu_idx,
+void tlb_fill(CPUState *env1, target_ulong addr, target_ulong page_addr,
+              int is_write, int mmu_idx,
               void *retaddr);
 
 #include "softmmu_defs.h"
@@ -386,5 +459,9 @@ static inline int can_do_io(CPUState *env)
     }
     return env->can_do_io != 0;
 }
+
+extern int generate_llvm;
+extern int execute_llvm;
+extern const int has_llvm_engine;
 
 #endif

@@ -46,7 +46,7 @@
 
 namespace s2e {
 
-class ModuleDescriptor;
+struct ModuleDescriptor;
 
 namespace plugins {
 

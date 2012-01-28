@@ -52,7 +52,7 @@ namespace s2e {
 
 class S2E;
 class S2EExecutionState;
-class S2ETranslationBlock;
+struct S2ETranslationBlock;
 
 class CpuExitException
 {

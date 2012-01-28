@@ -16,6 +16,21 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
+
 #ifndef CPU_DEFS_H
 #define CPU_DEFS_H
 
@@ -24,12 +39,17 @@
 #endif
 
 #include "config.h"
-#include <setjmp.h>
+#include <s2e/S2ESJLJ.h>
 #include <inttypes.h>
 #include <signal.h>
 #include "osdep.h"
 #include "qemu-queue.h"
 #include "targphys.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_config.h>
+#endif
+
 
 #ifndef TARGET_LONG_BITS
 #error TARGET_LONG_BITS must be defined before including this header
@@ -113,6 +133,7 @@ extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BIT
 #define CPU_COMMON_TLB \
     /* The meaning of the MMU modes is defined in the target code. */   \
     CPUTLBEntry tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];                  \
+    _CPU_COMMON_S2E_TLB_TABLE                                           \
     target_phys_addr_t iotlb[NB_MMU_MODES][CPU_TLB_SIZE];               \
     target_ulong tlb_flush_addr;                                        \
     target_ulong tlb_flush_mask;
@@ -121,6 +142,24 @@ extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BIT
 
 #define CPU_COMMON_TLB
 
+#endif
+
+
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+
+typedef struct S2ETLBEntry {
+    void* objectState;
+    uintptr_t addend;
+} S2ETLBEntry;
+
+#define CPU_S2E_TLB_BITS (CPU_TLB_BITS + TARGET_PAGE_BITS - S2E_RAM_OBJECT_BITS)
+#define CPU_S2E_TLB_SIZE (1 << CPU_S2E_TLB_BITS)
+
+#define _CPU_COMMON_S2E_TLB_TABLE \
+    S2ETLBEntry s2e_tlb_table[NB_MMU_MODES][CPU_S2E_TLB_SIZE];
+
+#else
+#define _CPU_COMMON_S2E_TLB_TABLE
 #endif
 
 
@@ -156,6 +195,7 @@ typedef struct CPUWatchpoint {
 #define CPU_TEMP_BUF_NLONGS 128
 #define CPU_COMMON                                                      \
     struct TranslationBlock *current_tb; /* currently executing TB  */  \
+    struct TranslationBlock *s2e_current_tb; /* currently executing TB  */  \
     /* soft mmu support */                                              \
     /* in order to avoid passing too many arguments to the MMIO         \
        helpers, we store some rarely used information in the CPU        \
@@ -171,7 +211,10 @@ typedef struct CPUWatchpoint {
     struct TranslationBlock *tb_jmp_cache[TB_JMP_CACHE_SIZE];           \
     /* buffer for temporaries in the code generator */                  \
     long temp_buf[CPU_TEMP_BUF_NLONGS];                                 \
-                                                                        \
+                                                                       \
+    uint64_t s2e_icount; /* total icount for this CPU */                \
+    uint64_t s2e_icount_before_tb; /* icount before starting current TB */ \
+    uint64_t s2e_icount_after_tb; /* icount after starting current TB */  \
     int64_t icount_extra; /* Instructions until next timer event.  */   \
     /* Number of cycles left, with interrupt flag in high bit.          \
        This allows a single read-compare-cbranch-write sequence to test \
@@ -193,7 +236,7 @@ typedef struct CPUWatchpoint {
     struct GDBRegisterState *gdb_regs;                                  \
                                                                         \
     /* Core interrupt code */                                           \
-    jmp_buf jmp_env;                                                    \
+    s2e_jmp_buf jmp_env;                                                \
     int exception_index;                                                \
                                                                         \
     CPUState *next_cpu; /* next CPU sharing TB cache */                 \

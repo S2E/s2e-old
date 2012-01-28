@@ -16,6 +16,18 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010-2012, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
 #include "config.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -56,6 +68,18 @@
 #include "xen-mapcache.h"
 #include "trace.h"
 #endif
+
+#ifdef CONFIG_LLVM
+//#include "tcg-llvm.h"
+void tcg_llvm_tb_alloc(TranslationBlock *tb);
+void tcg_llvm_tb_free(struct TranslationBlock *tb);
+#endif
+
+#ifdef CONFIG_S2E
+#include <cpu-all.h>
+#include <s2e/s2e_qemu.h>
+#endif
+
 
 //#define DEBUG_TB_INVALIDATE
 //#define DEBUG_FLUSH
@@ -676,6 +700,14 @@ static TranslationBlock *tb_alloc(target_ulong pc)
     tb = &tbs[nb_tbs++];
     tb->pc = pc;
     tb->cflags = 0;
+
+#ifdef CONFIG_S2E
+    s2e_tb_alloc(g_s2e, tb);
+#endif
+#ifdef CONFIG_LLVM
+    tcg_llvm_tb_alloc(tb);
+#endif
+
     return tb;
 }
 
@@ -686,6 +718,12 @@ void tb_free(TranslationBlock *tb)
        be the last one generated.  */
     if (nb_tbs > 0 && tb == &tbs[nb_tbs - 1]) {
         code_gen_ptr = tb->tc_ptr;
+
+#if defined(CONFIG_S2E)
+        s2e_tb_free(g_s2e, tb);
+#elif defined(CONFIG_LLVM)
+        tcg_llvm_tb_free(tb);
+#endif
         nb_tbs--;
     }
 }
@@ -743,6 +781,16 @@ void tb_flush(CPUState *env1)
 #endif
     if ((unsigned long)(code_gen_ptr - code_gen_buffer) > code_gen_buffer_size)
         cpu_abort(env1, "Internal error: code buffer overflow\n");
+
+#if defined(CONFIG_S2E)
+    int i1;
+    for(i1 = 0; i1 < nb_tbs; ++i1)
+        s2e_tb_free(g_s2e, &tbs[i1]);
+#elif defined(CONFIG_LLVM)
+    int i2;
+    for(i2 = 0; i2 < nb_tbs; ++i2)
+        tcg_llvm_tb_free(&tbs[i2]);
+#endif
 
     nb_tbs = 0;
 
@@ -863,6 +911,11 @@ static inline void tb_jmp_remove(TranslationBlock *tb, int n)
 static inline void tb_reset_jump(TranslationBlock *tb, int n)
 {
     tb_set_jmp_target(tb, n, (unsigned long)(tb->tc_ptr + tb->tb_next_offset[n]));
+
+#ifdef CONFIG_S2E
+    tb->s2e_tb_next[n] = NULL;
+#endif
+
 }
 
 void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr)
@@ -1070,6 +1123,7 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
                 current_tb = NULL;
                 if (env->mem_io_pc) {
                     /* now we have a real cpu fault */
+                    #warning TODO: mem_io_pc is never set in S2E, use s2e_current_tb instead!
                     current_tb = tb_find_pc(env->mem_io_pc);
                 }
             }
@@ -1113,6 +1167,15 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
     }
 #endif
 #ifdef TARGET_HAS_PRECISE_SMC
+#ifdef CONFIG_S2E
+    /* In S2E we don't keep env->mem_io_pc information, so we can't be
+       sure whether current tb was invalidated or not. We abort it
+       in any case */
+    /* XXX: is it safe to do ? */
+    //env->current_tb = NULL;
+    //cpu_resume_from_signal(env, NULL);
+#warning XXX: think about what is writen above!
+#endif
     if (current_tb_modified) {
         /* we generate a block containing just the instruction
            modifying the memory. It will ensure that it cannot modify
@@ -1320,6 +1383,21 @@ TranslationBlock *tb_find_pc(unsigned long tc_ptr)
 
     if (nb_tbs <= 0)
         return NULL;
+
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+    if(execute_llvm) {
+        for(m=0; m<nb_tbs; m++) {
+            tb = &tbs[m];
+            if(tb->llvm_function) {
+                if(tc_ptr >= (uintptr_t) tb->llvm_tc_ptr &&
+                   tc_ptr <  (uintptr_t) tb->llvm_tc_end)
+                    return tb;
+            }
+        }
+        return NULL;
+    }
+#endif
+
     if (tc_ptr < (unsigned long)code_gen_buffer ||
         tc_ptr >= (unsigned long)code_gen_ptr)
         return NULL;
@@ -1725,6 +1803,12 @@ const CPULogItem cpu_log_items[] = {
     { CPU_LOG_IOPORT, "ioport",
       "show all i/o ports accesses" },
 #endif
+#ifdef CONFIG_LLVM
+    { CPU_LOG_LLVM_IR, "llvm_ir",
+      "show generated LLVM IR code" },
+    { CPU_LOG_LLVM_ASM, "llvm_asm",
+      "show LLVM-generated assembly code" },
+#endif
     { 0, NULL, NULL },
 };
 
@@ -2004,6 +2088,15 @@ void tlb_flush(CPUState *env, int flush_global)
         }
     }
 
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+    for(i = 0; i < CPU_S2E_TLB_SIZE; i++) {
+        int mmu_idx;
+        for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
+            env->s2e_tlb_table[mmu_idx][i].objectState = 0;
+        }
+    }
+#endif
+
     memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
 
     env->tlb_flush_addr = -1;
@@ -2011,6 +2104,7 @@ void tlb_flush(CPUState *env, int flush_global)
     tlb_flush_count++;
 }
 
+/*
 static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)
 {
     if (addr == (tlb_entry->addr_read &
@@ -2021,7 +2115,7 @@ static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)
                  (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
         *tlb_entry = s_cputlb_empty_entry;
     }
-}
+}*/
 
 void tlb_flush_page(CPUState *env, target_ulong addr)
 {
@@ -2047,8 +2141,24 @@ void tlb_flush_page(CPUState *env, target_ulong addr)
 
     addr &= TARGET_PAGE_MASK;
     i = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++)
-        tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
+    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
+        //tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
+        CPUTLBEntry *tlb_entry = &env->tlb_table[mmu_idx][i];
+        if (addr == (tlb_entry->addr_read &
+                     (TARGET_PAGE_MASK | TLB_INVALID_MASK)) ||
+            addr == (tlb_entry->addr_write &
+                     (TARGET_PAGE_MASK | TLB_INVALID_MASK)) ||
+            addr == (tlb_entry->addr_code &
+                     (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
+            *tlb_entry = s_cputlb_empty_entry;
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+            int i1 = (addr >> S2E_RAM_OBJECT_BITS) & (CPU_S2E_TLB_SIZE - 1), j;
+            for(j = 0; j < CPU_S2E_TLB_SIZE/CPU_TLB_SIZE; ++j, ++i1) {
+                env->s2e_tlb_table[mmu_idx][i1].objectState = 0;
+            }
+#endif
+        }
+    }
 
     tlb_flush_jmp_cache(env, addr);
 }
@@ -2323,6 +2433,16 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
         te->addr_read = -1;
     }
 
+#ifdef CONFIG_S2E
+    if (s2e_is_mmio_symbolic(paddr, 1LL << TARGET_PAGE_BITS)) {
+        //We hijack qemu's dirty page management to redirect
+        //all accesses to MMIO memory through our handlers.
+        //Note: Such ranges can be less than one page long, so we have to
+        //deal with normal memory accesses as well...
+        te->addr_read |= TLB_NOTDIRTY;
+    }
+#endif
+
     if (prot & PAGE_EXEC) {
         te->addr_code = code_address;
     } else {
@@ -2342,6 +2462,11 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
     } else {
         te->addr_write = -1;
     }
+
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+    s2e_update_tlb_entry(g_s2e_state, env, mmu_idx, vaddr, addend);
+#endif
+
 }
 
 #else
@@ -3385,6 +3510,68 @@ static void notdirty_mem_writel(void *opaque, target_phys_addr_t ram_addr,
         tlb_set_dirty(cpu_single_env, cpu_single_env->mem_io_vaddr);
 }
 
+#ifdef CONFIG_S2E
+uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr)
+{
+    int dirty_flags;
+    dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
+
+    if (!(dirty_flags & CODE_DIRTY_FLAG)) {
+#if !defined(CONFIG_USER_ONLY)
+        tb_invalidate_phys_page_fast(ram_addr, 4);
+        dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
+#endif
+    }
+
+    dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
+
+    cpu_physical_memory_set_dirty_flags(ram_addr, dirty_flags);
+
+    /* we remove the notdirty callback only if the code has been
+       flushed */
+    if (dirty_flags == 0xff)
+        tlb_set_dirty(cpu_single_env, cpu_single_env->mem_io_vaddr);
+
+    return (uintptr_t)qemu_get_ram_ptr(ram_addr);
+}
+
+
+/* Some pages might be partially used for DMA. All read accesses outside DMA
+   regions in a page go here. */
+static uint32_t s2edma_mem_readb(void *opaque, target_phys_addr_t ram_addr)
+{
+    return ldub_raw(qemu_get_ram_ptr(ram_addr));
+}
+
+static uint32_t s2edma_mem_readw(void *opaque, target_phys_addr_t ram_addr)
+{
+    return lduw_raw(qemu_get_ram_ptr(ram_addr));
+}
+
+
+static uint32_t s2edma_mem_readl(void *opaque, target_phys_addr_t ram_addr)
+{
+    return ldq_raw(qemu_get_ram_ptr(ram_addr));
+}
+
+int s2e_ismemfunc(void *f)
+{
+    return f == notdirty_mem_writeb || f == notdirty_mem_writew ||
+            f == notdirty_mem_writel ||
+            f == s2edma_mem_readb || f == s2edma_mem_readw || f == s2edma_mem_readl;
+}
+
+#endif
+
+
+#ifdef CONFIG_S2E
+static CPUReadMemoryFunc * const s2edma_mem_read[3] = {
+    s2edma_mem_readb,
+    s2edma_mem_readw,
+    s2edma_mem_readl,
+};
+#endif
+
 static CPUReadMemoryFunc * const error_mem_read[3] = {
     NULL, /* never used */
     NULL, /* never used */
@@ -3814,9 +4001,19 @@ static void io_mem_init(void)
     cpu_register_io_memory_fixed(IO_MEM_UNASSIGNED, unassigned_mem_read,
                                  unassigned_mem_write, NULL,
                                  DEVICE_NATIVE_ENDIAN);
+
+
+#ifdef CONFIG_S2E
+    cpu_register_io_memory_fixed(IO_MEM_NOTDIRTY, s2edma_mem_read,
+                                 notdirty_mem_write, NULL,
+                                 DEVICE_NATIVE_ENDIAN);
+#else
     cpu_register_io_memory_fixed(IO_MEM_NOTDIRTY, error_mem_read,
                                  notdirty_mem_write, NULL,
                                  DEVICE_NATIVE_ENDIAN);
+#endif
+
+
     for (i=0; i<5; i++)
         io_mem_used[i] = 1;
 
@@ -3941,7 +4138,11 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                 addr1 = (pd & TARGET_PAGE_MASK) + (addr & ~TARGET_PAGE_MASK);
                 /* RAM case */
                 ptr = qemu_get_ram_ptr(addr1);
+#ifdef CONFIG_S2E
+                s2e_dma_write((uintptr_t)ptr, buf, l);
+#else
                 memcpy(ptr, buf, l);
+#endif
                 if (!cpu_physical_memory_is_dirty(addr1)) {
                     /* invalidate code */
                     tb_invalidate_phys_page_range(addr1, addr1 + l, 0);
@@ -3978,7 +4179,12 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
             } else {
                 /* RAM case */
                 ptr = qemu_get_ram_ptr(pd & TARGET_PAGE_MASK);
+#ifdef CONFIG_S2E
+                s2e_dma_read((uintptr_t)ptr + (addr & ~TARGET_PAGE_MASK), buf, l);
+#else
                 memcpy(buf, ptr + (addr & ~TARGET_PAGE_MASK), l);
+#endif
+
                 qemu_put_ram_ptr(ptr);
             }
         }
@@ -4019,7 +4225,13 @@ void cpu_physical_memory_write_rom(target_phys_addr_t addr,
             addr1 = (pd & TARGET_PAGE_MASK) + (addr & ~TARGET_PAGE_MASK);
             /* ROM/RAM case */
             ptr = qemu_get_ram_ptr(addr1);
+#ifdef CONFIG_S2E
+            int i;
+            for(i=0; i<l; ++i)
+                stb_raw(ptr+i, buf[i]);
+#else
             memcpy(ptr, buf, l);
+#endif
             qemu_put_ram_ptr(ptr);
         }
         len -= l;
@@ -4085,6 +4297,7 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
                               target_phys_addr_t *plen,
                               int is_write)
 {
+#ifndef CONFIG_S2E
     target_phys_addr_t len = *plen;
     target_phys_addr_t todo = 0;
     int l;
@@ -4133,6 +4346,18 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
     ret = qemu_ram_ptr_length(raddr, &rlen);
     *plen = rlen;
     return ret;
+#else
+    // In S2E, memory should always be copied
+    if(bounce.buffer)
+        return NULL;
+    bounce.buffer = qemu_memalign(TARGET_PAGE_SIZE, *plen);
+    bounce.addr = addr;
+    bounce.len = *plen;
+    if (!is_write) {
+        cpu_physical_memory_rw(addr, bounce.buffer, *plen, 0);
+    }
+    return bounce.buffer;
+#endif
 }
 
 /* Unmaps a memory region previously mapped by cpu_physical_memory_map().
@@ -4764,6 +4989,7 @@ void dump_exec_info(FILE *f, fprintf_function cpu_fprintf)
     cpu_fprintf(f, "TLB flush count     %d\n", tlb_flush_count);
     tcg_dump_info(f, cpu_fprintf);
 }
+
 
 #define MMUSUFFIX _cmmu
 #undef GETPC

@@ -48,6 +48,11 @@
 
 #include "softfloat.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
+
 #define R_EAX 0
 #define R_ECX 1
 #define R_EDX 2
@@ -613,10 +618,11 @@ typedef struct {
 
 #define NB_MMU_MODES 2
 
+#define TARGET_PAGE_BITS 12
+
 typedef struct CPUX86State {
     /* standard registers */
     target_ulong regs[CPU_NB_REGS];
-    target_ulong eip;
     target_ulong eflags; /* eflags register. During CPU emulation, CC
                         flags and DF are set to zero because they are
                         stored elsewhere */
@@ -625,6 +631,14 @@ typedef struct CPUX86State {
     target_ulong cc_src;
     target_ulong cc_dst;
     uint32_t cc_op;
+
+    /* S2E note: the contents of the structure from this point
+       can never be symbolic. The content up to this point can
+       not be easily accessible from concrete code */
+    /* S2E note: XXX: what about FPU ? */
+    target_ulong eip;
+
+
     int32_t df; /* D flag : 1 if D = 0, -1 if D = 1 */
     uint32_t hflags; /* TB flags, see HF_xxx constants. These flags
                         are known at translation time. */
@@ -709,6 +723,9 @@ typedef struct CPUX86State {
     uint32_t smbase;
     int old_exception;  /* exception in flight */
 
+    uint8_t timer_interrupt_disabled;
+    uint8_t all_apic_interrupts_disabled;
+
     /* KVM states, automatically cleared on reset */
     uint8_t nmi_injected;
     uint8_t nmi_pending;
@@ -772,6 +789,29 @@ typedef struct CPUX86State {
 
     uint64_t xcr0;
 } CPUX86State;
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+/* Macros to access registers */
+static inline target_ulong __RR_env_raw(CPUX86State* cpuState,
+                                        unsigned offset, unsigned size) {
+    target_ulong result = 0;
+    s2e_read_register_concrete(g_s2e, g_s2e_state, cpuState,
+                               offset, (uint8_t*) &result, size);
+    return result;
+}
+static inline void __WR_env_raw(CPUX86State* cpuState, unsigned offset,
+                                target_ulong value, unsigned size) {
+    s2e_write_register_concrete(g_s2e, g_s2e_state, cpuState,
+                                offset, (uint8_t*) &value, size);
+}
+#define RR_cpu(cpu, reg) ((typeof(cpu->reg)) \
+            __RR_env_raw(cpu, offsetof(CPUX86State, reg), sizeof(cpu->reg)))
+#define WR_cpu(cpu, reg, value) __WR_env_raw(cpu, offsetof(CPUX86State, reg), \
+            (target_ulong) value, sizeof(cpu->reg))
+#else
+#define RR_cpu(cpu, reg) cpu->reg
+#define WR_cpu(cpu, reg, value) cpu->reg = value
+#endif
 
 CPUX86State *cpu_x86_init(const char *cpu_model);
 int cpu_x86_exec(CPUX86State *s);
@@ -934,7 +974,6 @@ uint64_t cpu_get_tsc(CPUX86State *env);
 #define X86_DUMP_FPU  0x0001 /* dump FPU state too */
 #define X86_DUMP_CCOP 0x0002 /* dump qemu flag cache */
 
-#define TARGET_PAGE_BITS 12
 
 #ifdef TARGET_X86_64
 #define TARGET_PHYS_ADDR_SPACE_BITS 52
@@ -966,28 +1005,44 @@ static inline int cpu_mmu_index (CPUState *env)
 }
 
 #undef EAX
-#define EAX (env->regs[R_EAX])
+#define EAX (RR_cpu(env, regs[R_EAX]))
+#define EAX_W(v) (WR_cpu(env, regs[R_EAX], v))
 #undef ECX
-#define ECX (env->regs[R_ECX])
+#define ECX (RR_cpu(env, regs[R_ECX]))
+#define ECX_W(v) (WR_cpu(env, regs[R_ECX], v))
 #undef EDX
-#define EDX (env->regs[R_EDX])
+#define EDX (RR_cpu(env, regs[R_EDX]))
+#define EDX_W(v) (WR_cpu(env, regs[R_EDX], v))
 #undef EBX
-#define EBX (env->regs[R_EBX])
+#define EBX (RR_cpu(env, regs[R_EBX]))
+#define EBX_W(v) (WR_cpu(env, regs[R_EBX], v))
 #undef ESP
-#define ESP (env->regs[R_ESP])
+#define ESP (RR_cpu(env, regs[R_ESP]))
+#define ESP_W(v) (WR_cpu(env, regs[R_ESP], v))
 #undef EBP
-#define EBP (env->regs[R_EBP])
+#define EBP (RR_cpu(env, regs[R_EBP]))
+#define EBP_W(v) (WR_cpu(env, regs[R_EBP], v))
 #undef ESI
-#define ESI (env->regs[R_ESI])
+#define ESI (RR_cpu(env, regs[R_ESI]))
+#define ESI_W(v) (WR_cpu(env, regs[R_ESI], v))
 #undef EDI
-#define EDI (env->regs[R_EDI])
+#define EDI (RR_cpu(env, regs[R_EDI]))
+#define EDI_W(v) (WR_cpu(env, regs[R_EDI], v))
+
+#define CC_SRC (RR_cpu(env, cc_src))
+#define CC_DST (RR_cpu(env, cc_dst))
+#define CC_OP  (RR_cpu(env, cc_op))
+
+#define CC_SRC_W(v) (WR_cpu(env, cc_src, v))
+#define CC_DST_W(v) (WR_cpu(env, cc_dst, v))
+#define CC_OP_W(v)  (WR_cpu(env, cc_op, v))
+
+#define DF  (env->df)
+#define DF_W(v)  (env->df = (v))
+
 #undef EIP
 #define EIP (env->eip)
-#define DF  (env->df)
 
-#define CC_SRC (env->cc_src)
-#define CC_DST (env->cc_dst)
-#define CC_OP  (env->cc_op)
 
 /* float macros */
 #define FT0    (env->ft0)

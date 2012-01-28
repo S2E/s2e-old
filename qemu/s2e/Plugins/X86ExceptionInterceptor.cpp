@@ -37,7 +37,6 @@
 extern "C" {
 #include "config.h"
 #include "qemu-common.h"
-#include "sysemu.h"
 }
 
 
@@ -47,7 +46,7 @@ extern "C" {
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 #include <s2e/S2EExecutor.h>
-
+#include <s2e/s2e_config.h>
 
 #include <iostream>
 

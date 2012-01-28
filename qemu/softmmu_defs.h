@@ -27,4 +27,13 @@ void REGPARM __stl_cmmu(target_ulong addr, uint32_t val, int mmu_idx);
 uint64_t REGPARM __ldq_cmmu(target_ulong addr, int mmu_idx);
 void REGPARM __stq_cmmu(target_ulong addr, uint64_t val, int mmu_idx);
 
+#ifdef CONFIG_S2E
+
+uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr);
+int s2e_ismemfunc(void *f);
+
+
+#endif
+
+
 #endif
