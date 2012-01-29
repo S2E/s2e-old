@@ -91,6 +91,8 @@ static void *qemu_st_helpers[5] = {
 #include <iostream>
 #include <sstream>
 
+#undef NDEBUG
+
 extern "C" {
     TCGLLVMContext* tcg_llvm_ctx = 0;
 
@@ -203,6 +205,13 @@ public:
 
     void invalidateCachedMemory();
 
+    uint64_t toInteger(Value *v) const {
+        if (ConstantInt *cste = dyn_cast<ConstantInt>(v)) {
+            return *cste->getValue().getRawData();
+        }
+        llvm::errs() << *v << '\n';
+        assert(false && "Not a constant");
+    }
 #ifdef CONFIG_S2E
     void initializeHelpers();
 #endif
@@ -1188,12 +1197,20 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
             getValue(args[1]), args[2], bits);                      \
         break;
 
+
 #define __OP_QEMU_LD(opc_name, bits, signE)                         \
     case opc_name:                                                  \
         v = generateQemuMemOp(true, NULL,                           \
             getValue(args[1]), args[2], bits);                      \
         setValue(args[0], m_builder.Create ## signE ## Ext(         \
             v, intType(std::max(TARGET_LONG_BITS, bits))));         \
+        break;
+
+#define __OP_QEMU_LDD(opc_name, bits)                               \
+    case opc_name:                                                  \
+        v = generateQemuMemOp(true, NULL,                           \
+            getValue(args[1]), args[2], bits);                      \
+        setValue(args[0], v);         \
         break;
 
     __OP_QEMU_ST(INDEX_op_qemu_st8,   8)
@@ -1209,8 +1226,11 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
     __OP_QEMU_LD(INDEX_op_qemu_ld32u, 32, Z)
     __OP_QEMU_LD(INDEX_op_qemu_ld64,  64, Z)
 
+    __OP_QEMU_LDD(INDEX_op_qemu_ld32, 32)
+
 #undef __OP_QEMU_LD
 #undef __OP_QEMU_ST
+#undef __OP_QEMU_LDD
 
 #endif
 
@@ -1227,6 +1247,35 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 #endif
         /* XXX: tb linking is disabled */
         break;
+
+    case INDEX_op_deposit_i32: {
+        //llvm::errs() << *m_tbFunction << "\n";
+        Value *arg1 = getValue(args[1]);
+        //llvm::errs() << "arg1=" << *arg1 << "\n";
+        arg1 = m_builder.CreateTrunc(arg1, intType(32));
+
+
+        Value *arg2 = getValue(args[2]);
+        //llvm::errs() << "arg2=" << *arg2 << "\n";
+        arg2 = m_builder.CreateTrunc(arg2, intType(32));
+
+        uint64_t ofs = args[3];
+        uint64_t len = args[4];
+
+        uint64_t mask = (1u << len) - 1;
+        Value *t1, *ret;
+        if (ofs + len < 32) {
+            t1 = m_builder.CreateAnd(arg2, APInt(32, mask));
+            t1 = m_builder.CreateShl(t1, APInt(32, ofs));
+        } else {
+            t1 = m_builder.CreateShl(arg2, APInt(32, ofs));
+        }
+
+        ret = m_builder.CreateAnd(arg1, APInt(32, ~(mask << ofs)));
+        ret = m_builder.CreateOr(ret, t1);
+        setValue(args[0], ret);
+    }
+    break;
 
     default:
         std::cerr << "ERROR: unknown TCG micro operation '"
@@ -1446,10 +1495,12 @@ const char* tcg_llvm_get_func_name(TranslationBlock *tb)
     return buf;
 }
 
-uintptr_t tcg_llvm_qemu_tb_exec(void *env, TranslationBlock *tb)
+uintptr_t tcg_llvm_qemu_tb_exec(void *env1, TranslationBlock *tb)
 {
 #ifndef CONFIG_S2E
     tcg_llvm_runtime.last_tb = tb;
 #endif
-    return ((uintptr_t (*)(void*)) tb->llvm_tc_ptr)(env);
+    extern CPUState *env;
+    env = (CPUState*)env1;
+    return ((uintptr_t (*)(void*)) tb->llvm_tc_ptr)(&env);
 }

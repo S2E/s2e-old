@@ -41,6 +41,7 @@
 #endif
 
 #if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+#include "tcg/tcg-llvm.h"
 const int has_llvm_engine = 1;
 int generate_llvm = 0;
 int execute_llvm = 0;
@@ -84,7 +85,7 @@ void cpu_resume_from_signal(CPUState *env, void *puc)
 static void cpu_exec_nocache(CPUState *env, int max_cycles,
                              TranslationBlock *orig_tb)
 {
-    unsigned long next_tb;
+    uintptr_t next_tb;
     TranslationBlock *tb;
 
 #if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
@@ -227,7 +228,7 @@ int cpu_exec(CPUState *env)
     int ret, interrupt_request;
     TranslationBlock *tb;
     uint8_t *tc_ptr;
-    unsigned long next_tb;
+    uintptr_t next_tb;
 
     if (env->halted) {
         if (!cpu_has_work(env)) {

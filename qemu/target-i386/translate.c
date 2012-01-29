@@ -4170,6 +4170,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
 #endif
         tcg_gen_debug_insn_start(pc_start);
 
+
 #ifdef CONFIG_S2E
     tcg_gen_movi_tl(cpu_tmp0, pc_start - s->cs_base);
     tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
