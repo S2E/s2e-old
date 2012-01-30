@@ -258,6 +258,7 @@ struct KDPC32 {
 };
 
 
+
 #define TIMER_EXPIRED_INDEX_BITS        6
 #define TIMER_PROCESSOR_INDEX_BITS      5
 
@@ -402,6 +403,14 @@ struct FILE_OBJECT32 {
     KSPIN_LOCK IrpListLock;
     LIST_ENTRY32 IrpList;
     uint32_t FileObjectExtension; //__volatile PVOID
+};
+
+struct KTIMER32 {
+  DISPATCHER_HEADER32  Header;
+  uint64_t  DueTime; //ULARGE_INTEGER
+  LIST_ENTRY32  TimerListEntry;
+  uint32_t Dpc; //struct _KDPC  *
+  LONG  Period;
 };
 
 }

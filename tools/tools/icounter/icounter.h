@@ -34,70 +34,54 @@
  *
  */
 
-#include <iomanip>
-#include <iostream>
-#include <cassert>
-#include "InstructionCounter.h"
+#ifndef S2ETOOLS_PFPROFILER_H
+#define S2ETOOLS_PFPROFILER_H
 
-using namespace s2e::plugins;
+#include <lib/ExecutionTracer/LogParser.h>
+#include <lib/ExecutionTracer/ModuleParser.h>
 
-namespace s2etools {
+#include <ostream>
 
-InstructionCounter::InstructionCounter(LogEvents *events)
-{
-   m_events = events;
-   m_connection = events->onEachItem.connect(
-           sigc::mem_fun(*this, &InstructionCounter::onItem));
-}
+#include <lib/BinaryReaders/Library.h>
 
-InstructionCounter::~InstructionCounter()
-{
-    m_connection.disconnect();
-}
-
-void InstructionCounter::onItem(unsigned traceIndex,
-        const s2e::plugins::ExecutionTraceItemHeader &hdr,
-        void *item)
-{
-    if (hdr.type != s2e::plugins::TRACE_ICOUNT) {
-        return;
-    }
-
-    ExecutionTraceICount *e = static_cast<ExecutionTraceICount*>(item);
-    InstructionCounterState *state = static_cast<InstructionCounterState*>(m_events->getState(this, &InstructionCounterState::factory));
-
-    #ifdef DEBUG_PB
-    std::cout << "ID=" << traceIndex << " ICOUNT: e=" << e->count << " state=" << state->m_icount <<
-                 " item=" << item << std::endl;
-    #endif
-
-    assert(e->count >= state->m_icount);
-    state->m_icount = e->count;
-}
-
-void InstructionCounterState::printCounter(std::ostream &os)
-{
-    os << "Instruction count: " << std::dec << m_icount << std::endl;
-}
-
-ItemProcessorState *InstructionCounterState::factory()
-{
-    return new InstructionCounterState();
-}
-
-InstructionCounterState::InstructionCounterState()
-{
-   m_icount = 0;
-}
-
-InstructionCounterState::~InstructionCounterState()
+namespace s2etools
 {
 
-}
-
-ItemProcessorState *InstructionCounterState::clone() const
+class InstructionCounterTool
 {
-    return new InstructionCounterState(*this);
+public:
+
+
+private:
+    LogEvents *m_events;
+    ModuleCache *m_cache;
+    Library *m_library;
+
+    sigc::connection m_connection;
+
+    void onItem(unsigned traceIndex,
+                const s2e::plugins::ExecutionTraceItemHeader &hdr,
+                void *item);
+
+    void doProfile(
+            const s2e::plugins::ExecutionTraceItemHeader &hdr,
+            const s2e::plugins::ExecutionTraceFork *te);
+    void doGraph(
+            const s2e::plugins::ExecutionTraceItemHeader &hdr,
+            const s2e::plugins::ExecutionTraceFork *te);
+
+public:
+    InstructionCounterTool(Library *lib, ModuleCache *cache, LogEvents *events);
+    virtual ~InstructionCounterTool();
+
+    void process();
+
+    void outputProfile(const std::string &path) const;
+    void outputGraph(const std::string &path) const;
+};
+
 }
 
 }
+
+#endif

@@ -1,4 +1,4 @@
-/*
+//*
  * S2E Selective Symbolic Execution Framework
  *
  * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
@@ -388,7 +388,7 @@ void NdisHandlers::NdisFreeMemory(S2EExecutionState* state, FunctionMonitorState
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
     }
 
-    m_memoryChecker->revokeMemoryByPointer(state, Address, "");
+    m_memoryChecker->revokeMemory(state, "*", Address);
 }
 
 void NdisHandlers::NdisMFreeSharedMemory(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -543,7 +543,7 @@ void NdisHandlers::NdisAllocatePacketRet(S2EExecutionState* state, uint32_t pSta
     if(m_memoryChecker) {
         DECLARE_PLUGINSTATE(NdisHandlersState, state);
         uint32_t size = sizeof(NDIS_PACKET32) + sizeof(NDIS_PACKET_OOB_DATA32) + sizeof(NDIS_PACKET_EXTENSION32) +
-        plgState->ProtocolReservedLength;
+       plgState->ProtocolReservedLength;
         m_memoryChecker->grantMemory(state, Packet, size,
                                      MemoryChecker::READWRITE,
                                      "ndis:alloc:NdisAllocatePacket");
@@ -564,7 +564,9 @@ void NdisHandlers::NdisFreePacket(S2EExecutionState *state, FunctionMonitorState
         return;
     }
 
-    revokePacket(state, packet);
+    if(m_memoryChecker) {
+        m_memoryChecker->revokeMemory(state, packet, uint64_t(-1));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2241,9 +2243,6 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     klee::ref<klee::Expr> constr = klee::SgeExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
     state->addConstraint(constr);
 
-    DECLARE_PLUGINSTATE(NdisHandlersState, state);
-    plgState->exercisingInitEntryPoint = false;
-
     s2e()->getDebugStream(state) << "InitializeHandler succeeded with " << eax << std::endl;
 
     m_manager->succeedState(state);
@@ -2333,8 +2332,8 @@ void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
 
     if(m_memoryChecker) {
-        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
-        detectLeaks(state, *module);
+        //revokeMiniportAdapterContext(state);
+        m_memoryChecker->checkMemoryLeaks(state);
     }
 
     //There is nothing more to execute, kill the state
@@ -2347,12 +2346,8 @@ void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMoni
     HANDLER_TRACE_CALL();
     //grantMiniportAdapterContext(state, 0);
 
-    DECLARE_PLUGINSTATE(NdisHandlersState, state);
-    if (plgState->exercisingInitEntryPoint) {
-        return;
-    }
-
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HandleInterruptHandlerRet)
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
     plgState->isrHandlerExecuted = true;
     plgState->isrHandlerQueued = false;
 }
@@ -2405,11 +2400,6 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
 
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
-
-    if (plgState->exercisingInitEntryPoint) {
-        m_devDesc->setInterrupt(false);
-        return;
-    }
 
     uint8_t isrRecognized=0, isrQueue=0;
     bool ok = true;
@@ -2781,7 +2771,6 @@ void NdisHandlers::SendHandlerRet(S2EExecutionState* state, uint32_t pPacket)
     }
 
     if (ok && m_memoryChecker) {
-        s2e()->getDebugStream() << "SendHandler status=" << hexval(status) << '\n';
         switch (status) {
             //The driver (or its NIC) has accepted the packet data for transmission, so MiniportSend is returning the packet,
             //which NDIS will return to the protocol.
@@ -2794,7 +2783,7 @@ void NdisHandlers::SendHandlerRet(S2EExecutionState* state, uint32_t pPacket)
             case NDIS_STATUS_FAILURE:
 
             default:
-                revokePacket(state, pPacket);
+                m_memoryChecker->revokeMemoryByPointer(state, pPacket, "");
                 break;
 
             //The driver will complete the packet asynchronously with a call to NdisMSendComplete.
@@ -2825,7 +2814,7 @@ void NdisHandlers::NdisMSendCompleteHandler(S2EExecutionState* state, FunctionMo
     uint32_t pPacket;
     readConcreteParameter(state, 1, &pPacket);
     if (m_memoryChecker) {
-        revokePacket(state, pPacket);
+        m_memoryChecker->revokeMemoryByPointer(state, pPacket, "");
     }
 }
 
@@ -2886,7 +2875,6 @@ NdisHandlersState::NdisHandlersState()
     shutdownHandler = 0;   
     cableStatus = UNKNOWN;
     ProtocolReservedLength = 0;
-    exercisingInitEntryPoint = true;
 }
 
 NdisHandlersState::~NdisHandlersState()

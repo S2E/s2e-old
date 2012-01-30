@@ -34,70 +34,41 @@
  *
  */
 
-#include <iomanip>
-#include <iostream>
-#include <cassert>
-#include "InstructionCounter.h"
+#ifndef S2E_PLUGINS_INTERRUPT_INJECTOR_H
+#define S2E_PLUGINS_INTERRUPT_INJECTOR_H
 
-using namespace s2e::plugins;
+#include <s2e/Plugin.h>
+#include <s2e/Plugins/CorePlugin.h>
+#include <s2e/S2EExecutionState.h>
 
-namespace s2etools {
+#include "LibraryCallMonitor.h"
+#include "SymbolicHardware.h"
 
-InstructionCounter::InstructionCounter(LogEvents *events)
+namespace s2e {
+namespace plugins {
+
+class InterruptInjector : public Plugin
 {
-   m_events = events;
-   m_connection = events->onEachItem.connect(
-           sigc::mem_fun(*this, &InstructionCounter::onItem));
-}
+    S2E_PLUGIN
+public:
+    InterruptInjector(S2E* s2e): Plugin(s2e) {}
 
-InstructionCounter::~InstructionCounter()
-{
-    m_connection.disconnect();
-}
+    void initialize();
 
-void InstructionCounter::onItem(unsigned traceIndex,
-        const s2e::plugins::ExecutionTraceItemHeader &hdr,
-        void *item)
-{
-    if (hdr.type != s2e::plugins::TRACE_ICOUNT) {
-        return;
-    }
 
-    ExecutionTraceICount *e = static_cast<ExecutionTraceICount*>(item);
-    InstructionCounterState *state = static_cast<InstructionCounterState*>(m_events->getState(this, &InstructionCounterState::factory));
+private:
+    LibraryCallMonitor *m_libcallMonitor;
+    SymbolicHardware *m_symbolicHardware;
 
-    #ifdef DEBUG_PB
-    std::cout << "ID=" << traceIndex << " ICOUNT: e=" << e->count << " state=" << state->m_icount <<
-                 " item=" << item << std::endl;
-    #endif
+    std::string m_hardwareId;
+    DeviceDescriptor *m_deviceDescriptor;
 
-    assert(e->count >= state->m_icount);
-    state->m_icount = e->count;
-}
+    void onLibraryCall(S2EExecutionState* state,
+                       FunctionMonitorState* fns,
+                       const ModuleDescriptor& mod);
+};
 
-void InstructionCounterState::printCounter(std::ostream &os)
-{
-    os << "Instruction count: " << std::dec << m_icount << std::endl;
-}
+} // namespace plugins
+} // namespace s2e
 
-ItemProcessorState *InstructionCounterState::factory()
-{
-    return new InstructionCounterState();
-}
-
-InstructionCounterState::InstructionCounterState()
-{
-   m_icount = 0;
-}
-
-InstructionCounterState::~InstructionCounterState()
-{
-
-}
-
-ItemProcessorState *InstructionCounterState::clone() const
-{
-    return new InstructionCounterState(*this);
-}
-
-}
+#endif // S2E_PLUGINS_INTERRUPT_INJECTOR_H

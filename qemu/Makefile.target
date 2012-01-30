@@ -326,6 +326,7 @@ s2eobj-y += s2e/Plugins/CodeSelector.o
 s2eobj-y += s2e/Plugins/RawMonitor.o
 s2eobj-y += s2e/Plugins/FunctionMonitor.o
 s2eobj-y += s2e/Plugins/LibraryCallMonitor.o
+s2eobj-y += s2e/Plugins/InterruptInjector.o
 s2eobj-y += s2e/Plugins/BaseInstructions.o
 s2eobj-y += s2e/Plugins/X86ExceptionInterceptor.o
 s2eobj-y += s2e/Plugins/DataSelectors/DataSelector.o
@@ -378,6 +379,8 @@ s2eobj-y += s2e/S2EStatsTracker.o
 s2eobj-y += s2e/S2E.o
 s2eobj-y += s2e/x64.o
 
+s2e/Plugins/ModuleExecutionDetector.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/CodeSelector.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/StateManager.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Annotation.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/BranchCoverage.o s2e/Plugins/WindowsInterceptor/WindowsMonitor.o: QEMU_CXXFLAGS+=-fno-inline

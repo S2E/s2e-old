@@ -205,6 +205,10 @@ bool LogParser::parse(const std::string &fileName)
             }
         }
 
+#ifdef DEBUG_PB
+        std::cout << fileName <<  " item=" << currentItem << " buffer="   << (void*)buffer <<
+                     " ts=" << hdr->timeStamp <<  " offset=" << currentOffset << std::endl;
+#endif
         processItem(currentItem, *hdr, buffer);
         buffer+=hdr->size;
 

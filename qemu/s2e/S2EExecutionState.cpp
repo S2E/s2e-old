@@ -50,6 +50,7 @@ extern struct CPUX86State *env;
 #include <s2e/S2EDeviceState.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/Plugin.h>
+#include <s2e/Utils.h>
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
@@ -75,6 +76,7 @@ CPUTLBEntry s_cputlb_empty_entry = { -1, -1, -1, -1 };
 }
 
 extern llvm::cl::opt<bool> PrintModeSwitch;
+extern llvm::cl::opt<bool> PrintForkingStatus;
 
 namespace s2e {
 
@@ -131,7 +133,8 @@ void S2EExecutionState::enableSymbolicExecution()
     m_symbexEnabled = true;
 
     g_s2e->getMessagesStream(this) << "Enabled symbex"
-            << " at pc = " << (void*) getPc() << std::endl;
+            << " at pc = " << (void*) getPc()
+            << " and pid = " << hexval(getPid()) << std::endl;
 
 }
 
@@ -144,7 +147,8 @@ void S2EExecutionState::disableSymbolicExecution()
     m_symbexEnabled = false;
 
     g_s2e->getMessagesStream(this) << "Disabled symbex"
-            << " at pc = " << (void*) getPc() << std::endl;
+            << " at pc = " << (void*) getPc()
+            << " and pid = " << hexval(getPid()) << std::endl;
 
 }
 
@@ -156,8 +160,11 @@ void S2EExecutionState::enableForking()
 
     forkDisabled = false;
 
-    g_s2e->getMessagesStream(this) << "Enabled forking"
-            << " at pc = " << (void*) getPc() << std::endl;
+    if (PrintForkingStatus) {
+        g_s2e->getMessagesStream(this) << "Enabled forking"
+                << " at pc = " << (void*) getPc()
+                << " and pid = " << hexval(getPid()) << std::endl;
+    }
 }
 
 void S2EExecutionState::disableForking()
@@ -168,8 +175,11 @@ void S2EExecutionState::disableForking()
 
     forkDisabled = true;
 
-    g_s2e->getMessagesStream(this) << "Disabled forking"
-            << " at pc = " << (void*) getPc() << std::endl;
+    if (PrintForkingStatus) {
+        g_s2e->getMessagesStream(this) << "Disabled forking"
+                << " at pc = " << (void*) getPc()
+                << " and pid = " << hexval(getPid()) << std::endl;
+    }
 }
 
 

@@ -34,70 +34,43 @@
  *
  */
 
-#include <iomanip>
+#include "InterruptInjector.h"
+#include <s2e/S2E.h>
+#include <s2e/ConfigFile.h>
+#include <s2e/Utils.h>
+
 #include <iostream>
-#include <cassert>
-#include "InstructionCounter.h"
 
-using namespace s2e::plugins;
+namespace s2e {
+namespace plugins {
 
-namespace s2etools {
+S2E_DEFINE_PLUGIN(InterruptInjector, "Inject hardware interrupts at various places in the system to cause race conditions",
+                  "InterruptInjector",
+                  "SymbolicHardware", "LibraryCallMonitor");
 
-InstructionCounter::InstructionCounter(LogEvents *events)
+void InterruptInjector::initialize()
 {
-   m_events = events;
-   m_connection = events->onEachItem.connect(
-           sigc::mem_fun(*this, &InstructionCounter::onItem));
-}
+    m_libcallMonitor = static_cast<LibraryCallMonitor*>(s2e()->getPlugin("LibraryCallMonitor"));
+    m_symbolicHardware = static_cast<SymbolicHardware*>(s2e()->getPlugin("SymbolicHardware"));
 
-InstructionCounter::~InstructionCounter()
-{
-    m_connection.disconnect();
-}
+    m_libcallMonitor->onLibraryCall.connect(
+            sigc::mem_fun(*this, &InterruptInjector::onLibraryCall));
 
-void InstructionCounter::onItem(unsigned traceIndex,
-        const s2e::plugins::ExecutionTraceItemHeader &hdr,
-        void *item)
-{
-    if (hdr.type != s2e::plugins::TRACE_ICOUNT) {
-        return;
+    m_hardwareId = s2e()->getConfig()->getString(getConfigKey() + ".hardwareId");
+
+    m_deviceDescriptor = m_symbolicHardware->findDevice(m_hardwareId);
+    if (!m_deviceDescriptor) {
+        s2e()->getWarningsStream() << "InterruptInjector: you must specifiy a valid hardware id." << std::endl;
+        exit(-1);
     }
-
-    ExecutionTraceICount *e = static_cast<ExecutionTraceICount*>(item);
-    InstructionCounterState *state = static_cast<InstructionCounterState*>(m_events->getState(this, &InstructionCounterState::factory));
-
-    #ifdef DEBUG_PB
-    std::cout << "ID=" << traceIndex << " ICOUNT: e=" << e->count << " state=" << state->m_icount <<
-                 " item=" << item << std::endl;
-    #endif
-
-    assert(e->count >= state->m_icount);
-    state->m_icount = e->count;
 }
 
-void InstructionCounterState::printCounter(std::ostream &os)
+void InterruptInjector::onLibraryCall(S2EExecutionState* state,
+                                      FunctionMonitorState* fns,
+                                      const ModuleDescriptor& mod)
 {
-    os << "Instruction count: " << std::dec << m_icount << std::endl;
+    m_deviceDescriptor->setInterrupt(true);
 }
 
-ItemProcessorState *InstructionCounterState::factory()
-{
-    return new InstructionCounterState();
-}
-
-InstructionCounterState::InstructionCounterState()
-{
-   m_icount = 0;
-}
-
-InstructionCounterState::~InstructionCounterState()
-{
-
-}
-
-ItemProcessorState *InstructionCounterState::clone() const
-{
-    return new InstructionCounterState(*this);
-}
-
-}
+} // namespace plugins
+} // namespace s2e
