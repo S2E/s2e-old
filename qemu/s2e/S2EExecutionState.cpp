@@ -216,10 +216,20 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
     }
 #endif
 
-    ObjectPair op = m_memcache.get(mo->address);
-    if (op.first) {
-        op.second = newState;
-        m_memcache.put(mo->address, op);
+    if (mo == m_cpuRegistersState) {
+        //It may happen that an execution state is copied in other places
+        //than fork, in which case clone() is not called and the state
+        //is left with stale references to memory objects. We patch these
+        //objects here.
+        m_cpuRegistersObject = newState;
+    } else if (mo == m_cpuSystemState) {
+        m_cpuSystemObject = newState;
+    } else {
+        ObjectPair op = m_memcache.get(mo->address);
+        if (op.first) {
+            op.second = newState;
+            m_memcache.put(mo->address, op);
+        }
     }
 }
 
