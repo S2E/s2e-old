@@ -24,7 +24,7 @@ Examples
   ::
 
       $ /home/s2e/tools/Release/bin/coverage -trace=s2e-last/ExecutionTracer.dat -outputdir=s2e-last/ \
-        -modpath=/home/s2e/experiments/rtl8139.sys/driver -modpath=/home/s2e/experiments/rtl8029.sys/driver
+        -moddir=/home/s2e/experiments/rtl8139.sys/driver -moddir=/home/s2e/experiments/rtl8029.sys/driver
 
 
 Required Plugins

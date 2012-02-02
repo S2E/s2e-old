@@ -4,6 +4,8 @@ Supported Debug Information
 
 Most of the tools can print debug information (e.g., module names, relative program counters, line numbers, etc.) whenever it is available.
 Debug information can come from different sources: the execution trace itself, the binary (through the BFD library), or from custom text files.
+You need to use the ``-moddir`` command line option to specify the path to the directory that contains the binary modules with
+debug information, or text files. You can use ``-moddir`` multiple times if you have multiple directories.
 
 The execution trace contains entries specifying what, where, and when modules are loaded or unloaded. 
 The ``ModuleTracer`` plugin records this information whenever an ``Interceptor`` plugin detects module 
