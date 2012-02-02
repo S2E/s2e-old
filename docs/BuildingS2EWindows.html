@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
 <title>Building S2E on Windows</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -14,6 +14,11 @@
 <p>In this document, we explain how to build S2E on 64-bit versions of Windows.
 S2E works on Windows XP x64 and Windows 7.</p>
 <p>All the files can be found on the <a class="reference external" href="https://s2e.epfl.ch/projects/s2e/files">S2E web site</a>.</p>
+<p><em>WARNING: Windows support is currently experimental and may not work/compile on all setups. Only basic symbolic execution
+is currently supported. Most of the plugins will not work because of exception support issues.
+We recommend to run S2E in a Linux virtual machine (e.g., VMware). This is almost as fast as running S2E natively,
+provided that you give a sufficient amount of memory to the virtual machine (at least 4GB).
+We welcome contributions for full Windows support!</em></p>
 <div class="section" id="quick-install">
 <h1>Quick install</h1>
 <p>This consists in 3 steps and takes less than 5 minutes.</p>
