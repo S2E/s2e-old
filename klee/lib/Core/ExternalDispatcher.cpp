@@ -278,10 +278,41 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
     args[i] = new LoadInst(argp, "", dBB);
   }
 
+  /////////////////////
+  //S2E modification
+  //The original KLEE code issued a call instruction to the external function
+  //represented by a plain llvm::Function. The LLVM JIT would create a stub
+  //for such a call. The stub and the JITed function (the one returned by this method)
+  //must be close enough in memory because the JIT generates a machine call instruction
+  //that uses a relative 32-bits displacement. Unfortunately, the default JIT memory
+  //manager allocates blocks of code too far apart for a 32-bit value.
+  //To solve this, we create an absolute call by casting the native pointer to
+  //the helper to the type of that helper.
+
+  uintptr_t targetFunctionAddress =
+          (uintptr_t) llvm::sys::DynamicLibrary::SearchForAddressOfSymbol(target->getName());
+
+  assert(targetFunctionAddress && "External function not registered");
+
+
+  Instruction *toPtr = new IntToPtrInst(
+              ConstantInt::get(Type::getInt64Ty(dispatchModule->getContext()),
+                               APInt(sizeof(targetFunctionAddress) * 8, targetFunctionAddress)),
+              PointerType::get(Type::getInt64Ty(dispatchModule->getContext()), 0), "", dBB);
+
+  Instruction *dispatchTarget = new BitCastInst(
+        toPtr,
+        cs.getCalledValue()->getType(), "", dBB);
+
+  /////////////////////
+
+#if 0
+  //Original KLEE code for external function calling
   Instruction *dispatchTarget = new BitCastInst(
         dispatchModule->getOrInsertFunction(target->getName(), FTy,
                                         target->getAttributes()),
         cs.getCalledValue()->getType(), "", dBB);
+#endif
 
   Instruction *result = CallInst::Create(dispatchTarget, args, args+i, "", dBB);
   if (result->getType() != Type::getVoidTy(getGlobalContext())) {
