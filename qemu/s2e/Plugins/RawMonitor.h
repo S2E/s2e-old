@@ -64,6 +64,15 @@ public:
         bool kernelMode;
     };
 
+    struct OpcodeModuleConfig {
+        uint32_t name;
+        uint64_t nativeBase;
+        uint64_t loadBase;
+        uint64_t entryPoint;
+        uint64_t size;
+        uint32_t kernelMode;
+    } __attribute__((packed));
+
     typedef std::vector<Cfg> CfgList;
 private:
     CfgList m_cfg;
@@ -76,6 +85,11 @@ private:
     bool initSection(const std::string &cfgKey, const std::string &svcId);
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
     void loadModule(S2EExecutionState *state, const Cfg &c, bool delay);
+
+    void opLoadConfiguredModule(S2EExecutionState *state);
+    void opCreateImportDescriptor(S2EExecutionState *state);
+    void opLoadModule(S2EExecutionState *state);
+
 public:
     RawMonitor(S2E* s2e): OSMonitor(s2e) {}
     virtual ~RawMonitor();

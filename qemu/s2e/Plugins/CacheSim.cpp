@@ -114,6 +114,19 @@ public:
     }
 
 
+    Cache(const Cache &c) {
+        m_size = c.m_size;
+        m_associativity = c.m_associativity;
+        m_lineSize = c.m_lineSize;
+        m_indexShift = c.m_indexShift;
+        m_indexMask = c.m_indexMask;
+        m_tagShift = c.m_tagShift;
+        m_lines = c.m_lines;
+        m_name = c.m_name;
+        m_cacheId = c.m_cacheId;
+        m_upperCache = NULL;
+    }
+
     Cache(const std::string& name,
           uint64_t size, uint64_t associativity,
           uint64_t lineSize, uint64_t cost = 1, Cache* upperCache = NULL)
@@ -315,6 +328,8 @@ PluginState *CacheSimState::clone() const
     for (oldCaches = m_caches.begin(); oldCaches != m_caches.end(); ++oldCaches) {
         Cache *u;
         if (!(u = (*oldCaches).second->getUpperCache())) {
+            //Don't need to reset the upper cache pointer because
+            //we clear it in the copy constructor
             continue;
         }
 

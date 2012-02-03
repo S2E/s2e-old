@@ -50,6 +50,7 @@ extern struct CPUX86State *env;
 #include <s2e/S2EDeviceState.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/Plugin.h>
+#include <s2e/Utils.h>
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
@@ -75,6 +76,7 @@ CPUTLBEntry s_cputlb_empty_entry = { -1, -1, -1, -1 };
 }
 
 extern llvm::cl::opt<bool> PrintModeSwitch;
+extern llvm::cl::opt<bool> PrintForkingStatus;
 
 namespace s2e {
 
@@ -131,7 +133,8 @@ void S2EExecutionState::enableSymbolicExecution()
     m_symbexEnabled = true;
 
     g_s2e->getMessagesStream(this) << "Enabled symbex"
-            << " at pc = " << (void*) getPc() << std::endl;
+            << " at pc = " << (void*) getPc()
+            << " and pid = " << hexval(getPid()) << std::endl;
 
 }
 
@@ -144,7 +147,8 @@ void S2EExecutionState::disableSymbolicExecution()
     m_symbexEnabled = false;
 
     g_s2e->getMessagesStream(this) << "Disabled symbex"
-            << " at pc = " << (void*) getPc() << std::endl;
+            << " at pc = " << (void*) getPc()
+            << " and pid = " << hexval(getPid()) << std::endl;
 
 }
 
@@ -156,8 +160,11 @@ void S2EExecutionState::enableForking()
 
     forkDisabled = false;
 
-    g_s2e->getMessagesStream(this) << "Enabled forking"
-            << " at pc = " << (void*) getPc() << std::endl;
+    if (PrintForkingStatus) {
+        g_s2e->getMessagesStream(this) << "Enabled forking"
+                << " at pc = " << (void*) getPc()
+                << " and pid = " << hexval(getPid()) << std::endl;
+    }
 }
 
 void S2EExecutionState::disableForking()
@@ -168,8 +175,11 @@ void S2EExecutionState::disableForking()
 
     forkDisabled = true;
 
-    g_s2e->getMessagesStream(this) << "Disabled forking"
-            << " at pc = " << (void*) getPc() << std::endl;
+    if (PrintForkingStatus) {
+        g_s2e->getMessagesStream(this) << "Disabled forking"
+                << " at pc = " << (void*) getPc()
+                << " and pid = " << hexval(getPid()) << std::endl;
+    }
 }
 
 
@@ -206,10 +216,20 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
     }
 #endif
 
-    ObjectPair op = m_memcache.get(mo->address);
-    if (op.first) {
-        op.second = newState;
-        m_memcache.put(mo->address, op);
+    if (mo == m_cpuRegistersState) {
+        //It may happen that an execution state is copied in other places
+        //than fork, in which case clone() is not called and the state
+        //is left with stale references to memory objects. We patch these
+        //objects here.
+        m_cpuRegistersObject = newState;
+    } else if (mo == m_cpuSystemState) {
+        m_cpuSystemObject = newState;
+    } else {
+        ObjectPair op = m_memcache.get(mo->address);
+        if (op.first) {
+            op.second = newState;
+            m_memcache.put(mo->address, op);
+        }
     }
 }
 

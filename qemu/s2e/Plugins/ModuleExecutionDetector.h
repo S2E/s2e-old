@@ -146,6 +146,7 @@ private:
     bool m_ConfigureAllModules;
 
     void initializeConfiguration();
+    bool opAddModuleConfigEntry(S2EExecutionState *state);
 public:
     ModuleExecutionDetector(S2E* s2e): Plugin(s2e) {}
     virtual ~ModuleExecutionDetector();
@@ -164,6 +165,11 @@ public:
     const ConfiguredModulesById &getConfiguredModulesById() const {
         return m_ConfiguredModulesId;
     }
+
+    void onCustomInstruction(
+            S2EExecutionState *state,
+            uint64_t operand
+            );
 
     void onTranslateBlockStart(ExecutionSignal *signal,
         S2EExecutionState *state,

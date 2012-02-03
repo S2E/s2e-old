@@ -63,12 +63,22 @@ public:
 
     void initialize();
 
+    sigc::signal<void,
+                 S2EExecutionState*,
+                 FunctionMonitorState*,
+                 const ModuleDescriptor& /* The module  being called */>
+          onLibraryCall;
+
 private:
     OSMonitor * m_monitor;
     ModuleExecutionDetector *m_detector;
     FunctionMonitor *m_functionMonitor;
     StringSet m_functionNames;
     AddressPairs m_alreadyCalledFunctions;
+
+    //List of modules whose calls we want to track.
+    //Empty to track all modules in the system.
+    StringSet m_trackedModules;
 
     bool m_displayOnce;
 

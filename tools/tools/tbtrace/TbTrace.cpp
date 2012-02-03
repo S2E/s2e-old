@@ -73,7 +73,7 @@ cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the list of translation blocks into the given folder"), cl::init("."));
 
 cl::list<std::string>
-    ModPath("modpath", cl::desc("Path to modules. Must contain *.lst and *.bblist files as well if needed."));
+    ModDir("moddir", cl::desc("Directory containing the binary modules"));
 
 cl::list<unsigned>
     PathList("pathId",
@@ -409,7 +409,7 @@ void TbTrace::onItem(unsigned traceIndex,
 
 TbTraceTool::TbTraceTool()
 {
-    m_binaries.setPaths(ModPath);
+    m_binaries.setPaths(ModDir);
 }
 
 TbTraceTool::~TbTraceTool()

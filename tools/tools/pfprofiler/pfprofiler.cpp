@@ -72,7 +72,7 @@ cl::opt<std::string>
     TraceFile("trace", cl::desc("<input trace>"), cl::init("ExecutionTracer.dat"));
 
 cl::list<std::string>
-    ModPath("modpath", cl::desc("Path to modules"));
+    ModDir("moddir", cl::desc("Directory containing the binary modules"));
 
 cl::opt<std::string>
         ModListRaw("modlist", cl::desc("Display debug info for the specified modules (all when empty)"), cl::init(""));
@@ -119,7 +119,7 @@ PfProfiler::PfProfiler(const std::string &file)
 {
     m_FileName = file;
     m_ModuleCache = NULL;
-    m_binaries.setPaths(ModPath);
+    m_binaries.setPaths(ModDir);
 }
 
 PfProfiler::~PfProfiler()

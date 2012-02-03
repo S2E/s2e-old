@@ -59,14 +59,43 @@ class CodeSelector:public Plugin
 public:
     typedef std::set<std::string> Modules;
 
+    //process id => true if track the entire address space
+    //process id => false if track the user-space only
+    typedef std::map<uint64_t, bool> Pids;
+
 private:
-    ModuleExecutionDetector *m_ExecutionDetector;
+    ModuleExecutionDetector *m_executionDetector;
     Modules m_interceptedModules;
+    Pids m_pidsToTrack;
+
+    sigc::connection m_addressSpaceTracking;
+    sigc::connection m_privilegeTracking;
+
     void onModuleTransition(
         S2EExecutionState *state,
         const ModuleDescriptor *prevModule,
         const ModuleDescriptor *currentModule
-     );
+    );
+
+    void onPageDirectoryChange(
+        S2EExecutionState *state,
+        uint64_t previous, uint64_t current
+    );
+
+    void onPrivilegeChange(
+        S2EExecutionState *state,
+        unsigned previous, unsigned current
+    );
+
+    void onCustomInstruction(
+        S2EExecutionState *state,
+        uint64_t operand
+    );
+
+    void opSelectProcess(S2EExecutionState *state);
+    void opUnselectProcess(S2EExecutionState *state);
+
+    bool opSelectModule(S2EExecutionState *state);
 
 public:
     CodeSelector(S2E* s2e);

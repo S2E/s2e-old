@@ -206,6 +206,28 @@ public:
     /** Signal emitted when QEMU is ready to activate registered devices */
     sigc::signal<void, struct PCIBus*> onDeviceActivation;
 
+    /**
+      * The current execution privilege level was changed (e.g., kernel-mode=>user-mode)
+      * previous and current are privilege levels. The meaning of the value may
+      * depend on the architecture.
+      */
+    sigc::signal<void,
+                 S2EExecutionState* /* current state */,
+                 unsigned /* previous level */,
+                 unsigned /* current level */>
+          onPrivilegeChange;
+
+    /**
+      * The current page directory was changed.
+      * This may occur, e.g., when the OS swaps address spaces.
+      * The addresses correspond to physical addresses.
+      */
+    sigc::signal<void,
+                 S2EExecutionState* /* current state */,
+                 uint64_t /* previous page directory base */,
+                 uint64_t /* current page directory base */>
+          onPageDirectoryChange;
+
 };
 
 } // namespace s2e

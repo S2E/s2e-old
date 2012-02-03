@@ -221,6 +221,10 @@ public:
         return m_currentProcessId;
     }
 
+    unsigned getCurrentProcessIndex() const {
+        return m_currentProcessIndex;
+    }
+
     unsigned getProcessIndexForId(unsigned id);
 
     unsigned getCurrentProcessCount();

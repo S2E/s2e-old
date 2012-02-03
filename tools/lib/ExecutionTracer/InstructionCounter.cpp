@@ -66,6 +66,10 @@ void InstructionCounter::onItem(unsigned traceIndex,
     ExecutionTraceICount *e = static_cast<ExecutionTraceICount*>(item);
     InstructionCounterState *state = static_cast<InstructionCounterState*>(m_events->getState(this, &InstructionCounterState::factory));
 
+    #ifdef DEBUG_PB
+    std::cout << "ID=" << traceIndex << " ICOUNT: e=" << e->count << " state=" << state->m_icount <<
+                 " item=" << item << std::endl;
+    #endif
 
     assert(e->count >= state->m_icount);
     state->m_icount = e->count;

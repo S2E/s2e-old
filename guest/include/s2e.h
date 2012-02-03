@@ -34,6 +34,10 @@
  *
  */
 
+#include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
+
 /** Forces the read of every byte of the specified string.
   * This makes sure the memory pages occupied by the string are paged in
   * before passing them to S2E, which can't page in memory by itself. */
@@ -149,6 +153,20 @@ static inline void s2e_make_symbolic(void* buf, int size, const char* name)
         "popl %%ebx\n"
         : : "a" (buf), "d" (size), "c" (name) : "memory"
     );
+}
+
+/** Returns true if ptr points to a symbolic value */
+static inline int s2e_is_symbolic(void* ptr)
+{
+    int result;
+    __s2e_touch_buffer(ptr, 1);
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x04, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : "=a" (result) : "a" (0), "c" (ptr)
+    );
+    return result;
 }
 
 /** Concretize the expression. */
@@ -346,6 +364,156 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
     );
 }
 
+typedef struct _s2e_opcode_module_config_t {
+    uint32_t name;
+    uint64_t nativeBase;
+    uint64_t loadBase;
+    uint64_t entryPoint;
+    uint64_t size;
+    uint32_t kernelMode;
+} __attribute__((packed)) s2e_opcode_module_config_t;
+
+/** Raw monitor plugin */
+/** Communicates to S2E the coordinates of loaded modules. Useful when there is
+    no plugin to automatically parse OS data structures */
+static inline void s2e_rawmon_loadmodule2(const char *name,
+                                         uint64_t nativebase,
+                                         uint64_t loadbase,
+                                         uint64_t entrypoint,
+                                         uint64_t size, unsigned kernelMode)
+{
+    s2e_opcode_module_config_t cfg;
+    cfg.name = (uint32_t) name;
+    cfg.nativeBase = nativebase;
+    cfg.loadBase = loadbase;
+    cfg.entryPoint = entrypoint;
+    cfg.size = size;
+    cfg.kernelMode = kernelMode;
+
+    __s2e_touch_string(name);
+
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAA, 0x02, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "c" (&cfg)
+    );
+}
+
+/** CodeSelector plugin */
+/** Enable forking in the current process (entire address space or user mode only) */
+static inline void s2e_codeselector_enable_address_space(unsigned user_mode_only)
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAE, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "c" (user_mode_only)
+    );
+}
+
+/** Disable forking in the specified process (represented by its page directory).
+    If pagedir is 0, disable forking in the current process. */
+static inline void s2e_codeselector_disable_address_space(uint64_t pagedir)
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAE, 0x01, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "c" (pagedir)
+    );
+}
+
+static inline void s2e_codeselector_select_module(const char *moduleId)
+{
+    __s2e_touch_string(moduleId);
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAE, 0x02, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "c" (moduleId)
+    );
+}
+
+/** Programmatically add a new configuration entry to the ModuleExecutionDetector plugin */
+static inline void s2e_moduleexec_add_module(const char *moduleId, const char *moduleName, int kernelMode)
+{
+    __s2e_touch_string(moduleId);
+    __s2e_touch_string(moduleName);
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAF, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+            : : "c" (moduleId), "a" (moduleName), "d" (kernelMode)
+    );
+}
+
+
+
+
+/**
+ * If processToRetrive == null,  get the name, load address, and
+ * the size of the currently running process.
+ *
+ * If processToRetrive != null,  get the name, load address, and
+ * the size of the specified module in the currently running process.
+ *
+ * The returned name is an absolute path to the program file.
+ */
+static inline int s2e_get_module_info(const char *moduleToRetrieve,
+                                char *name, size_t maxNameLength,
+                                uint64_t *loadBase, uint64_t *size)
+{
+    const char* modName = NULL;
+    int result = -1;
+
+    if (moduleToRetrieve) {
+        modName = strrchr(moduleToRetrieve, '/');
+        if (modName == NULL) {
+            modName = name;
+        } else {
+            ++modName;  // point to the first char after the slash
+        }
+    }
+
+    FILE* maps = fopen("/proc/self/maps", "r");
+    if (!maps) {
+        return result;
+    }
+
+    size_t start, end;
+    char executable;
+
+    char line[256], path[128];
+    while (fgets(line, sizeof(line), maps)) {
+        if (sscanf(line, "%x-%x %*c%*c%c%*c %*x %*s %*d %127[^\n]", &start, &end, &executable, path) == 4) {
+            if (modName) {
+                if (executable == 'x' && strstr(path, modName) != NULL) {
+                    *loadBase = start;
+                    *size = end - start;
+                    strncpy(name, path, maxNameLength);
+                    result = 0;
+                    break;
+                }
+            } else {
+                if (!executable) {
+                    continue;
+                }
+
+                //Found the module, get its data
+                *loadBase = start;
+                *size = end - start;
+                strncpy(name, path, maxNameLength);
+                result = 0;
+                break;
+            }
+        }
+    }
+
+    fclose(maps);
+    return result;
+}
+
 /* Kills the current state if b is zero */
 static inline void _s2e_assert(int b, const char *expression )
 {
@@ -355,3 +523,31 @@ static inline void _s2e_assert(int b, const char *expression )
 }
 
 #define s2e_assert(expression) _s2e_assert(expression, "Assertion failed: "  #expression)
+
+/** Returns a symbolic value in [start, end) */
+static inline int s2e_range(int start, int end, const char* name) {
+  int x = -1;
+
+  if (start >= end) {
+    s2e_kill_state(1, "s2e_range: invalid range");
+  }
+
+  if (start+1==end) {
+    return start;
+  } else {
+    s2e_make_symbolic(&x, sizeof x, name);
+
+    /* Make nicer constraint when simple... */
+    if (start==0) {
+      if ((unsigned) x >= (unsigned) end) {
+        s2e_kill_state(0, "s2e_range creating a constraint...");
+      }
+    } else {
+      if (x < start || x >= end) {
+        s2e_kill_state(0, "s2e_range creating a constraint...");
+      }
+    }
+
+    return x;
+  }
+}

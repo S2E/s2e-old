@@ -16,7 +16,8 @@ S²E Documentation
   3. `Quicky uploading programs to the guest with s2eget <UsingS2EGet.html>`_
 
   4. `Testing a simple program <TestingMinimalProgram.html>`_
-  5. `Equivalence testing <EquivalenceTesting.html>`_
+  5. `Testing Linux binaries <Howtos/init_env.html>`_
+  6. `Equivalence testing <EquivalenceTesting.html>`_
   
 * Analyzing Windows Device Drivers
 

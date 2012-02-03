@@ -71,7 +71,7 @@ cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
 
 cl::list<std::string>
-    ModPath("modpath", cl::desc("Path to modules"));
+    ModDir("moddir", cl::desc("Directory containing binary modules and the basic block list (.bblist)"));
 
 cl::opt<bool>
     Compact("compact", cl::desc("Do not display non-covered blocks"), cl::init(false));
@@ -101,12 +101,19 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
         sscanf(buffer, "0x%"PRIx64" 0x%"PRIx64" %[^\r\t\n]s", &start, &end, name);
         //std::cout << "Read 0x" << std::hex << start << " 0x" << end << " " << name << std::endl;
 
+        unsigned prevCount = m_allBbs.size();
+        std::pair<BasicBlocks::iterator, bool> result = m_allBbs.insert(BasicBlock(start, end));
+        if (!result.second) {
+           std::cout << "Wont insert this block : existing block: " << (*result.first).start << std::endl;
+           continue;
+        }
+
         BasicBlocks &bbs = m_functions[name];
         //XXX: the +1 is here to compensate the broken extraction script, which
         //does not take into account the whole size of the last instruction.
+        prevCount = bbs.size();
         bbs.insert(BasicBlock(start, end));
-        m_allBbs.insert(BasicBlock(start, end));
-
+        assert(prevCount == bbs.size()-1);
     }
 
     Functions::iterator fit;
@@ -414,7 +421,7 @@ void Coverage::outputCoverage(const std::string &path) const
 
 CoverageTool::CoverageTool()
 {
-    m_binaries.setPaths(ModPath);
+    m_binaries.setPaths(ModDir);
 }
 
 CoverageTool::~CoverageTool()

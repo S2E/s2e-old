@@ -66,6 +66,7 @@
 #include <s2e/Plugins/X86ExceptionInterceptor.h>
 #include <s2e/Plugins/HostFiles.h>
 #include <s2e/Plugins/MemoryChecker.h>
+#include <s2e/Plugins/InterruptInjector.h>
 #include <s2e/Plugins/WindowsApi/NdisHandlers.h>
 #include <s2e/Plugins/WindowsApi/NtoskrnlHandlers.h>
 #include <s2e/Plugins/WindowsApi/HalHandlers.h>
@@ -112,6 +113,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);
     __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
     __S2E_REGISTER_PLUGIN(plugins::CacheSim);
+    __S2E_REGISTER_PLUGIN(plugins::InterruptInjector);
 
     __S2E_REGISTER_PLUGIN(plugins::ExecutionTracer);
     __S2E_REGISTER_PLUGIN(plugins::ModuleTracer);

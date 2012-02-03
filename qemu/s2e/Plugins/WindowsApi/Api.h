@@ -393,13 +393,14 @@ public:
         }
     }
 
-    void detectLeaks(S2EExecutionState *state,
+    virtual void detectLeaks(S2EExecutionState *state,
                      const ModuleDescriptor &module) {
         if(m_memoryChecker) {
             unregisterImportedVariables(state, module);
             m_memoryChecker->revokeMemoryForModuleSections(state, module);
             m_memoryChecker->revokeMemoryForModule(state, &module, "stack");
             m_memoryChecker->checkMemoryLeaks(state);
+            m_memoryChecker->checkResourceLeaks(state);
         }
     }
 
