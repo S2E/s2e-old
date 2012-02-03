@@ -89,7 +89,7 @@ void CodeSelector::initialize()
 
     if (!ok || moduleList.empty()) {
         s2e()->getWarningsStream() << "You should specify a list of modules in " <<
-                getConfigKey() + ".modules" << std::endl;
+                getConfigKey() + ".modulesIds" << std::endl;
     }
 
     foreach2(it, moduleList.begin(), moduleList.end()) {
