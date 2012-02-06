@@ -28,10 +28,10 @@ Required Plugins
 * ModuleExecutionDetector (only the translation blocks of those modules that are configured will be traced)
 * ExecutionTracer
 * TranslationBlockTracer
-
+* ModuleTracer (for module information)
 
 Optional Plugins
 ~~~~~~~~~~~~~~~~
 
-* ModuleTracer (for debug information)
+
 * TestCaseGenerator (for test cases)

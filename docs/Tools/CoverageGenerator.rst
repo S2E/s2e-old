@@ -32,9 +32,7 @@ Required Plugins
 
 * ExecutionTracer
 * TranslationBlockTracer
+* ModuleTracer
+    The coverage tool will not produce any output without this plugin, because it would not know which module the traced program counters belong to.
 
-Optional Plugins
-~~~~~~~~~~~~~~~~
-
-* ModuleTracer (for debug information)
 

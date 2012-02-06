@@ -37,15 +37,17 @@ $ /home/s2e/tools/Release/bin/coverage -trace=s2e-last/ExecutionTracer.dat -outp
 </div>
 <div class="section" id="required-plugins">
 <h1>Required Plugins</h1>
-<ul class="simple">
-<li>ExecutionTracer</li>
-<li>TranslationBlockTracer</li>
-</ul>
-</div>
-<div class="section" id="optional-plugins">
-<h1>Optional Plugins</h1>
-<ul class="simple">
-<li>ModuleTracer (for debug information)</li>
+<ul>
+<li><p class="first">ExecutionTracer</p>
+</li>
+<li><p class="first">TranslationBlockTracer</p>
+</li>
+<li><dl class="first docutils">
+<dt>ModuleTracer</dt>
+<dd><p class="first last">The coverage tool will not produce any output without this plugin, because it would not know which module the traced program counters belong to.</p>
+</dd>
+</dl>
+</li>
 </ul>
 </div>
 </div>
