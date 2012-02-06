@@ -346,6 +346,9 @@ S2E::~S2E()
     // llvm::ModuleProvider wants to delete it too. We have to arbitrate.
     m_tcgLLVMContext->getModuleProvider()->releaseModule();
 
+    //Make sure everything is clean
+    m_s2eExecutor->flushTb();
+
     //This is necessary, as the execution engine uses the module.
     m_tcgLLVMContext->deleteExecutionEngine();
 

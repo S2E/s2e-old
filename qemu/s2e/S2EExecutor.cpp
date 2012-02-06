@@ -826,9 +826,12 @@ void S2EExecutor::initializeStatistics()
 }
 
 
+void S2EExecutor::flushTb() {
+    tb_flush(env); // release references to TB functions
+}
+
 S2EExecutor::~S2EExecutor()
 {
-    tb_flush(env); // release references to TB functions
     if(statsTracker)
         statsTracker->done();
 }

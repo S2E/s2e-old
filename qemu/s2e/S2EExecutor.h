@@ -114,6 +114,8 @@ public:
                 klee::InterpreterHandler *ie);
     virtual ~S2EExecutor();
 
+    void flushTb();
+
     /** Create initial execution state */
     S2EExecutionState* createInitialState();
 
