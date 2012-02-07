@@ -144,7 +144,7 @@ private:
     DECLARE_ENTRY_POINT_CO(NdisFreePacketPool);
     DECLARE_ENTRY_POINT_CO(NdisFreeBuffer);
 
-    DECLARE_ENTRY_POINT(NdisOpenAdapter);
+    DECLARE_ENTRY_POINT(NdisOpenAdapter, uint32_t pStatus, uint32_t pNdisBindingHandle);
     DECLARE_ENTRY_POINT(NdisOpenConfiguration);
 
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
@@ -207,109 +207,23 @@ private:
 
     bool makePacketSymbolic(S2EExecutionState *s, uint32_t packet, bool keepSymbolicData);
 
-    static std::string makeConfigurationRegionString(uint32_t handle, bool free) {
-        std::stringstream ss;
-        ss << "ndis:NdisReadConfiguration:" << hexval(handle);
-        if (free) {
-            ss << "*";
-        } else {
-            ss << ":";
-        }
-        return ss.str();
-    }
+    static std::string makeConfigurationRegionString(uint32_t handle, bool free);
 
-   void grantPacket(S2EExecutionState *state, uint32_t pNdisPacket, uint32_t ProtocolReservedLength) {
-       if(m_memoryChecker) {
-           std::stringstream ss;
-           ss << "ndis:alloc:NDIS_PACKET:" << hexval(pNdisPacket);
+    /* XXX: All these functions should be automatically synthesized... */
+    void grantPacket(S2EExecutionState *state, uint32_t pNdisPacket, uint32_t ProtocolReservedLength);
+    void revokePacket(S2EExecutionState *state, uint32_t pNdisPacket);
 
-           uint32_t size = sizeof(windows::NDIS_PACKET32) +
-                           sizeof(windows::NDIS_PACKET_OOB_DATA32) +
-                           sizeof(windows::NDIS_PACKET_EXTENSION32) +
-                           ProtocolReservedLength;
-           m_memoryChecker->grantMemory(state, pNdisPacket, size,
-                                     MemoryChecker::READWRITE,
-                                     ss.str());
+    void grantMiniportAdapterContext(S2EExecutionState *state, uint32_t HandleParamNum);
+    void revokeMiniportAdapterContext(S2EExecutionState *state);
 
-           //Grant access rights to the list of buffers (MDLs)
-           windows::MDL32 CurMdl;
-           windows::NDIS_PACKET32 Packet;
+    void grantBindingHandle(S2EExecutionState *state, uint32_t NdisBindingHandle);
+    void revokeBindingHandle(S2EExecutionState *state);
 
-           if (!state->readMemoryConcrete(pNdisPacket, &Packet, sizeof(Packet))) {
-               return;
-           }
-
-           uint32_t head = Packet.Private.Head;
-           while (head) {
-               m_memoryChecker->grantMemory(state, head, sizeof(CurMdl),
-                                MemoryChecker::READ, ss.str() + ":MDL");
-
-               if (!state->readMemoryConcrete(head, &CurMdl, sizeof(CurMdl))) {
-                   break;
-               }
-
-               m_memoryChecker->grantMemory(state, CurMdl.StartVa + CurMdl.ByteOffset, CurMdl.ByteCount,
-                                MemoryChecker::READWRITE, ss.str() + ":MDLBUF");
-
-               head = CurMdl.Next;
-           }
-       }
-   }
-
-   void revokePacket(S2EExecutionState *state, uint32_t pNdisPacket) {
-       if (m_memoryChecker) {
-           std::stringstream ss;
-           ss << "ndis:alloc:NDIS_PACKET:" << hexval(pNdisPacket) << "*";
-           m_memoryChecker->revokeMemory(state, ss.str(), uint64_t(-1));
-       }
-   }
-
-   void revokeMiniportAdapterContext(S2EExecutionState *state) {
-        if (m_memoryChecker) {
-            //Some entry points may be called internally. Don't revoke in such cases.
-            //XXX: broken
-            //if (calledFromModule(state)) {
-            //   return;
-            //}
-            m_memoryChecker->revokeMemory(state, "ndis:NDIS_MINIPORT_BLOCK*");
-        }
-   }
-
-   void grantMiniportAdapterContext(S2EExecutionState *state, uint32_t HandleParamNum) {
-       if (m_memoryChecker) {
-
-           //Some entry points may be called internally. Don't grant in such cases.
-           if (calledFromModule(state)) {
-               return;
-           }
-
-           uint32_t NdisHandle;
-           if (!readConcreteParameter(state, HandleParamNum, &NdisHandle)) {
-               s2e()->getDebugStream(state) << "Could not read NdisHandle" << std::endl;
-               return;
-           }
-           if (NdisHandle) {
-               m_memoryChecker->grantMemory(state, NdisHandle + 0x150, 0x19c - 0x150,
-                                     MemoryChecker::READ,
-                                     "ndis:NDIS_MINIPORT_BLOCK:Callbacks");
-
-               m_memoryChecker->grantMemory(state, NdisHandle + 0xec, 0xf8 - 0xec,
-                                     MemoryChecker::READ,
-                                     "ndis:NDIS_MINIPORT_BLOCK:Callbacks");
-
-               m_memoryChecker->grantMemory(state, NdisHandle + 0xd8, 0xec - 0xd8,
-                                     MemoryChecker::READ,
-                                     "ndis:NDIS_MINIPORT_BLOCK:XFILTER");
-
-           }
-       }
-   }
-
-   virtual void detectLeaks(S2EExecutionState *state,
+    virtual void detectLeaks(S2EExecutionState *state,
                      const ModuleDescriptor &module) {
         revokeMiniportAdapterContext(state);
         WindowsAnnotations<NdisHandlers, NdisHandlersState>::detectLeaks(state, module);
-   }
+    }
 
     //friend void WindowsApiInitializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
 };

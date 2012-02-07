@@ -80,6 +80,12 @@ namespace plugins {
 #define HANDLER_TRACE_FCNFAILED_VAL(val) s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed with 0x" << std::hex << (val) << std::endl
 #define HANDLER_TRACE_PARAM_FAILED(val) s2e()->getDebugStream() << "Faild to read parameter " << val << " in " << __FUNCTION__ << " at line " << __LINE__ << std::endl
 
+#define ASSERT_STRUC_SIZE(struc, expected) \
+    if (sizeof(struc) != (expected)) { \
+    s2e()->getDebugStream() << #struc <<  " has invalid size: " << sizeof(struc) << " instead of " << (expected) << "\n"; \
+    exit(-1); \
+    }
+
 template <typename F>
 struct WindowsApiHandler {
     const char *name;
@@ -327,7 +333,9 @@ public:
         foreach2(it, entryPoints.begin(), entryPoints.end()) {
             if (!registerEntryPoint(state, (*it).first, (uint64_t)(*it).second)) {
                 if (ANNOTATIONS_PLUGIN::s_ignoredFunctions.find((*it).first) == ANNOTATIONS_PLUGIN::s_ignoredFunctions.end()) {
-                    s2e()->getWarningsStream() << "Import " << (*it).first << " not supported by " << getPluginInfo()->name << std::endl;
+                    if (!isExportedVariable((*it).first)) {
+                        s2e()->getWarningsStream() << "Import " << (*it).first << " not supported by " << getPluginInfo()->name << std::endl;
+                    }
                 }
             }
         }
@@ -367,7 +375,7 @@ public:
             foreach2(fit, symbols.begin(), symbols.end()) {
                 const std::string &fname = (*fit).first;
                 uint64_t address = (*fit).second;
-                unsigned size;
+                unsigned size = 0;
                 if (isExportedVariable(fname, &size)) {
                     assert(size > 0);
                     std::string impName = "import:";

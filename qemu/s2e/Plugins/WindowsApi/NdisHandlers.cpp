@@ -207,6 +207,11 @@ void NdisHandlers::initialize()
             sigc::mem_fun(*static_cast<WindowsApi*>(this),
                     &WindowsApi::onModuleUnload)
             );
+
+    ASSERT_STRUC_SIZE(NDIS_PROTOCOL_CHARACTERISTICS32, NDIS_PROTOCOL_CHARACTERISTICS_SIZE)
+    ASSERT_STRUC_SIZE(NDIS_PROTOCOL_BLOCK32, NDIS_PROTOCOL_BLOCK_SIZE)
+    ASSERT_STRUC_SIZE(NDIS_COMMON_OPEN_BLOCK32, NDIS_COMMON_OPEN_BLOCK_SIZE)
+    ASSERT_STRUC_SIZE(NDIS_OPEN_BLOCK32, NDIS_OPEN_BLOCK_SIZE)
 }
 
 
@@ -820,13 +825,27 @@ void NdisHandlers::NdisMQueryAdapterInstanceName(S2EExecutionState* state, Funct
     NdisQueryAdapterInstanceName(state, fns);
 }
 
+/**
+NDIS_STATUS NdisQueryAdapterInstanceName(
+  __out  PNDIS_STRING AdapterInstanceName,
+  __in   NDIS_HANDLE NdisBindingHandle
+);
+*/
 void NdisHandlers::NdisQueryAdapterInstanceName(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
+    //Read AdapterInstanceName
+    uint32_t pUnicodeString = 0;
+    readConcreteParameter(state, 0, &pUnicodeString);
+
     if (getConsistency(__FUNCTION__) < LOCAL) {
-        //XXX: Register a return handler and grant access rights
+        if (pUnicodeString) {
+            FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NdisHandlers::NdisQueryAdapterInstanceNameRet, pUnicodeString);
+        }else {
+            HANDLER_TRACE_PARAM_FAILED(0);
+        }
         return;
     }
 
@@ -845,7 +864,6 @@ void NdisHandlers::NdisQueryAdapterInstanceName(S2EExecutionState* state, Functi
         vec.push_back(NDIS_STATUS_RESOURCES);
         symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
     }
-    //state->writeMemory(pStatus, symb);
 
     state->writeCpuRegister(CPU_OFFSET(regs[R_EAX]), symb);
 
@@ -855,8 +873,7 @@ void NdisHandlers::NdisQueryAdapterInstanceName(S2EExecutionState* state, Functi
     //Register a return handler in the normal state
     S2EExecutionState *successState = states[0] == state ? states[1] : states[0];
 
-    uint32_t pUnicodeString;
-    if (readConcreteParameter(state, 0, &pUnicodeString)) {
+    if (pUnicodeString) {
         FUNCMON_REGISTER_RETURN_A(successState, m_functionMonitor, NdisHandlers::NdisQueryAdapterInstanceNameRet, pUnicodeString);
     }else {
         HANDLER_TRACE_PARAM_FAILED(0);
@@ -887,6 +904,11 @@ void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uin
     if(!ok) {
         s2e()->getDebugStream() << "Can not read NDIS_STRING" << std::endl;
         return;
+    }
+
+    std::string adapterName;
+    if (state->readUnicodeString(s.Buffer, adapterName)) {
+        s2e()->getDebugStream() << __FUNCTION__ << ": name " << adapterName << '\n';
     }
 
     if(m_memoryChecker) {
@@ -943,12 +965,18 @@ void NdisHandlers::NdisOpenAdapter(S2EExecutionState* state, FunctionMonitorStat
     state->undoCallAndJumpToSymbolic();
 
     uint32_t pStatus;
+    uint32_t pNdisBindingHandle = 0;
+    uint32_t ProtocolBindingContext = 0;
     bool ok = true;
     ok &= readConcreteParameter(state, 0, &pStatus);
+    ok &= readConcreteParameter(state, 2, &pNdisBindingHandle);
+    ok &= readConcreteParameter(state, 7, &ProtocolBindingContext);
     if (!ok) {
         HANDLER_TRACE_FCNFAILED();
         return;
     }
+
+    s2e()->getDebugStream() << "ProtocolBindingContext=" << hexval(ProtocolBindingContext) << "\n";
 
     //Fork one successful state and one failed state (where the function is bypassed)
     std::vector<S2EExecutionState *> states;
@@ -971,8 +999,41 @@ void NdisHandlers::NdisOpenAdapter(S2EExecutionState* state, FunctionMonitorStat
     }
     state->writeMemory(pStatus, symb);
 
+
+    FUNCMON_REGISTER_RETURN_A(states[0] == state ? states[1] : states[0],
+                              m_functionMonitor, NdisHandlers::NdisOpenAdapterRet,
+                              pStatus, pNdisBindingHandle);
+
     //Skip the call in the current state
     state->bypassFunction(11);
+}
+
+void NdisHandlers::NdisOpenAdapterRet(S2EExecutionState* state,
+                                      uint32_t pStatus, uint32_t pNdisBindingHandle)
+{
+    HANDLER_TRACE_RETURN();
+
+    uint32_t Status, NdisBindingHandle;
+    bool ok = true;
+    ok &= state->readMemoryConcrete(pStatus, &Status, sizeof(Status));
+    ok &= state->readMemoryConcrete(pNdisBindingHandle, &NdisBindingHandle, sizeof(NdisBindingHandle));
+
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        return;
+    }
+
+    if (!NT_SUCCESS(Status)) {
+        HANDLER_TRACE_FCNFAILED_VAL(Status);
+        return;
+    }
+
+    if (Status == windows::NDIS_STATUS_PENDING) {
+        //Can't grant access rights to the handle yet
+        return;
+    }
+
+    //TODO: finish access granting
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

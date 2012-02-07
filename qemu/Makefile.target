@@ -340,6 +340,7 @@ s2eobj-y += s2e/Plugins/WindowsInterceptor/KernelModeInterceptor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsImage.o
 s2eobj-y += s2e/Plugins/WindowsApi/NdisHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/NdisHandlersUtils.o
+s2eobj-y += s2e/Plugins/WindowsApi/NdisMemoryCheck.o
 s2eobj-y += s2e/Plugins/WindowsApi/NdisProtocolHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/NtoskrnlHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/HalHandlers.o
