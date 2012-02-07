@@ -93,6 +93,8 @@ struct NDIS_PROTOCOL_CHARACTERISTICS32 {
     uint32_t UnbindAdapterHandler;
     uint32_t PnPEventHandler;
     uint32_t UnloadHandler;
+
+    uint32_t Reserved1[4];
 //
 // MajorNdisVersion must be set to 0x05
 // with any of the following members.
@@ -102,6 +104,168 @@ struct NDIS_PROTOCOL_CHARACTERISTICS32 {
     uint32_t CoReceivePacketHandler;
     uint32_t CoAfRegisterNotifyHandler;
 }__attribute__((packed));
+
+struct NDIS_COMMON_OPEN_BLOCK32
+{
+    uint32_t                    MacHandle;          //PVOID
+    NDIS_HANDLE                 BindingHandle;      // Miniport's open context
+    uint32_t                    MiniportHandle;     // PNDIS_MINIPORT_BLOCK pointer to the miniport
+    uint32_t                    ProtocolHandle;     // PNDIS_PROTOCOL_BLOCK pointer to our protocol
+    NDIS_HANDLE                 ProtocolBindingContext;// context when calling ProtXX funcs
+    uint32_t                    MiniportNextOpen;   // PNDIS_OPEN_BLOCK used by adapter's OpenQueue
+    uint32_t                    ProtocolNextOpen;   // PNDIS_OPEN_BLOCK used by protocol's OpenQueue
+    NDIS_HANDLE                 MiniportAdapterContext; // context for miniport
+    BOOLEAN                     Reserved1;
+    BOOLEAN                     Reserved2;
+    BOOLEAN                     Reserved3;
+    BOOLEAN                     Reserved4;
+    uint32_t                    BindDeviceName; //PNDIS_STRING
+    KSPIN_LOCK                  Reserved5;
+    uint32_t                    RootDeviceName; //PNDIS_STRING
+
+    //
+    // These are referenced by the macros used by protocols to call.
+    // All of the ones referenced by the macros are internal NDIS handlers for the miniports
+    //
+    union
+    {
+        uint32_t   SendHandler;
+        uint32_t   WanSendHandler;
+    };
+    uint32_t       TransferDataHandler;
+
+    //
+    // These are referenced internally by NDIS
+    //
+    uint32_t    SendCompleteHandler;
+    uint32_t    TransferDataCompleteHandler;
+    uint32_t    ReceiveHandler;
+    uint32_t    ReceiveCompleteHandler;
+    uint32_t    WanReceiveHandler;
+    uint32_t    RequestCompleteHandler;
+
+    //
+    // NDIS 4.0 extensions
+    //
+    uint32_t    ReceivePacketHandler;
+    uint32_t    SendPacketsHandler;
+
+    //
+    // More Cached Handlers
+    //
+    uint32_t    ResetHandler;
+    uint32_t    RequestHandler;
+    uint32_t    ResetCompleteHandler;
+    uint32_t    StatusHandler;
+    uint32_t    StatusCompleteHandler;
+
+    //#if defined(NDIS_WRAPPER)
+    ULONG       Flags;
+    LONG        References;
+    KSPIN_LOCK  SpinLock;           // guards Closing
+    NDIS_HANDLE FilterHandle;
+    ULONG       ProtocolOptions;
+    USHORT      CurrentLookahead;
+    USHORT      ConnectDampTicks;
+    USHORT      DisconnectDampTicks;
+    uint16_t align;
+    //
+    // These are optimizations for getting to driver routines. They are not
+    // necessary, but are here to save a dereference through the Driver block.
+    //
+    uint32_t    WSendHandler;
+    uint32_t    WTransferDataHandler;
+
+    //
+    //  NDIS 4.0 miniport entry-points
+    //
+    uint32_t    WSendPacketsHandler;
+
+    uint32_t    CancelSendPacketsHandler;
+
+    //
+    //  Contains the wake-up events that are enabled for the open.
+    //
+    ULONG       WakeUpEnable;
+    //
+    // event to be signalled when close complets
+    //
+    uint32_t    CloseCompleteEvent; //PKEVENT
+
+    uint8_t     QC[0x14]; //QUEUED_CLOSE
+
+    LONG        AfReferences;
+
+    uint32_t    NextGlobalOpen; //PNDIS_OPEN_BLOCK
+
+//#endif
+
+}__attribute__((packed));
+
+//
+// one of these per open on an adapter/protocol
+//
+struct NDIS_OPEN_BLOCK32
+{
+    NDIS_COMMON_OPEN_BLOCK32 NdisCommonOpenBlock;
+
+//#if defined(NDIS_WRAPPER)
+
+    //
+    // The stuff below is for CO drivers/protocols. This part is not allocated for CL drivers.
+    //
+    struct _NDIS_OPEN_CO
+    {
+        //
+        // this is the list of the call manager opens done on this adapter
+        //
+        uint32_t     NextAf; //struct _NDIS_CO_AF_BLOCK *
+
+        //
+        //  NDIS 5.0 miniport entry-points, filled in at open time.
+        //
+        uint32_t     MiniportCoCreateVcHandler;
+        uint32_t     MiniportCoRequestHandler;
+
+        //
+        // NDIS 5.0 protocol completion routines, filled in at RegisterAf/OpenAf time
+        //
+        uint32_t     CoCreateVcHandler;
+        uint32_t     CoDeleteVcHandler;
+        uint32_t     CmActivateVcCompleteHandler;
+        uint32_t     CmDeactivateVcCompleteHandler;
+        uint32_t     CoRequestCompleteHandler;
+
+        //
+        // lists for queuing connections. There is both a queue for currently
+        // active connections and a queue for connections that are not active.
+        //
+        LIST_ENTRY32 ActiveVcHead;
+        LIST_ENTRY32 InactiveVcHead;
+        LONG         PendingAfNotifications;
+        uint32_t     AfNotifyCompleteEvent; //PKEVENT
+    }NDIS_OPEN_CO;
+//#endif
+}__attribute__((packed));
+
+struct NDIS_PROTOCOL_BLOCK32
+{
+    uint32_t OpenQueue;    // PNDIS_OPEN_BLOCK
+    uint64_t Ref;          // REFERENCE
+    uint32_t DeregEvent;   // PKEVENT
+    uint32_t NextProtocol; // Link to next struct _NDIS_PROTOCOL_BLOCK
+
+    NDIS_PROTOCOL_CHARACTERISTICS32 ProtocolCharacteristics;	// handler addresses
+
+    uint8_t WorkItem[0x10]; // WORK_QUEUE_ITEM
+    uint8_t Mutex[0x20];    // KMUTEX32
+    uint32_t MutexOwner;
+    uint32_t BindDeviceName;       //UNICODE_STRING
+    uint32_t RootDeviceName;       //UNICODE_STRING
+    uint32_t AssociatedMiniDriver; //NDIS_M_DRIVER_BLOCK
+    uint32_t BindingAdapter;
+}__attribute__((packed));
+
 
 typedef struct _NDIS_MINIPORT_CHARACTERISTICS32 {
     uint8_t MajorNdisVersion;
@@ -488,6 +652,10 @@ lkd> dt ndis!_NDIS_MINIPORT_BLOCK
 
 */
 
+static const uint32_t NDIS_COMMON_OPEN_BLOCK_SIZE = 0xbc;
+static const uint32_t NDIS_OPEN_BLOCK_SIZE = 0xf4;
+static const uint32_t NDIS_PROTOCOL_BLOCK_SIZE = 0xc4;
+static const uint32_t NDIS_PROTOCOL_CHARACTERISTICS_SIZE = 0x6c;
 static const uint32_t NDIS_MINIPORT_BLOCK_SIZE = 0x494;
 static const uint32_t NDIS_M_SEND_COMPLETE_HANDLER_OFFSET = 0xec;
 static const uint32_t NDIS_M_STATUS_HANDLER_OFFSET = 0x17c;
