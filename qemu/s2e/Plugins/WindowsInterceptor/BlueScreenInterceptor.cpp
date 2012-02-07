@@ -102,13 +102,12 @@ void BlueScreenInterceptor::onBsod(
     os << "Killing state "  << state->getID() <<
             " because of BSOD " << std::endl;
 
-    ModuleExecutionDetector *m_exec = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-
     dispatchErrorCodes(state);
 
 #if 0
-    if (m_exec) {
-        m_exec->dumpMemory(state, os, state->getSp(), 512);
+    ModuleExecutionDetector *exec = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    if (exec) {
+        exec->dumpMemory(state, os, state->getSp(), 512);
     }else {
         state->dumpStack(512);
     }
