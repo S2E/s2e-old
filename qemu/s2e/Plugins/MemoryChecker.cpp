@@ -326,6 +326,15 @@ void MemoryChecker::revokeMemoryForModuleSections(
     revokeMemoryForModule(state, &module, "section:*");
 }
 
+void MemoryChecker::revokeMemoryForModuleSection(
+            S2EExecutionState *state,
+            const ModuleDescriptor &module,
+            const std::string &section
+        )
+{
+    revokeMemoryForModule(state, &module, "section:" + section);
+}
+
 void MemoryChecker::revokeMemoryForModuleSections(
             S2EExecutionState *state
         )

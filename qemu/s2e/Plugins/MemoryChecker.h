@@ -114,6 +114,11 @@ public:
                 const ModuleDescriptor &desc
             );
 
+    void revokeMemoryForModuleSection(
+                S2EExecutionState *state,
+                const ModuleDescriptor &module,
+                const std::string &section);
+
 
     void revokeMemoryForModuleSections(
                 S2EExecutionState *state
