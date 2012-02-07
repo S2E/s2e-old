@@ -283,6 +283,11 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
         s2e()->getWarningsStream() << "NtoskrnlHandlers plugin not loaded. Skipping all IRP annotations." << std::endl;
     }
 
+    if (m_memoryChecker) {
+        //Windows will unload that section after DriverEntry returns.
+        m_memoryChecker->revokeMemoryForModuleSection(state, *module, "INIT");
+    }
+
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
     throw CpuExitException();
