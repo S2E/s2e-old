@@ -117,9 +117,27 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+VOID ProtocolOpenAdapterComplete(
+  __in  NDIS_HANDLE ProtocolBindingContext,
+  __in  NDIS_STATUS Status,
+  __in  NDIS_STATUS OpenErrorStatus
+)
+*/
 void NdisHandlers::OpenAdapterCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
+
+    //Read the status and grant access to the handle
+    uint32_t ProtocolBindingContext = 0;
+    uint32_t Status = 0;
+
+    readConcreteParameter(state, 0, &ProtocolBindingContext);
+    readConcreteParameter(state, 1, &Status);
+
+    s2e()->getDebugStream() << "ProtocolBindingContext=" << hexval(ProtocolBindingContext)
+                            << " Status=" << hexval(Status) << "\n";
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::OpenAdapterCompleteHandlerRet)
 }
 
@@ -177,9 +195,31 @@ void NdisHandlers::ResetCompleteHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+VOID ProtocolRequestComplete(
+  NDIS_HANDLE ProtocolBindingContext,
+  PNDIS_REQUEST NdisRequest,
+  NDIS_STATUS Status
+);
+*/
 void NdisHandlers::RequestCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
+
+    //Read the status and grant access to the handle
+    uint32_t ProtocolBindingContext = 0;
+    uint32_t Status = 0;
+    uint32_t pNdisRequest = 0;
+
+    readConcreteParameter(state, 0, &ProtocolBindingContext);
+    readConcreteParameter(state, 1, &pNdisRequest);
+    readConcreteParameter(state, 2, &Status);
+
+    s2e()->getDebugStream() << "ProtocolBindingContext=" << hexval(ProtocolBindingContext)
+                            << " pNdisRequest=" << hexval(pNdisRequest) << "\n"
+                            << " Status=" << hexval(Status) << "\n";
+
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::RequestCompleteHandlerRet)
 }
 
