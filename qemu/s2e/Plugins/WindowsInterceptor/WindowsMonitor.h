@@ -104,6 +104,8 @@ private:
     static uint64_t s_panicPc3[];
 
     static uint64_t s_ntTerminateProc[];
+    static uint64_t s_ntKeInitThread[];
+    static uint64_t s_ntKeTerminateThread[];
 
     static uint64_t s_sysServicePc[];
 
@@ -111,6 +113,10 @@ private:
 
     static uint64_t s_ldrpCall[];
     static uint64_t s_dllUnloadPc[];
+
+    static uint64_t s_offEprocAllThreads[];
+    static uint64_t s_offEthreadLink[];
+
 
     EWinVer m_Version;
     bool m_UserMode, m_KernelMode;
@@ -120,6 +126,7 @@ private:
     bool m_MonitorModuleLoad;
     bool m_MonitorModuleUnload;
     bool m_MonitorProcessUnload;
+    bool m_monitorThreads;
 
     bool m_FirstTime;
     bool m_TrackPidSet;
@@ -140,10 +147,6 @@ private:
 
     void readModuleCfg();
     void InitializeAddresses(S2EExecutionState *state);
-public:
-    WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
-    virtual ~WindowsMonitor();
-    void initialize();
 
     void slotTranslateInstructionStart(ExecutionSignal *signal,
         S2EExecutionState *state,
@@ -164,6 +167,18 @@ public:
     void slotKmModuleLoad(S2EExecutionState *state, uint64_t pc);
     void slotKmModuleUnload(S2EExecutionState *state, uint64_t pc);
 
+    void slotKmThreadInit(S2EExecutionState *state, uint64_t pc);
+    void slotKmThreadExit(S2EExecutionState *state, uint64_t pc);
+
+    void notifyLoadForAllThreads(S2EExecutionState *state);
+public:
+    WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
+    virtual ~WindowsMonitor();
+    void initialize();
+
+
+
+
     virtual bool getImports(S2EExecutionState *s, const ModuleDescriptor &desc, Imports &I);
     virtual bool getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E);
 
@@ -179,9 +194,13 @@ public:
     uint64_t GetDriverLoadPc() const;
     uint64_t GetSystemServicePc() const;
     uint64_t GetPsActiveProcessListPtr() const;
+    uint64_t GetKeInitThread() const;
+    uint64_t GetKeTerminateThread() const;
     uint64_t GetKdDebuggerDataBlock() const;
     uint64_t getCurrentProcess(S2EExecutionState *state);
     uint64_t getCurrentThread(S2EExecutionState *state);
+    uint64_t getFirstThread(S2EExecutionState *state, uint64_t eprocess);
+    uint64_t getNextThread(S2EExecutionState *state, uint64_t thread);
     uint64_t getPeb(S2EExecutionState *state, uint64_t eprocess);
     uint64_t getTibAddress(S2EExecutionState *state);
     bool     getTib(S2EExecutionState *state, s2e::windows::NT_TIB32 *tib);
@@ -216,11 +235,19 @@ public:
     virtual uint64_t getPid(S2EExecutionState *s, uint64_t pc);
     virtual bool getCurrentStack(S2EExecutionState *s, uint64_t *base, uint64_t *size);
 
+    bool getThreadStack(S2EExecutionState *state, uint64_t pThread, uint64_t *base, uint64_t *size);
+    bool getDpcStack(S2EExecutionState *state, uint64_t *base, uint64_t *size);
+
+    bool getThreadDescriptor(S2EExecutionState *state,
+                             uint64_t pThread,
+                             ThreadDescriptor &threadDescriptor);
 
     const windows::DBGKD_GET_VERSION64 &getVersionBlock() const {
         return m_kdVersion;
     }
 
+    bool getAllProcesses(S2EExecutionState *state, std::vector<uint64_t> &pEProcess);
+    bool getAllThreads(S2EExecutionState *state, uint64_t process, std::vector<uint64_t> &pEThread);
 };
 
 class WindowsMonitorState:public PluginState

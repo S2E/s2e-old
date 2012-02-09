@@ -456,6 +456,8 @@ extern const char * s_irpMjArray [];
 #define ETHREAD_PROCESS_OFFSET_VISTA 0x48
 #define ETHREAD_PROCESS_OFFSET_XP 0x44
 
+#define EPROCESS_ACTIVE_PROCESS_LINK_XP 0x88
+
 
 //#define KD_VERSION_BLOCK (KPCR_ADDRESS + 0x34)
 #define PS_LOADED_MODULE_LIST_OFFSET 0x70 //Inside the kd version block
@@ -604,13 +606,94 @@ typedef struct _KAPC_STATE32 {
 
 typedef struct _KTHREAD32
 {
-  uint8_t Unk1[0x18];
-  uint32_t InitialStack;
-  uint32_t StackLimit;
-  uint8_t Unk2[0x14];
-  KAPC_STATE32 ApcState;
+    uint8_t Unk1[0x18];
+    uint32_t InitialStack;
+    uint32_t StackLimit;
+    uint8_t Unk2[0x14];
+    KAPC_STATE32 ApcState;
+
+    uint8_t Unk3[0x164];
+
+    LIST_ENTRY32 ThreadListEntry;
 
 } __attribute__((packed))KTHREAD32;
+
+/*
++0x000 Header           : _DISPATCHER_HEADER
+   +0x010 MutantListHead   : _LIST_ENTRY
+   +0x018 InitialStack     : Ptr32 Void
+   +0x01c StackLimit       : Ptr32 Void
+   +0x020 Teb              : Ptr32 Void
+   +0x024 TlsArray         : Ptr32 Void
+   +0x028 KernelStack      : Ptr32 Void
+   +0x02c DebugActive      : UChar
+   +0x02d State            : UChar
+   +0x02e Alerted          : [2] UChar
+   +0x030 Iopl             : UChar
+   +0x031 NpxState         : UChar
+   +0x032 Saturation       : Char
+   +0x033 Priority         : Char
+   +0x034 ApcState         : _KAPC_STATE
+   +0x04c ContextSwitches  : Uint4B
+   +0x050 IdleSwapBlock    : UChar
+   +0x051 Spare0           : [3] UChar
+   +0x054 WaitStatus       : Int4B
+   +0x058 WaitIrql         : UChar
+   +0x059 WaitMode         : Char
+   +0x05a WaitNext         : UChar
+   +0x05b WaitReason       : UChar
+
+   +0x05c WaitBlockList    : Ptr32 _KWAIT_BLOCK
+   +0x060 WaitListEntry    : _LIST_ENTRY
+   +0x060 SwapListEntry    : _SINGLE_LIST_ENTRY
+   +0x068 WaitTime         : Uint4B
+   +0x06c BasePriority     : Char
+   +0x06d DecrementCount   : UChar
+   +0x06e PriorityDecrement : Char
+   +0x06f Quantum          : Char
+   +0x070 WaitBlock        : [4] _KWAIT_BLOCK
+   +0x0d0 LegoData         : Ptr32 Void
+   +0x0d4 KernelApcDisable : Uint4B
+   +0x0d8 UserAffinity     : Uint4B
+   +0x0dc SystemAffinityActive : UChar
+   +0x0dd PowerState       : UChar
+   +0x0de NpxIrql          : UChar
+   +0x0df InitialNode      : UChar
+   +0x0e0 ServiceTable     : Ptr32 Void
+   +0x0e4 Queue            : Ptr32 _KQUEUE
+   +0x0e8 ApcQueueLock     : Uint4B
+   +0x0f0 Timer            : _KTIMER
+   +0x118 QueueListEntry   : _LIST_ENTRY
+   +0x120 SoftAffinity     : Uint4B
+   +0x124 Affinity         : Uint4B
+   +0x128 Preempted        : UChar
+   +0x129 ProcessReadyQueue : UChar
+   +0x12a KernelStackResident : UChar
+   +0x12b NextProcessor    : UChar
+   +0x12c CallbackStack    : Ptr32 Void
+   +0x130 Win32Thread      : Ptr32 Void
+   +0x134 TrapFrame        : Ptr32 _KTRAP_FRAME
+   +0x138 ApcStatePointer  : [2] Ptr32 _KAPC_STATE
+   +0x140 PreviousMode     : Char
+   +0x141 EnableStackSwap  : UChar
+   +0x142 LargeStack       : UChar
+   +0x143 ResourceIndex    : UChar
+   +0x144 KernelTime       : Uint4B
+   +0x148 UserTime         : Uint4B
+   +0x14c SavedApcState    : _KAPC_STATE
+   +0x164 Alertable        : UChar
+   +0x165 ApcStateIndex    : UChar
+   +0x166 ApcQueueable     : UChar
+   +0x167 AutoAlignment    : UChar
+   +0x168 StackBase        : Ptr32 Void
+   +0x16c SuspendApc       : _KAPC
+   +0x19c SuspendSemaphore : _KSEMAPHORE
+   +0x1b0 ThreadListEntry  : _LIST_ENTRY
+   +0x1b8 FreezeCount      : Char
+   +0x1b9 SuspendCount     : Char
+   +0x1ba IdealProcessor   : UChar
+   +0x1bb DisableBoost     : UChar
+*/
 
 typedef struct _NT_TIB32
 {
