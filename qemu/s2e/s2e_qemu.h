@@ -139,6 +139,10 @@ void s2e_on_translate_jump_start(
         struct TranslationBlock* tb, uint64_t pc,
         int jump_type);
 
+void s2e_on_translate_register_access(
+        struct TranslationBlock *tb, uint64_t pc,
+        uint64_t readMask, uint64_t writeMask, int isMemoryAccess);
+
 void s2e_on_exception(unsigned intNb);
 
 /** Called on memory accesses from generated code */
