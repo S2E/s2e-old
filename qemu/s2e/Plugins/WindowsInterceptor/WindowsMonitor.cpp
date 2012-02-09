@@ -198,8 +198,8 @@ void WindowsMonitor::initialize()
     s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
         sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionStart));
 
-    s2e()->getCorePlugin()->onTranslateInstructionEnd.connect(
-        sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionEnd));
+    s2e()->getCorePlugin()->onPageDirectoryChange.connect(
+        sigc::mem_fun(*this, &WindowsMonitor::onPageDirectoryChange));
 
     readModuleCfg();
 }
@@ -322,23 +322,8 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
     m_FirstTime = false;
 }
 
-void WindowsMonitor::slotTranslateInstructionEnd(ExecutionSignal *signal,
-    S2EExecutionState *state,
-    TranslationBlock *tb,
-    uint64_t pc)
-{
-    if (!m_TrackPidSet) {
-        return;
-    }
 
-    if (!isTaskSwitch(state, pc)) {
-        return;
-    }
-
-   signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotMonitorProcessSwitch));
-}
-
-void WindowsMonitor::slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t pc)
+void WindowsMonitor::onPageDirectoryChange(S2EExecutionState *state, uint64_t previous, uint64_t current)
 {
     DECLARE_PLUGINSTATE(WindowsMonitorState, state);
 
@@ -347,7 +332,7 @@ void WindowsMonitor::slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t
         return;
     }
 
-    if (state->getPid() != plgState->m_CurrentPid) {
+    if (previous != current) {
         plgState->m_CurrentPid = state->getPid();
         if (m_PidSet.find(state->getPid()) != m_PidSet.end()) {
             if (!m_UserModeInterceptor->CatchModuleLoad(state)) {
@@ -555,47 +540,6 @@ bool WindowsMonitor::getExports(S2EExecutionState *s, const ModuleDescriptor &de
     return true;
 }
 
-
-//XXX: put in an appropriate place to share between different OSes.
-//Detects whether the current instruction is a write to the Cr3 register
-bool WindowsMonitor::isTaskSwitch(S2EExecutionState *state, uint64_t pc)
-{
-    uint64_t oldpc  = pc;
-    uint8_t pref, reg;
-    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
-        goto failure;
-    }
-
-    if (pref != 0x0F) {
-        goto failure;
-    }
-
-    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
-        goto failure;
-    }
-
-    if (pref != 0x22) {
-        goto failure;
-    }
-
-    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
-        goto failure;
-    }
-
-    reg = ((pref >> 3) & 7);
-    if (reg != 3) {
-        goto failure;
-    }
-
-    //We have got a task switch!
-    s2e()->getDebugStream() << "Detected task switch at 0x" << oldpc << std::endl;
-
-    return true;
-
-failure:
-    //s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::dec << std::endl;
-    return false;
-}
 
 uint64_t WindowsMonitor::GetDriverLoadPc() const
 {

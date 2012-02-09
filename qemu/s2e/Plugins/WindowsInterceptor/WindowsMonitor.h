@@ -153,10 +153,7 @@ private:
         TranslationBlock *tb,
         uint64_t pc);
 
-    void slotTranslateInstructionEnd(ExecutionSignal *signal,
-        S2EExecutionState *state,
-        TranslationBlock *tb,
-        uint64_t pc);
+    void onPageDirectoryChange(S2EExecutionState *state, uint64_t previous, uint64_t current);
 
     void slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc);
@@ -181,8 +178,6 @@ public:
 
     virtual bool getImports(S2EExecutionState *s, const ModuleDescriptor &desc, Imports &I);
     virtual bool getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E);
-
-    bool isTaskSwitch(S2EExecutionState *state, uint64_t pc);
 
     uint64_t GetUserAddressSpaceSize() const;
     uint64_t GetKernelStart() const;
