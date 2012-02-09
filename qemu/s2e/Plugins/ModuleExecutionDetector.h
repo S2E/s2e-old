@@ -147,24 +147,6 @@ private:
 
     void initializeConfiguration();
     bool opAddModuleConfigEntry(S2EExecutionState *state);
-public:
-    ModuleExecutionDetector(S2E* s2e): Plugin(s2e) {}
-    virtual ~ModuleExecutionDetector();
-
-    void initialize();
-
-    //bool toExecutionDesc(ModuleExecutionDesc *desc, const ModuleDescriptor *md);
-    const ModuleDescriptor *getModule(S2EExecutionState *state, uint64_t pc, bool tracked=true);
-    const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state) const;
-    const std::string *getModuleId(const ModuleDescriptor &desc) const;
-
-    void dumpMemory(S2EExecutionState *state,
-                                             std::ostream &os,
-                                             uint64_t va, unsigned count);
-
-    const ConfiguredModulesById &getConfiguredModulesById() const {
-        return m_ConfiguredModulesId;
-    }
 
     void onCustomInstruction(
             S2EExecutionState *state,
@@ -204,6 +186,25 @@ public:
     void processUnloadListener(
         S2EExecutionState* state,
         uint64_t pid);
+
+public:
+    ModuleExecutionDetector(S2E* s2e): Plugin(s2e) {}
+    virtual ~ModuleExecutionDetector();
+
+    void initialize();
+
+    //bool toExecutionDesc(ModuleExecutionDesc *desc, const ModuleDescriptor *md);
+    const ModuleDescriptor *getModule(S2EExecutionState *state, uint64_t pc, bool tracked=true);
+    const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state) const;
+    const std::string *getModuleId(const ModuleDescriptor &desc) const;
+
+    void dumpMemory(S2EExecutionState *state,
+                                             std::ostream &os,
+                                             uint64_t va, unsigned count);
+
+    const ConfiguredModulesById &getConfiguredModulesById() const {
+        return m_ConfiguredModulesId;
+    }
 
     bool isModuleConfigured(const std::string &moduleId) const;
 
