@@ -41,7 +41,7 @@
 #include <s2e/Plugin.h>
 #include <s2e/S2EExecutionState.h>
 #include "ModuleDescriptor.h"
-
+#include "ThreadDescriptor.h"
 
 namespace s2e {
 namespace plugins {
@@ -65,6 +65,9 @@ public:
 
    sigc::signal<void, S2EExecutionState*, const ModuleDescriptor &> onModuleUnload;
    sigc::signal<void, S2EExecutionState*, uint64_t> onProcessUnload;
+
+   sigc::signal<void, S2EExecutionState*, const ThreadDescriptor&> onThreadCreate;
+   sigc::signal<void, S2EExecutionState*, const ThreadDescriptor&> onThreadExit;
 protected:
    OSMonitor(S2E* s2e): Plugin(s2e) {}
 
@@ -82,6 +85,7 @@ public:
        }
        return address >= base && address < (base + size);
    }
+
 };
 
 } // namespace plugins
