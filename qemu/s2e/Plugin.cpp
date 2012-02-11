@@ -42,6 +42,7 @@
 #include <s2e/Plugins/Example.h>
 #include <s2e/Plugins/RawMonitor.h>
 #include <s2e/Plugins/FunctionMonitor.h>
+#include <s2e/Plugins/StackMonitor.h>
 #include <s2e/Plugins/LibraryCallMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
@@ -103,6 +104,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(CorePlugin);
     __S2E_REGISTER_PLUGIN(plugins::RawMonitor);
     __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
+    __S2E_REGISTER_PLUGIN(plugins::StackMonitor);
     __S2E_REGISTER_PLUGIN(plugins::LibraryCallMonitor);
     __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
     __S2E_REGISTER_PLUGIN(plugins::BlueScreenInterceptor);
