@@ -93,7 +93,40 @@ class MemoryChecker : public Plugin
     // number of any characters.
     bool matchRegionType(const std::string &pattern, const std::string &type);
 
+
+public:
+    bool terminateOnErrors() const {
+        return m_terminateOnErrors;
+    }
+
     std::string getPrettyCodeLocation(S2EExecutionState *state);
+
+public:
+    /**
+     * Fired right before the actual checking.
+     * This gives a chance for other plugins to perform
+     * more fine-grained checks.
+     * When all callbacks return, the memory checker proceeds normally.
+     */
+    sigc::signal<void,
+            S2EExecutionState *,
+            uint64_t /* virtual address */,
+            unsigned /* size */,
+            bool /* isWrite */>
+            onPreCheck;
+
+    /**
+     * Fired if the actual checking failed.
+     * This gives a chance for other plugins to perform
+     * more fine-grained checks that were missed by MemoryChecker.
+     */
+    sigc::signal<void,
+            S2EExecutionState *,
+            uint64_t /* virtual address */,
+            unsigned /* size */,
+            bool /* isWrite */,
+            bool * /* success */>
+            onPostCheck;
 
 public:
     enum Permissions {

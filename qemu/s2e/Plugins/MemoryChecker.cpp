@@ -251,14 +251,22 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
     }
 
     uint64_t start = cast<klee::ConstantExpr>(virtualAddress)->getZExtValue();
+    unsigned accessSize = klee::Expr::getMinBytesForWidth(value->getWidth());
+
+    onPreCheck.emit(state, start, accessSize, isWrite);
 
     std::stringstream err;
     bool result = checkMemoryAccess(state, start,
-                      klee::Expr::getMinBytesForWidth(value->getWidth()),
+                      accessSize,
                       isWrite ? 2 : 1, err);
 
 
     if (!result) {
+        onPostCheck.emit(state, start, accessSize, isWrite, &result);
+        if (result) {
+            return;
+        }
+
         m_memoryTracer->onDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
         if(m_terminateOnErrors)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
