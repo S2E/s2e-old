@@ -413,6 +413,106 @@ struct KTIMER32 {
   LONG  Period;
 };
 
+typedef uint64_t LARGE_INTEGER;
+
+struct ETHREAD32
+{
+    uint8_t Tcb[0x1c0];
+    LARGE_INTEGER CreateTime;
+    union
+    {
+      LARGE_INTEGER ExitTime;
+      LIST_ENTRY32 KeyedWaitChain;
+    };
+    union
+    {
+      LONG ExitStatus;
+      uint32_t OfsChain;
+    };
+
+    LIST_ENTRY32 PostBlockList;
+
+    union
+    {
+      uint32_t TerminationPort; //PTERMINATION_PORT
+      uint32_t ReaperLink; //PETHREAD
+      uint32_t KeyedWaitValue; //PETHREAD
+    };
+
+    ULONG ActiveTimerListLock;
+    LIST_ENTRY32 ActiveTimerListHead;
+    uint32_t Cid[2]; //CLIENT_ID
+
+
+    union
+    {
+        uint8_t KeyedWaitSemaphore[0x14]; //KSEMAPHORE
+        uint8_t AlpcWaitSemaphore[0x14]; //KSEMAPHORE
+    };
+
+    uint32_t LpcReplyMessage;
+
+    uint32_t ImpersonationInfo;
+    LIST_ENTRY32 IrpList;
+    ULONG TopLevelIrp;
+    uint32_t DeviceToVerify; //PDEVICE_OBJECT
+    uint32_t ThreadsProcess; //PEPROCESS
+
+    uint32_t StartAddress;
+    uint32_t Win32StartAddress;
+    LIST_ENTRY32 ThreadListEntry;
+    //...
+}__attribute__((packed));
+
+
+
+/*
++0x000 Tcb              : _KTHREAD
+
+   +0x1c0 CreateTime       : _LARGE_INTEGER
+   +0x1c0 NestedFaultCount : Pos 0, 2 Bits
+   +0x1c0 ApcNeeded        : Pos 2, 1 Bit
+
+   +0x1c8 ExitTime         : _LARGE_INTEGER
+   +0x1c8 LpcReplyChain    : _LIST_ENTRY
+   +0x1c8 KeyedWaitChain   : _LIST_ENTRY
+
+   +0x1d0 ExitStatus       : Int4B
+   +0x1d0 OfsChain         : Ptr32 Void
+
+   +0x1d4 PostBlockList    : _LIST_ENTRY
+
+   +0x1dc TerminationPort  : Ptr32 _TERMINATION_PORT
+   +0x1dc ReaperLink       : Ptr32 _ETHREAD
+   +0x1dc KeyedWaitValue   : Ptr32 Void
+
+   +0x1e0 ActiveTimerListLock : Uint4B
+   +0x1e4 ActiveTimerListHead : _LIST_ENTRY
+   +0x1ec Cid              : _CLIENT_ID
+
+   +0x1f4 LpcReplySemaphore : _KSEMAPHORE
+   +0x1f4 KeyedWaitSemaphore : _KSEMAPHORE
+
+   +0x208 LpcReplyMessage  : Ptr32 Void
+   +0x208 LpcWaitingOnPort : Ptr32 Void
+
+   +0x20c ImpersonationInfo : Ptr32 _PS_IMPERSONATION_INFORMATION
+   +0x210 IrpList          : _LIST_ENTRY
+   +0x218 TopLevelIrp      : Uint4B
+   +0x21c DeviceToVerify   : Ptr32 _DEVICE_OBJECT
+   +0x220 ThreadsProcess   : Ptr32 _EPROCESS
+   +0x224 StartAddress     : Ptr32 Void
+   +0x228 Win32StartAddress : Ptr32 Void
+   +0x228 LpcReceivedMessageId : Uint4B
+   +0x22c ThreadListEntry  : _LIST_ENTRY
+
+*/
+
+static const uint32_t ETHREAD32_THREADLISTENTRY_OFFSET_XP = 0x22c;
+static const uint32_t EPROCESS32_THREADLISTHEAD_OFFSET_XP = 0x190;
+
+static const uint32_t ETHREAD32_SIZE = 0x234;
+
 }
 }
 
