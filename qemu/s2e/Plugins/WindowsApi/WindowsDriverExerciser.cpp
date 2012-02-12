@@ -48,6 +48,7 @@ extern "C" {
 
 #include "WindowsDriverExerciser.h"
 #include "NtoskrnlHandlers.h"
+#include "Ntddk.h"
 
 using namespace s2e::windows;
 
@@ -96,12 +97,8 @@ void WindowsDriverExerciser::initialize()
                     &WindowsDriverExerciser::onModuleUnload)
             );
 
-    if (m_memoryChecker) {
-        m_detector->onModuleTransition.connect(
-            sigc::mem_fun(*this,
-                &WindowsDriverExerciser::onModuleTransition)
-            );
-    }
+
+    ASSERT_STRUC_SIZE(ETHREAD32, ETHREAD32_SIZE)
 }
 
 void WindowsDriverExerciser::onModuleLoad(
@@ -171,40 +168,6 @@ void WindowsDriverExerciser::onModuleUnload(
     return;
 }
 
-void WindowsDriverExerciser::onModuleTransition(S2EExecutionState *state,
-                        const ModuleDescriptor *prevModule,
-                        const ModuleDescriptor *nextModule)
-{
-    //Revoke rights for the stack when exiting the module
-
-    if (prevModule) {
-        const std::string *s = m_detector->getModuleId(*prevModule);
-        if (!s || (m_loadedModules.find(*s) == m_loadedModules.end())) {
-            //Not the right module we want to intercept
-            return;
-        }
-        //Revoke the rights of the current module
-        m_memoryChecker->revokeMemoryForModule(state, prevModule, "stack");
-    }
-
-    //Grant rights for the new module
-    if (nextModule) {
-        const std::string *s = m_detector->getModuleId(*nextModule);
-        if (!s || (m_loadedModules.find(*s) == m_loadedModules.end())) {
-            //Not the right module we want to intercept
-            return;
-        }
-        //Revoke the rights of the current module
-        uint64_t stackBase, stackSize;
-        if (!m_windowsMonitor->getCurrentStack(state, &stackBase, &stackSize)) {
-            s2e()->getWarningsStream() << "Could not retrieve current stack" << std::endl;
-            return;
-        }
-
-        m_memoryChecker->grantMemoryForModule(state, nextModule, stackBase, stackSize,
-                                              MemoryChecker::READWRITE, "stack");
-    }
-}
 
 void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
 {

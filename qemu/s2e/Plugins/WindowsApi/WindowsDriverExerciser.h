@@ -86,9 +86,6 @@ private:
             const ModuleDescriptor &module
             );
 
-    void onModuleTransition(S2EExecutionState *state,
-                            const ModuleDescriptor *prevModule,
-                            const ModuleDescriptor *nextModule);
 
     DECLARE_ENTRY_POINT(DriverEntryPoint, uint32_t pDriverObject);
 };
