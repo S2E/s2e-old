@@ -404,8 +404,6 @@ void WindowsMonitor::slotKmThreadInit(S2EExecutionState *state, uint64_t pc)
 
 void WindowsMonitor::slotKmThreadExit(S2EExecutionState *state, uint64_t pc)
 {
-    s2e()->getDebugStream() << "WindowsMonitor: terminating kernel-mode thread\n";
-
     uint64_t pThread = getCurrentThread(state);
 
     ThreadDescriptor threadDescriptor;
@@ -414,6 +412,9 @@ void WindowsMonitor::slotKmThreadExit(S2EExecutionState *state, uint64_t pc)
         return;
     }
 
+    s2e()->getDebugStream() << "WindowsMonitor: terminating kernel-mode thread stack="
+                            << hexval(threadDescriptor.KernelStackBottom)
+                            << " size=" << hexval(threadDescriptor.KernelStackSize) << "\n";
     onThreadExit.emit(state, threadDescriptor);
 }
 
