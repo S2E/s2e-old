@@ -143,6 +143,14 @@ public:
             m_frames.push_back(sf);
         }
 
+        uint64_t getStackBase() const {
+            return m_stackBase;
+        }
+
+        uint64_t getStackSize() const {
+            return m_stackSize;
+        }
+
         /** Used for call instructions */
         void newFrame(S2EExecutionState *state, unsigned currentModuleId, uint64_t pc, uint64_t stackPointer) {
             const StackFrame &last = m_frames.back();
@@ -211,7 +219,30 @@ public:
             return m_frames.empty();
         }
 
-        friend std::ostream& operator<<(std::ostream &os, Stack &stack);
+        bool getFrame(uint64_t sp, bool &frameValid, StackFrame &frameInfo) const {
+            if (sp < m_stackBase  || (sp >= m_stackBase + m_stackSize)) {
+                return false;
+            }
+
+            frameValid = false;
+
+            //Look for the right frame
+            //XXX: Use binary search?
+            foreach2(it, m_frames.begin(), m_frames.end()) {
+                const StackFrame &frame= *it;
+                if (sp > frame.top || (sp < frame.top - frame.size)) {
+                    continue;
+                }
+
+                frameValid = true;
+                frameInfo = frame;
+                break;
+            }
+
+            return true;
+        }
+
+        friend std::ostream& operator<<(std::ostream &os, const Stack &stack);
     };
 
     //Maps a stack base to a stack representation
@@ -235,6 +266,8 @@ public:
     void onModuleLoad(S2EExecutionState* state, const ModuleDescriptor &module);
     void deleteStack(S2EExecutionState *state, uint64_t stackBase);
 
+    bool getFrameInfo(S2EExecutionState *state, uint64_t sp, bool &onTheStack, StackFrameInfo &info) const;
+    void dump(S2EExecutionState *state) const;
 public:
     StackMonitorState();
     virtual ~StackMonitorState();
@@ -244,13 +277,13 @@ public:
     friend class StackMonitor;
 };
 
-std::ostream& operator<<(std::ostream &os, StackMonitorState::StackFrame &frame)
+std::ostream& operator<<(std::ostream &os, const StackMonitorState::StackFrame &frame)
 {
     os << "  Frame pc=" << hexval(frame.pc) << " @" << hexval(frame.top) << " size=" << hexval(frame.size);
     return os;
 }
 
-std::ostream& operator<<(std::ostream &os, StackMonitorState::Stack &stack)
+std::ostream& operator<<(std::ostream &os, const StackMonitorState::Stack &stack)
 {
     os << "Stack " << hexval(stack.m_stackBase) << " size=" << hexval(stack.m_stackSize) << "\n";
     foreach2(it, stack.m_frames.begin(), stack.m_frames.end()) {
@@ -324,21 +357,21 @@ void StackMonitor::onTranslateRegisterAccess(
 
 void StackMonitor::onStackPointerModification(S2EExecutionState *state, uint64_t pc, bool isCall)
 {
-    s2e()->getDebugStream() << "StackMonitor: ESP modif at " << hexval(pc) << "\n";
+    //s2e()->getDebugStream() << "StackMonitor: ESP modif at " << hexval(pc) << "\n";
     DECLARE_PLUGINSTATE(StackMonitorState, state);
     plgState->update(state, pc, isCall);
 }
 
 void StackMonitor::onThreadCreate(S2EExecutionState *state, const ThreadDescriptor &thread)
 {
-    s2e()->getDebugStream() << "StackMonitor: ThreadCreate StackBase=" << hexval(thread.KernelStackBottom)
-                            << " StackSize=" << hexval(thread.KernelStackSize) << "\n";
+    //s2e()->getDebugStream() << "StackMonitor: ThreadCreate StackBase=" << hexval(thread.KernelStackBottom)
+    //                        << " StackSize=" << hexval(thread.KernelStackSize) << "\n";
 }
 
 void StackMonitor::onThreadExit(S2EExecutionState *state, const ThreadDescriptor &thread)
 {
-    s2e()->getDebugStream() << "StackMonitor: ThreadExit StackBase=" << hexval(thread.KernelStackBottom)
-                            << " StackSize=" << hexval(thread.KernelStackSize) << "\n";
+    //s2e()->getDebugStream() << "StackMonitor: ThreadExit StackBase=" << hexval(thread.KernelStackBottom)
+    //                        << " StackSize=" << hexval(thread.KernelStackSize) << "\n";
     DECLARE_PLUGINSTATE(StackMonitorState, state);
     assert(thread.KernelMode && "How do we deal with user-mode stacks?");
 
@@ -373,7 +406,18 @@ void StackMonitor::onModuleTransition(S2EExecutionState* state, const ModuleDesc
     plgState->update(state, state->getPc(), false);
 }
 
+bool StackMonitor::getFrameInfo(S2EExecutionState *state, uint64_t sp, bool &onTheStack, StackFrameInfo &info) const
+{
+    DECLARE_PLUGINSTATE(StackMonitorState, state);
+    return plgState->getFrameInfo(state, sp, onTheStack, info);
+}
 
+void StackMonitor::dump(S2EExecutionState *state)
+{
+    //s2e()->getDebugStream() << "StackMonitor: ESP modif at " << hexval(pc) << "\n";
+    DECLARE_PLUGINSTATE(StackMonitorState, state);
+    plgState->dump(state);
+}
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -477,13 +521,59 @@ void StackMonitorState::onModuleUnload(S2EExecutionState* state, const ModuleDes
 
 void StackMonitorState::deleteStack(S2EExecutionState *state, uint64_t stackBase)
 {
-    PidStackBase p = std::make_pair(m_monitor->getPid(state, state->getPc()), m_cachedStackBase);
+    PidStackBase p = std::make_pair(m_monitor->getPid(state, state->getPc()), stackBase);
     Stacks::iterator it = m_stacks.find(p);
     if (it == m_stacks.end()) {
         return;
     }
 
     m_stacks.erase(it);
+}
+
+//onTheStack == true && result == true ==> found a valid frame
+//onTheStack == true && result == false ==> on the stack but not in any know frame
+//onTheStack == false ==> does not fall in any know stack
+bool StackMonitorState::getFrameInfo(S2EExecutionState *state, uint64_t sp, bool &onTheStack, StackFrameInfo &info) const
+{
+    uint64_t pid = m_monitor->getPid(state, state->getPc());
+    onTheStack = false;
+
+    //XXX: Assume here that there are very few stacks, so simple iteration is fast enough
+    foreach2(it, m_stacks.begin(), m_stacks.end()) {
+        if ((*it).first.first != pid) {
+            continue;
+        }
+
+        const Stack &stack = (*it).second;
+        StackFrame frameInfo;
+        bool frameValid = false;
+        if (!stack.getFrame(sp, frameValid, frameInfo)) {
+            continue;
+        }
+
+        onTheStack = true;
+
+        if (frameValid) {
+            info.FramePc = frameInfo.pc;
+            info.FrameSize = frameInfo.size;
+            info.FrameTop = frameInfo.top;
+            info.StackBase = stack.getStackBase();
+            info.StackSize = stack.getStackSize();
+            return true;
+        }
+
+        return false;
+    }
+
+    return false;
+}
+
+void StackMonitorState::dump(S2EExecutionState *state) const
+{
+    g_s2e->getDebugStream() << "Dumping stacks\n";
+    foreach2(it, m_stacks.begin(), m_stacks.end()) {
+        g_s2e->getDebugStream() << (*it).second << "\n";
+    }
 }
 
 } // namespace plugins

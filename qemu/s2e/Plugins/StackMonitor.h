@@ -47,6 +47,14 @@
 namespace s2e {
 namespace plugins {
 
+struct StackFrameInfo {
+    uint64_t StackBase;
+    uint64_t StackSize;
+    uint64_t FrameTop;
+    uint64_t FrameSize;
+    uint64_t FramePc;
+};
+
 class StackMonitor : public Plugin
 {
     S2E_PLUGIN
@@ -55,7 +63,8 @@ public:
 
     void initialize();
 
-
+    bool getFrameInfo(S2EExecutionState *state, uint64_t sp, bool &onTheStack, StackFrameInfo &info) const;
+    void dump(S2EExecutionState *state);
 private:
     OSMonitor *m_monitor;
     ModuleExecutionDetector *m_detector;
