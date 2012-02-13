@@ -223,8 +223,10 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
 
     //Register all major functions, only if they belong to the driver itself
     DRIVER_OBJECT32 driverObject;
+    bool driverObjectValid = state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject));
+
     if (ntosHandlers) {
-        if (state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
+        if (driverObjectValid) {
             const ModuleDescriptor *desc = module;
     
             for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
@@ -251,11 +253,28 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
         m_memoryChecker->revokeMemoryForModuleSection(state, *module, "INIT");
     }
 
+    if (driverObjectValid && driverObject.DriverUnload) {
+        s2e()->getDebugStream() << "Registering " << "DriverUnload" << " at " << hexval(driverObject.DriverUnload) << std::endl; \
+        registerEntryPoint(state, &WindowsDriverExerciser::DriverUnload, driverObject.DriverUnload);
+    }
+
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
     throw CpuExitException();
 }
 
+
+void WindowsDriverExerciser::DriverUnload(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+
+    FUNCMON_REGISTER_RETURN(state, fns, WindowsDriverExerciser::DriverUnloadRet)
+}
+
+void WindowsDriverExerciser::DriverUnloadRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
 
 }
 }
