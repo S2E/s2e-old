@@ -154,6 +154,8 @@ void MemoryChecker::initialize()
     m_terminateOnErrors = cfg->getBool(getConfigKey() + ".terminateOnErrors", true);
     m_terminateOnLeaks = cfg->getBool(getConfigKey() + ".terminateOnLeaks", true);
 
+    m_traceMemoryAccesses = cfg->getBool(getConfigKey() + ".traceMemoryAccesses", false);
+
     m_moduleDetector = static_cast<ModuleExecutionDetector*>(
                             s2e()->getPlugin("ModuleExecutionDetector"));
     assert(m_moduleDetector);
@@ -250,6 +252,10 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
         return;
     }
 
+    if (m_traceMemoryAccesses) {
+        m_memoryTracer->traceDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
+    }
+
     uint64_t start = cast<klee::ConstantExpr>(virtualAddress)->getZExtValue();
     unsigned accessSize = klee::Expr::getMinBytesForWidth(value->getWidth());
 
@@ -267,7 +273,6 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
             return;
         }
 
-        m_memoryTracer->onDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
         if(m_terminateOnErrors)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else

@@ -71,6 +71,8 @@ class MemoryChecker : public Plugin
     bool m_terminateOnLeaks;
     bool m_terminateOnErrors;
 
+    bool m_traceMemoryAccesses;
+
     sigc::connection m_dataMemoryAccessConnection;
 
     void onException(S2EExecutionState *state, unsigned intNb, uint64_t pc);
