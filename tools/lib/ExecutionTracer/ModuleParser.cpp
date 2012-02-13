@@ -93,16 +93,20 @@ void ModuleCache::onItem(unsigned traceIndex,
             void *item)
 {
 
-    const s2e::plugins::ExecutionTraceModuleLoad &load = *(s2e::plugins::ExecutionTraceModuleLoad*)item;
-
     if (hdr.type == s2e::plugins::TRACE_MOD_LOAD) {
+        const s2e::plugins::ExecutionTraceModuleLoad &load = *(s2e::plugins::ExecutionTraceModuleLoad*)item;
         ModuleCacheState *state = static_cast<ModuleCacheState*>(m_events->getState(this, &ModuleCacheState::factory));
 
-        if (!state->loadDriver(load.name, hdr.pid, load.loadBase, load.nativeBase, load.size)) {
+        if (!state->loadModule(load.name, hdr.pid, load.loadBase, load.nativeBase, load.size)) {
             //std::cout << "Could not load driver " << load.name << std::endl;
         }
     }else if (hdr.type == s2e::plugins::TRACE_MOD_UNLOAD) {
-        std::cerr << "Module unloading not implemented" << std::endl;
+        const s2e::plugins::ExecutionTraceModuleUnload &unload = *(s2e::plugins::ExecutionTraceModuleUnload*)item;
+        ModuleCacheState *state = static_cast<ModuleCacheState*>(m_events->getState(this, &ModuleCacheState::factory));
+
+        if (!state->unloadModule(hdr.pid, unload.loadBase)) {
+            //std::cout << "Could not load driver " << load.name << std::endl;
+        }
     }else if (hdr.type == s2e::plugins::TRACE_PROC_UNLOAD) {
         std::cerr << "Process unloading not implemented" << std::endl;
     }else {
@@ -130,10 +134,10 @@ const ModuleInstance *ModuleCacheState::getInstance(uint64_t pid, uint64_t pc) c
 }
 
 
-bool ModuleCacheState::loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase,
+bool ModuleCacheState::loadModule(const std::string &name, uint64_t pid, uint64_t loadBase,
                              uint64_t imageBase, uint64_t size)
 {
-    std::cout << "Loading driver " << name << " pid=0x" << std::hex << pid <<
+    std::cout << "Loading module " << name << " pid=0x" << std::hex << pid <<
             " loadBase=0x" << loadBase << " imageBase=0x" << imageBase << " size=0x" << size << std::endl;
     pid = Library::translatePid(pid, loadBase);
 
@@ -146,9 +150,16 @@ bool ModuleCacheState::loadDriver(const std::string &name, uint64_t pid, uint64_
     return true;
 }
 
-bool ModuleCacheState::unloadDriver(uint64_t pid, uint64_t loadBase)
+bool ModuleCacheState::unloadModule(uint64_t pid, uint64_t loadBase)
 {
+    std::cout << "Unloading module pid=0x" << std::hex << pid <<
+                 " loadBase=0x" << loadBase << "\n";
+
+    pid = Library::translatePid(pid, loadBase);
     ModuleInstance mi("", pid, loadBase, 1, 0);
+
+    assert(m_Instances.find(&mi) != m_Instances.end());
+
     return m_Instances.erase(&mi);
 }
 

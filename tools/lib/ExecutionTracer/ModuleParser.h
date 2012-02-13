@@ -107,9 +107,9 @@ public:
     virtual ~ModuleCacheState();
     virtual ItemProcessorState *clone() const;
 
-    bool loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase,
+    bool loadModule(const std::string &name, uint64_t pid, uint64_t loadBase,
                     uint64_t imageBase, uint64_t size);
-    bool unloadDriver(uint64_t pid, uint64_t loadBase);
+    bool unloadModule(uint64_t pid, uint64_t loadBase);
 
     const ModuleInstance *getInstance(uint64_t pid, uint64_t pc) const;
 

@@ -65,7 +65,7 @@ void LogEvents::processItem(unsigned currentItem,
     assert(hdr.type < TRACE_MAX);
 
 #ifdef DEBUG_LP
-    std::cerr << "Item " << currentItem << " sid=" << (int)hdr.stateId <<
+    std::cout << "Item " << currentItem << " sid=" << (int)hdr.stateId <<
             " type=" << (int) hdr.type << std::endl;
 #endif
 
