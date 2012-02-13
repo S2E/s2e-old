@@ -630,7 +630,10 @@ void NdisHandlers::NdisAllocateBufferPoolRet(S2EExecutionState* state, uint32_t 
     }
 
     if(m_memoryChecker) {
-        m_memoryChecker->grantResource(state, Handle, "ndis:alloc:NdisAllocateBufferPool");
+        //The handle is NULL on some versions of Windows (no-op)
+        if (Handle != 0) {
+            m_memoryChecker->grantResource(state, Handle, "ndis:alloc:NdisAllocateBufferPool");
+        }
     }
 }
 
@@ -1139,7 +1142,10 @@ void NdisHandlers::NdisFreeBufferPool(S2EExecutionState* state, FunctionMonitorS
     }
 
     if(m_memoryChecker) {
-        m_memoryChecker->revokeResource(state, Handle);
+        //The handle is NULL on some versions of Windows (no-op)
+        if (Handle) {
+            m_memoryChecker->revokeResource(state, Handle);
+        }
     }
 }
 
