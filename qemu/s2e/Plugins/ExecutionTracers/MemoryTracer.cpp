@@ -114,24 +114,15 @@ bool MemoryTracer::decideTracing(S2EExecutionState *state, uint64_t addr, uint64
     return true;
 }
 
-void MemoryTracer::onDataMemoryAccess(S2EExecutionState *state,
-                               klee::ref<klee::Expr> address,
-                               klee::ref<klee::Expr> hostAddress,
-                               klee::ref<klee::Expr> value,
+void MemoryTracer::traceDataMemoryAccess(S2EExecutionState *state,
+                               klee::ref<klee::Expr> &address,
+                               klee::ref<klee::Expr> &hostAddress,
+                               klee::ref<klee::Expr> &value,
                                bool isWrite, bool isIO)
 {
     bool isAddrCste = isa<klee::ConstantExpr>(address);
     bool isValCste = isa<klee::ConstantExpr>(value);
     bool isHostAddrCste = isa<klee::ConstantExpr>(hostAddress);
-
-    if (isAddrCste && isValCste) {
-        uint64_t addr = cast<klee::ConstantExpr>(address)->getZExtValue(64);
-        uint64_t val = cast<klee::ConstantExpr>(value)->getZExtValue(64);
-
-        if (!decideTracing(state, addr, val)) {
-           return;
-        }
-    }
 
     //Output to the trace entry here
     ExecutionTraceMemory e;
@@ -166,6 +157,27 @@ void MemoryTracer::onDataMemoryAccess(S2EExecutionState *state,
     }
 
     m_tracer->writeData(state, &e, sizeof(e), TRACE_MEMORY);
+}
+
+void MemoryTracer::onDataMemoryAccess(S2EExecutionState *state,
+                               klee::ref<klee::Expr> address,
+                               klee::ref<klee::Expr> hostAddress,
+                               klee::ref<klee::Expr> value,
+                               bool isWrite, bool isIO)
+{
+    bool isAddrCste = isa<klee::ConstantExpr>(address);
+    bool isValCste = isa<klee::ConstantExpr>(value);
+
+    if (isAddrCste && isValCste) {
+        uint64_t addr = cast<klee::ConstantExpr>(address)->getZExtValue(64);
+        uint64_t val = cast<klee::ConstantExpr>(value)->getZExtValue(64);
+
+        if (!decideTracing(state, addr, val)) {
+           return;
+        }
+    }
+
+    traceDataMemoryAccess(state, address, hostAddress, value, isWrite, isIO);
 }
 
 void MemoryTracer::onTlbMiss(S2EExecutionState *state, uint64_t addr, bool is_write)

@@ -94,14 +94,18 @@ private:
     void disableTracing();
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
 
-public:
-    //May be called directly by other plugins
     void onDataMemoryAccess(S2EExecutionState *state,
                                    klee::ref<klee::Expr> address,
                                    klee::ref<klee::Expr> hostAddress,
                                    klee::ref<klee::Expr> value,
                                    bool isWrite, bool isIO);
-
+public:
+    //May be called directly by other plugins
+    void traceDataMemoryAccess(S2EExecutionState *state,
+                                   klee::ref<klee::Expr> &address,
+                                   klee::ref<klee::Expr> &hostAddress,
+                                   klee::ref<klee::Expr> &value,
+                                   bool isWrite, bool isIO);
 };
 
 
