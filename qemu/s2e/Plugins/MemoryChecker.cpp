@@ -689,7 +689,7 @@ void MemoryChecker::grantResource(S2EExecutionState *state,
     res.handle = handle;
     res.type = resourceType;
 
-    s2e()->getDebugStream(state) << "MemoryChecker::grantMemory("
+    s2e()->getDebugStream(state) << "MemoryChecker::grantResource("
             << res << ")" << std::endl;
 
     /********************************************/
@@ -709,13 +709,13 @@ void MemoryChecker::grantResource(S2EExecutionState *state,
     delete [] (uint8_t*)traceEntry;
     /********************************************/
 
-    const ResourceHandleMap::value_type *exres = resourceMap.lookup_previous(handle);
+    const ResourceHandleMap::value_type *exres = resourceMap.lookup(handle);
     if (exres) {
         s2e()->getWarningsStream(state) << "MemoryChecker::grantResource: "
             << "resource already allocated!" << '\n'
             << "This probably means a bug in the OS or S2E API annotations"<< '\n'
-            << "NOTE: requested resource: " << handle << '\n'
-            << "NOTE: overlapping region: " << exres->second << '\n';
+            << "NOTE: requested resource: " << hexval(handle) << '\n'
+            << "NOTE: existing region   : " << exres->second << '\n';
         return;
     }
 
