@@ -96,7 +96,6 @@ class WindowsApi: public Plugin
 {
 public:
     typedef std::set<std::string> StringSet;
-    typedef std::set<ModuleDescriptor, ModuleDescriptor::ModuleByLoadBase> CallingModules;
 
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s);
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &eq);
@@ -109,6 +108,7 @@ public:
     static klee::ref<klee::Expr> readParameter(S2EExecutionState *s, unsigned param);
     static bool readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val);
     static bool writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val);
+    uint32_t getReturnAddress(S2EExecutionState *s);
 
     enum Consistency {
         OVERCONSTR, STRICT, LOCAL, OVERAPPROX
@@ -131,9 +131,6 @@ protected:
     ConsistencyMap m_specificConsistency;
     Consistency m_consistency;
 
-    //The modules that will call registered API functions.
-    //Annotations will not be triggered when calling from other modules.
-    CallingModules m_callingModules;
 
 public:
     WindowsApi(S2E *s2e) : Plugin(s2e) {
@@ -147,18 +144,6 @@ public:
 
     void onModuleUnload(S2EExecutionState* state, const ModuleDescriptor &module);
 
-
-    void registerCaller(const ModuleDescriptor &modDesc)
-    {
-        m_callingModules.insert(modDesc);
-    }
-
-    void unregisterCaller(const ModuleDescriptor &modDesc)
-    {
-        m_callingModules.erase(modDesc);
-    }
-
-    const ModuleDescriptor *calledFromModule(S2EExecutionState *s);
 protected:
     bool forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values);
 
@@ -177,6 +162,7 @@ protected:
 
     void registerImports(S2EExecutionState *state, const ModuleDescriptor &module);    
     virtual void unregisterEntryPoints(S2EExecutionState *state, const ModuleDescriptor &module) = 0;
+    virtual void unregisterCaller(S2EExecutionState *state, const ModuleDescriptor &modDesc) = 0;
 
     ///////////////////////////////////
 
@@ -219,6 +205,34 @@ public:
     FunctionMonitor::CallSignal* getCallSignalForImport(Imports &I, const std::string &dll, const std::string &name,
                                       S2EExecutionState *state);
 
+    void registerCaller(S2EExecutionState *state, const ModuleDescriptor &modDesc)
+    {
+        DECLARE_PLUGINSTATE(ANNOTATIONS_PLUGIN_STATE, state);
+        plgState->registerCaller(modDesc);
+    }
+
+    virtual void unregisterCaller(S2EExecutionState *state, const ModuleDescriptor &modDesc)
+    {
+        DECLARE_PLUGINSTATE(ANNOTATIONS_PLUGIN_STATE, state);
+        plgState->unregisterCaller(modDesc);
+    }
+
+    const ModuleDescriptor *calledFromModule(S2EExecutionState *state) {
+        DECLARE_PLUGINSTATE(ANNOTATIONS_PLUGIN_STATE, state);
+        uint32_t ra = getReturnAddress(state);
+        if (!ra) {
+            return NULL;
+        }
+
+        const ModuleDescriptor *mod = m_detector->getModule(state, ra);
+        if (!mod) {
+            return NULL;
+        }
+
+        const typename ANNOTATIONS_PLUGIN_STATE::CallingModules &cm = plgState->getCallingModules();
+
+        return (cm.find(*mod) != cm.end()) ? mod : NULL;
+    }
 
     //template <typename HANDLING_PLUGIN, typename HANDLER_PTR>
     static AnnotationsMap initializeHandlerMap() {
@@ -451,7 +465,16 @@ private:
 public:
     typedef std::set<Annotation, Annotation> RegisteredAnnotations;
     typedef typename std::set<Annotation, Annotation>::iterator AnnotationsIterator;
+    typedef std::set<ModuleDescriptor, ModuleDescriptor::ModuleByLoadBase> CallingModules;
 
+private:
+    RegisteredAnnotations m_annotations;
+
+    //The modules that will call registered API functions.
+    //Annotations will not be triggered when calling from other modules.
+    CallingModules m_callingModules;
+
+public:
 
     template <class T>
     bool registerAnnotation(uint64_t pc, uint64_t pid, typename T::Callback annotation) {
@@ -495,8 +518,20 @@ public:
         return new WindowsApiState();
     }
 
-private:
-    RegisteredAnnotations m_annotations;
+
+    void registerCaller(const ModuleDescriptor &modDesc)
+    {
+        m_callingModules.insert(modDesc);
+    }
+
+    void unregisterCaller(const ModuleDescriptor &modDesc)
+    {
+        m_callingModules.erase(modDesc);
+    }
+
+    const CallingModules& getCallingModules() const {
+        return m_callingModules;
+    }
 };
 
 

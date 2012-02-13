@@ -99,7 +99,7 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
                 s2e()->getWarningsStream() << "NdisHandlers not activated!" << std::endl;
             } else {
                 ndisHandlers->registerEntryPoints(state, functions);
-                ndisHandlers->registerCaller(module);
+                ndisHandlers->registerCaller(state, module);
                 ndisHandlers->registerImportedVariables(state, module, functions);
             }
 
@@ -109,22 +109,12 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
                 s2e()->getWarningsStream() << "NtoskrnlHandlers not activated!" << std::endl;
             } else {
                 ntoskrnlHandlers->registerEntryPoints(state, functions);
-                ntoskrnlHandlers->registerCaller(module);
+                ntoskrnlHandlers->registerCaller(state, module);
                 ntoskrnlHandlers->registerImportedVariables(state, module, functions);
             }
         }
     }
 }
-
-const ModuleDescriptor* WindowsApi::calledFromModule(S2EExecutionState *s)
-{
-    const ModuleDescriptor *mod = m_detector->getModule(s, s->getTb()->pcOfLastInstr);
-    if (!mod) {
-        return NULL;
-    }
-    return (m_callingModules.find(*mod) != m_callingModules.end()) ? mod : NULL;
-}
-
 
 void WindowsApi::parseConsistency(const std::string &key)
 {
@@ -281,6 +271,17 @@ bool WindowsApi::ReadUnicodeString(S2EExecutionState *state, uint32_t address, s
     }
 
     return ok;
+}
+
+uint32_t WindowsApi::getReturnAddress(S2EExecutionState *s)
+{
+    uint32_t ra;
+    bool b = s->readMemoryConcrete(s->getSp(), &ra, sizeof(ra));
+    if (b) {
+        return ra;
+    } else {
+        return 0;
+    }
 }
 
 bool WindowsApi::readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val)
@@ -464,7 +465,7 @@ void WindowsApi::onModuleUnload(
 {
     m_functionMonitor->disconnect(state, module);
     unregisterEntryPoints(state, module);
-    unregisterCaller(module);
+    unregisterCaller(state, module);
 }
 
 
