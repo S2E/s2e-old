@@ -132,7 +132,7 @@ public:
 
 public:
     enum Permissions {
-        NONE=0, READ=1, WRITE=2, READWRITE=3
+        NONE=0, READ=1, WRITE=2, READWRITE=3, ANY=-1
     };
 
     MemoryChecker(S2E* s2e): Plugin(s2e) {}
@@ -199,7 +199,7 @@ public:
     // NOTE: end, perms and regionID can be -1, regionTypePattern can be NULL
     bool revokeMemory(S2EExecutionState *state,
                       uint64_t start, uint64_t size,
-                      Permissions perms = READWRITE,
+                      Permissions perms = ANY,
                       const std::string &regionTypePattern = "",
                       uint64_t regionID = uint64_t(-1));
 

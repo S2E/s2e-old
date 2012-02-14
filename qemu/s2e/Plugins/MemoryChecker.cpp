@@ -553,7 +553,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
                 << "  NOTE: requested region: " << *region << std::endl;
         }
 
-        if(perms != uint8_t(-1) && res->second->perms != perms) {
+        if(perms != ANY && res->second->perms != perms) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory region with wrong permissions!" << std::endl
                 << "  NOTE: allocated region: " << *res->second << std::endl
@@ -664,7 +664,7 @@ bool MemoryChecker::revokeMemoryByPointer(S2EExecutionState *state, uint64_t poi
         return false;
     }
 
-    return revokeMemory(state, start, size, MemoryChecker::READWRITE, regionTypePattern);
+    return revokeMemory(state, start, size, ANY, regionTypePattern);
 }
 
 
