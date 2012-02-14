@@ -127,7 +127,7 @@ void tlb_set_page(CPUState *env, target_ulong vaddr,
 #define CODE_GEN_PHYS_HASH_BITS     15
 #define CODE_GEN_PHYS_HASH_SIZE     (1 << CODE_GEN_PHYS_HASH_BITS)
 
-#define MIN_CODE_GEN_BUFFER_SIZE     (1024 * 1024)
+#define MIN_CODE_GEN_BUFFER_SIZE     (128 * 1024 * 1024)
 
 /* estimated block size for TB allocation */
 /* XXX: use a per code average code fragment size and modulate it
@@ -214,6 +214,7 @@ struct TranslationBlock {
     struct Function *llvm_function;
     uint8_t *llvm_tc_ptr;
     uint8_t *llvm_tc_end;
+    struct TranslationBlock* llvm_tb_next[2];
 #endif
 
 #ifdef CONFIG_S2E
@@ -338,6 +339,9 @@ static inline void tb_add_jump(TranslationBlock *tb, int n,
 
 #ifdef CONFIG_S2E
         tb->s2e_tb_next[n] = tb_next;
+#endif
+#ifdef CONFIG_LLVM
+        tb->llvm_tb_next[n] = tb_next;
 #endif
     }
 }

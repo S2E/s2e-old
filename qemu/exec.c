@@ -915,6 +915,9 @@ static inline void tb_reset_jump(TranslationBlock *tb, int n)
 #ifdef CONFIG_S2E
     tb->s2e_tb_next[n] = NULL;
 #endif
+#ifdef CONFIG_LLVM
+    tb->llvm_tb_next[n] = NULL;
+#endif
 
 }
 

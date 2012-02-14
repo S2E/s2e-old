@@ -36,6 +36,12 @@
 
 #define DEBUG_LOGFILE "/tmp/qemu.log"
 
+#ifdef CONFIG_LLVM
+#include <tcg-llvm.h>
+extern int generate_llvm;
+extern int execute_llvm;
+#endif
+
 char *exec_path;
 
 int singlestep;
@@ -3089,6 +3095,19 @@ static void handle_arg_version(const char *arg)
     exit(0);
 }
 
+#ifdef CONFIG_LLVM
+static void handle_execute_llvm(const char *arg)
+{
+    generate_llvm = 1;
+    execute_llvm = 1;
+}
+
+static void handle_generate_llvm(const char *arg)
+{
+    generate_llvm = 1;
+}
+#endif
+
 struct qemu_argument {
     const char *argv;
     const char *env;
@@ -3133,6 +3152,12 @@ struct qemu_argument arg_table[] = {
      "",           "log system calls"},
     {"version",    "QEMU_VERSION",     false, handle_arg_version,
      "",           "display version information and exit"},
+#ifdef CONFIG_LLVM
+    {"llvm",       "QEMU_LLVM",        false, handle_execute_llvm,
+     "",        "execute code using LLVM JIT"},
+    {"generate-llvm", "QEMU_GEN_LLVM",        false, handle_generate_llvm,
+     "",        "translate code into LLVM but don't execute it"},
+#endif
     {NULL, NULL, false, NULL, NULL, NULL}
 };
 
@@ -3516,6 +3541,10 @@ int main(int argc, char **argv, char **envp)
        generating the prologue until now so that the prologue can take
        the real value of GUEST_BASE into account.  */
     tcg_prologue_init(&tcg_ctx);
+#endif
+
+#ifdef CONFIG_LLVM
+    tcg_llvm_ctx = tcg_llvm_initialize();
 #endif
 
 #if defined(TARGET_I386)

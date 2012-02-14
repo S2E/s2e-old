@@ -91,7 +91,7 @@ static void *qemu_st_helpers[5] = {
 #include <iostream>
 #include <sstream>
 
-#undef NDEBUG
+//#undef NDEBUG
 
 extern "C" {
     TCGLLVMContext* tcg_llvm_ctx = 0;
@@ -605,6 +605,36 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
 
 #ifdef CONFIG_SOFTMMU
 
+#if  defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+    uintptr_t helperFunc = ld ? (uint64_t) qemu_ld_helpers[bits>>4]:
+                           (uint64_t) qemu_st_helpers[bits>>4];
+
+
+    std::vector<Value*> argValues;
+    argValues.reserve(3);
+    argValues.push_back(addr);
+    if(!ld)
+        argValues.push_back(value);
+    argValues.push_back(ConstantInt::get(intType(8*sizeof(int)), mem_index));
+
+    std::vector<Type*> argTypes;
+    argTypes.reserve(3);
+    for(int i=0; i<(ld?2:3); ++i)
+        argTypes.push_back(argValues[i]->getType());
+
+    Type* helperFunctionPtrTy = PointerType::get(
+            FunctionType::get(
+                    ld ? intType(bits) : Type::getVoidTy(m_context),
+                    argTypes, false),
+            0);
+
+    Value* funcAddr = m_builder.CreateIntToPtr(
+            ConstantInt::get(wordType(), helperFunc),
+            helperFunctionPtrTy);
+    return m_builder.CreateCall(funcAddr, ArrayRef<Value*>(argValues));
+
+#endif
+
 #ifdef CONFIG_S2E
     if(ld) {
         return m_builder.CreateCall2(m_qemu_ld_helpers[bits>>4], addr,
@@ -614,7 +644,8 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
                     ConstantInt::get(intType(8*sizeof(int)), mem_index));
         return NULL;
     }
-#else
+#endif
+#if 0
 
 #define __x_offsetof(TYPE, MEMBER) ((size_t) &((TYPE *) 0)->MEMBER)
 
@@ -1252,17 +1283,22 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         //llvm::errs() << *m_tbFunction << "\n";
         Value *arg1 = getValue(args[1]);
         //llvm::errs() << "arg1=" << *arg1 << "\n";
-        arg1 = m_builder.CreateTrunc(arg1, intType(32));
+        //arg1 = m_builder.CreateTrunc(arg1, intType(32));
 
 
         Value *arg2 = getValue(args[2]);
         //llvm::errs() << "arg2=" << *arg2 << "\n";
         arg2 = m_builder.CreateTrunc(arg2, intType(32));
 
-        uint64_t ofs = args[3];
-        uint64_t len = args[4];
+        uint32_t ofs = args[3];
+        uint32_t len = args[4];
 
-        uint64_t mask = (1u << len) - 1;
+        if (ofs == 0 && len == 32) {
+            setValue(args[0], arg2);
+            break;
+        }
+
+        uint32_t mask = (1u << len) - 1;
         Value *t1, *ret;
         if (ofs + len < 32) {
             t1 = m_builder.CreateAnd(arg2, APInt(32, mask));
@@ -1502,5 +1538,31 @@ uintptr_t tcg_llvm_qemu_tb_exec(void *env1, TranslationBlock *tb)
 #endif
     extern CPUState *env;
     env = (CPUState*)env1;
-    return ((uintptr_t (*)(void*)) tb->llvm_tc_ptr)(&env);
+    uintptr_t next_tb;
+
+    next_tb = ((uintptr_t (*)(void*)) tb->llvm_tc_ptr)(&env);
+
+#if 0
+//#ifndef CONFIG_S2E
+    do {
+        next_tb = ((uintptr_t (*)(void*)) tb->llvm_tc_ptr)(&env);
+        tb = NULL;
+        if (next_tb && ((next_tb & 3) < 2)) {
+            tb = (TranslationBlock *)(next_tb & ~3);
+            tb = (TranslationBlock *)((uintptr_t)tb->llvm_tb_next[next_tb & 3]);
+            if (!tb || !tb->llvm_tc_ptr) {
+                tb = NULL;
+            }else {
+                tcg_llvm_runtime.last_tb = tb;
+            }
+        }
+    } while(tb);
+
+    //
+
+
+
+#endif
+
+    return next_tb;
 }

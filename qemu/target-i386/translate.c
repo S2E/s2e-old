@@ -7864,6 +7864,10 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     int num_insns;
     int max_insns;
 
+    if (env->eip == 0x30cf && env->segs[R_CS].base == 0x80d0) {
+        asm("int $3");
+    }
+
     /* generate intermediate code */
     pc_start = tb->pc;
     cs_base = tb->cs_base;

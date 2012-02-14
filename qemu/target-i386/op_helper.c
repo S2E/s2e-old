@@ -1539,6 +1539,10 @@ static void do_interrupt_all(int intno, int is_int, int error_code,
                              target_ulong next_eip, int is_hw)
 #endif
 {
+    if (intno == 6) {
+        asm("int $3");
+    }
+
     if (qemu_loglevel_mask(CPU_LOG_INT)) {
         if ((env->cr[0] & CR0_PE_MASK)) {
             static int count;
