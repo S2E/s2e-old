@@ -390,7 +390,8 @@ void NdisHandlers::NdisFreeMemory(S2EExecutionState* state, FunctionMonitorState
         std::stringstream ss;
         ss << "NdisFreeMemory called with length=0x" << std::hex << Length
            << " but was allocated 0x" << AllocatedLength;
-        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
+
+        warning(state, ss.str());
     }
 
     m_memoryChecker->revokeMemoryByPointer(state, Address, "");
