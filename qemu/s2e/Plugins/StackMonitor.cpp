@@ -249,7 +249,7 @@ public:
     typedef std::pair<uint64_t, uint64_t> PidStackBase;
     typedef std::map<PidStackBase, Stack> Stacks;
 private:
-
+    bool m_debugMessages;
     uint64_t m_pid;
     uint64_t m_cachedStackBase;
     uint64_t m_cachedStackSize;
@@ -269,7 +269,7 @@ public:
     bool getFrameInfo(S2EExecutionState *state, uint64_t sp, bool &onTheStack, StackFrameInfo &info) const;
     void dump(S2EExecutionState *state) const;
 public:
-    StackMonitorState();
+    StackMonitorState(bool debugMessages);
     virtual ~StackMonitorState();
     virtual StackMonitorState* clone() const;
     static PluginState *factory(Plugin *p, S2EExecutionState *s);
@@ -299,6 +299,8 @@ void StackMonitor::initialize()
 {
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
     m_monitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
+
+    m_debugMessages = s2e()->getConfig()->getBool(getConfigKey() + ".debugMessages");
 
     //m_monitor->onThreadCreate.connect(
     //    sigc::mem_fun(*this, &StackMonitor::onThreadCreate));
@@ -423,11 +425,12 @@ void StackMonitor::dump(S2EExecutionState *state)
 /*****************************************************************************/
 /*****************************************************************************/
 
-StackMonitorState::StackMonitorState()
+StackMonitorState::StackMonitorState(bool debugMessages)
 {
     m_cachedStackBase = 0;
     m_cachedStackSize = 0;
     m_pid = 0;
+    m_debugMessages = debugMessages;
     m_monitor = static_cast<OSMonitor*>(g_s2e->getPlugin("Interceptor"));
     m_detector = static_cast<ModuleExecutionDetector*>(g_s2e->getPlugin("ModuleExecutionDetector"));
 }
@@ -444,7 +447,8 @@ StackMonitorState* StackMonitorState::clone() const
 
 PluginState *StackMonitorState::factory(Plugin *p, S2EExecutionState *s)
 {
-    return new StackMonitorState();
+    StackMonitor *sm = static_cast<StackMonitor*>(g_s2e->getPlugin("StackMonitor"));
+    return new StackMonitorState(sm->m_debugMessages);
 }
 
 
@@ -483,7 +487,9 @@ void StackMonitorState::update(S2EExecutionState *state, uint64_t pc, bool isCal
         (*stackit).second.update(state, moduleId, sp);
     }
 
-    g_s2e->getDebugStream() << (*stackit).second << "\n";
+    if ( m_debugMessages) {
+        g_s2e->getDebugStream() << (*stackit).second << "\n";
+    }
 
     if (stack.empty()) {
         m_stacks.erase(stackit);

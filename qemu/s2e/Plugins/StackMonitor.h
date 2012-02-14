@@ -55,10 +55,13 @@ struct StackFrameInfo {
     uint64_t FramePc;
 };
 
+class StackMonitorState;
+
 class StackMonitor : public Plugin
 {
     S2E_PLUGIN
 public:
+    friend class StackMonitorState;
     StackMonitor(S2E* s2e): Plugin(s2e) {}
 
     void initialize();
@@ -68,6 +71,7 @@ public:
 private:
     OSMonitor *m_monitor;
     ModuleExecutionDetector *m_detector;
+    bool m_debugMessages;
 
     sigc::connection m_onTranslateRegisterAccessConnection;
 
