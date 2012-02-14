@@ -158,7 +158,8 @@ bool ModuleCacheState::unloadModule(uint64_t pid, uint64_t loadBase)
     pid = Library::translatePid(pid, loadBase);
     ModuleInstance mi("", pid, loadBase, 1, 0);
 
-    assert(m_Instances.find(&mi) != m_Instances.end());
+    //Sometimes we have duplicated items in the trace
+    //assert(m_Instances.find(&mi) != m_Instances.end());
 
     return m_Instances.erase(&mi);
 }
