@@ -50,6 +50,7 @@
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
 
 #include "Api.h"
+#include "Ntddk.h"
 
 
 namespace s2e {
@@ -118,7 +119,7 @@ private:
 
     DECLARE_ENTRY_POINT(IofCompleteRequest);
 
-    static uint32_t IoGetCurrentIrpStackLocation(windows::IRP *Irp) {
+    static uint32_t IoGetCurrentIrpStackLocation(const windows::IRP *Irp) {
         return ( (Irp)->Tail.Overlay.CurrentStackLocation );
     }
 
@@ -127,9 +128,14 @@ private:
     void grantAccessToIrp(S2EExecutionState *state, uint32_t pIrp);
     void revokeAccessToIrp(S2EExecutionState *state, uint32_t pIrp);
 
+private:
+    void DispatchIoctl(S2EExecutionState* state, uint64_t pIrp, const windows::IRP &irp,
+                       const windows::IO_STACK_LOCATION &stackLocation);
+    void DispatchIoctlRet(S2EExecutionState* state, uint32_t irpMajor, bool isFake, uint64_t pIrp);
+
 public:
     DECLARE_ENTRY_POINT_CALL(DriverDispatch, uint32_t irpMajor);
-    DECLARE_ENTRY_POINT_RET(DriverDispatch, uint32_t irpMajor);
+    DECLARE_ENTRY_POINT_RET(DriverDispatch, uint32_t irpMajor, bool isFake);
 };
 
 

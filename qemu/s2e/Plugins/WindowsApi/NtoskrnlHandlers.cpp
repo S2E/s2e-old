@@ -707,11 +707,130 @@ void NtoskrnlHandlers::ExFreePoolWithTag(S2EExecutionState* state, FunctionMonit
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
+                                     uint64_t pIrp,
+                                     const IRP &irp,
+                                     const IO_STACK_LOCATION &stackLocation)
+{
+    uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
+    uint32_t ioctlOffset = offsetof(IO_STACK_LOCATION, Parameters.DeviceIoControl.IoControlCode);
+
+    s2e()->getMessagesStream() << "IOCTL code " << hexval(ioctl) << '\n';
+
+    uint64_t inputLength = stackLocation.Parameters.DeviceIoControl.InputBufferLength;
+    uint64_t outputLength = stackLocation.Parameters.DeviceIoControl.OutputBufferLength;
+    uint64_t inputBuffer = 0;
+
+    std::stringstream regionType;
+    regionType << "IRP_MJ_DEVICE_IOCTL:" << hexval(pIrp) << ":";
+
+    //Grant privileges to the data buffers
+    switch (ioctl & 0x3) {
+        case METHOD_BUFFERED: {
+            regionType << "METHOD_BUFFERED:Buffer";
+            uint64_t buffer = irp.AssociatedIrp.SystemBuffer;
+
+            uint64_t length = inputLength < outputLength ? outputLength : inputLength;
+            if (m_memoryChecker && buffer && length > 0) {
+                m_memoryChecker->grantMemory(state, buffer,
+                                             length, MemoryChecker::READWRITE,
+                                             regionType.str());
+            }
+
+            inputBuffer = buffer;
+        }
+        break;
+
+        case METHOD_OUT_DIRECT:
+        case METHOD_IN_DIRECT: {
+            regionType << "METHOD_INOUT_DIRECT:";
+            //Reading of input data can be done directly
+            inputBuffer = irp.AssociatedIrp.SystemBuffer;
+            if (m_memoryChecker && inputBuffer && inputLength > 0) {
+                m_memoryChecker->grantMemory(state, inputBuffer,
+                                             inputLength, MemoryChecker::READWRITE,
+                                             regionType.str() + "InputBuffer");
+            }
+
+            //Grant write acesses to output data only if it is already mapped,
+            //otherwise, we'll have to hook other system functions
+            uint64_t mdlAddress = irp.MdlAddress;
+            MDL32 mdl;
+            if (state->readMemoryConcrete(mdlAddress, &mdl, sizeof(mdl))) {
+                if (mdl.MdlFlags & (MDL_MAPPED_TO_SYSTEM_VA | MDL_SOURCE_IS_NONPAGED_POOL)) {
+                    m_memoryChecker->grantMemory(state, mdl.MappedSystemVa,
+                                                 mdl.Size, MemoryChecker::READWRITE,
+                                                 regionType.str() + "InputOutputBuffer");
+                }
+            }
+
+        }
+        break;
+
+        case METHOD_NEITHER: {
+            //uint64_t inputBuffer = stackLocation.Parameters.DeviceIoControl.Type3InputBuffer;
+            //uint64_t outputBuffer = irp.UserBuffer;
+
+            s2e()->getWarningsStream() << "METHOD_NEITHER not implemented yet..." << std::endl;
+        }
+        break;
+    }
+
+    if (inputBuffer) {
+        for (uint64_t i=0; i<inputLength; ++i) {
+            klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int8,
+                                         getVariableName(state, __FUNCTION__) + "_IoctlBuffer");
+            state->writeMemory(inputBuffer + i, symb);
+        }
+    }
+
+    DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
+    if (!plgState->isIoctlIrpExplored) {
+        uint32_t pStackLocation = IoGetCurrentIrpStackLocation(&irp);
+
+        plgState->isIoctlIrpExplored = true;
+
+        //Fork one state that will run unmodified and one fake state with symbolic ioctl code
+        std::vector<S2EExecutionState *> states;
+        forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_fakeioctl");
+
+        S2EExecutionState *realState = states[0] == state ? states[1] : states[0];
+        S2EExecutionState *fakeState = state;
+
+        klee::ref<klee::Expr> symb = fakeState->createSymbolicValue(klee::Expr::Int32,
+                                                                getVariableName(state, __FUNCTION__) + "_IoctlCode");
+        symb = klee::OrExpr::create(symb, klee::ConstantExpr::create(ioctl & 3, klee::Expr::Int32));
+        fakeState->writeMemory(pStackLocation + ioctlOffset, symb);
+
+        FUNCMON_REGISTER_RETURN_A(fakeState, m_functionMonitor, NtoskrnlHandlers::DispatchIoctlRet, IRP_MJ_DEVICE_CONTROL, true, pIrp);
+        FUNCMON_REGISTER_RETURN_A(realState, m_functionMonitor, NtoskrnlHandlers::DispatchIoctlRet, IRP_MJ_DEVICE_CONTROL, false, pIrp);
+    } else {
+        s2e()->getDebugStream() << "Already explored\n";
+
+        FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DispatchIoctlRet, IRP_MJ_DEVICE_CONTROL, false, pIrp);
+    }
+}
+
+void NtoskrnlHandlers::DispatchIoctlRet(S2EExecutionState* state, uint32_t irpMajor, bool isFake, uint64_t pIrp)
+{
+    HANDLER_TRACE_RETURN();
+
+    if (m_memoryChecker) {
+        std::stringstream regionType;
+        regionType << "IRP_MJ_DEVICE_IOCTL:" << hexval(pIrp) << "*";
+        m_memoryChecker->revokeMemory(state, regionType.str());
+    }
+
+    //Revokes access rights to various buffers
+    DriverDispatchRet(state, irpMajor, isFake);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorState *fns, uint32_t irpMajor)
 {
     HANDLER_TRACE_CALL();
     s2e()->getMessagesStream() << "IRP " << std::dec << irpMajor << " " << s_irpMjArray[irpMajor] << std::endl;
-
     state->undoCallAndJumpToSymbolic();
 
     //Read the parameters
@@ -733,8 +852,6 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         grantAccessToIrp(state, pIrp);
     }
 
-
-
     IRP irp;
     if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
         HANDLER_TRACE_PARAM_FAILED("irp");
@@ -749,47 +866,26 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
-    FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor);
-
     if (getConsistency(__FUNCTION__) < LOCAL) {
+        FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor, false);
         return;
     }
 
-    if (irpMajor == IRP_MJ_DEVICE_CONTROL) {
-        /*if (m_bsodInterceptor) {
-            m_bsodInterceptor->enableCrashDumpGeneration(true);
-        }*/
+    switch (irpMajor) {
+        case IRP_MJ_DEVICE_CONTROL:
+            DispatchIoctl(state, pIrp, irp, stackLocation);
+            break;
 
-        uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
+        default:
+            FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor, false);
+            break;
 
-        s2e()->getMessagesStream() << s_irpMjArray[irpMajor] << " control code 0x" << std::hex << ioctl << std::endl;
-
-        DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
-        if (plgState->isIoctlIrpExplored) {
-            return;
-        }
-        plgState->isIoctlIrpExplored = true;
-
-
-        uint32_t ioctlOffset = offsetof(IO_STACK_LOCATION, Parameters.DeviceIoControl.IoControlCode);
-
-        //Fork one state that will run unmodified and one fake state with symbolic ioctl code
-        std::vector<S2EExecutionState *> states;
-        forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_fakeioctl");
-
-
-        plgState->isFakeState = true;
-
-        klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32,
-                                                                getVariableName(state, __FUNCTION__) + "_IoctlCode");
-        symb = klee::OrExpr::create(symb, klee::ConstantExpr::create(ioctl & 3, klee::Expr::Int32));
-        state->writeMemory(pStackLocation + ioctlOffset, symb);
 
     }
 
 }
 
-void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpMajor)
+void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpMajor, bool isFake)
 {
     HANDLER_TRACE_RETURN();
 
@@ -803,8 +899,7 @@ void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpM
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
     }*/
 
-    DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
-    if (plgState->isFakeState) {
+    if (isFake) {
         std::stringstream ss;
         ss << "Killing faked " << __FUNCTION__ << " " << s_irpMjArray[irpMajor];
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());

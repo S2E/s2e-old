@@ -78,6 +78,11 @@ static const uint32_t MDL_MAPPING_FLAGS = (MDL_MAPPED_TO_SYSTEM_VA     |
                     //       MDL_SYSTEM_VA               |
                            MDL_IO_SPACE );
 
+static const uint32_t METHOD_BUFFERED   = 0;
+static const uint32_t METHOD_IN_DIRECT  = 1;
+static const uint32_t METHOD_OUT_DIRECT = 2;
+static const uint32_t METHOD_NEITHER    = 3;
+
 enum BUS_DATA_TYPE {
   ConfigurationSpaceUndefined = -1,
   Cmos,
