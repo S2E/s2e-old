@@ -74,6 +74,10 @@ void WindowsApi::initialize()
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
     m_bsodInterceptor = static_cast<BlueScreenInterceptor*>(s2e()->getPlugin("BlueScreenInterceptor"));
 
+    ConfigFile *cfg = s2e()->getConfig();
+
+    m_terminateOnWarnings = cfg->getBool(getConfigKey() + ".terminateOnWarnings");
+
     parseConsistency(getConfigKey());
     parseSpecificConsistency(getConfigKey());
 }

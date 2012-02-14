@@ -131,6 +131,7 @@ protected:
     ConsistencyMap m_specificConsistency;
     Consistency m_consistency;
 
+    bool m_terminateOnWarnings;
 
 public:
     WindowsApi(S2E *s2e) : Plugin(s2e) {
@@ -175,6 +176,15 @@ protected:
 
     bool revokeAccessToUnicodeString(S2EExecutionState *state,
                                     uint64_t address);
+
+    ///////////////////////////////////
+    void warning(S2EExecutionState *state, const std::string &msg) {
+        if (m_terminateOnWarnings) {
+            s2e()->getExecutor()->terminateStateEarly(*state, msg);
+        } else {
+            s2e()->getWarningsStream(state) << msg << "\n";
+        }
+    }
 };
 
 //Implements methods and helpers common to all kinds of
