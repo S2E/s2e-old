@@ -97,6 +97,7 @@ $(libobj-y): $(GENERATED_HEADERS)
 
 # libqemu
 
+
 translate.o: translate.c cpu.h
 
 translate-all.o: translate-all.c cpu.h
@@ -232,7 +233,7 @@ endif
 obj-$(CONFIG_IVSHMEM) += ivshmem.o
 
 # Hardware support
-obj-i386-y += vga.o
+obj-i386-y += vga.o vl.o pci.o
 obj-i386-y += mc146818rtc.o pc.o
 obj-i386-y += cirrus_vga.o sga.o apic.o ioapic.o piix_pci.o
 obj-i386-y += vmport.o
