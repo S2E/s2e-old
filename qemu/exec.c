@@ -3031,7 +3031,7 @@ static ram_addr_t find_ram_offset(ram_addr_t size)
     return offset;
 }
 
-static ram_addr_t last_ram_offset(void)
+ram_addr_t last_ram_offset(void)
 {
     RAMBlock *block;
     ram_addr_t last = 0;
@@ -3464,7 +3464,7 @@ static void notdirty_mem_writeb(void *opaque, target_phys_addr_t ram_addr,
         dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
 #endif
     }
-    stb_p(qemu_get_ram_ptr(ram_addr), val);
+    stb_raw(qemu_get_ram_ptr(ram_addr), val);
     dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
     cpu_physical_memory_set_dirty_flags(ram_addr, dirty_flags);
     /* we remove the notdirty callback only if the code has been
@@ -3484,7 +3484,7 @@ static void notdirty_mem_writew(void *opaque, target_phys_addr_t ram_addr,
         dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
 #endif
     }
-    stw_p(qemu_get_ram_ptr(ram_addr), val);
+    stw_raw(qemu_get_ram_ptr(ram_addr), val);
     dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
     cpu_physical_memory_set_dirty_flags(ram_addr, dirty_flags);
     /* we remove the notdirty callback only if the code has been
@@ -3504,7 +3504,7 @@ static void notdirty_mem_writel(void *opaque, target_phys_addr_t ram_addr,
         dirty_flags = cpu_physical_memory_get_dirty_flags(ram_addr);
 #endif
     }
-    stl_p(qemu_get_ram_ptr(ram_addr), val);
+    stl_raw(qemu_get_ram_ptr(ram_addr), val);
     dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
     cpu_physical_memory_set_dirty_flags(ram_addr, dirty_flags);
     /* we remove the notdirty callback only if the code has been
