@@ -29,6 +29,10 @@
 #include "pixel_ops.h"
 #include "qemu-timer.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 //#define DEBUG_VGA
 //#define DEBUG_VGA_MEM
 //#define DEBUG_VGA_REG
@@ -2222,6 +2226,12 @@ void vga_common_init(VGACommonState *s, int vga_ram_size)
     s->is_vbe_vmstate = 0;
 #endif
     memory_region_init_ram(&s->vram, NULL, "vga.vram", vga_ram_size);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state, -1, vga_ram_size,
+            (uint64_t) memory_region_get_ram_ptr(&s->vram), 1, 0, "vga.vram");
+#endif
+
     s->vram_ptr = memory_region_get_ram_ptr(&s->vram);
     s->vram_size = vga_ram_size;
     s->get_bpp = vga_get_bpp;

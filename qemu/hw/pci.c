@@ -32,6 +32,10 @@
 #include "range.h"
 #include "qmp-commands.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 //#define DEBUG_PCI
 #ifdef DEBUG_PCI
 # define PCI_DPRINTF(format, ...)       printf(format, ## __VA_ARGS__)
@@ -1767,6 +1771,12 @@ static int pci_add_option_rom(PCIDevice *pdev, bool is_default_rom)
     pdev->has_rom = true;
     memory_region_init_ram(&pdev->rom, &pdev->qdev, name, size);
     ptr = memory_region_get_ram_ptr(&pdev->rom);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state, -1, size, (uint64_t) ptr, 1, 0, name);
+#endif
+
+
     load_image(path, ptr);
     g_free(path);
 

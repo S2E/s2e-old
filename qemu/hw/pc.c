@@ -21,6 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2012, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "hw.h"
 #include "pc.h"
 #include "apic.h"
@@ -43,6 +57,11 @@
 #include "ui/qemu-spice.h"
 #include "memory.h"
 #include "exec-memory.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 
 /* output Bochs bios info messages */
 //#define DEBUG_BIOS
@@ -960,7 +979,12 @@ void pc_cpus_init(const char *cpu_model)
     }
 
     for(i = 0; i < smp_cpus; i++) {
+#ifdef CONFIG_S2E
+        CPUState *env = pc_new_cpu(cpu_model);
+        s2e_register_cpu(g_s2e, g_s2e_state, env);
+#else
         pc_new_cpu(cpu_model);
+#endif
     }
 }
 
@@ -989,6 +1013,11 @@ void pc_memory_init(MemoryRegion *system_memory,
     ram = g_malloc(sizeof(*ram));
     memory_region_init_ram(ram, NULL, "pc.ram",
                            below_4g_mem_size + above_4g_mem_size);
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state, -1, below_4g_mem_size + above_4g_mem_size,
+                     (uint64_t)memory_region_get_ram_ptr(ram), 0, 0, "pc.ram");
+#endif
+
     *ram_memory = ram;
     ram_below_4g = g_malloc(sizeof(*ram_below_4g));
     memory_region_init_alias(ram_below_4g, "ram-below-4g", ram,
@@ -1017,6 +1046,12 @@ void pc_memory_init(MemoryRegion *system_memory,
     }
     bios = g_malloc(sizeof(*bios));
     memory_region_init_ram(bios, NULL, "pc.bios", bios_size);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state, -1, bios_size,
+                     (uint64_t) memory_region_get_ram_ptr(bios), 1, 0, "pc.bios");
+#endif
+
     memory_region_set_readonly(bios, true);
     ret = rom_add_file_fixed(bios_name, (uint32_t)(-bios_size), -1);
     if (ret != 0) {
@@ -1042,6 +1077,12 @@ void pc_memory_init(MemoryRegion *system_memory,
 
     option_rom_mr = g_malloc(sizeof(*option_rom_mr));
     memory_region_init_ram(option_rom_mr, NULL, "pc.rom", PC_ROM_SIZE);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state, -1, PC_ROM_SIZE,
+                     (uint64_t) memory_region_get_ram_ptr(option_rom_mr), 1, 0, "pc.rom");
+#endif
+
     memory_region_add_subregion_overlap(rom_memory,
                                         PC_ROM_MIN_VGA,
                                         option_rom_mr,
@@ -1191,4 +1232,11 @@ void pc_pci_device_init(PCIBus *pci_bus)
     for (bus = 0; bus <= max_bus; bus++) {
         pci_create_simple(pci_bus, -1, "lsi53c895a");
     }
+
+#ifdef CONFIG_S2E
+    s2e_on_device_activation(g_s2e, pci_bus);
+#else
+    void fake_activate_devices(struct PCIBus *bus);
+    fake_activate_devices(pci_bus);
+#endif
 }
