@@ -1163,6 +1163,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     mem_index = args[addrlo_idx + 1 + (TARGET_LONG_BITS > TCG_TARGET_REG_BITS)];
     s_bits = opc & 3;
 
+#if !defined(CONFIG_S2E)
     tcg_out_tlb_load(s, addrlo_idx, mem_index, s_bits, args,
                      label_ptr, offsetof(CPUTLBEntry, addr_read));
 
@@ -1182,6 +1183,22 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     if (TARGET_LONG_BITS > TCG_TARGET_REG_BITS) {
         *label_ptr[1] = s->code_ptr - label_ptr[1] - 1;
     }
+#else
+    const int addrlo = args[addrlo_idx];
+    const int r0 = tcg_target_call_iarg_regs[0];
+    const int r1 = tcg_target_call_iarg_regs[1];
+    TCGType type = TCG_TYPE_I32;
+    int rexw = 0;
+
+    if (TCG_TARGET_REG_BITS == 64 && TARGET_LONG_BITS == 64) {
+        type = TCG_TYPE_I64;
+        rexw = P_REXW;
+    }
+
+    tcg_out_mov(s, type, r1, addrlo);
+    tcg_out_mov(s, type, r0, addrlo);
+
+#endif
 
     /* XXX: move that code at the end of the TB */
     /* The first argument is already loaded with addrlo.  */
@@ -1231,8 +1248,10 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_abort();
     }
 
+#if !defined(CONFIG_S2E)
     /* label2: */
     *label_ptr[2] = s->code_ptr - label_ptr[2] - 1;
+#endif
 #else
     {
         int32_t offset = GUEST_BASE;
@@ -1338,6 +1357,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     mem_index = args[addrlo_idx + 1 + (TARGET_LONG_BITS > TCG_TARGET_REG_BITS)];
     s_bits = opc;
 
+#if !defined(CONFIG_S2E)
     tcg_out_tlb_load(s, addrlo_idx, mem_index, s_bits, args,
                      label_ptr, offsetof(CPUTLBEntry, addr_write));
 
@@ -1357,6 +1377,23 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     if (TARGET_LONG_BITS > TCG_TARGET_REG_BITS) {
         *label_ptr[1] = s->code_ptr - label_ptr[1] - 1;
     }
+#else
+    const int addrlo = args[addrlo_idx];
+    const int r0 = tcg_target_call_iarg_regs[0];
+    const int r1 = tcg_target_call_iarg_regs[1];
+    TCGType type = TCG_TYPE_I32;
+    int rexw = 0;
+
+    if (TCG_TARGET_REG_BITS == 64 && TARGET_LONG_BITS == 64) {
+        type = TCG_TYPE_I64;
+        rexw = P_REXW;
+    }
+
+    tcg_out_mov(s, type, r1, addrlo);
+    tcg_out_mov(s, type, r0, addrlo);
+
+#endif
+
 
     /* XXX: move that code at the end of the TB */
     if (TCG_TARGET_REG_BITS == 64) {
@@ -1408,8 +1445,10 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
         tcg_out_addi(s, TCG_REG_CALL_STACK, stack_adjust);
     }
 
+#if !defined(CONFIG_S2E)
     /* label2: */
     *label_ptr[2] = s->code_ptr - label_ptr[2] - 1;
+#endif
 #else
     {
         int32_t offset = GUEST_BASE;
