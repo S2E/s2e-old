@@ -155,7 +155,7 @@ static inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_a
 }
 
 
-#else //S2E_LLVM_LIB
+#elif defined(S2E_LLVM_LIB) //S2E_LLVM_LIB
 
 inline DATA_TYPE glue(io_make_symbolic, SUFFIX)(const char *name) {
     uint8_t ret;
@@ -261,7 +261,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     int object_index, index;
     target_ulong tlb_addr;
     target_phys_addr_t addend, ioaddr;
-    void *retaddr;
+    void *retaddr = NULL;
 
     /* test if there is match for unaligned or IO access */
     /* XXX: could done more in memory macro in a non portable way */
@@ -276,7 +276,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
+#ifndef S2E_LLVM_LIB
             retaddr = GETPC();
+#endif
             ioaddr = env->iotlb[mmu_idx][index];
             res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ioaddr, addr, retaddr);
 
@@ -285,7 +287,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         } else if (unlikely(((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE)) {
             /* slow unaligned access (it spans two pages or IO) */
         do_unaligned_access:
+#ifndef S2E_LLVM_LIB
             retaddr = GETPC();
+#endif
 #ifdef ALIGNED_ONLY
             do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
 #endif
@@ -295,7 +299,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* unaligned/aligned access in the same page */
 #ifdef ALIGNED_ONLY
             if ((addr & (DATA_SIZE - 1)) != 0) {
+#ifndef S2E_LLVM_LIB
                 retaddr = GETPC();
+#endif
                 do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
             }
 #endif
@@ -304,7 +310,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if(likely(_s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE)))
-                res = glue(glue(ld, USUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
+                res = glue(glue(ld, USUFFIX), _p_qemu)((uint8_t*)(addr + (e->addend&~1)));
             else
 #endif
                 res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
@@ -313,7 +319,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         }
     } else {
         /* the page is not in the TLB : fill it */
+#ifndef S2E_LLVM_LIB
         retaddr = GETPC();
+#endif
 #ifdef ALIGNED_ONLY
         if ((addr & (DATA_SIZE - 1)) != 0)
             do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
@@ -347,7 +355,9 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
+#ifndef S2E_LLVM_LIB
             retaddr = GETPC();
+#endif
             ioaddr = env->iotlb[mmu_idx][index];
             res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ioaddr, addr, retaddr);
 
@@ -375,7 +385,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if(_s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE))
-                res = glue(glue(ld, USUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
+                res = glue(glue(ld, USUFFIX), _p_qemu)((uint8_t*)(addr + (e->addend&~1)));
             else
 #endif
                 res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
@@ -519,7 +529,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 {
     target_phys_addr_t addend, ioaddr;
     target_ulong tlb_addr;
-    void *retaddr;
+    void *retaddr = NULL;
     int object_index, index;
 
     addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr, ADDR_MAX);
@@ -533,14 +543,18 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
+#ifndef S2E_LLVM_LIB
             retaddr = GETPC();
+#endif
             ioaddr = env->iotlb[mmu_idx][index];
             glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ioaddr, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+ioaddr, val, 1, 1);
         } else if (unlikely(((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE)) {
         do_unaligned_access:
+#ifndef S2E_LLVM_LIB
             retaddr = GETPC();
+#endif
 #ifdef ALIGNED_ONLY
             do_unaligned_access(addr, 1, mmu_idx, retaddr);
 #endif
@@ -550,7 +564,9 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* aligned/unaligned access in the same page */
 #ifdef ALIGNED_ONLY
             if ((addr & (DATA_SIZE - 1)) != 0) {
+#ifndef S2E_LLVM_LIB
                 retaddr = GETPC();
+#endif
                 do_unaligned_access(addr, 1, mmu_idx, retaddr);
             }
 #endif
@@ -559,7 +575,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if(likely((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE)))
-                glue(glue(st, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)), val);
+                glue(glue(st, SUFFIX), _p_qemu)((uint8_t*)(addr + (e->addend&~1)), val);
             else
 #endif
                 glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend), val);
@@ -568,7 +584,9 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
         }
     } else {
         /* the page is not in the TLB : fill it */
+#ifndef S2E_LLVM_LIB
         retaddr = GETPC();
+#endif
 #ifdef ALIGNED_ONLY
         if ((addr & (DATA_SIZE - 1)) != 0)
             do_unaligned_access(addr, 1, mmu_idx, retaddr);
@@ -625,7 +643,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE))
-                glue(glue(st, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)), val);
+                glue(glue(st, SUFFIX), _p_qemu)((uint8_t*)(addr + (e->addend&~1)), val);
             else
 #endif
                 glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend), val);

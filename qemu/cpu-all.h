@@ -182,6 +182,36 @@ static inline void tswap64s(uint64_t *s)
 #define stfl_p(p, v) stfl_be_p(p, v)
 #define stfq_p(p, v) stfq_be_p(p, v)
 #else
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#define lduw_p(p) lduw_raw(p)
+#define ldsw_p(p) ldsw_raw(p)
+#define ldl_p(p) ldl_raw(p)
+#define ldq_p(p) ldq_raw(p)
+#define stw_p(p, v) stw_raw(p, v)
+#define stl_p(p, v) stl_raw(p, v)
+#define stq_p(p, v) stq_raw(p, v)
+
+#define ldfl_p(p) ldfl_raw(p)
+#define ldfq_p(p) ldfq_raw(p)
+#define stfl_p(p, v) stfl_raw(p, v)
+#define stfq_p(p, v) stfq_raw(p, v)
+
+#define lduw_p_qemu(p) lduw_le_p_qemu(p)
+#define ldsw_p_qemu(p) ldsw_le_p_qemu(p)
+#define ldl_p_qemu(p) ldl_le_p_qemu(p)
+#define ldq_p_qemu(p) ldq_le_p_qemu(p)
+#define ldfl_p_qemu(p) ldfl_le_p_qemu(p)
+#define ldfq_p_qemu(p) ldfq_le_p_qemu(p)
+#define stw_p_qemu(p, v) stw_le_p_qemu(p, v)
+#define stl_p_qemu(p, v) stl_le_p_qemu(p, v)
+#define stq_p_qemu(p, v) stq_le_p_qemu(p, v)
+#define stfl_p_qemu(p, v) stfl_le_p_qemu(p, v)
+#define stfq_p_qemu(p, v) stfq_le_p_qemu(p, v)
+
+
+#else
+
 #define lduw_p(p) lduw_le_p(p)
 #define ldsw_p(p) ldsw_le_p(p)
 #define ldl_p(p) ldl_le_p(p)
@@ -193,6 +223,8 @@ static inline void tswap64s(uint64_t *s)
 #define stq_p(p, v) stq_le_p(p, v)
 #define stfl_p(p, v) stfl_le_p(p, v)
 #define stfq_p(p, v) stfq_le_p(p, v)
+#endif
+
 #endif
 
 /* MMU memory access macros */
@@ -287,28 +319,32 @@ static inline int _s2e_check_concrete(void *objectState,
         if(g_s2e_state) { /* XXX XXX XXX */ \
             uint8_t buf[s]; \
             s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-            return ld ## t ## _p(buf); /* read right type of value from buf */ \
-        } else return ld ## t ## _p(p); \
-    } \
+            return ld ## t ## _p_qemu(buf); /* read right type of value from buf */ \
+        } else return ld ## t ## _p_qemu(p); \
+    }
+#if 0
     static inline ct ld ## t ## _raw_s2e_trace(const void* p) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
             uint8_t buf[s]; \
             s2e_read_ram_concrete_check(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-            return ld ## t ## _p(buf); \
-        } else return ld ## t ## _p(p); \
+            return ld ## t ## _p_qemu(buf); \
+        } else return ld ## t ## _p_qemu(p); \
     }
+#endif
 
 #define _s2e_define_st_raw(ct, t, s) \
     static inline void st ## t ## _raw(void* p, ct v) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
             uint8_t buf[s]; \
-            st ## t ## _p(buf, v); \
+            st ## t ## _p_qemu(buf, v); \
             s2e_write_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-        } else st ## t ## _p(p, v); \
-    } \
+        } else st ## t ## _p_qemu(p, v); \
+    }
+#if 0
     static inline void st ## t ## _raw_s2e_trace(void* p, ct v) { \
         st ## t ## _raw(p, v); \
     }
+#endif
 
 _s2e_define_ld_raw(int, ub, 1)
 _s2e_define_ld_raw(int, sb, 1)
@@ -611,29 +647,52 @@ extern int mem_prealloc;
 /* read dirty bit (return 0 or 1) */
 static inline int cpu_physical_memory_is_dirty(ram_addr_t addr)
 {
+#ifdef CONFIG_S2E
+    return s2e_read_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS]) == 0xff;
+#else
     return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] == 0xff;
+#endif
 }
 
 static inline int cpu_physical_memory_get_dirty_flags(ram_addr_t addr)
 {
+#ifdef CONFIG_S2E
+    return s2e_read_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS]);
+#else
     return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS];
+#endif
 }
 
 static inline int cpu_physical_memory_get_dirty(ram_addr_t addr,
                                                 int dirty_flags)
 {
+#ifdef CONFIG_S2E
+    return s2e_read_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS]) & dirty_flags;
+#else
     return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] & dirty_flags;
+#endif
 }
 
 static inline void cpu_physical_memory_set_dirty(ram_addr_t addr)
 {
+#ifdef CONFIG_S2E
+    s2e_write_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS], 0xff);
+#else
     ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] = 0xff;
+#endif
 }
 
 static inline int cpu_physical_memory_set_dirty_flags(ram_addr_t addr,
                                                       int dirty_flags)
 {
+#ifdef CONFIG_S2E
+    int flags = s2e_read_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS]);
+    flags |= dirty_flags;
+    s2e_write_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS], flags);
+    return flags;
+#else
     return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] |= dirty_flags;
+#endif
 }
 
 static inline void cpu_physical_memory_mask_dirty_range(ram_addr_t start,
@@ -646,9 +705,18 @@ static inline void cpu_physical_memory_mask_dirty_range(ram_addr_t start,
     len = length >> TARGET_PAGE_BITS;
     mask = ~dirty_flags;
     p = ram_list.phys_dirty + (start >> TARGET_PAGE_BITS);
+
+#ifdef CONFIG_S2E
+    for (i = 0; i < len; i++) {
+        int flags = s2e_read_dirty_mask((uint64_t)&p[i]);
+        flags &= mask;
+        s2e_write_dirty_mask((uint64_t)&p[i], flags);
+    }
+#else
     for (i = 0; i < len; i++) {
         p[i] &= mask;
     }
+#endif
 }
 
 void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
