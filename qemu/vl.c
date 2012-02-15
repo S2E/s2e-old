@@ -45,6 +45,7 @@
 
 /* Needed early for CONFIG_BSD etc. */
 #include "config-host.h"
+#include "config-target.h"
 
 #ifndef _WIN32
 #include <libgen.h>
@@ -3673,6 +3674,11 @@ int main(int argc, char **argv, char **envp)
     }
 
     os_setup_post();
+
+#ifdef CONFIG_S2E
+    s2e_initialize_execution(g_s2e, g_s2e_state, execute_always_klee);
+    s2e_register_dirty_mask(g_s2e, g_s2e_state, (uint64_t)ram_list.phys_dirty, last_ram_offset() >> TARGET_PAGE_BITS);
+#endif
 
     resume_all_vcpus();
     main_loop();
