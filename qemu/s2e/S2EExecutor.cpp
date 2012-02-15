@@ -956,7 +956,7 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
     m_s2e->getDebugStream()
               << "Adding memory block (startAddr = " << hexval(startAddress)
               << ", size = " << hexval(size) << ", hostAddr = " << hexval(hostAddress)
-              << ", isSharedConcrete=" << isSharedConcrete << ")" << '\n';
+              << ", isSharedConcrete=" << isSharedConcrete << ", name=" << name << ")\n";
 
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += S2E_RAM_OBJECT_SIZE) {
@@ -2273,11 +2273,12 @@ S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
     return s2e->getExecutor()->selectNextState(state);
 }
 
-uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env, struct TranslationBlock* tb)
+uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env1, struct TranslationBlock* tb)
 {
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc() << std::dec
             << '\n';   */
+    env = env1;
     g_s2e_state->setRunningExceptionEmulationCode(false);
 
     try {
