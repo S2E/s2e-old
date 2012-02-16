@@ -47,27 +47,11 @@
 #define ENABLE_AIO
 #undef ENABLE_AIO
 
-typedef int (*__hook_raw_read)(struct BlockDriverState *bs, int64_t sector_num,
-                    uint8_t *buf, int nb_sectors);
 int (*__hook_bdrv_read)(struct BlockDriverState *bs, int64_t sector_num,
-                  uint8_t *buf, int nb_sectors,
-                  int *fallback,
-                  __hook_raw_read fb);
+                  uint8_t *buf, int nb_sectors);
 
 int (*__hook_bdrv_write)(struct BlockDriverState *bs, int64_t sector_num,
                    const uint8_t *buf, int nb_sectors);
-
-struct BlockDriverAIOCB* (*__hook_bdrv_aio_read)(
-    struct BlockDriverState *bs, int64_t sector_num,
-   uint8_t *buf, int nb_sectors,
-   BlockDriverCompletionFunc *cb, void *opaque,
-   int *fallback, __hook_raw_read fb);
-
-struct BlockDriverAIOCB* (*__hook_bdrv_aio_write)(
-   BlockDriverState *bs, int64_t sector_num,
-   const uint8_t *buf, int nb_sectors,
-   BlockDriverCompletionFunc *cb, void *opaque);
-
 
 #ifdef CONFIG_COCOA
 #include <paths.h>
@@ -533,11 +517,25 @@ static int raw_read(BlockDriverState *bs, int64_t sector_num,
     int ret;
 
     if (__hook_bdrv_read) {
-        int fallback;
-        ret = __hook_bdrv_read(bs, sector_num, buf, nb_sectors, &fallback, &raw_read);
-        if (!fallback) {
-            return ret;
+        int read_count = 0;
+        while (nb_sectors) {
+            read_count = __hook_bdrv_read(bs, sector_num, buf, nb_sectors);
+            buf += 512 * read_count;
+            sector_num += read_count;
+            nb_sectors -= read_count;
+
+            if (nb_sectors > 0) {
+                ret = raw_pread(bs, (sector_num) * 512, buf, 1 * 512);
+                if (ret != 512) {
+                    return ret;
+                }
+
+                buf += 512;
+                ++sector_num;
+                --nb_sectors;
+            }
         }
+        return 0;
     }
 
 

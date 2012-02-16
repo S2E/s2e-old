@@ -114,14 +114,13 @@ void S2EDeviceState::clone(S2EDeviceState **state1, S2EDeviceState **state2)
     copy1->m_parent = this;
     copy1->m_state = 0;
     copy1->m_stateSize = 0;
-    copy1->m_canTransferSector = m_canTransferSector;
     *state1 = copy1;
 
     S2EDeviceState* copy2 = new S2EDeviceState();
     copy2->m_parent = this;
     copy2->m_state = 0;
     copy2->m_stateSize = 0;
-    copy2->m_canTransferSector = m_canTransferSector;
+
     *state2 = copy2;
 }
 
@@ -140,7 +139,6 @@ void S2EDeviceState::cloneDiskState()
 S2EDeviceState::S2EDeviceState()
 {
     m_parent = NULL;
-    m_canTransferSector = true;
 }
 
 S2EDeviceState::~S2EDeviceState()
@@ -197,8 +195,6 @@ void S2EDeviceState::initDeviceState()
                 "WARNING!!! All writes to disk will be lost after shutdown." << '\n';
         __hook_bdrv_read = s2e_bdrv_read;
         __hook_bdrv_write = s2e_bdrv_write;
-        __hook_bdrv_aio_read = s2e_bdrv_aio_read;
-        __hook_bdrv_aio_write = s2e_bdrv_aio_write;
     }else {
         g_s2e->getMessagesStream() <<
                 "WARNING!!! All disk writes will be SHARED across states! BEWARE OF CORRUPTION!" << '\n';
@@ -250,11 +246,6 @@ void S2EDeviceState::restoreDeviceState()
     vm_start();
 }
 
-
-bool S2EDeviceState::canTransferSector() const
-{
-    return m_canTransferSector;
-}
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -345,10 +336,11 @@ int S2EDeviceState::writeSector(struct BlockDriverState *bs, int64_t sector, con
 }
 
 
-int S2EDeviceState::readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors,
-                               s2e_raw_read fb)
+int S2EDeviceState::readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors)
 {
     bool hasRead = false;
+    int readCount = 0;
+
   //  DPRINTF("readSector %#"PRIx64" count=%d\n", sector, nb_sectors);
     for (int64_t i = sector; i<sector+nb_sectors; i++) {
         for (S2EDeviceState *curState = this; curState; curState = curState->m_parent) {
@@ -364,17 +356,13 @@ int S2EDeviceState::readSector(struct BlockDriverState *bs, int64_t sector, uint
         }
         //Did not find any written sector, read from the original disk
         if (!hasRead) {
-            m_canTransferSector = false;
-            int ret = fb(bs, i, buf, 1);
-            m_canTransferSector = true;
-            if(ret < 0) {
-                return ret;
-            }
-            buf+=512;
-            hasRead = false;
+            break;
         }
+
+        hasRead = false;
+        ++readCount;
     }
-    return 0;
+    return readCount;
 }
 
 /*****************************************************************************/
@@ -388,18 +376,11 @@ int S2EDeviceState::readSector(struct BlockDriverState *bs, int64_t sector, uint
 
 extern "C" {
 
-int s2e_bdrv_read(BlockDriverState *bs, int64_t sector_num,
-                  uint8_t *buf, int nb_sectors, int *fallback,
-                  s2e_raw_read fb)
+int s2e_bdrv_read(struct BlockDriverState *bs, int64_t sector_num,
+                  uint8_t *buf, int nb_sectors)
 {
     S2EDeviceState *devState = g_s2e_state->getDeviceState();
-    if (devState->canTransferSector()) {
-        *fallback = 0;
-        return devState->readSector(bs, sector_num, buf, nb_sectors, fb);
-    }else {
-        *fallback = 1;
-        return 0;
-    }
+    return devState->readSector(bs, sector_num, buf, nb_sectors);
 }
 
 int s2e_bdrv_write(BlockDriverState *bs, int64_t sector_num,
@@ -409,43 +390,6 @@ int s2e_bdrv_write(BlockDriverState *bs, int64_t sector_num,
     S2EDeviceState *devState = g_s2e_state->getDeviceState();
     
     return devState->writeSector(bs, sector_num, buf, nb_sectors);
-
-}
-
-BlockDriverAIOCB *s2e_bdrv_aio_read(
-                                    BlockDriverState *bs, int64_t sector_num,
-                                    uint8_t *buf, int nb_sectors,
-                                    BlockDriverCompletionFunc *cb, void *opaque,
-                                    int *fallback, s2e_raw_read fb)
-{
-    S2EDeviceState *devState = g_s2e_state->getDeviceState();
-    if (devState->canTransferSector()) {
-        *fallback = 0;
-        int ret = devState->readSector(bs, sector_num, buf, nb_sectors, fb);
-        cb(opaque, ret);
-        return NULL;
-    }else {
-        *fallback = 1;
-        return NULL;
-    }
-}
-
-BlockDriverAIOCB *s2e_bdrv_aio_write(
-                                     BlockDriverState *bs, int64_t sector_num,
-                                     const uint8_t *buf, int nb_sectors,
-                                     BlockDriverCompletionFunc *cb, void *opaque)
-{
-    int ret;
-    S2EDeviceState *devState = g_s2e_state->getDeviceState();
-    ret = devState->writeSector(bs, sector_num, (uint8_t*)buf, nb_sectors);
-    cb(opaque, ret);
-    return NULL;
-}
-
-
-void s2e_bdrv_aio_cancel(BlockDriverAIOCB *acb);
-void s2e_bdrv_aio_cancel(BlockDriverAIOCB *acb)
-{
 
 }
 

@@ -71,7 +71,6 @@ private:
 
     S2EDeviceState *m_parent;
     BlockDeviceToSectorMap m_blockDevices;
-    bool  m_canTransferSector;
     
     void allocateBuffer(unsigned int Sz);
     void shrinkBuffer();
@@ -80,8 +79,6 @@ private:
 
     S2EDeviceState(const S2EDeviceState &);
 public:
-
-    bool canTransferSector() const;
 
     S2EDeviceState();
     void clone(S2EDeviceState **state1, S2EDeviceState **state2);
@@ -97,8 +94,7 @@ public:
     int getBuffer(uint8_t *buf, int64_t pos, int size);
 
     int writeSector(struct BlockDriverState *bs, int64_t sector, const uint8_t *buf, int nb_sectors);
-    int readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors,
-        s2e_raw_read fb);
+    int readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors);
 
     void initDeviceState();
 };
