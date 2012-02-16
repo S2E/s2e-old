@@ -2306,10 +2306,10 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
     return s2e->getExecutor()->cleanupTranslationBlock(state, tb);
 }
 
-void s2e_set_cc_op_eflags(struct S2E* s2e,
-                        struct S2EExecutionState* state)
+void s2e_set_cc_op_eflags(struct CPUX86State *env1)
 {
-    s2e->getExecutor()->setCCOpEflags(state);
+    env = env1;
+    g_s2e->getExecutor()->setCCOpEflags(g_s2e_state);
 }
 
 /**

@@ -88,7 +88,11 @@ void cpu_reset(CPUX86State *env)
     env->eip = 0xfff0;
     env->regs[R_EDX] = env->cpuid_version;
 
-    env->eflags = 0x2;
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    WR_cpu(env, cc_src, 0);
+    env->mflags = 0;
+    env->df = 1;
+    //WR_cpu(env, eflags, 0x2);
 
     /* FPU init */
     for(i = 0;i < 8; i++)
@@ -263,7 +267,7 @@ void cpu_dump_state(CPUState *env, FILE *f, fprintf_function cpu_fprintf,
 
     cpu_synchronize_state(env);
 
-    eflags = env->eflags;
+    eflags = cpu_get_eflags_dirty(env);
 #ifdef TARGET_X86_64
     if (env->hflags & HF_CS64_MASK) {
         cpu_fprintf(f,
@@ -1266,8 +1270,10 @@ CPUX86State *cpu_x86_init(const char *cpu_model)
 }
 
 #if !defined(CONFIG_USER_ONLY)
-void do_cpu_init(CPUState *env)
+void do_cpu_init(CPUState *env1)
 {
+    extern CPUState *env;
+    env = env1;
     int sipi = env->interrupt_request & CPU_INTERRUPT_SIPI;
     uint64_t pat = env->pat;
 

@@ -132,16 +132,28 @@ static inline void helper_fstt(floatx80 f, target_ulong ptr)
 
 static inline uint32_t compute_eflags(void)
 {
-    return env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
+    return env->mflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
 }
 
 /* NOTE: CC_OP must be modified manually to CC_OP_EFLAGS */
 static inline void load_eflags(int eflags, int update_mask)
 {
+    CC_SRC_W(eflags & CFLAGS_MASK);
+    DF_W((eflags & DF_MASK) ? -1 : 1);
+    /*
+    WR_cpu(env, eflags, (RR_cpu(env, eflags) & ~update_mask) |
+        (eflags & update_mask) | 0x2);
+    */
+    env->mflags = (env->mflags & ~update_mask) |
+                    (eflags & MFLAGS_MASK & update_mask);
+
+#if 0
+    //Original QEMU code
     CC_SRC_W(eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
     DF_W(1 - (2 * ((eflags >> 10) & 1)));
     env->eflags = (env->eflags & ~update_mask) |
         (eflags & update_mask) | 0x2;
+#endif
 }
 
 /* load efer and update the corresponding hflags. XXX: do consistency
@@ -257,7 +269,7 @@ target_ulong helper_read_eflags(void)
     uint32_t eflags;
     eflags = helper_cc_compute_all(CC_OP);
     eflags |= (DF & DF_MASK);
-    eflags |= env->eflags & ~(VM_MASK | RF_MASK);
+    eflags |= env->mflags & ~(VM_MASK | RF_MASK);
     return eflags;
 }
 
@@ -1066,7 +1078,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
         ssp = get_seg_base(ss_e1, ss_e2);
     } else if ((e2 & DESC_C_MASK) || dpl == cpl) {
         /* to same privilege */
-        if (env->eflags & VM_MASK)
+        if (env->mflags & VM_MASK)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
         new_stack = 0;
         sp_mask = get_sp_mask(env->segs[R_SS].flags);
@@ -1092,7 +1104,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 #endif
     if (shift == 1) {
         if (new_stack) {
-            if (env->eflags & VM_MASK) {
+            if (env->mflags & VM_MASK) {
                 PUSHL(ssp, esp, sp_mask, env->segs[R_GS].selector);
                 PUSHL(ssp, esp, sp_mask, env->segs[R_FS].selector);
                 PUSHL(ssp, esp, sp_mask, env->segs[R_DS].selector);
@@ -1109,7 +1121,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
         }
     } else {
         if (new_stack) {
-            if (env->eflags & VM_MASK) {
+            if (env->mflags & VM_MASK) {
                 PUSHW(ssp, esp, sp_mask, env->segs[R_GS].selector);
                 PUSHW(ssp, esp, sp_mask, env->segs[R_FS].selector);
                 PUSHW(ssp, esp, sp_mask, env->segs[R_DS].selector);
@@ -1127,7 +1139,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
     }
 
     if (new_stack) {
-        if (env->eflags & VM_MASK) {
+        if (env->mflags & VM_MASK) {
             cpu_x86_load_seg_cache(env, R_ES, 0, 0, 0, 0);
             cpu_x86_load_seg_cache(env, R_DS, 0, 0, 0, 0);
             cpu_x86_load_seg_cache(env, R_FS, 0, 0, 0, 0);
@@ -1149,9 +1161,9 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 
     /* interrupt gate clear IF mask */
     if ((type & 1) == 0) {
-        env->eflags &= ~IF_MASK;
+        env->mflags &= ~IF_MASK;
     }
-    env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+    env->mflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
 }
 
 #ifdef TARGET_X86_64
@@ -1257,7 +1269,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
         new_stack = 1;
     } else if ((e2 & DESC_C_MASK) || dpl == cpl) {
         /* to same privilege */
-        if (env->eflags & VM_MASK)
+        if (env->mflags & VM_MASK)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
         new_stack = 0;
         if (ist != 0)
@@ -1297,9 +1309,9 @@ static void do_interrupt64(int intno, int is_int, int error_code,
 
     /* interrupt gate clear IF mask */
     if ((type & 1) == 0) {
-        env->eflags &= ~IF_MASK;
+        env->mflags &= ~IF_MASK;
     }
-    env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+    env->mflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
 }
 #endif
 
@@ -1342,7 +1354,7 @@ void helper_syscall(int next_eip_addend)
         CC_OP_W(CC_OP_EFLAGS);
         if(env->fmask & DF_MASK)
             DF_W(1); // this means df = 0, see CPUX86State.df in cpu.h
-        env->eflags &= ~env->fmask;
+        env->mflags &= ~env->fmask;
         if (code64)
             env->eip = env->lstar;
         else
@@ -1361,7 +1373,7 @@ void helper_syscall(int next_eip_addend)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_W_MASK | DESC_A_MASK);
-        env->eflags &= ~(IF_MASK | RF_MASK | VM_MASK);
+        env->mflags &= ~(IF_MASK | RF_MASK | VM_MASK);
         env->eip = (uint32_t)env->star;
     }
 }
@@ -1418,7 +1430,7 @@ void helper_sysret(int dflag)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK | (3 << DESC_DPL_SHIFT) |
                                DESC_W_MASK | DESC_A_MASK);
-        env->eflags |= IF_MASK;
+        env->mflags |= IF_MASK;
         cpu_x86_set_cpl(env, 3);
     }
 }
@@ -1458,7 +1470,7 @@ static void do_interrupt_real(int intno, int is_int, int error_code,
     env->eip = offset;
     env->segs[R_CS].selector = selector;
     env->segs[R_CS].base = (selector << 4);
-    env->eflags &= ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK);
+    env->mflags &= ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK);
 }
 
 #if defined(CONFIG_USER_ONLY)
@@ -1539,10 +1551,6 @@ static void do_interrupt_all(int intno, int is_int, int error_code,
                              target_ulong next_eip, int is_hw)
 #endif
 {
-    if (intno == 6) {
-        asm("int $3");
-    }
-
     if (qemu_loglevel_mask(CPU_LOG_INT)) {
         if ((env->cr[0] & CR0_PE_MASK)) {
             static int count;
@@ -2930,7 +2938,7 @@ void helper_iret_real(int shift)
     env->segs[R_CS].selector = new_cs;
     env->segs[R_CS].base = (new_cs << 4);
     env->eip = new_eip;
-    if (env->eflags & VM_MASK)
+    if (env->mflags & VM_MASK)
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | IF_MASK | RF_MASK | NT_MASK;
     else
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | IF_MASK | IOPL_MASK | RF_MASK | NT_MASK;
@@ -3127,7 +3135,7 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | RF_MASK | NT_MASK;
         if (cpl == 0)
             eflags_mask |= IOPL_MASK;
-        iopl = (env->eflags >> IOPL_SHIFT) & 3;
+        iopl = (env->mflags >> IOPL_SHIFT) & 3;
         if (cpl <= iopl)
             eflags_mask |= IF_MASK;
         if (shift == 0)
@@ -3165,7 +3173,7 @@ void helper_iret_protected(int shift, int next_eip)
     uint32_t e1, e2;
 
     /* specific case for TSS */
-    if (env->eflags & NT_MASK) {
+    if (env->mflags & NT_MASK) {
 #ifdef TARGET_X86_64
         if (env->hflags & HF_LMA_MASK)
             raise_exception_err(EXCP0D_GPF, 0);
@@ -3196,7 +3204,7 @@ void helper_sysenter(void)
     if (env->sysenter_cs == 0) {
         raise_exception_err(EXCP0D_GPF, 0);
     }
-    env->eflags &= ~(VM_MASK | IF_MASK | RF_MASK);
+    env->mflags &= ~(VM_MASK | IF_MASK | RF_MASK);
     cpu_x86_set_cpl(env, 0);
 
 #ifdef TARGET_X86_64
@@ -4796,7 +4804,7 @@ void cpu_x86_load_seg(CPUX86State *s, int seg_reg, int selector)
 
     saved_env = env;
     env = s;
-    if (!(env->cr[0] & CR0_PE_MASK) || (env->eflags & VM_MASK)) {
+    if (!(env->cr[0] & CR0_PE_MASK) || (env->mflags & VM_MASK)) {
         selector &= 0xffff;
         cpu_x86_load_seg_cache(env, seg_reg, selector,
                                (selector << 4), 0xffff, 0);
@@ -5152,7 +5160,7 @@ void helper_debug(void)
 
 void helper_reset_rf(void)
 {
-    env->eflags &= ~RF_MASK;
+    env->mflags &= ~RF_MASK;
 }
 
 void helper_raise_interrupt(int intno, int next_eip_addend)
@@ -5167,25 +5175,25 @@ void helper_raise_exception(int exception_index)
 
 void helper_cli(void)
 {
-    env->eflags &= ~IF_MASK;
+    env->mflags &= ~IF_MASK;
 }
 
 void helper_sti(void)
 {
-    env->eflags |= IF_MASK;
+    env->mflags |= IF_MASK;
 }
 
 #if 0
 /* vm86plus instructions */
 void helper_cli_vm(void)
 {
-    env->eflags &= ~VIF_MASK;
+    env->mflags &= ~VIF_MASK;
 }
 
 void helper_sti_vm(void)
 {
-    env->eflags |= VIF_MASK;
-    if (env->eflags & VIP_MASK) {
+    env->mflags |= VIF_MASK;
+    if (env->mflags & VIP_MASK) {
         raise_exception(EXCP0D_GPF);
     }
 }
@@ -5456,13 +5464,13 @@ void helper_vmrun(int aflag, int next_eip_addend)
     if (int_ctl & V_INTR_MASKING_MASK) {
         env->v_tpr = int_ctl & V_TPR_MASK;
         env->hflags2 |= HF2_VINTR_MASK;
-        if (env->eflags & IF_MASK)
+        if (env->mflags & IF_MASK)
             env->hflags2 |= HF2_HIF_MASK;
     }
 
     cpu_load_efer(env, 
                   ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.efer)));
-    env->eflags = 0;
+    env->mflags = 0;
     load_eflags(ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rflags)),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
     CC_OP_W(CC_OP_EFLAGS);
@@ -5828,7 +5836,7 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
        set properly */
     cpu_load_efer(env, 
                   ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.efer)));
-    env->eflags = 0;
+    env->mflags = 0;
     load_eflags(ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rflags)),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
     CC_OP_W(CC_OP_EFLAGS);
@@ -5873,7 +5881,7 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
 
     /* Forces CR0.PE = 1, RFLAGS.VM = 0. */
     env->cr[0] |= CR0_PE_MASK;
-    env->eflags &= ~VM_MASK;
+    env->mflags &= ~VM_MASK;
 
     /* Disables all breakpoints in the host DR7 register. */
 

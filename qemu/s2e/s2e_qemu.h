@@ -219,8 +219,7 @@ void s2e_write_register_concrete(struct S2E* s2e,
         unsigned offset, uint8_t* buf, unsigned size);
 
 /* helpers that should be run as LLVM functions */
-void s2e_set_cc_op_eflags(struct S2E* s2e,
-                          struct S2EExecutionState* state);
+void s2e_set_cc_op_eflags(struct CPUX86State *state);
 
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
                       int intno, int is_int, int error_code,

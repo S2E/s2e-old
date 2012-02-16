@@ -356,7 +356,7 @@ static const VMStateDescription vmstate_cpu = {
     .fields      = (VMStateField []) {
         VMSTATE_UINTTL_ARRAY(regs, CPUState, CPU_NB_REGS),
         VMSTATE_UINTTL(eip, CPUState),
-        VMSTATE_UINTTL(eflags, CPUState),
+        VMSTATE_UINTTL(mflags, CPUState),
         VMSTATE_UINT32(hflags, CPUState),
         /* FPU */
         VMSTATE_UINT16(fpuc, CPUState),

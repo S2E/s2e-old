@@ -38,6 +38,7 @@ extern "C" {
 #include "config.h"
 #include "qemu-common.h"
 #include "cpu.h"
+extern CPUX86State *env;
 }
 
 
@@ -149,8 +150,8 @@ bool WindowsCrashDumpGenerator::saveContext(S2EExecutionState *state, s2e::windo
     ctx.SegCs = state->readCpuState(offsetof(CPUState, segs[R_CS].selector), 8*sizeof(uint32_t));
     ctx.SegSs = state->readCpuState(offsetof(CPUState, segs[R_SS].selector), 8*sizeof(uint32_t));
 
-    #warning fix eflags here
-    ctx.EFlags = state->getConcreteCpuState()->eflags;
+
+    ctx.EFlags = cpu_get_eflags(env);
 
     //Take the return address of the bugcheck call
     uint64_t pc;

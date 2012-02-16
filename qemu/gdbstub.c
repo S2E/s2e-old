@@ -565,7 +565,7 @@ static int cpu_gdb_read_register(CPUState *env, uint8_t *mem_buf, int n)
             } else {
                 GET_REG32(env->eip);
             }
-        case IDX_FLAGS_REG: GET_REG32(env->eflags);
+        case IDX_FLAGS_REG: GET_REG32(cpu_get_eflags_dirty(env));
 
         case IDX_SEG_REGS:     GET_REG32(env->segs[R_CS].selector);
         case IDX_SEG_REGS + 1: GET_REG32(env->segs[R_SS].selector);
@@ -601,7 +601,7 @@ static int cpu_x86_gdb_load_seg(CPUState *env, int sreg, uint8_t *mem_buf)
         unsigned int limit, flags;
         target_ulong base;
 
-        if (!(env->cr[0] & CR0_PE_MASK) || (env->eflags & VM_MASK)) {
+        if (!(env->cr[0] & CR0_PE_MASK) || (env->mflags & VM_MASK)) {
             base = selector << 4;
             limit = 0xffff;
             flags = 0;
@@ -655,7 +655,7 @@ static int cpu_gdb_write_register(CPUState *env, uint8_t *mem_buf, int n)
                 return 4;
             }
         case IDX_FLAGS_REG:
-            env->eflags = ldl_p(mem_buf);
+            cpu_set_eflags(env, ldl_p(mem_buf));
             return 4;
 
         case IDX_SEG_REGS:     return cpu_x86_gdb_load_seg(env, R_CS, mem_buf);

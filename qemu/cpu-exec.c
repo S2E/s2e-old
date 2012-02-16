@@ -360,7 +360,7 @@ int cpu_exec(CPUState *env)
                                    (((env->hflags2 & HF2_VINTR_MASK) && 
                                      (env->hflags2 & HF2_HIF_MASK)) ||
                                     (!(env->hflags2 & HF2_VINTR_MASK) && 
-                                     (env->eflags & IF_MASK && 
+                                     (env->mflags & IF_MASK &&
                                       !(env->hflags & HF_INHIBIT_IRQ_MASK))))) {
                             int intno;
                             svm_check_intercept(env, SVM_EXIT_INTR);
@@ -373,7 +373,7 @@ int cpu_exec(CPUState *env)
                             next_tb = 0;
 #if !defined(CONFIG_USER_ONLY)
                         } else if ((interrupt_request & CPU_INTERRUPT_VIRQ) &&
-                                   (env->eflags & IF_MASK) && 
+                                   (env->mflags & IF_MASK) &&
                                    !(env->hflags & HF_INHIBIT_IRQ_MASK)) {
                             int intno;
                             /* FIXME: this should respect TPR */
@@ -673,7 +673,7 @@ int cpu_exec(CPUState *env)
 
 #if defined(TARGET_I386)
 #ifdef CONFIG_S2E
-    s2e_set_cc_op_eflags(g_s2e, g_s2e_state);
+    s2e_set_cc_op_eflags(env);
 #else
     /* restore flags in standard format */
     WR_cpu(env, cc_src, cpu_cc_compute_all(env, CC_OP));
