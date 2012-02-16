@@ -942,7 +942,9 @@ void pc_acpi_smi_interrupt(void *opaque, int irq, int level)
 
 static void pc_cpu_reset(void *opaque)
 {
-    CPUState *env = opaque;
+    CPUState *env1 = opaque;
+    extern CPUState *env;
+    env = env1;
 
     cpu_reset(env);
     env->halted = !cpu_is_bsp(env);
@@ -957,6 +959,11 @@ static CPUState *pc_new_cpu(const char *cpu_model)
         fprintf(stderr, "Unable to find x86 CPU definition\n");
         exit(1);
     }
+
+#ifdef CONFIG_S2E
+    s2e_register_cpu(g_s2e, g_s2e_state, env);
+#endif
+
     if ((env->cpuid_features & CPUID_APIC) || smp_cpus > 1) {
         env->apic_state = apic_init(env, env->cpuid_apic_id);
     }
@@ -979,12 +986,7 @@ void pc_cpus_init(const char *cpu_model)
     }
 
     for(i = 0; i < smp_cpus; i++) {
-#ifdef CONFIG_S2E
-        CPUState *env = pc_new_cpu(cpu_model);
-        s2e_register_cpu(g_s2e, g_s2e_state, env);
-#else
         pc_new_cpu(cpu_model);
-#endif
     }
 }
 
