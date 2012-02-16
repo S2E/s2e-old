@@ -64,6 +64,7 @@ s2e_setjmp:
     mov [rcx + s2e_jmpbuf._r12], r12
     mov [rcx + s2e_jmpbuf._r13], r13
     mov [rcx + s2e_jmpbuf._r14], r14
+    mov [rcx + s2e_jmpbuf._r15], r15
     mov rax, [rsp]
     mov [rcx + s2e_jmpbuf._rip], rax
     xor rax, rax
