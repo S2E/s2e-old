@@ -37,6 +37,9 @@
 #define set_flags(X,new,mask) \
 ((X) = ((X) & ~(mask)) | ((new) & (mask)))
 
+#define set_flags2(X,new,mask) \
+(cpu_set_eflags((X), ((cpu_get_eflags(X)) & ~(mask)) | ((new) & (mask))))
+
 #define SAFE_MASK	(0xDD5)
 #define RETURN_MASK	(0xDFF)
 
@@ -94,8 +97,8 @@ void save_v86_state(CPUX86State *env)
     target_v86->regs.es = tswap16(env->segs[R_ES].selector);
     target_v86->regs.fs = tswap16(env->segs[R_FS].selector);
     target_v86->regs.gs = tswap16(env->segs[R_GS].selector);
-    set_flags(env->eflags, ts->v86flags, VIF_MASK | ts->v86mask);
-    target_v86->regs.eflags = tswap32(env->eflags);
+    set_flags2(env, ts->v86flags, VIF_MASK | ts->v86mask);
+    target_v86->regs.eflags = tswap32(cpu_get_eflags(env));
     unlock_user_struct(target_v86, ts->target_v86, 1);
     LOG_VM86("save_v86_state: eflags=%08x cs:ip=%04x:%04x\n",
              env->eflags, env->segs[R_CS].selector, env->eip);
@@ -109,7 +112,7 @@ void save_v86_state(CPUX86State *env)
     env->regs[R_EDI] = ts->vm86_saved_regs.edi;
     env->regs[R_EBP] = ts->vm86_saved_regs.ebp;
     env->regs[R_ESP] = ts->vm86_saved_regs.esp;
-    env->eflags = ts->vm86_saved_regs.eflags;
+    cpu_set_eflags(env, ts->vm86_saved_regs.eflags);
     env->eip = ts->vm86_saved_regs.eip;
 
     cpu_x86_load_seg(env, R_CS, ts->vm86_saved_regs.cs);
@@ -150,12 +153,12 @@ static inline void clear_IF(CPUX86State *env)
 
 static inline void clear_TF(CPUX86State *env)
 {
-    env->eflags &= ~TF_MASK;
+    env->mflags &= ~TF_MASK;
 }
 
 static inline void clear_AC(CPUX86State *env)
 {
-    env->eflags &= ~AC_MASK;
+    env->mflags &= ~AC_MASK;
 }
 
 static inline int set_vflags_long(unsigned long eflags, CPUX86State *env)
@@ -163,7 +166,7 @@ static inline int set_vflags_long(unsigned long eflags, CPUX86State *env)
     TaskState *ts = env->opaque;
 
     set_flags(ts->v86flags, eflags, ts->v86mask);
-    set_flags(env->eflags, eflags, SAFE_MASK);
+    set_flags2(env, eflags, SAFE_MASK);
     if (eflags & IF_MASK)
         return set_IF(env);
     else
@@ -176,7 +179,7 @@ static inline int set_vflags_short(unsigned short flags, CPUX86State *env)
     TaskState *ts = env->opaque;
 
     set_flags(ts->v86flags, flags, ts->v86mask & 0xffff);
-    set_flags(env->eflags, flags, SAFE_MASK);
+    set_flags2(env, flags, SAFE_MASK);
     if (flags & IF_MASK)
         return set_IF(env);
     else
@@ -189,7 +192,7 @@ static inline unsigned int get_vflags(CPUX86State *env)
     TaskState *ts = env->opaque;
     unsigned int flags;
 
-    flags = env->eflags & RETURN_MASK;
+    flags = env->mflags & RETURN_MASK;
     if (ts->v86flags & VIF_MASK)
         flags |= IF_MASK;
     flags |= IOPL_MASK;
@@ -415,7 +418,7 @@ int do_vm86(CPUX86State *env, long subfunction, abi_ulong vm86_addr)
     ts->vm86_saved_regs.edi = env->regs[R_EDI];
     ts->vm86_saved_regs.ebp = env->regs[R_EBP];
     ts->vm86_saved_regs.esp = env->regs[R_ESP];
-    ts->vm86_saved_regs.eflags = env->eflags;
+    ts->vm86_saved_regs.eflags = cpu_get_eflags(env);
     ts->vm86_saved_regs.eip  = env->eip;
     ts->vm86_saved_regs.cs = env->segs[R_CS].selector;
     ts->vm86_saved_regs.ss = env->segs[R_SS].selector;
@@ -429,8 +432,8 @@ int do_vm86(CPUX86State *env, long subfunction, abi_ulong vm86_addr)
         return -TARGET_EFAULT;
     /* build vm86 CPU state */
     ts->v86flags = tswap32(target_v86->regs.eflags);
-    env->eflags = (env->eflags & ~SAFE_MASK) |
-        (tswap32(target_v86->regs.eflags) & SAFE_MASK) | VM_MASK;
+    cpu_set_eflags(env, (cpu_get_eflags(env) & ~SAFE_MASK) |
+        (tswap32(target_v86->regs.eflags) & SAFE_MASK) | VM_MASK);
 
     ts->vm86plus.cpu_type = tswapal(target_v86->cpu_type);
     switch (ts->vm86plus.cpu_type) {

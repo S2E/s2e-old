@@ -768,7 +768,7 @@ setup_sigcontext(struct target_sigcontext *sc, struct target_fpstate *fpstate,
 	err |= __put_user(env->error_code, &sc->err);
 	err |= __put_user(env->eip, &sc->eip);
 	err |= __put_user(env->segs[R_CS].selector, (unsigned int *)&sc->cs);
-	err |= __put_user(env->eflags, &sc->eflags);
+        err |= __put_user(cpu_get_eflags(env), &sc->eflags);
 	err |= __put_user(env->regs[R_ESP], &sc->esp_at_signal);
 	err |= __put_user(env->segs[R_SS].selector, (unsigned int *)&sc->ss);
 
@@ -867,7 +867,7 @@ static void setup_frame(int sig, struct target_sigaction *ka,
         cpu_x86_load_seg(env, R_ES, __USER_DS);
         cpu_x86_load_seg(env, R_SS, __USER_DS);
         cpu_x86_load_seg(env, R_CS, __USER_CS);
-	env->eflags &= ~TF_MASK;
+        env->mflags &= ~TF_MASK;
 
 	unlock_user_struct(frame, frame_addr, 1);
 
@@ -947,7 +947,7 @@ static void setup_rt_frame(int sig, struct target_sigaction *ka,
         cpu_x86_load_seg(env, R_ES, __USER_DS);
         cpu_x86_load_seg(env, R_SS, __USER_DS);
         cpu_x86_load_seg(env, R_CS, __USER_CS);
-	env->eflags &= ~TF_MASK;
+        env->mflags &= ~TF_MASK;
 
 	unlock_user_struct(frame, frame_addr, 1);
 
@@ -985,7 +985,7 @@ restore_sigcontext(CPUX86State *env, struct target_sigcontext *sc, int *peax)
         cpu_x86_load_seg(env, R_SS, lduw_p(&sc->ss) | 3);
 
         tmpflags = tswapl(sc->eflags);
-        env->eflags = (env->eflags & ~0x40DD5) | (tmpflags & 0x40DD5);
+        cpu_set_eflags(env, (cpu_get_eflags(env) & ~0x40DD5) | (tmpflags & 0x40DD5));
         //		regs->orig_eax = -1;		/* disable syscall checks */
 
         fpstate_addr = tswapl(sc->fpstate);
@@ -5301,7 +5301,7 @@ void process_pending_signals(CPUState *cpu_env)
 #if defined(TARGET_I386) && !defined(TARGET_X86_64)
         {
             CPUX86State *env = cpu_env;
-            if (env->eflags & VM_MASK)
+            if (env->mflags & VM_MASK)
                 save_v86_state(env);
         }
 #endif

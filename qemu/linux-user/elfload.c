@@ -245,7 +245,7 @@ static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
     (*regs)[11] = env->regs[R_EAX]; /* XXX */
     (*regs)[12] = env->eip;
     (*regs)[13] = env->segs[R_CS].selector & 0xffff;
-    (*regs)[14] = env->eflags;
+    (*regs)[14] = cpu_get_eflags(env);
     (*regs)[15] = env->regs[R_ESP];
     (*regs)[16] = env->segs[R_SS].selector & 0xffff;
 }

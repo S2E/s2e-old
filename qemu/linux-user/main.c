@@ -360,7 +360,7 @@ void cpu_loop(CPUX86State *env)
         case EXCP0D_GPF:
             /* XXX: potential problem if ABI32 */
 #ifndef TARGET_X86_64
-            if (env->eflags & VM_MASK) {
+            if (env->mflags & VM_MASK) {
                 handle_vm86_fault(env);
             } else
 #endif
@@ -384,7 +384,7 @@ void cpu_loop(CPUX86State *env)
             break;
         case EXCP00_DIVZ:
 #ifndef TARGET_X86_64
-            if (env->eflags & VM_MASK) {
+            if (env->mflags & VM_MASK) {
                 handle_vm86_trap(env, trapnr);
             } else
 #endif
@@ -400,7 +400,7 @@ void cpu_loop(CPUX86State *env)
         case EXCP01_DB:
         case EXCP03_INT3:
 #ifndef TARGET_X86_64
-            if (env->eflags & VM_MASK) {
+            if (env->mflags & VM_MASK) {
                 handle_vm86_trap(env, trapnr);
             } else
 #endif
@@ -420,7 +420,7 @@ void cpu_loop(CPUX86State *env)
         case EXCP04_INTO:
         case EXCP05_BOUND:
 #ifndef TARGET_X86_64
-            if (env->eflags & VM_MASK) {
+            if (env->mflags & VM_MASK) {
                 handle_vm86_trap(env, trapnr);
             } else
 #endif
@@ -3568,7 +3568,7 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     /* flags setup : we activate the IRQs by default as in user mode */
-    env->eflags |= IF_MASK;
+    env->mflags |= IF_MASK;
 
     /* linux register setup */
 #ifndef TARGET_ABI32
