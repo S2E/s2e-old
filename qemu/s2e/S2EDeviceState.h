@@ -65,7 +65,6 @@ private:
     QEMUFile *m_memFile;
     unsigned char *m_state;
     unsigned int m_stateSize;
-    unsigned int m_offset;
 
     static unsigned int s_preferedStateSize;
 
@@ -73,16 +72,18 @@ private:
     BlockDeviceToSectorMap m_blockDevices;
     
     void allocateBuffer(unsigned int Sz);
-    void shrinkBuffer();
 
     void cloneDiskState();
 
     S2EDeviceState(const S2EDeviceState &);
 public:
+    static S2EDeviceState *s_currentDeviceState;
 
     S2EDeviceState();
-    void clone(S2EDeviceState **state1, S2EDeviceState **state2);
     ~S2EDeviceState();
+
+    void clone(S2EDeviceState **state1, S2EDeviceState **state2);
+    void initDeviceState();
 
     //From QEMU to KLEE
     void saveDeviceState();
@@ -95,8 +96,6 @@ public:
 
     int writeSector(struct BlockDriverState *bs, int64_t sector, const uint8_t *buf, int nb_sectors);
     int readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors);
-
-    void initDeviceState();
 };
 
 }

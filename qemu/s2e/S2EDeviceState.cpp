@@ -37,6 +37,7 @@
 extern "C" {
 #include <qemu-common.h>
 #include <block.h>
+#include <qapi-types.h>
 
 void vm_stop(int reason);
 void vm_start(void);
@@ -72,17 +73,18 @@ using namespace std;
 unsigned int S2EDeviceState::s_preferedStateSize = 0x1000;
 std::vector<void *> S2EDeviceState::s_devices;
 bool S2EDeviceState::s_devicesInited=false;
+S2EDeviceState* S2EDeviceState::s_currentDeviceState = NULL;
 
 extern "C" {
 
 static int s2e_qemu_get_buffer(uint8_t *buf, int64_t pos, int size)
 {
-    return g_s2e_state->getDeviceState()->getBuffer(buf, pos, size);
+    return S2EDeviceState::s_currentDeviceState->getBuffer(buf, pos, size);
 }
 
 static int s2e_qemu_put_buffer(const uint8_t *buf, int64_t pos, int size)
 {
-    return g_s2e_state->getDeviceState()->putBuffer(buf, pos, size);
+    return S2EDeviceState::s_currentDeviceState->putBuffer(buf, pos, size);
 }
 
 void s2e_init_device_state(S2EExecutionState *s)
@@ -114,12 +116,14 @@ void S2EDeviceState::clone(S2EDeviceState **state1, S2EDeviceState **state2)
     copy1->m_parent = this;
     copy1->m_state = 0;
     copy1->m_stateSize = 0;
+    copy1->m_memFile = m_memFile;
     *state1 = copy1;
 
     S2EDeviceState* copy2 = new S2EDeviceState();
     copy2->m_parent = this;
     copy2->m_state = 0;
     copy2->m_stateSize = 0;
+    copy2->m_memFile = m_memFile;
 
     *state2 = copy2;
 }
@@ -205,22 +209,20 @@ int s2edev_dbg=0;
 
 void S2EDeviceState::saveDeviceState()
 {
-    vm_stop(0);
-    m_offset = 0;
+    vm_stop(RUN_STATE_SAVE_VM);
+    s_currentDeviceState = this;
 
     //DPRINTF("Saving device state %p\n", this);
     /* Iterate through all device descritors and call
     * their snapshot function */
     for (vector<void*>::iterator it = s_devices.begin(); it != s_devices.end(); it++) {
-        //unsigned o = m_offset;
         void *se = *it;
         //DPRINTF("%s ", s2e_qemu_get_se_idstr(se));
         s2e_qemu_save_state(m_memFile, se);
-        //DPRINTF("sz=%d - ", m_offset - o);
     }
     //DPRINTF("\n");
-
-    shrinkBuffer();
+    qemu_fflush(m_memFile);
+    s_currentDeviceState = NULL;
     vm_start();
 }
 
@@ -231,17 +233,17 @@ void S2EDeviceState::restoreDeviceState()
 
     vm_stop(0);
 
-    m_offset = 0;
+    s_currentDeviceState = this;
 
+    qemu_make_readable(m_memFile);
     //DPRINTF("Restoring device state %p\n", this);
     for (vector<void*>::iterator it = s_devices.begin(); it != s_devices.end(); it++) {
-        //unsigned o = m_offset;
         void *se = *it;
         //DPRINTF("%s ", s2e_qemu_get_se_idstr(se));  
         s2e_qemu_load_state(m_memFile, se);
-        //DPRINTF("sz=%d - ", m_offset - o);
     }
     //DPRINTF("\n");
+    s_currentDeviceState = NULL;
 
     vm_start();
 }
@@ -261,11 +263,10 @@ void S2EDeviceState::allocateBuffer(unsigned int Sz)
             exit(-1);
         }
         m_stateSize = NewSize;
-        m_offset = 0;
         return;
     }
 
-    if (m_offset + Sz >= m_stateSize) {
+    if (Sz >= m_stateSize) {
         /* Need to expand the buffer */
         unsigned int NewSize = Sz < 256 ? 256 : Sz;
         m_stateSize += NewSize;
@@ -278,25 +279,10 @@ void S2EDeviceState::allocateBuffer(unsigned int Sz)
     }
 }
 
-void S2EDeviceState::shrinkBuffer()
-{
-    if (m_offset != m_stateSize) {
-        unsigned char *NewBuf = (unsigned char*)realloc(m_state, m_offset);
-        if (!NewBuf) {
-            cerr << "Cannot shrink device state snapshot" << endl;
-            return;
-        }
-        m_state = NewBuf;
-        m_stateSize = m_offset;
-    }
-}
-
-
 int S2EDeviceState::putBuffer(const uint8_t *buf, int64_t pos, int size)
 {
     if (pos + size > m_stateSize) {
-        allocateBuffer(pos + size - m_stateSize);
-        m_offset = pos + size;
+        allocateBuffer(pos + size);
     }
     memcpy(&m_state[pos], buf, size);
     return size;
@@ -304,9 +290,10 @@ int S2EDeviceState::putBuffer(const uint8_t *buf, int64_t pos, int size)
 
 int S2EDeviceState::getBuffer(uint8_t *buf, int64_t pos, int size)
 {
-    assert(pos + size <= m_stateSize);
-    memcpy(buf, &m_state[pos], size);
-    return size;
+    assert(pos <= m_stateSize);
+    int toCopy = pos + size <= m_stateSize ? size : m_stateSize - pos;
+    memcpy(buf, &m_state[pos], toCopy);
+    return toCopy;
 }
 
 
