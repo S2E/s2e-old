@@ -20,10 +20,10 @@ extern "C" {
 #endif
 
 int s2e_setjmp_win32(s2e_jmp_buf buf);
-int s2e_longjmp_win32(s2e_jmp_buf buf, int value);
+int s2e_longjmp_win32(s2e_jmp_buf buf, int value) __attribute__((noreturn));
 
 int s2e_setjmp_posix(s2e_jmp_buf buf);
-int s2e_longjmp_posix(s2e_jmp_buf buf, int value);
+int s2e_longjmp_posix(s2e_jmp_buf buf, int value) __attribute__((noreturn));
 
 
 #ifdef __cplusplus

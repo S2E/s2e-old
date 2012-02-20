@@ -1177,7 +1177,7 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
     /* XXX: is it safe to do ? */
     //env->current_tb = NULL;
     //cpu_resume_from_signal(env, NULL);
-#warning XXX: think about what is writen above!
+#warning XXX: check env->mem_io_pc handling!
 #endif
     if (current_tb_modified) {
         /* we generate a block containing just the instruction

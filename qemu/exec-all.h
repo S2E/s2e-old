@@ -464,6 +464,10 @@ static inline int can_do_io(CPUState *env)
     return env->can_do_io != 0;
 }
 
+#if !defined(CONFIG_USER_ONLY)
+ram_addr_t last_ram_offset(void);
+#endif
+
 extern int generate_llvm;
 extern int execute_llvm;
 extern const int has_llvm_engine;

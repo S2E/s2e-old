@@ -1613,7 +1613,6 @@ static void do_interrupt_all(int intno, int is_int, int error_code,
 #endif
 }
 
-#warning Figure out what to do with interrupts for S2E
 void do_interrupt(CPUState *env1)
 {
     CPUState *saved_env;
@@ -6156,6 +6155,7 @@ uint32_t helper_cc_compute_c(int op)
     }
 }
 
+uint64_t helper_set_cc_op_eflags(void);
 uint64_t helper_set_cc_op_eflags(void)
 {
     WR_cpu(env, cc_src, helper_cc_compute_all(CC_OP));

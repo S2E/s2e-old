@@ -1062,6 +1062,7 @@ static inline void tcg_out_tlb_load(TCGContext *s, int addrlo_idx,
 }
 #endif
 
+#if !defined(CONFIG_S2E)
 static void tcg_out_qemu_ld_direct(TCGContext *s, int datalo, int datahi,
                                    int base, tcg_target_long ofs, int sizeop)
 {
@@ -1138,6 +1139,7 @@ static void tcg_out_qemu_ld_direct(TCGContext *s, int datalo, int datahi,
         tcg_abort();
     }
 }
+#endif
 
 /* XXX: qemu_ld and qemu_st could be modified to clobber only EDX and
    EAX. It will be useful once fixed registers globals are less
@@ -1149,7 +1151,9 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     int addrlo_idx;
 #if defined(CONFIG_SOFTMMU)
     int mem_index, s_bits, arg_idx;
+#if !defined(CONFIG_S2E)
     uint8_t *label_ptr[3];
+#endif
 #endif
 
     data_reg = args[0];
@@ -1276,6 +1280,8 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 #endif
 }
 
+
+#if !defined(CONFIG_S2E)
 static void tcg_out_qemu_st_direct(TCGContext *s, int datalo, int datahi,
                                    int base, tcg_target_long ofs, int sizeop)
 {
@@ -1334,6 +1340,7 @@ static void tcg_out_qemu_st_direct(TCGContext *s, int datalo, int datahi,
         tcg_abort();
     }
 }
+#endif
 
 static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
                             int opc)
@@ -1343,7 +1350,9 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 #if defined(CONFIG_SOFTMMU)
     int mem_index, s_bits;
     int stack_adjust;
+#if !defined(CONFIG_S2E)
     uint8_t *label_ptr[3];
+#endif
 #endif
 
     data_reg = args[0];
