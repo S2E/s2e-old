@@ -68,12 +68,14 @@ namespace plugins {
 struct SymbolicPciDeviceState {
     PCIDevice dev;
     PciDeviceDescriptor *desc;
+    MemoryRegion io[PCI_NUM_REGIONS];
 };
 
 struct SymbolicIsaDeviceState {
     ISADevice dev;
     IsaDeviceDescriptor *desc;
     qemu_irq qirq;
+    MemoryRegion io;
 };
 
 
@@ -645,38 +647,6 @@ static const MemoryRegionOps symbhw_io_ops = {
 
 /////////////////////////////////////////////////////////////////////
 
-#if 0
-static void pci_symbhw_map(PCIDevice *pci_dev, int region_num,
-                       pcibus_t addr, pcibus_t size, int type)
-{
-    SymbolicPciDeviceState *s = DO_UPCAST(SymbolicPciDeviceState, dev, pci_dev);
-
-    if (type & PCI_BASE_ADDRESS_SPACE_IO) {
-        register_ioport_write(addr, size, 1, symbhw_write8, s);
-        register_ioport_read(addr, size, 1, symbhw_read8, s);
-
-        register_ioport_write(addr, size, 2, symbhw_write16, s);
-        register_ioport_read(addr, size, 2, symbhw_read16, s);
-
-        register_ioport_write(addr, size, 4, symbhw_write32, s);
-        register_ioport_read(addr, size, 4, symbhw_read32, s);
-
-        SymbolicHardware *hw = (SymbolicHardware*)g_s2e->getPlugin("SymbolicHardware");
-        assert(hw);
-        hw->setSymbolicPortRange(addr, size, true);
-    }
-
-    SymbolicHardware *shw = static_cast<SymbolicHardware*>(g_s2e->getPlugin("SymbolicHardware"));
-    assert(shw);
-
-    if (type & PCI_BASE_ADDRESS_SPACE_MEMORY) {
-        cpu_register_physical_memory(addr, size, s->desc->mmio_io_addr);
-        //XXX: there must also be an unmap method somewhere
-        shw->setSymbolicMmioRange(g_s2e_state, addr, size);
-    }
-}
-#endif
-
 static int isa_symbhw_init(ISADevice *dev)
 {
     g_s2e->getDebugStream() << __FUNCTION__ << " called" << '\n';
@@ -699,18 +669,11 @@ static int isa_symbhw_init(ISADevice *dev)
     uint32_t addr = s->getResource().portBase;
     uint32_t irq = s->getResource().irq;
 
-    assert(false && "Not implemented");
+    std::stringstream ss;
+    ss << "fakeisa-" << dev->qdev.info->name;
 
-#if 0
-    register_ioport_write(addr, size, 1, symbhw_write8, s);
-    register_ioport_read(addr, size, 1, symbhw_read8, s);
-
-    register_ioport_write(addr, size, 2, symbhw_write16, s);
-    register_ioport_read(addr, size, 2, symbhw_read16, s);
-
-    register_ioport_write(addr, size, 4, symbhw_write32, s);
-    register_ioport_read(addr, size, 4, symbhw_read32, s);
-#endif
+    memory_region_init_io(&isa->io, &symbhw_io_ops, isa, ss.str().c_str(), size);
+    isa_register_ioport(dev, &isa->io, addr);
 
     hw->setSymbolicPortRange(addr, size, true);
 
@@ -757,16 +720,14 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
         type |= res.isIo ? PCI_BASE_ADDRESS_SPACE_IO : PCI_BASE_ADDRESS_SPACE_MEMORY;
         type |= res.prefetchable ? PCI_BASE_ADDRESS_MEM_PREFETCH : 0;
 
-        assert(false && "not ported yet");
-        //pci_register_bar(&d->dev, i, type, pci_symbhw_map);
+        std::stringstream ss;
+        ss << "fakepci-" << pci_dev->qdev.info->name;
+
+        memory_region_init_io(&d->io[i], &symbhw_io_ops, d, ss.str().c_str(), res.size);
+        pci_register_bar(&d->dev, i, type, &d->io[i]);
 
         ++i;
     }
-
-    /* I/O handler for memory-mapped I/O */
-    assert(false && "not ported yet");
-    //dd->mmio_io_addr =
-    //cpu_register_io_memory(symbhw_mmio_read, symbhw_mmio_write, d);
 
     dd->assignIrq(&d->dev.irq[0]);
 
