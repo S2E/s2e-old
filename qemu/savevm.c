@@ -514,6 +514,14 @@ void qemu_fflush(QEMUFile *f)
     }
 }
 
+void qemu_make_readable(QEMUFile *f)
+{
+    f->buf_index = 0;
+    f->buf_offset = 0;
+    f->is_write = 0;
+    f->last_error = 0;
+}
+
 static void qemu_fill_buffer(QEMUFile *f)
 {
     int len;
