@@ -202,7 +202,7 @@ void ModuleExecutionDetector::moduleLoadListener(
     //If module name matches the configured ones, activate.
     s2e()->getDebugStream() << "ModuleExecutionDetector: " <<
             "Module "  << module.Name << " loaded - " <<
-            "Base=0x" <<  hexval(module.LoadBase) << " Size=0x" << hexval(module.Size);
+            "Base=" <<  hexval(module.LoadBase) << " Size=" << hexval(module.Size);
 
 
     ModuleExecutionCfg cfg;
