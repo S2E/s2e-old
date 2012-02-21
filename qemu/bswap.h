@@ -329,12 +329,6 @@ typedef union {
 /* QEMU uses standard *_p functions in a lot of places,
    so it is easier to redefine them here */
 
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-#define ldub_p ldub_p_qemu
-#define ldsb_p ldsb_p_qemu
-#define stb_p stb_p_qemu
-#endif
-
 static inline int ldub_p(const void *ptr)
 {
     return *(uint8_t *)ptr;
@@ -355,10 +349,6 @@ static inline void stb_p(void *ptr, int v)
    kernel handles unaligned load/stores may give better results, but
    it is a system wide setting : bad */
 #if defined(HOST_WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
-
-#ifdef CONFIG_S2E
-#error S2E does not support big-endian hosts yet
-#endif
 
 /* conservative code for little endian unaligned accesses */
 static inline int lduw_le_p(const void *ptr)
@@ -476,21 +466,6 @@ static inline void stfq_le_p(void *ptr, float64 v)
 }
 
 #else
-
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-#define lduw_le_p lduw_le_p_qemu
-#define ldsw_le_p ldsw_le_p_qemu
-#define ldl_le_p ldl_le_p_qemu
-#define ldq_le_p ldq_le_p_qemu
-#define stw_le_p stw_le_p_qemu
-#define stl_le_p stl_le_p_qemu
-#define stq_le_p stq_le_p_qemu
-
-#define ldfl_le_p ldfl_le_p_qemu
-#define ldfq_le_p ldfq_le_p_qemu
-#define stfl_le_p stfl_le_p_qemu
-#define stfq_le_p stfq_le_p_qemu
-#endif
 
 static inline int lduw_le_p(const void *ptr)
 {

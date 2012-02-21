@@ -182,36 +182,6 @@ static inline void tswap64s(uint64_t *s)
 #define stfl_p(p, v) stfl_be_p(p, v)
 #define stfq_p(p, v) stfq_be_p(p, v)
 #else
-
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-#define lduw_p(p) lduw_raw(p)
-#define ldsw_p(p) ldsw_raw(p)
-#define ldl_p(p) ldl_raw(p)
-#define ldq_p(p) ldq_raw(p)
-#define stw_p(p, v) stw_raw(p, v)
-#define stl_p(p, v) stl_raw(p, v)
-#define stq_p(p, v) stq_raw(p, v)
-
-#define ldfl_p(p) ldfl_raw(p)
-#define ldfq_p(p) ldfq_raw(p)
-#define stfl_p(p, v) stfl_raw(p, v)
-#define stfq_p(p, v) stfq_raw(p, v)
-
-#define lduw_p_qemu(p) lduw_le_p_qemu(p)
-#define ldsw_p_qemu(p) ldsw_le_p_qemu(p)
-#define ldl_p_qemu(p) ldl_le_p_qemu(p)
-#define ldq_p_qemu(p) ldq_le_p_qemu(p)
-#define ldfl_p_qemu(p) ldfl_le_p_qemu(p)
-#define ldfq_p_qemu(p) ldfq_le_p_qemu(p)
-#define stw_p_qemu(p, v) stw_le_p_qemu(p, v)
-#define stl_p_qemu(p, v) stl_le_p_qemu(p, v)
-#define stq_p_qemu(p, v) stq_le_p_qemu(p, v)
-#define stfl_p_qemu(p, v) stfl_le_p_qemu(p, v)
-#define stfq_p_qemu(p, v) stfq_le_p_qemu(p, v)
-
-
-#else
-
 #define lduw_p(p) lduw_le_p(p)
 #define ldsw_p(p) ldsw_le_p(p)
 #define ldl_p(p) ldl_le_p(p)
@@ -223,8 +193,6 @@ static inline void tswap64s(uint64_t *s)
 #define stq_p(p, v) stq_le_p(p, v)
 #define stfl_p(p, v) stfl_le_p(p, v)
 #define stfq_p(p, v) stfq_le_p(p, v)
-#endif
-
 #endif
 
 /* MMU memory access macros */
@@ -314,37 +282,34 @@ static inline int _s2e_check_concrete(void *objectState,
 #endif
 }
 
+/* Functions suffixed with symb abort execution if it is in concrete mode */
 #define _s2e_define_ld_raw(ct, t, s) \
     static inline ct ld ## t ## _raw(const void* p) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
             uint8_t buf[s]; \
             s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-            return ld ## t ## _p_qemu(buf); /* read right type of value from buf */ \
-        } else return ld ## t ## _p_qemu(p); \
-    }
-#if 0
-    static inline ct ld ## t ## _raw_s2e_trace(const void* p) { \
+            return ld ## t ## _p(buf); /* read right type of value from buf */ \
+        } else return ld ## t ## _p(p); \
+    } \
+    static inline ct ld ## t ## _raw_symb(const void* p) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
             uint8_t buf[s]; \
             s2e_read_ram_concrete_check(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-            return ld ## t ## _p_qemu(buf); \
-        } else return ld ## t ## _p_qemu(p); \
+            return ld ## t ## _p(buf); \
+        } else return ld ## t ## _p(p); \
     }
-#endif
 
 #define _s2e_define_st_raw(ct, t, s) \
     static inline void st ## t ## _raw(void* p, ct v) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
             uint8_t buf[s]; \
-            st ## t ## _p_qemu(buf, v); \
+            st ## t ## _p(buf, v); \
             s2e_write_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-        } else st ## t ## _p_qemu(p, v); \
-    }
-#if 0
-    static inline void st ## t ## _raw_s2e_trace(void* p, ct v) { \
+        } else st ## t ## _p(p, v); \
+    }\
+    static inline void st ## t ## _raw_symb(void* p, ct v) { \
         st ## t ## _raw(p, v); \
     }
-#endif
 
 _s2e_define_ld_raw(int, ub, 1)
 _s2e_define_ld_raw(int, sb, 1)

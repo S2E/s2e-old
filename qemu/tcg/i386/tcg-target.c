@@ -967,6 +967,21 @@ static void tcg_out_jmp(TCGContext *s, tcg_target_long dest)
 
 #include "../../softmmu_defs.h"
 
+#ifdef CONFIG_S2E
+static void *qemu_ld_helpers[4] = {
+    __ldb_mmu_symb,
+    __ldw_mmu_symb,
+    __ldl_mmu_symb,
+    __ldq_mmu_symb,
+};
+
+static void *qemu_st_helpers[4] = {
+    __stb_mmu_symb,
+    __stw_mmu_symb,
+    __stl_mmu_symb,
+    __stq_mmu_symb,
+};
+#else
 static void *qemu_ld_helpers[4] = {
     __ldb_mmu,
     __ldw_mmu,
@@ -980,6 +995,7 @@ static void *qemu_st_helpers[4] = {
     __stl_mmu,
     __stq_mmu,
 };
+#endif
 
 /* Perform the TLB load and compare.
 

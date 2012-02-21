@@ -47,6 +47,29 @@
 //S2E: Keep the environment in a variable
 struct CPUX86State* env = 0;
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#include "softmmu_defs.h"
+
+#define ACCESS_TYPE 0
+#define MEMSUFFIX _kernel_symb
+#define _raw _raw_symb
+#define DATA_SIZE 1
+#include "softmmu_header.h"
+
+#define DATA_SIZE 2
+#include "softmmu_header.h"
+
+#define DATA_SIZE 4
+#include "softmmu_header.h"
+
+#define DATA_SIZE 8
+#include "softmmu_header.h"
+#undef _raw
+#undef ACCESS_TYPE
+#undef MEMSUFFIX
+
+#endif
+
 #ifdef S2E_LLVM_LIB
 #include "llvm-lib.h"
 #endif
@@ -5245,6 +5268,27 @@ void helper_boundl(target_ulong a0, int v)
 #define SHIFT 3
 #include "softmmu_template.h"
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#undef MMUSUFFIX
+#define MMUSUFFIX _mmu_symb
+#define _raw _raw_symb
+
+#define SHIFT 0
+#include "softmmu_template.h"
+
+#define SHIFT 1
+#include "softmmu_template.h"
+
+#define SHIFT 2
+#include "softmmu_template.h"
+
+#define SHIFT 3
+#include "softmmu_template.h"
+
+#undef _raw
+#endif
+
+
 #endif
 
 #if !defined(CONFIG_USER_ONLY)
@@ -5259,17 +5303,13 @@ void tlb_fill(CPUState *env1, target_ulong addr, target_ulong page_addr,
     TranslationBlock *tb;
     int ret;
     unsigned long pc;
-    CPUX86State *saved_env;
-
-    saved_env = env;
-    env = env1;
 
 #ifdef CONFIG_S2E
     s2e_on_tlb_miss(g_s2e, g_s2e_state, addr, is_write);
     ret = cpu_x86_handle_mmu_fault(env, page_addr,
                                    is_write, mmu_idx);
 #else
-    ret = cpu_x86_handle_mmu_fault(env, addr, is_write, mmu_idx);
+    ret = cpu_x86_handle_mmu_fault(env1, addr, is_write, mmu_idx);
 #endif
 
     if (ret) {
@@ -5293,7 +5333,7 @@ void tlb_fill(CPUState *env1, target_ulong addr, target_ulong page_addr,
             if (tb) {
                 /* the PC is inside the translated code. It means that we have
                    a virtual CPU fault */
-                cpu_restore_state(tb, env, pc);
+                cpu_restore_state(tb, env1, pc);
             }
         }
 #ifdef CONFIG_S2E
@@ -5301,7 +5341,6 @@ void tlb_fill(CPUState *env1, target_ulong addr, target_ulong page_addr,
 #endif
         raise_exception_err(env->exception_index, env->error_code);
     }
-    env = saved_env;
 }
 #endif
 

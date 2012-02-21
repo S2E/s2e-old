@@ -147,7 +147,7 @@ DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
     return res;
 }
 
-static inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
                                           target_ulong addr,
                                           void *retaddr)
 {
@@ -182,7 +182,7 @@ inline DATA_TYPE glue(io_read_chk_symb_, SUFFIX)(const char *label, target_ulong
     return data.dt;
 }
 
-static inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
                                           target_ulong addr,
                                           void *retaddr)
 {
@@ -310,7 +310,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if(likely(_s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE)))
-                res = glue(glue(ld, USUFFIX), _p_qemu)((uint8_t*)(addr + (e->addend&~1)));
+                res = glue(glue(ld, USUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
             else
 #endif
                 res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
@@ -385,7 +385,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if(_s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE))
-                res = glue(glue(ld, USUFFIX), _p_qemu)((uint8_t*)(addr + (e->addend&~1)));
+                res = glue(glue(ld, USUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
             else
 #endif
                 res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
@@ -445,7 +445,7 @@ void glue(glue(io_write, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
 #endif /* SHIFT > 2 */
 }
 
-static inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
                                           DATA_TYPE val,
                                           target_ulong addr,
                                           void *retaddr)
@@ -465,7 +465,7 @@ static inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_
   *
   * It also deals with writes to memory-mapped devices that are symbolic
   */
-static inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
                                           DATA_TYPE val,
                                           target_ulong addr,
                                           void *retaddr)
@@ -575,7 +575,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if(likely((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE)))
-                glue(glue(st, SUFFIX), _p_qemu)((uint8_t*)(addr + (e->addend&~1)), val);
+                glue(glue(st, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)), val);
             else
 #endif
                 glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend), val);
@@ -643,7 +643,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE))
-                glue(glue(st, SUFFIX), _p_qemu)((uint8_t*)(addr + (e->addend&~1)), val);
+                glue(glue(st, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)), val);
             else
 #endif
                 glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend), val);
