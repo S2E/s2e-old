@@ -1034,6 +1034,12 @@ static void tcg_exec_all(void)
                 cpu_handle_guest_debug(env);
                 break;
             }
+#ifdef CONFIG_S2E
+            else if (r == EXCP_S2E) {
+                env->halted = 1;
+                break;
+            }
+#endif
         } else if (env->stop || env->stopped) {
             break;
         }

@@ -202,7 +202,7 @@ extern "C" {
     int g_s2e_concretize_io_writes = 1;
 }
 
-static bool S2EDebugInstructions = false;
+static bool S2EDebugInstructions = true;
 
 namespace s2e {
 
@@ -898,6 +898,7 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state,
     bindModuleConstants();
 
     initTimers();
+    initializeStateSwitchTimer();
 }
 
 void S2EExecutor::registerCpu(S2EExecutionState *initialState,
@@ -1091,6 +1092,23 @@ bool S2EExecutor::copyInConcretes(klee::ExecutionState &state)
     return true;
 }
 
+void S2EExecutor::stateSwitchTimerCallback(void *opaque)
+{
+    S2EExecutor *c = (S2EExecutor*)opaque;
+
+    if (g_s2e_state) {
+        g_s2e_state = c->selectNextState(g_s2e_state);
+    }
+
+    qemu_mod_timer(c->m_stateSwitchTimer, qemu_get_clock_ms(rt_clock) + 100);
+}
+
+void S2EExecutor::initializeStateSwitchTimer()
+{
+    m_stateSwitchTimer = qemu_new_timer_ms(rt_clock, &stateSwitchTimerCallback, this);
+    qemu_mod_timer(m_stateSwitchTimer, qemu_get_clock_ms(rt_clock) + 100);
+}
+
 void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
                                 S2EExecutionState* newState)
 {
@@ -1103,9 +1121,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     //the snapshots by QEMU.
     //This is the same mechanism as used by load/save_vmstate, so it should work reliably
     qemu_aio_flush();
+    bdrv_flush_all();
 
-
-    cpu_disable_ticks();
 
     m_s2e->getMessagesStream(oldState)
             << "Switching from state " << (oldState ? oldState->getID() : -1)
@@ -1113,6 +1130,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     const MemoryObject* cpuMo = oldState ? oldState->m_cpuSystemState :
                                             newState->m_cpuSystemState;
+    vm_stop(RUN_STATE_SAVE_VM);
+
     if(oldState) {
         if(oldState->m_runningConcrete)
             switchToSymbolic(oldState);
@@ -1139,9 +1158,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         timers_state = *newState->m_timersState;
         //qemu_icount = newState->m_qemuIcount;
         newState->getDeviceState()->restoreDeviceState();
-    }
 
-    if(newState) {
         jmp_buf jmp_env;
         memcpy(&jmp_env, &env->jmp_env, sizeof(jmp_buf));
 
@@ -1183,7 +1200,10 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     if(FlushTBsOnStateSwitch)
         tb_flush(env);
 
-    cpu_enable_ticks();
+    vm_start();
+
+
+
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
 }
 
@@ -1393,7 +1413,7 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 
     //Handle the case where we killed the current state inside processFork
     if (m_forkProcTerminateCurrentState) {
-        state->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
+        state->writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
         m_forkProcTerminateCurrentState = false;
         throw CpuExitException();
     }
@@ -1916,7 +1936,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
     }while(1);
 
     if (exitLoop) {
-        assert(originalState = g_s2e_state);
+        assert(originalState == g_s2e_state);
         m_forkProcTerminateCurrentState = true;
     }
 }
@@ -2067,7 +2087,7 @@ void S2EExecutor::terminateState(ExecutionState &s)
 
     //No need for exiting the loop if we kill another state.
     if (&state == g_s2e_state) {
-        state.writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
+        state.writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
         throw CpuExitException();
     }
 }

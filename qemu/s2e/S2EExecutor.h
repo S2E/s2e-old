@@ -108,6 +108,8 @@ protected:
 
     bool m_forkProcTerminateCurrentState;
 
+    struct QEMUTimer *m_stateSwitchTimer;
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
@@ -280,6 +282,8 @@ protected:
     void terminateStateAtFork(S2EExecutionState &state);
 
     void setupTimersHandler();
+    void initializeStateSwitchTimer();
+    static void stateSwitchTimerCallback(void *opaque);
 };
 
 struct S2ETranslationBlock

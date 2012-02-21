@@ -278,7 +278,11 @@ int cpu_exec(CPUState *env)
     for(;;) {
         if (s2e_setjmp(env->jmp_env) == 0) {
             #ifdef CONFIG_S2E
-            g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
+            if (env->exception_index == EXCP_S2E) {
+                ret = env->exception_index;
+                break;
+            }
+
             s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
             #endif
 
