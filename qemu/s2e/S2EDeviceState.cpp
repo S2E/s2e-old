@@ -209,8 +209,9 @@ int s2edev_dbg=0;
 
 void S2EDeviceState::saveDeviceState()
 {
-    vm_stop(RUN_STATE_SAVE_VM);
     s_currentDeviceState = this;
+
+    qemu_make_readable(m_memFile);
 
     //DPRINTF("Saving device state %p\n", this);
     /* Iterate through all device descritors and call
@@ -223,15 +224,12 @@ void S2EDeviceState::saveDeviceState()
     //DPRINTF("\n");
     qemu_fflush(m_memFile);
     s_currentDeviceState = NULL;
-    vm_start();
 }
 
 void S2EDeviceState::restoreDeviceState()
 {
     assert(m_stateSize);
     assert(m_state);
-
-    vm_stop(0);
 
     s_currentDeviceState = this;
 
@@ -244,8 +242,6 @@ void S2EDeviceState::restoreDeviceState()
     }
     //DPRINTF("\n");
     s_currentDeviceState = NULL;
-
-    vm_start();
 }
 
 
