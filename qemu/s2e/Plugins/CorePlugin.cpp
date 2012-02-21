@@ -71,15 +71,15 @@ static void s2e_timer_cb(void *opaque)
 
     g_s2e->getExecutor()->updateStats(g_s2e_state);
     c->onTimer.emit();
-    qemu_mod_timer(c->getTimer(), qemu_get_clock_ns(rt_clock) + 1000000000);
+    qemu_mod_timer(c->getTimer(), qemu_get_clock_ms(rt_clock) + 1000);
 }
 
 void CorePlugin::initializeTimers()
 {
     s2e()->getDebugStream() << "Initializing periodic timer" << '\n';
     /* Initialize the timer handler */
-    m_Timer = qemu_new_timer_ns(rt_clock, s2e_timer_cb, this);
-    qemu_mod_timer(m_Timer, qemu_get_clock_ns(rt_clock) + 1000);
+    m_Timer = qemu_new_timer_ms(rt_clock, s2e_timer_cb, this);
+    qemu_mod_timer(m_Timer, qemu_get_clock_ms(rt_clock) + 1000);
 }
 
 void CorePlugin::initialize()
