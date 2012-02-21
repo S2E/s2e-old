@@ -123,10 +123,6 @@ static int pci_fake_init(PCIDevice *pci_dev)
         pci_register_bar(&d->dev, i, type, &d->io[i]); //, pci_fake_map
     }
 
-    /* I/O handler for memory-mapped I/O */
-    //s_fake_pci->mmioidx =
-    //cpu_register_io_memory(symbhw_mmio_read, symbhw_mmio_write, d);
-
     return 0;
 }
 
