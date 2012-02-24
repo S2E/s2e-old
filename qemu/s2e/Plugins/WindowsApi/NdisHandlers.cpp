@@ -59,7 +59,7 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(NdisHandlers, "Basic collection of NDIS API functions.", "NdisHandlers",
-                  "FunctionMonitor", "Interceptor", "ModuleExecutionDetector", "StateManager", "SymbolicHardware");
+                  "FunctionMonitor", "Interceptor", "ModuleExecutionDetector", "SymbolicHardware");
 
 
 //This maps exported NDIS functions to their handlers
@@ -194,7 +194,7 @@ void NdisHandlers::initialize()
     m_generateDumpOnLoad = cfg->getBool(getConfigKey() + ".generateDumpOnLoad", false, &ok);
     if (m_generateDumpOnLoad) {
         m_crashdumper = static_cast<WindowsCrashDumpGenerator*>(s2e()->getPlugin("WindowsCrashDumpGenerator"));
-        if (!m_manager) {
+        if (!m_crashdumper) {
             s2e()->getWarningsStream() << "NDISHANDLERS: generateDumpOnLoad option requires the WindowsCrashDumpGenerator plugin!"
                     << std::endl;
             exit(-1);
@@ -1309,9 +1309,11 @@ void NdisHandlers::NdisTimerEntryPointRet(S2EExecutionState* state)
         s2e()->getExecutor()->terminateStateEarly(*state, "Terminating state because cable is disconnected");
     }
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1372,9 +1374,12 @@ void NdisHandlers::NdisShutdownEntryPoint(S2EExecutionState* state, FunctionMoni
 void NdisHandlers::NdisShutdownEntryPointRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_CALL();
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2194,9 +2199,11 @@ void NdisHandlers::CheckForHangRet(S2EExecutionState* state)
         //state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &success, sizeof(success));
     }
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2314,9 +2321,11 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 
     s2e()->getDebugStream(state) << "InitializeHandler succeeded with " << eax << std::endl;
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2429,9 +2438,12 @@ void NdisHandlers::HandleInterruptHandlerRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
     //revokeMiniportAdapterContext(state);
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2501,9 +2513,12 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
     }
 
     m_devDesc->setInterrupt(false);
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 
@@ -2714,9 +2729,11 @@ void NdisHandlers::QueryInformationHandlerRet(S2EExecutionState* state)
 
     QuerySetInformationHandlerRet(state, true);
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2786,9 +2803,11 @@ void NdisHandlers::SetInformationHandlerRet(S2EExecutionState* state)
 
     QuerySetInformationHandlerRet(state, false);
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2819,9 +2838,11 @@ void NdisHandlers::ResetHandlerRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
     //revokeMiniportAdapterContext(state);
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2878,9 +2899,11 @@ void NdisHandlers::SendHandlerRet(S2EExecutionState* state, uint32_t pPacket)
         m_devDesc->setInterrupt(true);
     }
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2914,9 +2937,11 @@ void NdisHandlers::SendPacketsHandlerRet(S2EExecutionState* state)
 
     m_devDesc->setInterrupt(true);
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
