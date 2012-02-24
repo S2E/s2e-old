@@ -134,7 +134,8 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e \
-		--enable-debug
+		--enable-debug \
+                $(EXTRA_QEMU_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
@@ -147,7 +148,8 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--with-klee=$(S2EBUILD)/klee/Release \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
-		--enable-s2e
+		--enable-s2e \
+                $(EXTRA_QEMU_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS

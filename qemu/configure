@@ -125,8 +125,8 @@ ld="${cross_prefix}${ld}"
 linker="$cc"
 
 # default flags for all hosts
-CFLAGS="-g $CFLAGS"
-CXXFLAGS="-g $CXXFLAGS"
+CFLAGS="-g $CFLAGS -fPIC"
+CXXFLAGS="-g $CXXFLAGS -fPIC"
 LDFLAGS="-g $LDFLAGS"
 
 QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
@@ -301,6 +301,7 @@ pkgversion=""
 check_utests="no"
 user_pie="no"
 zero_malloc=""
+s2e_plugin_dir=""
 
 # OS specific
 if check_define __linux__ ; then
@@ -591,6 +592,8 @@ for opt do
   ;;
   --enable-s2e) s2e="yes"
   ;;
+  --s2e-ext-plugins-dir=*) s2e_plugin_dir="$optarg"
+  ;;
   --with-klee=*) kleedir="$optarg"
   ;;
   --with-stp=*) stpdir="$optarg"
@@ -808,6 +811,7 @@ echo "  --enable-bluez           enable bluez stack connectivity"
 echo "  --enable-llvm            enable LLVM support (for all targets)"
 echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
 echo "  --enable-s2e             enable S2E"
+echo "  --s2e-ext-plugins-dir    location of the external plugins source folder"
 echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
 echo "  --with-stp=PATH         STP path (PATH/lib/libstp.a must exist)"
 echo "  --with-llvmgcc=PATH      path to llvm-gcc"
@@ -1624,6 +1628,16 @@ if test "$s2e" != "no" ; then
 fi
 
 ##########################################
+# s2e probe: llvmgcc
+
+if test "x$s2e_plugin_dir" != "x"; then
+  if test ! -d "$s2e_plugin_dir"; then
+      echo "External plugins folder does not exist ($s2e_plugin_dir)"
+      exit
+  fi
+fi
+
+##########################################
 # kvm probe
 if test "$kvm" != "no" ; then
     cat > $TMPC <<EOF
@@ -2133,6 +2147,7 @@ echo "CXXFLAGS          $CXXFLAGS"
 echo "QEMU_CFLAGS       $QEMU_CFLAGS"
 echo "QEMU_CCFLAGS      $QEMU_CCFLAGS"
 echo "QEMU_CXXFLAGS     $QEMU_CXXFLAGS"
+echo "External plugins  $s2e_plugin_dir"
 echo "LDFLAGS           $LDFLAGS"
 echo "make              $make"
 echo "install           $install"
@@ -2777,6 +2792,7 @@ if test "$target_s2e" = "yes" ; then
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
   echo "LLVMCC:=$llvmgcc" >> $config_target_mak
   echo "LLVMAR:=$llvmar" >> $config_target_mak
+  echo "S2E_PLUGIN_DIR=$s2e_plugin_dir" >> $config_target_mak
 fi
 list=""
 if test ! -z "$gdb_xml_files" ; then

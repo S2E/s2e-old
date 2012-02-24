@@ -9,7 +9,7 @@ include config-target.mak
 include $(SRC_PATH)/rules.mak
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
-VPATH=$(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw
+VPATH=$(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw:$(S2E_PLUGIN_DIR)
 QEMU_CFLAGS+= -I.. -I$(TARGET_PATH) -DNEED_CPU_H
 
 ifdef CONFIG_USER_ONLY
@@ -381,6 +381,8 @@ s2eobj-y += s2e/S2EStatsTracker.o
 
 s2eobj-y += s2e/S2E.o
 s2eobj-y += s2e/x64.o
+
+-include $(S2E_PLUGIN_DIR)/Makefile.target
 
 s2e/Plugins/ModuleExecutionDetector.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/StackMonitor.o: QEMU_CXXFLAGS+=-fno-inline
