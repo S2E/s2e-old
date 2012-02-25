@@ -320,6 +320,7 @@ void s2e_dma_write(uint64_t hostAddress, uint8_t *buf, unsigned size);
 void s2e_on_privilege_change(unsigned previous, unsigned current);
 void s2e_on_page_directory_change(uint64_t previous, uint64_t current);
 
+void s2e_on_initialization_complete(void);
 
 //XXX: Provide a means of including KLEE header
 /* Return a possible constant value for the input expression. This

@@ -6404,6 +6404,7 @@ int main(int argc, char **argv, char **envp)
     */
     s2e_initialize_execution(g_s2e, g_s2e_state, execute_always_klee);
     s2e_register_dirty_mask(g_s2e, g_s2e_state, (uint64_t)phys_ram_dirty, last_ram_offset >> TARGET_PAGE_BITS);
+    s2e_on_initialization_complete();
 #endif
 
     main_loop();

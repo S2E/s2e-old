@@ -223,10 +223,10 @@ public:
     sigc::signal<void, struct PCIBus*> onDeviceActivation;
 
     /**
-      * The current execution privilege level was changed (e.g., kernel-mode=>user-mode)
-      * previous and current are privilege levels. The meaning of the value may
-      * depend on the architecture.
-      */
+     * The current execution privilege level was changed (e.g., kernel-mode=>user-mode)
+     * previous and current are privilege levels. The meaning of the value may
+     * depend on the architecture.
+     */
     sigc::signal<void,
                  S2EExecutionState* /* current state */,
                  unsigned /* previous level */,
@@ -234,15 +234,23 @@ public:
           onPrivilegeChange;
 
     /**
-      * The current page directory was changed.
-      * This may occur, e.g., when the OS swaps address spaces.
-      * The addresses correspond to physical addresses.
-      */
+     * The current page directory was changed.
+     * This may occur, e.g., when the OS swaps address spaces.
+     * The addresses correspond to physical addresses.
+     */
     sigc::signal<void,
                  S2EExecutionState* /* current state */,
                  uint64_t /* previous page directory base */,
                  uint64_t /* current page directory base */>
           onPageDirectoryChange;
+
+    /**
+     * S2E completed initialization and is about to enter
+     * the main execution loop for the first time.
+     */
+    sigc::signal<void,
+                 S2EExecutionState* /* current state */>
+          onInitializationComplete;
 };
 
 } // namespace s2e

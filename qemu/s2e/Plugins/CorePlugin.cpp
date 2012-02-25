@@ -452,3 +452,11 @@ void s2e_on_page_directory_change(uint64_t previous, uint64_t current)
     }
 }
 
+void s2e_on_initialization_complete(void)
+{
+    try {
+        g_s2e->getCorePlugin()->onInitializationComplete.emit(g_s2e_state);
+    } catch(s2e::CpuExitException&) {
+        assert(false && "Cannot throw exceptions here. VM state may be inconsistent at this point.");
+    }
+}
