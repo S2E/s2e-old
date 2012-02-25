@@ -157,7 +157,12 @@ void WindowsDriverExerciser::onModuleUnload(
 
     //XXX: We might want to monitor multiple modules, so avoid killing
     switch(m_unloadAction) {
-        case SUCCEED: m_manager->succeedState(state); break;
+        case SUCCEED:
+        if (m_manager) {
+            m_manager->succeedState(state);
+        }
+
+        break;
         case KILL: {
             std::stringstream ss;
             ss << module.Name << " unloaded";
@@ -258,9 +263,11 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
         registerEntryPoint(state, &WindowsDriverExerciser::DriverUnload, driverObject.DriverUnload);
     }
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
 
