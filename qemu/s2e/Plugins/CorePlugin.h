@@ -53,7 +53,7 @@ namespace s2e {
 
 class S2EExecutionState;
 
-/** A type of a signal emited on instruction execution. Instances of this signal
+/** A type of a signal emitted on instruction execution. Instances of this signal
     will be dynamically created and destroyed on demand during translation. */
 typedef sigc::signal<void, S2EExecutionState*, uint64_t /* pc */> ExecutionSignal;
 
@@ -193,7 +193,7 @@ public:
 
     sigc::signal<void> onTimer;
 
-    /** Signal emited when the state is forked */
+    /** Signal emitted when the state is forked */
     sigc::signal<void, S2EExecutionState* /* originalState */,
                  const std::vector<S2EExecutionState*>& /* newStates */,
                  const std::vector<klee::ref<klee::Expr> >& /* newConditions */>
@@ -204,11 +204,18 @@ public:
                  S2EExecutionState*> /* nextState */
             onStateSwitch;
 
-    /** Signal emited when spawning a new S2E process */
-    /** The signal is emitted in the child processes only */
+    /** Signal emitted when spawning a new S2E process */
     sigc::signal<void, bool /* prefork */,
                 bool /* ischild */,
                 unsigned /* parentProcId */> onProcessFork;
+
+    /**
+     * Signal emitted when a new S2E process was spawned and all
+     * parent states were removed from the child and child states
+     * removed from the parent.
+     */
+    sigc::signal<void, bool /* isChild */> onProcessForkComplete;
+
 
     /** Signal that is emitted upon TLB miss */
     sigc::signal<void, S2EExecutionState*, uint64_t, bool> onTlbMiss;

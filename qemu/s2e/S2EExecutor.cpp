@@ -1912,6 +1912,8 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                 terminateStateAtFork(*s2estate);
             }
 
+            m_s2e->getCorePlugin()->onProcessForkComplete.emit(true);
+
             low = splitIndex;
 
             int diff = high - splitIndex;
@@ -1935,6 +1937,9 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                 m_s2e->getDebugStream() << "Terminating state idx "<< i << " (id=" << newStates[i]->getID()  << ")" << std::endl;
                 terminateStateAtFork(*newStates[i]);
             }
+
+            m_s2e->getCorePlugin()->onProcessForkComplete.emit(false);
+
             high = splitIndex - 1;
             int diff = high - low;
 
