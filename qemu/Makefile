@@ -188,7 +188,9 @@ obj-y += vnc.o acl.o d3des.o
 obj-$(CONFIG_VNC_TLS) += vnc-tls.o vnc-auth-vencrypt.o
 obj-$(CONFIG_VNC_SASL) += vnc-auth-sasl.o
 obj-$(CONFIG_COCOA) += cocoa.o
-obj-$(CONFIG_IOTHREAD) += qemu-thread.o
+#obj-$(CONFIG_IOTHREAD) += qemu-thread.o
+#S2E can use threads as well
+obj-y += qemu-thread.o
 
 slirp-obj-y = cksum.o if.o ip_icmp.o ip_input.o ip_output.o
 slirp-obj-y += slirp.o mbuf.o misc.o sbuf.o socket.o tcp_input.o tcp_output.o
