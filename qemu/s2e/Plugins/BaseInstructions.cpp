@@ -91,12 +91,10 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state)
         return;
     }
 
-    std::string nameStr;
-    if(!name || !state->readString(name, nameStr)) {
+    std::string nameStr = "unnamed";
+    if(name && !state->readString(name, nameStr)) {
         s2e()->getWarningsStream(state)
-                << "Error reading string from the guest"
-                << std::endl;
-        nameStr = "defstr";
+                << "Error reading string from the guest\n";
     }
 
     s2e()->getMessagesStream(state)
@@ -187,11 +185,10 @@ void BaseInstructions::printExpression(S2EExecutionState *state)
         return;
     }
 
-    std::string nameStr = "defstring";
-    if(!name || !state->readString(name, nameStr)) {
+    std::string nameStr = "<NO NAME>";
+    if(name && !state->readString(name, nameStr)) {
         s2e()->getWarningsStream(state)
-                << "Error reading string from the guest"
-                << std::endl;
+                << "Error reading string from the guest\n";
     }
 
 
@@ -217,11 +214,10 @@ void BaseInstructions::printMemory(S2EExecutionState *state)
         return;
     }
 
-    std::string nameStr = "defstring";
-    if(!name || !state->readString(name, nameStr)) {
+    std::string nameStr = "<NO NAME>";
+    if(name && !state->readString(name, nameStr)) {
         s2e()->getWarningsStream(state)
-                << "Error reading string from the guest"
-                << std::endl;
+                << "Error reading string from the guest\n";
     }
 
     s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << std::endl;
