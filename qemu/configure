@@ -256,6 +256,7 @@ fdt=""
 llvm="no"
 llvmdir=""
 s2e="no"
+boost="no"
 kleedir=""
 stpdir=""
 llvmgcc=""
@@ -591,6 +592,8 @@ for opt do
   --with-llvm=*) llvmdir="$optarg"
   ;;
   --enable-s2e) s2e="yes"
+  ;;
+  --enable-boost) boost="yes"
   ;;
   --s2e-ext-plugins-dir=*) s2e_plugin_dir="$optarg"
   ;;
@@ -2790,6 +2793,9 @@ if test "$target_s2e" = "yes" ; then
   echo "S2E_CXXFLAGS:=\$(filter-out $llvm_cxxflags, $klee_cxxflags)" >> $config_target_mak
   echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_target_mak
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
+  if test "$boost" = "yes"; then
+      echo "LIBS+=-lboost_serialization" >> $config_target_mak
+  fi
   echo "LLVMCC:=$llvmgcc" >> $config_target_mak
   echo "LLVMAR:=$llvmar" >> $config_target_mak
   echo "S2E_PLUGIN_DIR=$s2e_plugin_dir" >> $config_target_mak
