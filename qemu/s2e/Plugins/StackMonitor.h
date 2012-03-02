@@ -43,7 +43,6 @@
 #include "ModuleExecutionDetector.h"
 #include "OSMonitor.h"
 
-
 namespace s2e {
 namespace plugins {
 
@@ -54,6 +53,9 @@ struct StackFrameInfo {
     uint64_t FrameSize;
     uint64_t FramePc;
 };
+
+typedef std::vector<uint64_t> CallStack;
+typedef std::vector<CallStack> CallStacks;
 
 class StackMonitorState;
 
@@ -68,6 +70,9 @@ public:
 
     bool getFrameInfo(S2EExecutionState *state, uint64_t sp, bool &onTheStack, StackFrameInfo &info) const;
     void dump(S2EExecutionState *state);
+
+    bool getCallStacks(S2EExecutionState *state, CallStacks &callStacks) const;
+
 private:
     OSMonitor *m_monitor;
     ModuleExecutionDetector *m_detector;

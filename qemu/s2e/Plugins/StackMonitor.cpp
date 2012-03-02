@@ -242,6 +242,12 @@ public:
             return true;
         }
 
+        void getCallStack(CallStack &cs) const {
+            foreach2(it, m_frames.begin(), m_frames.end()) {
+                cs.push_back((*it).pc);
+            }
+        }
+
         friend std::ostream& operator<<(std::ostream &os, const Stack &stack);
     };
 
@@ -267,6 +273,8 @@ public:
     void deleteStack(S2EExecutionState *state, uint64_t stackBase);
 
     bool getFrameInfo(S2EExecutionState *state, uint64_t sp, bool &onTheStack, StackFrameInfo &info) const;
+    bool getCallStacks(S2EExecutionState *state, CallStacks &callStacks) const;
+
     void dump(S2EExecutionState *state) const;
 public:
     StackMonitorState(bool debugMessages);
@@ -419,6 +427,12 @@ void StackMonitor::dump(S2EExecutionState *state)
     //s2e()->getDebugStream() << "StackMonitor: ESP modif at " << hexval(pc) << "\n";
     DECLARE_PLUGINSTATE(StackMonitorState, state);
     plgState->dump(state);
+}
+
+bool StackMonitor::getCallStacks(S2EExecutionState *state, CallStacks &callStacks) const
+{
+    DECLARE_PLUGINSTATE(StackMonitorState, state);
+    return plgState->getCallStacks(state, callStacks);
 }
 
 /*****************************************************************************/
@@ -580,6 +594,18 @@ void StackMonitorState::dump(S2EExecutionState *state) const
     foreach2(it, m_stacks.begin(), m_stacks.end()) {
         g_s2e->getDebugStream() << (*it).second << "\n";
     }
+}
+
+bool StackMonitorState::getCallStacks(S2EExecutionState *state, CallStacks &callStacks) const
+{
+    foreach2(it, m_stacks.begin(), m_stacks.end()) {
+        callStacks.push_back(CallStack());
+        CallStack &cs = callStacks.back();
+
+        const Stack &stack = (*it).second;
+        stack.getCallStack(cs);
+    }
+    return true;
 }
 
 } // namespace plugins
