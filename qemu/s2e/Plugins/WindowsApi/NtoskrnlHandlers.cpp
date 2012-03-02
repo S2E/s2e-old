@@ -776,6 +776,7 @@ void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
         break;
     }
 
+#if 0
     if (inputBuffer) {
         for (uint64_t i=0; i<inputLength; ++i) {
             klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int8,
@@ -783,6 +784,7 @@ void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
             state->writeMemory(inputBuffer + i, symb);
         }
     }
+#endif
 
     DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
     if (!plgState->isIoctlIrpExplored) {
