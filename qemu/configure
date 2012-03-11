@@ -390,7 +390,7 @@ Darwin)
   else
     QEMU_CFLAGS="-mdynamic-no-pic $QEMU_CFLAGS"
   fi
-
+  QEMU_CFLAGS="$QEMU_CFLAGS -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D_LFS64_LARGEFILE -Doff64_t=off_t"
   darwin_user="yes"
   cocoa="yes"
   audio_drv_list="coreaudio"
@@ -628,7 +628,8 @@ for opt do
   ;;
   --enable-linux-user) linux_user="yes"
   ;;
-  --disable-darwin-user) darwin_user="no"
+  --disable-darwin-user) 
+_user="no"
   ;;
   --enable-darwin-user) darwin_user="yes"
   ;;

@@ -190,8 +190,8 @@ tools/tools/forkprofiler
 tools/tools/icounter
 tools/tools/pfprofiler
 tools/tools/s2etools-config
-tools/tools/scripts/ida
 tools/tools/scripts
+tools/tools/scripts/ida
 tools/tools/tbtrace
 windows-toolchain
 ../llvm-2.6/include

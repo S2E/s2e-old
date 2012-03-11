@@ -1,7 +1,12 @@
 S2ESRC:=$(CURDIR)/../s2e
 S2EBUILD:=$(CURDIR)
 
-JOBS:=8
+JOBS:=2
+
+CP=cp
+ifeq ($(shell uname -s),Darwin)
+CP=gcp
+endif
 
 all: all-release
 
@@ -73,7 +78,7 @@ stamps/llvm-make-release: stamps/llvm-configure
 #######
 
 stamps/stp-copy:
-	cp -Rup $(S2ESRC)/stp stp
+	$(CP) -Rup $(S2ESRC)/stp stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
@@ -82,7 +87,7 @@ stamps/stp-configure: stamps/stp-copy
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
-	cp -Rup $(S2ESRC)/stp stp
+	$(CP) -Rup $(S2ESRC)/stp stp
 	cd stp && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 

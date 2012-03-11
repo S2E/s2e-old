@@ -1468,10 +1468,15 @@ qemu/s2e/Plugins/Searchers/CooperativeSearcher.cpp
 qemu/s2e/Plugins/Searchers/CooperativeSearcher.h
 qemu/s2e/Plugins/Searchers/MaxTbSearcher.cpp
 qemu/s2e/Plugins/Searchers/MaxTbSearcher.h
+qemu/s2e/Plugins/StackChecker.cpp
+qemu/s2e/Plugins/StackChecker.h
+qemu/s2e/Plugins/StackMonitor.cpp
+qemu/s2e/Plugins/StackMonitor.h
 qemu/s2e/Plugins/StateManager.cpp
 qemu/s2e/Plugins/StateManager.h
 qemu/s2e/Plugins/SymbolicHardware.cpp
 qemu/s2e/Plugins/SymbolicHardware.h
+qemu/s2e/Plugins/ThreadDescriptor.h
 qemu/s2e/Plugins/WindowsApi/Api.cpp
 qemu/s2e/Plugins/WindowsApi/Api.h
 qemu/s2e/Plugins/WindowsApi/HalHandlers.cpp
@@ -2253,6 +2258,7 @@ tools/tools/pfprofiler/pfprofiler.h
 tools/tools/s2etools-config/FinalLibDeps.txt
 tools/tools/s2etools-config/Makefile
 tools/tools/s2etools-config/s2etools-config.in.in
+tools/tools/scripts/gdb.ini
 tools/tools/scripts/ida/extractBasicBlocks.py
 tools/tools/scripts/ida/extractFunctions.py
 tools/tools/tbtrace/Makefile

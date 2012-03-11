@@ -58,6 +58,7 @@ static void timespec_add_ms(struct timespec *ts, uint64_t msecs)
     }
 }
 
+#if 0 //Disable for Darwin
 int qemu_mutex_timedlock(QemuMutex *mutex, uint64_t msecs)
 {
     int err;
@@ -71,6 +72,7 @@ int qemu_mutex_timedlock(QemuMutex *mutex, uint64_t msecs)
         error_exit(err, __func__);
     return err;
 }
+#endif
 
 void qemu_mutex_unlock(QemuMutex *mutex)
 {
@@ -117,6 +119,7 @@ void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex)
         error_exit(err, __func__);
 }
 
+#if 0
 int qemu_cond_timedwait(QemuCond *cond, QemuMutex *mutex, uint64_t msecs)
 {
     struct timespec ts;
@@ -130,6 +133,7 @@ int qemu_cond_timedwait(QemuCond *cond, QemuMutex *mutex, uint64_t msecs)
         error_exit(err, __func__);
     return err;
 }
+#endif
 
 void qemu_thread_create(QemuThread *thread,
                        void *(*start_routine)(void*),
