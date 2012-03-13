@@ -73,6 +73,12 @@ public:
 
     bool getCallStacks(S2EExecutionState *state, CallStacks &callStacks) const;
 
+    /**
+     * Emitted when a new stack frame is setup (e.g., when execution
+     * enters a module of interest.
+     */
+    sigc::signal<void, S2EExecutionState*> onStackCreation;
+
 private:
     OSMonitor *m_monitor;
     ModuleExecutionDetector *m_detector;

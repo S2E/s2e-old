@@ -261,7 +261,7 @@ private:
     uint64_t m_cachedStackSize;
     OSMonitor *m_monitor;
     ModuleExecutionDetector *m_detector;
-
+    StackMonitor *m_stackMonitor;
     Stacks m_stacks;
     ModuleCache m_moduleCache;
 
@@ -447,6 +447,7 @@ StackMonitorState::StackMonitorState(bool debugMessages)
     m_debugMessages = debugMessages;
     m_monitor = static_cast<OSMonitor*>(g_s2e->getPlugin("Interceptor"));
     m_detector = static_cast<ModuleExecutionDetector*>(g_s2e->getPlugin("ModuleExecutionDetector"));
+    m_stackMonitor = static_cast<StackMonitor*>(g_s2e->getPlugin("StackMonitor"));
 }
 
 StackMonitorState::~StackMonitorState()
@@ -486,6 +487,7 @@ void StackMonitorState::update(S2EExecutionState *state, uint64_t pc, bool isCal
         Stack stack(state, this, pc, m_cachedStackBase, m_cachedStackSize);
         m_stacks.insert(std::make_pair(p, stack));
         stackit = m_stacks.find(p);
+        m_stackMonitor->onStackCreation.emit(state);
     }
 
     const ModuleDescriptor *module = m_detector->getModule(state, pc);
