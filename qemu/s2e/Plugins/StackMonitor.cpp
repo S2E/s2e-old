@@ -307,6 +307,7 @@ void StackMonitor::initialize()
 {
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
     m_monitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
+    m_statsCollector = static_cast<ExecutionStatisticsCollector*>(s2e()->getPlugin("ExecutionStatisticsCollector"));
 
     m_debugMessages = s2e()->getConfig()->getBool(getConfigKey() + ".debugMessages");
 
@@ -509,6 +510,10 @@ void StackMonitorState::update(S2EExecutionState *state, uint64_t pc, bool isCal
 
     if (stack.empty()) {
         m_stacks.erase(stackit);
+        m_stackMonitor->onStackDeletion.emit(state);
+        if (m_stackMonitor->m_statsCollector) {
+            m_stackMonitor->m_statsCollector->getStatistics(state).emptyCallStacksCount++;
+        }
     }
 }
 

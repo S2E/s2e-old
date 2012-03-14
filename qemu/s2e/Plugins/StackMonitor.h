@@ -41,6 +41,7 @@
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
 #include "ModuleExecutionDetector.h"
+#include "ExecutionStatisticsCollector.h"
 #include "OSMonitor.h"
 
 namespace s2e {
@@ -79,9 +80,15 @@ public:
      */
     sigc::signal<void, S2EExecutionState*> onStackCreation;
 
+    /**
+     * Emitted when there are no more stack frames anymore.
+     */
+    sigc::signal<void, S2EExecutionState*> onStackDeletion;
+
 private:
     OSMonitor *m_monitor;
     ModuleExecutionDetector *m_detector;
+    ExecutionStatisticsCollector *m_statsCollector;
     bool m_debugMessages;
 
     sigc::connection m_onTranslateRegisterAccessConnection;

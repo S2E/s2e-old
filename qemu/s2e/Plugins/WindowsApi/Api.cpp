@@ -73,6 +73,7 @@ void WindowsApi::initialize()
     m_memoryChecker = static_cast<MemoryChecker*>(s2e()->getPlugin("MemoryChecker"));
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
     m_bsodInterceptor = static_cast<BlueScreenInterceptor*>(s2e()->getPlugin("BlueScreenInterceptor"));
+    m_statsCollector = static_cast<ExecutionStatisticsCollector*>(s2e()->getPlugin("ExecutionStatisticsCollector"));
 
     ConfigFile *cfg = s2e()->getConfig();
 

@@ -50,6 +50,7 @@
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
 #include <s2e/Plugins/MemoryChecker.h>
+#include <s2e/Plugins/ExecutionStatisticsCollector.h>
 
 #include <map>
 #include <set>
@@ -126,6 +127,7 @@ protected:
     MemoryChecker *m_memoryChecker;
     StateManager *m_manager;
     BlueScreenInterceptor *m_bsodInterceptor;
+    ExecutionStatisticsCollector *m_statsCollector;
 
     //Allows specifying per-function consistency
     ConsistencyMap m_specificConsistency;
@@ -183,6 +185,19 @@ protected:
             s2e()->getExecutor()->terminateStateEarly(*state, msg);
         } else {
             s2e()->getWarningsStream(state) << msg << "\n";
+        }
+    }
+
+    ///////////////////////////////////
+    void incrementFailures(S2EExecutionState *state) {
+        if (m_statsCollector) {
+            m_statsCollector->getStatistics(state).libraryCallFailures++;
+        }
+    }
+
+    void incrementSuccesses(S2EExecutionState *state) {
+        if (m_statsCollector) {
+            m_statsCollector->getStatistics(state).libraryCallSuccesses++;
         }
     }
 };

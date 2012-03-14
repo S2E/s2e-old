@@ -290,6 +290,8 @@ void NdisHandlers::NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMoni
     uint32_t failValue = 0xC0000001;
     state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
 
+    incrementFailures(state);
+
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
     FUNCMON_REGISTER_RETURN_A(otherState, m_functionMonitor, NdisHandlers::NdisAllocateMemoryRet, Address, Length);
@@ -307,11 +309,14 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Addr
         return;
     }
 
+    //The original function has failed
     if (eax) {
         HANDLER_TRACE_FCNFAILED();
-        //The original function has failed
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     if(m_memoryChecker) {
         uint32_t BufAddress;
@@ -354,9 +359,11 @@ void NdisHandlers::NdisAllocateMemoryWithTagPriorityRet(S2EExecutionState* state
 
         if (!eax) {
             //The original function has failed
+            incrementFailures(state);
             return;
         }
 
+        incrementSuccesses(state);
         m_memoryChecker->grantMemory(state, eax, Length,
                                      MemoryChecker::READWRITE,
                                      "ndis:alloc:NdisAllocateMemoryWithTagPriority", eax);
@@ -464,7 +471,7 @@ void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionM
     //Fail the function call
     uint32_t null = 0;
     state->writeMemoryConcrete(VirtualAddress, &null, sizeof(null));
-
+    incrementFailures(state);
 
     FUNCMON_REGISTER_RETURN_A(state == states[0] ? states[1] : states[0],
                             m_functionMonitor, NdisHandlers::NdisMAllocateSharedMemoryRet,
@@ -491,8 +498,11 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state,
 
     if (!va) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": original call has failed" << std::endl;
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     //Register symbolic DMA memory.
     //All reads from it will be symbolic.
@@ -543,9 +553,11 @@ void NdisHandlers::NdisAllocatePacketRet(S2EExecutionState* state, uint32_t pSta
 
     if(!NT_SUCCESS(Status)) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": original call has failed" << std::endl;
+        incrementFailures(state);
         return;
     }
 
+    incrementSuccesses(state);
     if(m_memoryChecker) {
         DECLARE_PLUGINSTATE(NdisHandlersState, state);
         uint32_t size = sizeof(NDIS_PACKET32) + sizeof(NDIS_PACKET_OOB_DATA32) + sizeof(NDIS_PACKET_EXTENSION32) +
@@ -574,7 +586,6 @@ void NdisHandlers::NdisFreePacket(S2EExecutionState *state, FunctionMonitorState
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-//XXX: Fork a success and a failure!
 void NdisHandlers::NdisAllocateBufferPool(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
@@ -607,6 +618,8 @@ void NdisHandlers::NdisAllocateBufferPool(S2EExecutionState* state, FunctionMoni
     //Write symbolic status code
     state->writeMemory(pStatus, createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
 
+    incrementFailures(state);
+
     FUNCMON_REGISTER_RETURN_A(states[0] == state ? states[1] : states[0],
                               m_functionMonitor, NdisHandlers::NdisAllocateBufferPoolRet, pStatus, pPoolHandle);
 }
@@ -627,9 +640,11 @@ void NdisHandlers::NdisAllocateBufferPoolRet(S2EExecutionState* state, uint32_t 
     }
 
     if(!NT_SUCCESS(Status)) {
+        incrementFailures(state);
         return;
     }
 
+    incrementSuccesses(state);
     if(m_memoryChecker) {
         //The handle is NULL on some versions of Windows (no-op)
         if (Handle != 0) {
@@ -680,6 +695,8 @@ void NdisHandlers::NdisAllocatePacketPool(S2EExecutionState* state, FunctionMoni
     //Skip the call in the current state
     state->bypassFunction(4);
 
+    incrementFailures(state);
+
     FUNCMON_REGISTER_RETURN_A(states[0] == state ? states[1] : states[0],
                               m_functionMonitor, NdisHandlers::NdisAllocatePacketPoolRet, pStatus, pPoolHandle,
                               ProtocolReservedLength);
@@ -702,9 +719,11 @@ void NdisHandlers::NdisAllocatePacketPoolRet(S2EExecutionState* state, uint32_t 
     }
 
     if(!NT_SUCCESS(Status)) {
+        incrementFailures(state);
         return;
     }
 
+    incrementSuccesses(state);
     if(m_memoryChecker) {
         m_memoryChecker->grantResource(state, Handle, "ndis:alloc:NdisAllocatePacketPool");
     }
@@ -754,6 +773,8 @@ void NdisHandlers::NdisAllocatePacketPoolEx(S2EExecutionState* state, FunctionMo
     //Skip the call in the current state
     state->bypassFunction(5);
 
+    incrementFailures(state);
+
     FUNCMON_REGISTER_RETURN_A(states[0] == state ? states[1] : states[0],
                               m_functionMonitor, NdisHandlers::NdisAllocatePacketPoolExRet, pStatus, pPoolHandle);
 }
@@ -774,8 +795,11 @@ void NdisHandlers::NdisAllocatePacketPoolExRet(S2EExecutionState* state, uint32_
     }
 
     if(!NT_SUCCESS(Status)) {
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     if(m_memoryChecker) {
         m_memoryChecker->grantResource(state, Handle, "ndis:alloc:NdisAllocatePacketPoolEx");
@@ -821,6 +845,8 @@ void NdisHandlers::NdisOpenConfiguration(S2EExecutionState* state, FunctionMonit
 
     //Skip the call in the current state
     state->bypassFunction(3);
+
+    incrementFailures(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -873,6 +899,7 @@ void NdisHandlers::NdisQueryAdapterInstanceName(S2EExecutionState* state, Functi
 
     //Skip the call in the current state
     state->bypassFunction(2);
+    incrementFailures(state);
 
     //Register a return handler in the normal state
     S2EExecutionState *successState = states[0] == state ? states[1] : states[0];
@@ -899,8 +926,11 @@ void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uin
 
     if(eax) {
         s2e()->getDebugStream() << __FUNCTION__ << " failed with 0x" << std::hex << eax << std::endl;
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     NDIS_STRING s;
     bool ok = true;
@@ -953,6 +983,7 @@ void NdisHandlers::NdisQueryPendingIOCount(S2EExecutionState* state, FunctionMon
 
     //Skip the call in the current state
     state->bypassFunction(2);
+    incrementFailures(state);
 }
 
 
@@ -1010,6 +1041,8 @@ void NdisHandlers::NdisOpenAdapter(S2EExecutionState* state, FunctionMonitorStat
 
     //Skip the call in the current state
     state->bypassFunction(11);
+
+    incrementFailures(state);
 }
 
 void NdisHandlers::NdisOpenAdapterRet(S2EExecutionState* state,
@@ -1029,8 +1062,11 @@ void NdisHandlers::NdisOpenAdapterRet(S2EExecutionState* state,
 
     if (!NT_SUCCESS(Status)) {
         HANDLER_TRACE_FCNFAILED_VAL(Status);
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     if (Status == windows::NDIS_STATUS_PENDING) {
         //Can't grant access rights to the handle yet
@@ -1076,8 +1112,11 @@ void NdisHandlers::NdisAllocateBufferRet(S2EExecutionState* state, uint32_t pSta
     }
 
     if(Status) {
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     //Length += 0x1000; // XXX
 
@@ -1558,6 +1597,7 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
 
     //Skip the call in the current state
     state->bypassFunction(5);
+    incrementFailures(state);
 
     FUNCMON_REGISTER_RETURN_A(states[0] == state ? states[1] : states[0],
                               m_functionMonitor, NdisHandlers::NdisReadConfigurationRet,
@@ -1581,8 +1621,11 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state,
 
     if (!NT_SUCCESS(Status)) {
         s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << std::endl;
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     uint32_t pConfigParam;
 
@@ -1772,6 +1815,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     state->addConstraint(expr);
 
     state->bypassFunction(5);
+    incrementFailures(state);
     throw CpuExitException();
 }
 
@@ -1809,6 +1853,7 @@ void NdisHandlers::NdisWritePciSlotInformation(S2EExecutionState* state, Functio
     state->addConstraint(expr);
 
     state->bypassFunction(5);
+    incrementFailures(state);
     throw CpuExitException();
 }
 
@@ -1848,6 +1893,7 @@ void NdisHandlers::NdisMQueryAdapterResourcesRet(S2EExecutionState* state)
     klee::ref<klee::Expr> Status = state->readMemory(plgState->pStatus, klee::Expr::Int32);
     if (!NtSuccess(s2e(), state, Status)) {
         s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << std::endl;
+        incrementFailures(state);
         return;
     }
 
@@ -2004,6 +2050,7 @@ void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMoni
 
     //Skip the call in the current state
     state->bypassFunction(4);
+    incrementFailures(state);
 
     FUNCMON_REGISTER_RETURN_A(states[0] == state ? states[1] : states[0],
                               m_functionMonitor, NdisHandlers::NdisReadNetworkAddressRet, pStatus,
@@ -2026,10 +2073,13 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state, uint32_t 
 
     if (!NT_SUCCESS(Status)) {
         s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << std::endl;
+        incrementFailures(state);
+        return;
     }
 
     state->jumpToSymbolicCpp();
 
+    incrementSuccesses(state);
 
     uint32_t Length, NetworkAddress;
 
@@ -2867,6 +2917,12 @@ void NdisHandlers::SendHandlerRet(S2EExecutionState* state, uint32_t pPacket)
     bool ok;
     if (!(ok = state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &status, sizeof(status)))) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete\n";
+    }
+
+    if (NT_SUCCESS(status)) {
+        incrementSuccesses(state);
+    } else {
+        incrementFailures(state);
     }
 
     if (ok && m_memoryChecker) {

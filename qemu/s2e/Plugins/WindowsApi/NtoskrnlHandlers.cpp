@@ -267,7 +267,10 @@ void NtoskrnlHandlers::IoCreateSymbolicLinkRet(S2EExecutionState* state)
 
     if (!NtSuccess(g_s2e, state)) {
         HANDLER_TRACE_FCNFAILED();
+        incrementFailures(state);
         return;
+    } else {
+        incrementSuccesses(state);
     }
 }
 
@@ -299,7 +302,7 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
 
     klee::ref<klee::Expr> symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
     state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
-
+    incrementFailures(state);
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
@@ -312,8 +315,11 @@ void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state, uint32_t pDev
 
     if (!NtSuccess(g_s2e, state)) {
         HANDLER_TRACE_FCNFAILED();
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     if (m_memoryChecker) {
         s2e()->getDebugStream() << "IoCreateDeviceRet pDeviceObject=0x" << std::hex << pDeviceObject << std::endl;
@@ -467,6 +473,7 @@ void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, Function
 
     //Skip the call in the current state
     state->bypassFunction(4);
+    incrementFailures(state);
 
     state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
                             createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
@@ -490,6 +497,7 @@ void NtoskrnlHandlers::MmGetSystemRoutineAddress(S2EExecutionState* state, Funct
 
     //Skip the call in the current state
     state->bypassFunction(1);
+    incrementFailures(state);
 
     klee::ref<klee::Expr> symb;
     std::vector<uint32_t> vec;
@@ -533,10 +541,11 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
         vec.push_back(STATUS_UNKNOWN_REVISION);
         klee::ref<klee::Expr> symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
-    }
 
-    //Skip the call in the current state
-    state->bypassFunction(2);
+        //Skip the call in the current state
+        state->bypassFunction(2);
+        incrementFailures(state);
+    }
 
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -568,6 +577,7 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, Fu
 
     //Skip the call in the current state
     state->bypassFunction(4);
+    incrementFailures(state);
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
@@ -581,6 +591,9 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptorRet(S2EExecutionState* state)
     if (state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &res, sizeof(res))) {
         if ((int)res < 0) {
             HANDLER_TRACE_FCNFAILED_VAL(res);
+            incrementFailures(state);
+        } else {
+            incrementSuccesses(state);
         }
     }
 }
@@ -613,6 +626,7 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, Fun
 
     //Skip the call in the current state
     state->bypassFunction(3);
+    incrementFailures(state);
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
@@ -626,6 +640,9 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSDRet(S2EExecutionState* state)
     if (state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &res, sizeof(res))) {
         if ((int)res < 0) {
             HANDLER_TRACE_FCNFAILED_VAL(res);
+            incrementFailures(state);
+        } else {
+            incrementSuccesses(state);
         }
     }
 }
@@ -660,6 +677,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
     state->bypassFunction(4);
     uint32_t failValue = 0;
     state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
+    incrementFailures(state);
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
@@ -676,8 +694,11 @@ void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32
     }
     if (!address) {
         HANDLER_TRACE_FCNFAILED();
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     if (m_memoryChecker) {
         m_memoryChecker->grantMemory(state, address, size, MemoryChecker::READWRITE,

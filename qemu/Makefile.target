@@ -368,6 +368,8 @@ s2eobj-y += s2e/Plugins/HostFiles.o
 s2eobj-y += s2e/Plugins/MemoryChecker.o
 s2eobj-y += s2e/Plugins/StackChecker.o
 
+s2eobj-y += s2e/Plugins/ExecutionStatisticsCollector.o
+
 s2eobj-y += s2e/sqlite3.o
 s2eobj-y += s2e/Database.o
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o
@@ -401,6 +403,7 @@ s2e/Plugins/ExecutionTracers/TranslationBlockTracer.o: QEMU_CXXFLAGS+=-fno-inlin
 s2e/Plugins/Searchers/MaxTbSearcher.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Searchers/CooperativeSearcher.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/WindowsApi/NdisHandlers.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/WindowsApi/NdisProtocolHandlers.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/WindowsApi/NtoskrnlHandlers.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/WindowsApi/WindowsDriverExerciser.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/X86ExceptionInterceptor.o: QEMU_CXXFLAGS+=-fno-inline
