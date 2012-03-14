@@ -40,6 +40,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 typedef void (*cmd_handler_t)(const char **args);
 
 typedef struct _cmd_t {
@@ -65,7 +69,11 @@ void handler_wait(const char **args)
 {
     s2e_message("Waiting for S2E...");
     while (!s2e_version()) {
-        sleep(1);
+#ifdef WIN32
+       Sleep(1000);
+#else
+       sleep(1);
+#endif
     }
     s2e_message("Done waiting for S2E.");
 }
