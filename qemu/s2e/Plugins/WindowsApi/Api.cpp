@@ -324,6 +324,7 @@ S2EExecutionState* WindowsApi::forkSuccessFailure(S2EExecutionState *state, bool
         skippedState->bypassFunction(argCount);
     }
 
+    incrementFailures(skippedState);
     return normalState;
 }
 
