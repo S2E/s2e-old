@@ -1160,6 +1160,9 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         oldState->m_qemuIcount = qemu_icount;
         *oldState->m_timersState = timers_state;
 
+        //XXX: flush is required to keep the m_tlbMap cache in sync
+        tlb_flush(env, 1);
+
         uint8_t *oldStore = oldState->m_cpuSystemObject->getConcreteStore();
         memcpy(oldStore, (uint8_t*) cpuMo->address, cpuMo->size);
 
@@ -1182,6 +1185,11 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         memcpy(&env->jmp_env, &jmp_env, sizeof(jmp_buf));
 
         newState->m_active = true;
+
+        //XXX: flush is required to keep the m_tlbMap cache in sync
+        tlb_flush(env, 1);
+        //XXX: g_s2e_state is still old, so call manually here
+        newState->flushTlbCache();
     }
 
     uint64_t totalCopied = 0;
@@ -2436,6 +2444,16 @@ void s2e_set_tb_function(S2E*, TranslationBlock *tb)
 void s2e_tb_free(S2E* s2e, TranslationBlock *tb)
 {
     s2e->getExecutor()->unrefS2ETb(tb->s2e_tb);
+}
+
+void s2e_flush_tlb_cache()
+{
+    g_s2e_state->flushTlbCache();
+}
+
+void s2e_flush_tlb_cache_page(void *objectState, int mmu_idx, int index)
+{
+    g_s2e_state->flushTlbCachePage(static_cast<klee::ObjectState*>(objectState), mmu_idx, index);
 }
 
 

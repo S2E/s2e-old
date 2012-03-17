@@ -55,7 +55,9 @@ extern "C" {
 struct CPUX86State;
 #define CPU_OFFSET(field) offsetof(CPUX86State, field)
 
-//#include <tr1/unordered_map>
+#include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/SmallVector.h>
+#include <tr1/unordered_map>
 
 namespace s2e {
 
@@ -150,6 +152,16 @@ protected:
     unsigned m_nextSymbVarId;
 
     S2EStateStats m_stats;
+
+    /**
+     * The following optimizes tracks the location of every ObjectState
+     * in the TLB in order to optimize TLB updates.
+     */
+    typedef std::pair<unsigned int, unsigned int> TlbCoordinates;
+    typedef llvm::SmallVector<TlbCoordinates, 8> ObjectStateTlbReferences;
+    typedef std::tr1::unordered_map<klee::ObjectState *, ObjectStateTlbReferences> TlbMap;
+
+    TlbMap m_tlbMap;
 
     /** Set when execution enters doInterrupt, reset when it exits. */
     bool m_runningExceptionEmulationCode;
@@ -371,6 +383,9 @@ public:
 
     void updateTlbEntry(CPUX86State* env,
                               int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
+    void flushTlbCache();
+
+    void flushTlbCachePage(klee::ObjectState *objectState, int mmu_idx, int index);
 };
 
 //Some convenience macros

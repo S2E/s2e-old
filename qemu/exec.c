@@ -1870,6 +1870,7 @@ void tlb_flush(CPUState *env, int flush_global)
             env->s2e_tlb_table[mmu_idx][i].objectState = 0;
         }
     }
+    s2e_flush_tlb_cache();
 #endif
 
     memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
@@ -1926,7 +1927,9 @@ void tlb_flush_page(CPUState *env, target_ulong addr)
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
             int i1 = (addr >> S2E_RAM_OBJECT_BITS) & (CPU_S2E_TLB_SIZE - 1), j;
             for(j = 0; j < CPU_S2E_TLB_SIZE/CPU_TLB_SIZE; ++j, ++i1) {
+                s2e_flush_tlb_cache_page(env->s2e_tlb_table[mmu_idx][i1].objectState, mmu_idx, i1);
                 env->s2e_tlb_table[mmu_idx][i1].objectState = 0;
+
             }
 #endif
         }

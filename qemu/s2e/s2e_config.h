@@ -63,6 +63,7 @@
 
 /** Enables simple memory debugging support */
 //#define S2E_DEBUG_MEMORY
+//#define S2E_DEBUG_TLBCACHE
 
 #define S2E_USE_FAST_SIGNALS
 
