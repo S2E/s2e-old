@@ -512,7 +512,7 @@ void StackMonitorState::update(S2EExecutionState *state, uint64_t pc, bool isCal
         m_stacks.erase(stackit);
         m_stackMonitor->onStackDeletion.emit(state);
         if (m_stackMonitor->m_statsCollector) {
-            m_stackMonitor->m_statsCollector->getStatistics(state).emptyCallStacksCount++;
+            m_stackMonitor->m_statsCollector->incrementEmptyCallStacksCount(state);
         }
     }
 }

@@ -40,6 +40,9 @@
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
+#include <s2e/Synchronization.h>
+
+#include <llvm/ADT/DenseMap.h>
 
 namespace s2e {
 namespace plugins {
@@ -63,12 +66,40 @@ struct ExecutionStatistics {
      */
     unsigned libraryCallSuccesses;
 
+    typedef llvm::DenseMap<uint64_t, unsigned> FunctionInvocationCount;
+    FunctionInvocationCount entryPointInvocationCount;
+
     ExecutionStatistics() {
         emptyCallStacksCount = 0;
         libraryCallFailures = 0;
         libraryCallSuccesses = 0;
     }
 
+
+};
+
+class ExecutionStatisticsCollectorState:public PluginState
+{
+private:
+    ExecutionStatistics m_stats;
+
+public:
+
+    ExecutionStatisticsCollectorState() {}
+
+    virtual ~ExecutionStatisticsCollectorState() {}
+
+    virtual ExecutionStatisticsCollectorState* clone() const {
+        return new ExecutionStatisticsCollectorState(*this);
+    }
+
+    static PluginState *factory(Plugin *p, S2EExecutionState *s) {
+        return new ExecutionStatisticsCollectorState;
+    }
+
+    ExecutionStatistics &getStatistics() {
+        return m_stats;
+    }
 };
 
 class ExecutionStatisticsCollector : public Plugin
@@ -79,9 +110,37 @@ public:
 
     void initialize();
 
-    ExecutionStatistics &getStatistics(S2EExecutionState *state);
+    const ExecutionStatistics &getStatistics(S2EExecutionState *state) const {
+        DECLARE_PLUGINSTATE(ExecutionStatisticsCollectorState, state);
+        return plgState->getStatistics();
+    }
+
+    void incrementLibCallFailures(S2EExecutionState *state) {
+        ++m_globalStats.libraryCallFailures;
+        DECLARE_PLUGINSTATE(ExecutionStatisticsCollectorState, state);
+        ++plgState->getStatistics().libraryCallFailures;
+    }
+
+    void incrementLibCallSuccesses(S2EExecutionState *state) {
+        ++m_globalStats.libraryCallSuccesses;
+        DECLARE_PLUGINSTATE(ExecutionStatisticsCollectorState, state);
+        ++plgState->getStatistics().libraryCallSuccesses;
+    }
+
+    void incrementEmptyCallStacksCount(S2EExecutionState *state) {
+        ++m_globalStats.emptyCallStacksCount;
+        DECLARE_PLUGINSTATE(ExecutionStatisticsCollectorState, state);
+        ++plgState->getStatistics().emptyCallStacksCount;
+    }
+
+    void incrementEntryPointCall(S2EExecutionState *state, uint64_t ep) {
+        ++m_globalStats.entryPointInvocationCount[ep];
+        DECLARE_PLUGINSTATE(ExecutionStatisticsCollectorState, state);
+        ++plgState->getStatistics().entryPointInvocationCount[ep];
+    }
 
 private:
+    ExecutionStatistics m_globalStats;
 
 };
 

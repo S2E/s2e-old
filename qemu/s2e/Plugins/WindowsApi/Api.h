@@ -191,13 +191,13 @@ protected:
     ///////////////////////////////////
     void incrementFailures(S2EExecutionState *state) {
         if (m_statsCollector) {
-            m_statsCollector->getStatistics(state).libraryCallFailures++;
+            m_statsCollector->incrementLibCallFailures(state);
         }
     }
 
     void incrementSuccesses(S2EExecutionState *state) {
         if (m_statsCollector) {
-            m_statsCollector->getStatistics(state).libraryCallSuccesses++;
+            m_statsCollector->incrementLibCallSuccesses(state);
         }
     }
 };

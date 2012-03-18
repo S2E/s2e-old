@@ -46,41 +46,9 @@ namespace plugins {
 
 S2E_DEFINE_PLUGIN(ExecutionStatisticsCollector, "Allows client plugins to store statistics in a central location", "",);
 
-namespace {
-class ExecutionStatisticsCollectorState:public PluginState
-{
-private:
-    ExecutionStatistics m_stats;
-
-public:
-
-    ExecutionStatisticsCollectorState() {}
-
-    virtual ~ExecutionStatisticsCollectorState() {}
-
-    virtual ExecutionStatisticsCollectorState* clone() const {
-        return new ExecutionStatisticsCollectorState(*this);
-    }
-
-    static PluginState *factory(Plugin *p, S2EExecutionState *s) {
-        return new ExecutionStatisticsCollectorState;
-    }
-
-    ExecutionStatistics &getStatistics() {
-        return m_stats;
-    }
-};
-}
-
 void ExecutionStatisticsCollector::initialize()
 {
 
-}
-
-ExecutionStatistics &ExecutionStatisticsCollector::getStatistics(S2EExecutionState *state)
-{
-    DECLARE_PLUGINSTATE(ExecutionStatisticsCollectorState, state);
-    return plgState->getStatistics();
 }
 
 } // namespace plugins
