@@ -59,7 +59,8 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(NdisHandlers, "Basic collection of NDIS API functions.", "NdisHandlers",
-                  "FunctionMonitor", "Interceptor", "ModuleExecutionDetector", "SymbolicHardware");
+                  "FunctionMonitor", "Interceptor", "ModuleExecutionDetector", "SymbolicHardware",
+                  "ConsistencyModels");
 
 
 //This maps exported NDIS functions to their handlers
@@ -259,7 +260,7 @@ void NdisHandlers::NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMoni
 {
     state->undoCallAndJumpToSymbolic();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     bool ok = true;
     uint32_t Address, Length;
@@ -439,7 +440,7 @@ void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     bool ok = true;
     uint32_t Length, VirtualAddress, PhysicalAddress;
@@ -593,7 +594,7 @@ void NdisHandlers::NdisAllocateBufferPool(S2EExecutionState* state, FunctionMoni
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     uint32_t pStatus, pPoolHandle;
     bool ok = true;
@@ -663,7 +664,7 @@ void NdisHandlers::NdisAllocatePacketPool(S2EExecutionState* state, FunctionMoni
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     uint32_t pStatus, pPoolHandle, ProtocolReservedLength;
     bool ok = true;
@@ -744,7 +745,7 @@ void NdisHandlers::NdisAllocatePacketPoolEx(S2EExecutionState* state, FunctionMo
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     uint32_t pStatus, pPoolHandle;
     bool ok = true;
@@ -821,7 +822,7 @@ void NdisHandlers::NdisOpenConfiguration(S2EExecutionState* state, FunctionMonit
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -876,7 +877,7 @@ void NdisHandlers::NdisQueryAdapterInstanceName(S2EExecutionState* state, Functi
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Read AdapterInstanceName
     uint32_t pUnicodeString = 0;
@@ -969,7 +970,7 @@ void NdisHandlers::NdisQueryPendingIOCount(S2EExecutionState* state, FunctionMon
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -1007,7 +1008,7 @@ void NdisHandlers::NdisOpenAdapter(S2EExecutionState* state, FunctionMonitorStat
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -1255,7 +1256,7 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
 
     state->undoCallAndJumpToSymbolic();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     HANDLER_TRACE_CALL();
 
@@ -1445,7 +1446,7 @@ void NdisHandlers::NdisMMapIoSpace(S2EExecutionState* state, FunctionMonitorStat
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == STRICT) {
         return;
@@ -1459,7 +1460,7 @@ void NdisHandlers::NdisMMapIoSpaceRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
     state->jumpToSymbolicCpp();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == LOCAL) {
         std::vector<uint32_t> values;
@@ -1480,7 +1481,7 @@ void NdisHandlers::NdisMAllocateMapRegisters(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == STRICT) {
         return;
@@ -1494,7 +1495,7 @@ void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
     state->jumpToSymbolicCpp();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     uint32_t eax;
     if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
@@ -1522,7 +1523,7 @@ void NdisHandlers::NdisMSetAttributesEx(S2EExecutionState* state, FunctionMonito
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     klee::ref<klee::Expr> interfaceType = readParameter(state, 4);
     s2e()->getDebugStream(state) << "InterfaceType: " << interfaceType << std::endl;
@@ -1543,7 +1544,7 @@ void NdisHandlers::NdisMSetAttributes(S2EExecutionState* state, FunctionMonitorS
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     klee::ref<klee::Expr> interfaceType = readParameter(state, 3);
     s2e()->getDebugStream(state) << "InterfaceType: " << interfaceType << std::endl;
@@ -1564,7 +1565,7 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Save parameter data that we will use on return
     //We need to put them in the state-local storage, as parameters can be mangled by the caller
@@ -1787,7 +1788,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (!m_devDesc) {
         s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
@@ -1859,7 +1860,7 @@ void NdisHandlers::NdisWritePciSlotInformation(S2EExecutionState* state, Functio
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == STRICT) {
         return;
@@ -1898,7 +1899,7 @@ void NdisHandlers::NdisMQueryAdapterResources(S2EExecutionState* state, Function
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == STRICT) {
         return;
@@ -1947,7 +1948,7 @@ void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMoni
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == OVERAPPROX) {
         //Pretend the interrupt is shared, to force the ISR to be called.
@@ -1970,7 +1971,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
     state->jumpToSymbolicCpp();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Get the return value
     uint32_t eax;
@@ -1990,7 +1991,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
     }else
 
-    //Consistency: LOCAL
+    //ExecutionConsistencyModel: LOCAL
     if (consistency == LOCAL) {
         std::vector<uint32_t> values;
 
@@ -2007,7 +2008,7 @@ void NdisHandlers::NdisMRegisterIoPortRange(S2EExecutionState* state, FunctionMo
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == STRICT) {
         return;
@@ -2021,7 +2022,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
     state->jumpToSymbolicCpp();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Get the return value
     uint32_t eax;
@@ -2040,7 +2041,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
     }else
 
-    //Consistency: LOCAL
+    //ExecutionConsistencyModel: LOCAL
     if (consistency == LOCAL) {
         std::vector<uint32_t> values;
 
@@ -2058,7 +2059,7 @@ void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMoni
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Save parameter data that we will use on return
     uint32_t pStatus, pNetworkAddress, pNetworkAddressLength, ConfigurationHandle;
@@ -2169,7 +2170,7 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency != STRICT) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMRegisterMiniportRet)
@@ -2217,7 +2218,7 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
     state->jumpToSymbolicCpp();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Get the return value
     uint32_t eax;
@@ -2295,7 +2296,7 @@ void NdisHandlers::CheckForHangRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == OVERAPPROX) {
         //Pretend we did not hang
@@ -2315,7 +2316,7 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
 {
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::InitializeHandlerRet)
     /* Make the medium array symbolic */
@@ -2473,7 +2474,7 @@ void NdisHandlers::EnableInterruptHandlerRet(S2EExecutionState* state)
 void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //grantMiniportAdapterContext(state, 0);
 
@@ -2633,7 +2634,7 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
 void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns, bool isQuery)
 {
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     s2e()->getDebugStream() << "Called with OID=0x" << std::hex << plgState->oid << std::endl;
 

@@ -64,7 +64,7 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(NtoskrnlHandlers, "Basic collection of NT Kernel API functions.", "NtoskrnlHandlers",
-                  "FunctionMonitor", "Interceptor");
+                  "FunctionMonitor", "Interceptor", "ConsistencyModels");
 
 const NtoskrnlHandlers::AnnotationsArray NtoskrnlHandlers::s_handlers[] = {
 
@@ -237,7 +237,7 @@ void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMo
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -282,7 +282,7 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     uint32_t pDeviceObject;
     if (!readConcreteParameter(state, 6, &pDeviceObject)) {
@@ -364,7 +364,7 @@ void NtoskrnlHandlers::IoIsWdmVersionAvailable(S2EExecutionState* state, Functio
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -446,7 +446,7 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency == STRICT) {
         return;
@@ -469,7 +469,7 @@ void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, Function
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -495,7 +495,7 @@ void NtoskrnlHandlers::MmGetSystemRoutineAddress(S2EExecutionState* state, Funct
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -526,7 +526,7 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -568,7 +568,7 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, Fu
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -619,7 +619,7 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, Fun
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     if (consistency < LOCAL) {
         return;
@@ -672,7 +672,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
 
     state->undoCallAndJumpToSymbolic();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     bool ok = true;
     uint32_t poolType, size;
@@ -876,7 +876,7 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
     s2e()->getMessagesStream() << "IRP " << std::dec << irpMajor << " " << s_irpMjArray[irpMajor] << std::endl;
     state->undoCallAndJumpToSymbolic();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Read the parameters
     uint32_t pDeviceObject = 0;

@@ -51,10 +51,12 @@
 #include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
 #include <s2e/Plugins/MemoryChecker.h>
 #include <s2e/Plugins/ExecutionStatisticsCollector.h>
+#include <s2e/Plugins/ConsistencyModels.h>
 
 #include <map>
 #include <set>
 #include <sstream>
+#include <stack>
 
 namespace s2e {
 namespace plugins {
@@ -93,9 +95,6 @@ struct WindowsApiHandler {
     F function;
 };
 
-enum Consistency {
-    NONE, OVERCONSTR, STRICT, LOCAL, OVERAPPROX
-};
 
 class WindowsApi: public Plugin
 {
@@ -117,7 +116,7 @@ public:
 
 
     //Maps a function name to a consistency
-    typedef std::map<std::string, Consistency> ConsistencyMap;
+    typedef std::map<std::string, ExecutionConsistencyModel> ConsistencyMap;
 
 
 protected:
@@ -129,10 +128,10 @@ protected:
     StateManager *m_manager;
     BlueScreenInterceptor *m_bsodInterceptor;
     ExecutionStatisticsCollector *m_statsCollector;
+    ConsistencyModels *m_models;
 
     //Allows specifying per-function consistency
     ConsistencyMap m_specificConsistency;
-    Consistency m_consistency;
 
     bool m_terminateOnWarnings;
 
@@ -141,7 +140,6 @@ public:
         m_detector = NULL;
         m_functionMonitor = NULL;
         m_windowsMonitor = NULL;
-        m_consistency = STRICT;
     }
 
     void initialize();
@@ -161,7 +159,6 @@ protected:
 
     //Provides a common method for configuring consistency for Windows modules
     void parseSpecificConsistency(const std::string &key);
-    void parseConsistency(const std::string &key);
 
     void registerImports(S2EExecutionState *state, const ModuleDescriptor &module);    
     virtual void unregisterEntryPoints(S2EExecutionState *state, const ModuleDescriptor &module) = 0;
@@ -200,6 +197,12 @@ protected:
             m_statsCollector->incrementLibCallSuccesses(state);
         }
     }
+
+    void incrementEntryPoint(S2EExecutionState *state) {
+        if (m_statsCollector) {
+            m_statsCollector->incrementEntryPointCall(state, state->getPc());
+        }
+    }
 };
 
 //Implements methods and helpers common to all kinds of
@@ -231,18 +234,13 @@ public:
                                       S2EExecutionState *state);
 
 
-    Consistency getConsistency(S2EExecutionState *state, const std::string &fcn) const {
+    ExecutionConsistencyModel getConsistency(S2EExecutionState *state, const std::string &fcn) const {
         ConsistencyMap::const_iterator it = m_specificConsistency.find(fcn);
         if (it != m_specificConsistency.end()) {
             return (*it).second;
         }
 
-        DECLARE_PLUGINSTATE(ANNOTATIONS_PLUGIN_STATE, state);
-        if (plgState->getConsistency() != NONE) {
-            return plgState->getConsistency();
-        }
-
-        return m_consistency;
+        return m_models->get(state);
     }
 
 
@@ -515,9 +513,6 @@ private:
     //Annotations will not be triggered when calling from other modules.
     CallingModules m_callingModules;
 
-    //Execution consistency enabled on the current path
-    //This overrides the global consistency model
-    Consistency m_consistency;
 
 public:
 
@@ -553,9 +548,7 @@ public:
         }
     }
 
-    WindowsApiState(){
-        m_consistency = NONE;
-    }
+    WindowsApiState(){}
 
     virtual ~WindowsApiState(){};
     virtual WindowsApiState* clone() const {
@@ -579,9 +572,7 @@ public:
         return m_callingModules;
     }
 
-    Consistency getConsistency() const {
-        return m_consistency;
-    }
+
 };
 
 

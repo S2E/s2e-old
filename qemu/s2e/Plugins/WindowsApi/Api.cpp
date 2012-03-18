@@ -52,6 +52,7 @@ extern "C" {
 #include "Api.h"
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
+#include <s2e/Plugins/ConsistencyModels.h>
 
 #include "NdisHandlers.h"
 #include "NtoskrnlHandlers.h"
@@ -74,12 +75,12 @@ void WindowsApi::initialize()
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
     m_bsodInterceptor = static_cast<BlueScreenInterceptor*>(s2e()->getPlugin("BlueScreenInterceptor"));
     m_statsCollector = static_cast<ExecutionStatisticsCollector*>(s2e()->getPlugin("ExecutionStatisticsCollector"));
+    m_models = static_cast<ConsistencyModels*>(s2e()->getPlugin("ConsistencyModels"));
 
     ConfigFile *cfg = s2e()->getConfig();
 
     m_terminateOnWarnings = cfg->getBool(getConfigKey() + ".terminateOnWarnings");
 
-    parseConsistency(getConfigKey());
     parseSpecificConsistency(getConfigKey());
 }
 
@@ -121,28 +122,6 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
     }
 }
 
-void WindowsApi::parseConsistency(const std::string &key)
-{
-    ConfigFile *cfg = s2e()->getConfig();
-    bool ok = false;
-    std::string consistency = cfg->getString(key + ".consistency", "", &ok);
-
-    if (consistency == "strict") {
-        m_consistency = STRICT;
-    }else if (consistency == "local") {
-        m_consistency = LOCAL;
-    }else if (consistency == "overapproximate") {
-        m_consistency = OVERAPPROX;
-    }else if  (consistency == "overconstrained") {
-        //This is strict consistency with forced concretizations
-        //XXX: cannot have multiple plugins with overconstrained
-        m_consistency = STRICT;
-        s2e()->getExecutor()->setForceConcretizations(true);
-    }else {
-        s2e()->getWarningsStream() << "Incorrect consistency " << consistency << std::endl;
-        exit(-1);
-    }
-}
 
 void WindowsApi::parseSpecificConsistency(const std::string &key)
 {
@@ -163,19 +142,14 @@ void WindowsApi::parseSpecificConsistency(const std::string &key)
             exit(-1);
         }
 
-        Consistency consistency = STRICT;
-        //Check the consistency type
-        if (pairs[1] == "strict") {
-            consistency = STRICT;
-        }else if (pairs[1] == "local") {
-            consistency = LOCAL;
-        }else if (pairs[1] == "overapproximate") {
-            consistency = OVERAPPROX;
-        }else if  (pairs[1] == "overconstrained") {
-            //This is strict consistency with forced concretizations
+        ExecutionConsistencyModel consistency;
+        consistency = ConsistencyModels::fromString(pairs[1]);
+        if (consistency == OVERCONSTR) {
             s2e()->getWarningsStream() << "NDISHANDLERS: Cannot handle overconstrained for specific functions " << std::endl;
             exit(-1);
-        }else {
+        }
+
+        if (consistency == NONE) {
             s2e()->getWarningsStream() << "NDISHANDLERS: Incorrect consistency " << consistency <<
                     " for " << ss.str() << std::endl;
             exit(-1);

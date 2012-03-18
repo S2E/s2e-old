@@ -55,7 +55,7 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
 
     state->undoCallAndJumpToSymbolic();
 
-    Consistency consistency = getConsistency(state, __FUNCTION__);
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Extract the function pointers from the passed data structure
     uint32_t pProtocol, pStatus;
@@ -246,12 +246,27 @@ void NdisHandlers::RequestCompleteHandlerRet(S2EExecutionState* state)
 void NdisHandlers::ReceiveHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ReceiveHandlerRet)
+
+    bool pushed = false;
+    if (m_statsCollector) {
+        ExecutionStatistics &stats = m_statsCollector->getStatistics();
+        if (stats.entryPointInvocationCount[state->getPc()] > 0) {
+            m_models->push(state, STRICT);
+            pushed = true;
+        }
+    }
+
+    incrementEntryPoint(state);
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::ReceiveHandlerRet, pushed);
 }
 
-void NdisHandlers::ReceiveHandlerRet(S2EExecutionState* state)
+void NdisHandlers::ReceiveHandlerRet(S2EExecutionState* state, bool pushed)
 {
     HANDLER_TRACE_RETURN();
+    if (pushed) {
+        m_models->pop(state);
+    }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::ReceiveCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)

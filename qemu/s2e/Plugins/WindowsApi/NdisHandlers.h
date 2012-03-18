@@ -188,7 +188,7 @@ private:
     DECLARE_ENTRY_POINT(TransferDataCompleteHandler);
     DECLARE_ENTRY_POINT(ResetCompleteHandler);
     DECLARE_ENTRY_POINT(RequestCompleteHandler);
-    DECLARE_ENTRY_POINT(ReceiveHandler);
+    DECLARE_ENTRY_POINT(ReceiveHandler, bool pushed);
     DECLARE_ENTRY_POINT(ReceiveCompleteHandler);
     DECLARE_ENTRY_POINT(StatusHandler);
     DECLARE_ENTRY_POINT(StatusCompleteHandler);

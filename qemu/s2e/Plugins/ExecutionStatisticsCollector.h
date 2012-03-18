@@ -110,9 +110,13 @@ public:
 
     void initialize();
 
-    const ExecutionStatistics &getStatistics(S2EExecutionState *state) const {
+    ExecutionStatistics &getStatistics(S2EExecutionState *state) const {
         DECLARE_PLUGINSTATE(ExecutionStatisticsCollectorState, state);
         return plgState->getStatistics();
+    }
+
+    ExecutionStatistics &getStatistics() {
+        return m_globalStats;
     }
 
     void incrementLibCallFailures(S2EExecutionState *state) {
