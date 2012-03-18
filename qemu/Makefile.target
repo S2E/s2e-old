@@ -347,6 +347,7 @@ s2eobj-y += s2e/Plugins/WindowsApi/NtoskrnlHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/HalHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/Api.o
 s2eobj-y += s2e/Plugins/WindowsApi/WindowsDriverExerciser.o
+s2eobj-y += s2e/Plugins/ConsistencyModels.o
 
 s2eobj-y += s2e/Plugins/ExecutionTracers/ExecutionTracer.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/ModuleTracer.o
