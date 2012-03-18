@@ -55,6 +55,8 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
 
     state->undoCallAndJumpToSymbolic();
 
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
     //Extract the function pointers from the passed data structure
     uint32_t pProtocol, pStatus;
     if (!readConcreteParameter(state, 2, &pProtocol)) {
@@ -101,7 +103,7 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
     klee::ref<klee::Expr> symb;
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if (consistency == OVERAPPROX) {
         symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
     }else {
         std::vector<uint32_t> vec;

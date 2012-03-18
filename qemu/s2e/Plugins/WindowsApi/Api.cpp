@@ -187,15 +187,6 @@ void WindowsApi::parseSpecificConsistency(const std::string &key)
 
 }
 
-WindowsApi::Consistency WindowsApi::getConsistency(const std::string &fcn) const
-{
-    ConsistencyMap::const_iterator it = m_specificConsistency.find(fcn);
-    if (it != m_specificConsistency.end()) {
-        return (*it).second;
-    }
-    return m_consistency;
-}
-
 
 //////////////////////////////////////////////
 bool WindowsApi::NtSuccess(S2E *s2e, S2EExecutionState *state)

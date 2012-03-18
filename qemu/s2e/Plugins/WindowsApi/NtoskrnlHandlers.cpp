@@ -237,7 +237,9 @@ void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMo
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -280,13 +282,15 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
     uint32_t pDeviceObject;
     if (!readConcreteParameter(state, 6, &pDeviceObject)) {
         HANDLER_TRACE_PARAM_FAILED("pDeviceObject");
         return;
     }
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    if (consistency < LOCAL) {
         FUNCMON_REGISTER_RETURN_A(state, fns, NtoskrnlHandlers::IoCreateDeviceRet, pDeviceObject);
         return;
     }
@@ -360,7 +364,9 @@ void NtoskrnlHandlers::IoIsWdmVersionAvailable(S2EExecutionState* state, Functio
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -440,7 +446,9 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) == STRICT) {
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency == STRICT) {
         return;
     }
 
@@ -449,7 +457,7 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
     //XXX: local assumes the stuff comes from the registry
     //XXX: local consistency is broken, because each time gets a new symbolic value,
     //disregarding the string.
-    if (getConsistency(__FUNCTION__) == OVERAPPROX || getConsistency(__FUNCTION__) == LOCAL) {
+    if (consistency == OVERAPPROX || consistency == LOCAL) {
         klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
         state->bypassFunction(3);
@@ -461,7 +469,9 @@ void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, Function
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -485,7 +495,9 @@ void NtoskrnlHandlers::MmGetSystemRoutineAddress(S2EExecutionState* state, Funct
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -514,7 +526,9 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -524,7 +538,7 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
     std::vector<S2EExecutionState *> states;
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if (consistency == OVERAPPROX) {
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
@@ -554,7 +568,9 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, Fu
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -564,7 +580,7 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, Fu
     std::vector<S2EExecutionState *> states;
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if (consistency == OVERAPPROX) {
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
@@ -603,7 +619,9 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, Fun
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -613,7 +631,7 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, Fun
     std::vector<S2EExecutionState *> states;
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if (consistency == OVERAPPROX) {
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
@@ -654,6 +672,8 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
 
     state->undoCallAndJumpToSymbolic();
 
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
     bool ok = true;
     uint32_t poolType, size;
     ok &= readConcreteParameter(state, 0, &poolType);
@@ -663,7 +683,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
         return;
     }
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    if (consistency < LOCAL) {
         //We'll have to grant access to the memory array
         FUNCMON_REGISTER_RETURN_A(state, fns, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
         return;
@@ -856,6 +876,8 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
     s2e()->getMessagesStream() << "IRP " << std::dec << irpMajor << " " << s_irpMjArray[irpMajor] << std::endl;
     state->undoCallAndJumpToSymbolic();
 
+    Consistency consistency = getConsistency(state, __FUNCTION__);
+
     //Read the parameters
     uint32_t pDeviceObject = 0;
     uint32_t pIrp = 0;
@@ -889,7 +911,7 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    if (consistency < LOCAL) {
         FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor, false);
         return;
     }

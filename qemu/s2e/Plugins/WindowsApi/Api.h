@@ -93,6 +93,10 @@ struct WindowsApiHandler {
     F function;
 };
 
+enum Consistency {
+    NONE, OVERCONSTR, STRICT, LOCAL, OVERAPPROX
+};
+
 class WindowsApi: public Plugin
 {
 public:
@@ -111,9 +115,6 @@ public:
     static bool writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val);
     uint32_t getReturnAddress(S2EExecutionState *s);
 
-    enum Consistency {
-        OVERCONSTR, STRICT, LOCAL, OVERAPPROX
-    };
 
     //Maps a function name to a consistency
     typedef std::map<std::string, Consistency> ConsistencyMap;
@@ -161,7 +162,6 @@ protected:
     //Provides a common method for configuring consistency for Windows modules
     void parseSpecificConsistency(const std::string &key);
     void parseConsistency(const std::string &key);
-    Consistency getConsistency(const std::string &fcn) const;
 
     void registerImports(S2EExecutionState *state, const ModuleDescriptor &module);    
     virtual void unregisterEntryPoints(S2EExecutionState *state, const ModuleDescriptor &module) = 0;
@@ -229,6 +229,22 @@ public:
 
     FunctionMonitor::CallSignal* getCallSignalForImport(Imports &I, const std::string &dll, const std::string &name,
                                       S2EExecutionState *state);
+
+
+    Consistency getConsistency(S2EExecutionState *state, const std::string &fcn) const {
+        ConsistencyMap::const_iterator it = m_specificConsistency.find(fcn);
+        if (it != m_specificConsistency.end()) {
+            return (*it).second;
+        }
+
+        DECLARE_PLUGINSTATE(ANNOTATIONS_PLUGIN_STATE, state);
+        if (plgState->getConsistency() != NONE) {
+            return plgState->getConsistency();
+        }
+
+        return m_consistency;
+    }
+
 
     void registerCaller(S2EExecutionState *state, const ModuleDescriptor &modDesc)
     {
@@ -499,6 +515,10 @@ private:
     //Annotations will not be triggered when calling from other modules.
     CallingModules m_callingModules;
 
+    //Execution consistency enabled on the current path
+    //This overrides the global consistency model
+    Consistency m_consistency;
+
 public:
 
     template <class T>
@@ -533,7 +553,10 @@ public:
         }
     }
 
-    WindowsApiState(){}
+    WindowsApiState(){
+        m_consistency = NONE;
+    }
+
     virtual ~WindowsApiState(){};
     virtual WindowsApiState* clone() const {
         return new WindowsApiState<ANNOTATIONS_PLUGIN>(*this);
@@ -544,18 +567,20 @@ public:
     }
 
 
-    void registerCaller(const ModuleDescriptor &modDesc)
-    {
+    void registerCaller(const ModuleDescriptor &modDesc) {
         m_callingModules.insert(modDesc);
     }
 
-    void unregisterCaller(const ModuleDescriptor &modDesc)
-    {
+    void unregisterCaller(const ModuleDescriptor &modDesc) {
         m_callingModules.erase(modDesc);
     }
 
     const CallingModules& getCallingModules() const {
         return m_callingModules;
+    }
+
+    Consistency getConsistency() const {
+        return m_consistency;
     }
 };
 
