@@ -38,12 +38,14 @@
 //#define __STDC_LIMIT_MACROS 1
 #define __STDC_FORMAT_MACROS 1
 
-#include "llvm/Support/CommandLine.h"
+#include <llvm/Support/CommandLine.h>
+#include <llvm/System/Path.h>
 
 #include <lib/ExecutionTracer/ModuleParser.h>
 #include <lib/ExecutionTracer/Path.h>
 #include <lib/ExecutionTracer/TestCase.h>
 #include <lib/BinaryReaders/BFDInterface.h>
+
 
 #include <s2e/Plugins/ExecutionTracers/TraceEntries.h>
 
@@ -71,7 +73,7 @@ cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
 
 cl::list<std::string>
-    ModDir("moddir", cl::desc("Directory containing binary modules and the basic block list (.bblist)"));
+ModDir("moddir", cl::desc("Directory containing binary modules, the basic block list (*.bblist), exclude file (*.excl), etc."));
 
 cl::opt<bool>
     Compact("compact", cl::desc("Do not display non-covered blocks"), cl::init(false));
@@ -85,10 +87,13 @@ cl::opt<bool>
 
 namespace s2etools
 {
-BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
+BasicBlockCoverage::BasicBlockCoverage(const std::string &moduleDir,
            const std::string &moduleName)
 {
-    FILE *fp = fopen(basicBlockListFile.c_str(), "r");
+    llvm::sys::Path basicBlockListFile(moduleDir);
+    basicBlockListFile.appendComponent(moduleName + ".bblist");
+
+    FILE *fp = fopen(basicBlockListFile.toString().c_str(), "r");
     if (!fp) {
         std::cerr << "Could not open file " << basicBlockListFile << std::endl;
         return;
@@ -104,7 +109,7 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
         unsigned prevCount = m_allBbs.size();
         std::pair<BasicBlocks::iterator, bool> result = m_allBbs.insert(BasicBlock(start, end));
         if (!result.second) {
-           std::cout << "Wont insert this block : existing block: " << (*result.first).start << std::endl;
+           std::cout << "Won't insert this block : existing block: " << (*result.first).start << std::endl;
            continue;
         }
 
@@ -127,6 +132,29 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
         std::cerr << "No basic blocks found in the list for " << moduleName << ". Check the format of the file." << std::endl;
     }
 
+    parseExcludeFile(moduleDir, moduleName);
+}
+
+void BasicBlockCoverage::parseExcludeFile(const std::string &moduleDir,
+                                          const std::string &moduleName)
+{
+    llvm::sys::Path excludeFileName(moduleDir);
+    excludeFileName.appendComponent(moduleName + ".excl");
+
+    FILE *fp = fopen(excludeFileName.toString().c_str(), "r");
+    if (!fp) {
+        std::cerr << "Could not open file " << excludeFileName.toString() << std::endl;
+        return;
+    }
+
+    char buffer[512];
+    while (fgets(buffer, sizeof(buffer), fp)) {
+        char name[512];
+        sscanf(buffer, "%[^\r\t\n]s", name);
+        m_ignoredFunctions.insert(std::string(name));
+    }
+
+    fclose(fp);
 }
 
 //Start and end must be local to the modle
@@ -232,15 +260,24 @@ uint64_t BasicBlockCoverage::getTimeCoverage() const
     return ((*tit).timeStamp - (*tfirst).timeStamp)/1000000;
 }
 
-void BasicBlockCoverage::printReport(std::ostream &os, uint64_t pathCount) const
+
+void BasicBlockCoverage::printReport(std::ostream &os, uint64_t pathCount,
+                                     bool useIgnoreList, bool csv) const
 {
     unsigned touchedFunctions = 0;
     unsigned fullyCoveredFunctions = 0;
     unsigned touchedFunctionsBb = 0;
     unsigned touchedFunctionsTotalBb = 0;
+    unsigned allFunctionsBb = 0;
     Functions::const_iterator fit;
 
     for(fit = m_functions.begin(); fit != m_functions.end(); ++fit) {
+        if (useIgnoreList) {
+            if (m_ignoredFunctions.find((*fit).first) != m_ignoredFunctions.end()) {
+                continue;
+            }
+        }
+
         const BasicBlocks &fcnbb = (*fit).second;
         BasicBlocks uncovered;
         BasicBlocks::const_iterator bbit;
@@ -252,9 +289,16 @@ void BasicBlockCoverage::printReport(std::ostream &os, uint64_t pathCount) const
 
         unsigned int coveredCount = (fcnbb.size() - uncovered.size());
         char line[512];
-        snprintf(line, sizeof(line), "(%03u%%) %03u/%03u %-50s ",
-                 (unsigned)(coveredCount*100/fcnbb.size()), coveredCount, (unsigned)fcnbb.size(),
-                 (*fit).first.c_str());
+
+        if (csv) {
+            snprintf(line, sizeof(line), "%u,%u,%u,%s,",
+                     (unsigned)(coveredCount*100/fcnbb.size()), coveredCount, (unsigned)fcnbb.size(),
+                     (*fit).first.c_str());
+        } else {
+            snprintf(line, sizeof(line), "(%3u%%) %03u/%03u %-50s ",
+                     (unsigned)(coveredCount*100/fcnbb.size()), coveredCount, (unsigned)fcnbb.size(),
+                     (*fit).first.c_str());
+        }
 
         os << line;
 
@@ -266,8 +310,9 @@ void BasicBlockCoverage::printReport(std::ostream &os, uint64_t pathCount) const
                 fullyCoveredFunctions++;
             }else {
                 if (!Compact) {
+                    char delim = csv ? ',' : ' ';
                     for (bbit = uncovered.begin(); bbit != uncovered.end(); ++bbit) {
-                        os << std::hex << "0x" << (*bbit).start << " ";
+                        os << std::hex << "0x" << (*bbit).start << delim;
                     }
                 }
             }
@@ -276,24 +321,39 @@ void BasicBlockCoverage::printReport(std::ostream &os, uint64_t pathCount) const
             touchedFunctions++;
         }
 
+        allFunctionsBb += fcnbb.size();
+
         os << std::endl;
 
     }
     os << std::endl;
 
-    os << "Basic block coverage:    " << std::dec << m_coveredBbs.size() << "/" << m_allBbs.size() <<
-            "(" << (m_coveredBbs.size()*100/m_allBbs.size()) << "%)"  << std::endl;
+    if (useIgnoreList) {
+        os << "Basic block coverage:    " << std::dec << touchedFunctionsBb << "/" << allFunctionsBb <<
+                "(" << (touchedFunctionsBb*100/allFunctionsBb) << "%)"  << std::endl;
+
+    } else {
+        os << "Basic block coverage:    " << std::dec << m_coveredBbs.size() << "/" << m_allBbs.size() <<
+                "(" << (m_coveredBbs.size()*100/m_allBbs.size()) << "%)"  << std::endl;
+
+        os << "Function block coverage: " << std::dec << touchedFunctionsBb << "/" << touchedFunctionsTotalBb <<
+                "(" << (touchedFunctionsBb*100/touchedFunctionsTotalBb) << "%)"  << std::endl;
+    }
 
 
-    os << "Function block coverage: " << std::dec << touchedFunctionsBb << "/" << touchedFunctionsTotalBb <<
-            "(" << (touchedFunctionsBb*100/touchedFunctionsTotalBb) << "%)"  << std::endl;
 
 
-    os << "Total touched functions: " << std::dec << touchedFunctions << "/" << m_functions.size() <<
-            "(" << (touchedFunctions*100/m_functions.size()) << "%)"  << std::endl;
+    if (useIgnoreList) {
+        os << "Fully covered functions: " << std::dec << fullyCoveredFunctions << "/" << touchedFunctions <<
+                "(" << (fullyCoveredFunctions*100/touchedFunctions) << "%)"  << std::endl;
+    } else {
+        os << "Total touched functions: " << std::dec << touchedFunctions << "/" << m_functions.size() <<
+                "(" << (touchedFunctions*100/m_functions.size()) << "%)"  << std::endl;
 
-    os << "Fully covered functions: " << std::dec << fullyCoveredFunctions << "/" << m_functions.size() <<
-            "(" << (fullyCoveredFunctions*100/m_functions.size()) << "%)"  << std::endl;
+        os << "Fully covered functions: " << std::dec << fullyCoveredFunctions << "/" << m_functions.size() <<
+                "(" << (fullyCoveredFunctions*100/m_functions.size()) << "%)"  << std::endl;
+    }
+
 
     os << "Time to cover last block: " << std::dec << getTimeCoverage() << std::endl;
     os << "# paths:                  " << std::dec << pathCount << std::endl;
@@ -372,10 +432,11 @@ void Coverage::onItem(unsigned traceIndex,
     BbCoverageMap::iterator it = m_bbCov.find(mi->Name);
     if (it == m_bbCov.end()) {
         //Look for the file containing the bbs.
-        std::string bblist = mi->Name + ".bblist";
         std::string path;
-        if (m_library->findLibrary(bblist, path)) {
-            BasicBlockCoverage *bb = new BasicBlockCoverage(path, mi->Name);
+        if (m_library->findLibrary(mi->Name, path)) {
+            llvm::sys::Path modPath(path);
+            modPath.eraseComponent();
+            BasicBlockCoverage *bb = new BasicBlockCoverage(modPath.toString(), mi->Name);
             m_bbCov[mi->Name] = bb;
             bbcov = bb;
         }
@@ -410,6 +471,19 @@ void Coverage::outputCoverage(const std::string &path) const
         ss1 << path << "/" << (*it).first << ".repcov";
         std::ofstream report(ss1.str().c_str());
         (*it).second->printReport(report, m_pathCount);
+
+        if ((*it).second->hasIgnoredFunctions() > 0) {
+            std::stringstream ss11;
+            ss11 << path << "/" << (*it).first << ".repcov-filtered";
+            std::ofstream report(ss11.str().c_str());
+            (*it).second->printReport(report, m_pathCount, true);
+
+            std::stringstream ss12;
+            ss12 << path << "/" << (*it).first << ".repcov-filtered.csv";
+            std::ofstream reportcsv(ss12.str().c_str());
+            (*it).second->printReport(reportcsv, m_pathCount, true, true);
+        }
+
 
         std::stringstream ss2;
         ss2 << path << "/" << (*it).first << ".bbcov";
@@ -451,6 +525,7 @@ int main(int argc, char **argv)
     cl::ParseCommandLineOptions(argc, (char**) argv, " coverage");
 
     s2etools::CoverageTool cov;
+
     cov.flatTrace();
 
     return 0;
