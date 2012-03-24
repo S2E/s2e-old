@@ -200,7 +200,7 @@ protected:
 
     void incrementEntryPoint(S2EExecutionState *state) {
         if (m_statsCollector) {
-            m_statsCollector->incrementEntryPointCall(state, state->getPc());
+            m_statsCollector->incrementEntryPointCallForModule(state);
         }
     }
 };
@@ -475,6 +475,21 @@ public:
         }
     }
 #endif
+
+    bool changeConsistencyForEntryPoint(
+            S2EExecutionState *state,
+            ExecutionConsistencyModel model,
+            unsigned invocationThreshold) {
+
+        if (m_statsCollector) {
+            if (m_statsCollector->getTotalEntryPointCallCountForModule(state) > invocationThreshold) {
+                m_models->push(state, model);
+                return true;
+            }
+        }
+
+        return false;
+    }
 
 public:
 
