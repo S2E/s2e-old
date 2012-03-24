@@ -44,11 +44,12 @@
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(ExecutionStatisticsCollector, "Allows client plugins to store statistics in a central location", "",);
+S2E_DEFINE_PLUGIN(ExecutionStatisticsCollector, "Allows client plugins to store statistics in a central location",
+                  "ExecutionStatisticsCollector");
 
 void ExecutionStatisticsCollector::initialize()
 {
-
+    m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
 }
 
 } // namespace plugins
