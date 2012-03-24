@@ -87,7 +87,7 @@ private:
             );
 
 
-    DECLARE_ENTRY_POINT(DriverEntryPoint, uint32_t pDriverObject);
+    DECLARE_ENTRY_POINT(DriverEntryPoint, uint32_t pDriverObject, bool pushed);
     DECLARE_ENTRY_POINT(DriverUnload);
 };
 

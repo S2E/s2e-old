@@ -748,11 +748,36 @@ void NtoskrnlHandlers::ExFreePoolWithTag(S2EExecutionState* state, FunctionMonit
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::DispatchWrite(S2EExecutionState* state,
+                                     uint64_t pIrp,
+                                     const IRP &irp,
+                                     const IO_STACK_LOCATION &stackLocation)
+{
+   #if 0
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    //Allocate permissions
+
+
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_fakewrite");
+
+    S2EExecutionState *realState = states[0] == state ? states[1] : states[0];
+    S2EExecutionState *fakeState = state;
+#endif
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
                                      uint64_t pIrp,
                                      const IRP &irp,
                                      const IO_STACK_LOCATION &stackLocation)
 {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
     uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
     uint32_t ioctlOffset = offsetof(IO_STACK_LOCATION, Parameters.DeviceIoControl.IoControlCode);
 
@@ -763,7 +788,7 @@ void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
     uint64_t inputBuffer = 0;
 
     std::stringstream regionType;
-    regionType << "IRP_MJ_DEVICE_IOCTL:" << hexval(pIrp) << ":";
+    regionType << "DispatchDeviceControl:IRP_MJ_DEVICE_IOCTL:" << hexval(pIrp) << ":";
 
     //Grant privileges to the data buffers
     switch (ioctl & 0x3) {
@@ -828,7 +853,7 @@ void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
 #endif
 
     DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
-    if (!plgState->isIoctlIrpExplored) {
+    if (consistency>=LOCAL) { // && !plgState->isIoctlIrpExplored) {
         uint32_t pStackLocation = IoGetCurrentIrpStackLocation(&irp);
 
         plgState->isIoctlIrpExplored = true;
@@ -845,28 +870,15 @@ void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
         symb = klee::OrExpr::create(symb, klee::ConstantExpr::create(ioctl & 3, klee::Expr::Int32));
         fakeState->writeMemory(pStackLocation + ioctlOffset, symb);
 
-        FUNCMON_REGISTER_RETURN_A(fakeState, m_functionMonitor, NtoskrnlHandlers::DispatchIoctlRet, IRP_MJ_DEVICE_CONTROL, true, pIrp);
-        FUNCMON_REGISTER_RETURN_A(realState, m_functionMonitor, NtoskrnlHandlers::DispatchIoctlRet, IRP_MJ_DEVICE_CONTROL, false, pIrp);
+        FUNCMON_REGISTER_RETURN_A(fakeState, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, IRP_MJ_DEVICE_CONTROL, true, pIrp);
+        FUNCMON_REGISTER_RETURN_A(realState, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, IRP_MJ_DEVICE_CONTROL, false, pIrp);
     } else {
-        s2e()->getDebugStream() << "Already explored\n";
+        s2e()->getDebugStream() << "Already explored or <LOCAL consistency\n";
 
-        FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DispatchIoctlRet, IRP_MJ_DEVICE_CONTROL, false, pIrp);
+        FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, IRP_MJ_DEVICE_CONTROL, false, pIrp);
     }
 }
 
-void NtoskrnlHandlers::DispatchIoctlRet(S2EExecutionState* state, uint32_t irpMajor, bool isFake, uint64_t pIrp)
-{
-    HANDLER_TRACE_RETURN();
-
-    if (m_memoryChecker) {
-        std::stringstream regionType;
-        regionType << "IRP_MJ_DEVICE_IOCTL:" << hexval(pIrp) << "*";
-        m_memoryChecker->revokeMemory(state, regionType.str());
-    }
-
-    //Revokes access rights to various buffers
-    DriverDispatchRet(state, irpMajor, isFake);
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -875,8 +887,6 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
     HANDLER_TRACE_CALL();
     s2e()->getMessagesStream() << "IRP " << std::dec << irpMajor << " " << s_irpMjArray[irpMajor] << std::endl;
     state->undoCallAndJumpToSymbolic();
-
-    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
 
     //Read the parameters
     uint32_t pDeviceObject = 0;
@@ -911,18 +921,17 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
-    if (consistency < LOCAL) {
-        FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor, false);
-        return;
-    }
-
     switch (irpMajor) {
         case IRP_MJ_DEVICE_CONTROL:
             DispatchIoctl(state, pIrp, irp, stackLocation);
             break;
 
+        case IRP_MJ_WRITE:
+            DispatchWrite(state, pIrp, irp, stackLocation);
+            break;
+
         default:
-            FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor, false);
+            FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor, false, pIrp);
             break;
 
 
@@ -930,19 +939,12 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
 
 }
 
-void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpMajor, bool isFake)
+void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpMajor, bool isFake, uint32_t pIrp)
 {
     HANDLER_TRACE_RETURN();
 
     //Get the return value
     klee::ref<klee::Expr> result = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
-
-
-    /*if (!NtSuccess(s2e(), state, result)) {
-        std::stringstream ss;
-        ss << __FUNCTION__ << " " << s_irpMjArray[irpMajor] << " failed with " << std::hex << result;
-        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
-    }*/
 
     if (isFake) {
         std::stringstream ss;
@@ -953,11 +955,11 @@ void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpM
     if (m_memoryChecker) {
         m_memoryChecker->revokeMemoryForModule(state, "args:DispatchDeviceControl:*");
     }
-
-/*    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();*/
 }
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //This is a FASTCALL function!
 void NtoskrnlHandlers::IofCompleteRequest(S2EExecutionState* state, FunctionMonitorState *fns)

@@ -134,6 +134,16 @@ void WindowsDriverExerciser::onModuleLoad(
         m_memoryChecker->grantMemoryForModuleSections(state, module);
     }
 
+#if 0
+    if (m_statsCollector) {
+        //XXX: this should go into ModuleExecutionDetector
+        m_statsCollector->incrementModuleLoads(state);
+        if (m_statsCollector->getStatistics(state).moduleLoads > 4) {
+            s2e()->getExecutor()->terminateStateEarly(*state, "Barrier");
+        }
+    }
+#endif
+
     state->enableSymbolicExecution();
     state->enableForking();
 }
@@ -196,13 +206,21 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
                                      "args:EntryPoint:RegistryPath");
     }
 
-    FUNCMON_REGISTER_RETURN_A(state, fns, WindowsDriverExerciser::DriverEntryPointRet, driverObject);
+    bool pushed = false;
+    pushed = changeConsistencyForEntryPoint(state, STRICT, 0);
+    incrementEntryPoint(state);
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, WindowsDriverExerciser::DriverEntryPointRet, driverObject, pushed);
 }
 
-void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint32_t pDriverObject)
+void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint32_t pDriverObject, bool pushed)
 {
     s2e()->getDebugStream(state) << "Returning from WindowsDriverExerciser entry point "
                 << " at " << hexval(state->getPc()) << std::endl;
+
+    if (pushed) {
+        m_models->pop(state);
+    }
 
     if(m_memoryChecker) {
         m_memoryChecker->revokeMemoryForModule(state, "args:EntryPoint:*");

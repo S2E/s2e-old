@@ -247,15 +247,7 @@ void NdisHandlers::ReceiveHandler(S2EExecutionState* state, FunctionMonitorState
 {
     HANDLER_TRACE_CALL();
 
-    bool pushed = false;
-    if (m_statsCollector) {
-        ExecutionStatistics &stats = m_statsCollector->getStatistics();
-        if (stats.entryPointInvocationCount[state->getPc()] > 0) {
-            m_models->push(state, STRICT);
-            pushed = true;
-        }
-    }
-
+    bool pushed = changeConsistencyForEntryPoint(state, STRICT, 0);
     incrementEntryPoint(state);
 
     FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::ReceiveHandlerRet, pushed);
@@ -354,12 +346,20 @@ void NdisHandlers::BindAdapterHandler(S2EExecutionState* state, FunctionMonitorS
 
     s2e()->getMessagesStream() << "BindAdapterHandler: DeviceName=" << deviceName << std::endl;
 
-    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::BindAdapterHandlerRet, pStatus)
+
+    bool pushed = changeConsistencyForEntryPoint(state, STRICT, 0);
+    incrementEntryPoint(state);
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::BindAdapterHandlerRet, pStatus, pushed)
 }
 
-void NdisHandlers::BindAdapterHandlerRet(S2EExecutionState* state, uint32_t pStatus)
+void NdisHandlers::BindAdapterHandlerRet(S2EExecutionState* state, uint32_t pStatus, bool pushed)
 {
     HANDLER_TRACE_RETURN();
+
+    if (pushed) {
+        m_models->pop(state);
+    }
 
     uint32_t Status;
     if (state->readMemoryConcrete(pStatus, &Status, sizeof(Status))) {
@@ -408,12 +408,20 @@ void NdisHandlers::UnbindAdapterHandlerRet(S2EExecutionState* state, uint32_t pS
 void NdisHandlers::PnPEventHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::PnPEventHandlerRet)
+
+    bool pushed = changeConsistencyForEntryPoint(state, STRICT, 0);
+    incrementEntryPoint(state);
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::PnPEventHandlerRet, pushed)
 }
 
-void NdisHandlers::PnPEventHandlerRet(S2EExecutionState* state)
+void NdisHandlers::PnPEventHandlerRet(S2EExecutionState* state, bool pushed)
 {
     HANDLER_TRACE_RETURN();
+
+    if (pushed) {
+        m_models->pop(state);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

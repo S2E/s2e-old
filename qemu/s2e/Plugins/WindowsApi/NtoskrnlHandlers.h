@@ -131,11 +131,13 @@ private:
 private:
     void DispatchIoctl(S2EExecutionState* state, uint64_t pIrp, const windows::IRP &irp,
                        const windows::IO_STACK_LOCATION &stackLocation);
-    void DispatchIoctlRet(S2EExecutionState* state, uint32_t irpMajor, bool isFake, uint64_t pIrp);
+
+    void DispatchWrite(S2EExecutionState* state, uint64_t pIrp, const windows::IRP &irp,
+                       const windows::IO_STACK_LOCATION &stackLocation);
 
 public:
     DECLARE_ENTRY_POINT_CALL(DriverDispatch, uint32_t irpMajor);
-    DECLARE_ENTRY_POINT_RET(DriverDispatch, uint32_t irpMajor, bool isFake);
+    DECLARE_ENTRY_POINT_RET(DriverDispatch, uint32_t irpMajor, bool isFake, uint32_t pIrp);
 };
 
 

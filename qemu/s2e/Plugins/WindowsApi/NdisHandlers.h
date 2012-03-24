@@ -194,9 +194,9 @@ private:
     DECLARE_ENTRY_POINT(StatusCompleteHandler);
 
     DECLARE_ENTRY_POINT(ReceivePacketHandler);
-    DECLARE_ENTRY_POINT(BindAdapterHandler, uint32_t pStatus);
+    DECLARE_ENTRY_POINT(BindAdapterHandler, uint32_t pStatus, bool pushed);
     DECLARE_ENTRY_POINT(UnbindAdapterHandler, uint32_t pStatus);
-    DECLARE_ENTRY_POINT(PnPEventHandler);
+    DECLARE_ENTRY_POINT(PnPEventHandler, bool pushed);
     DECLARE_ENTRY_POINT(UnloadHandler);
 
     DECLARE_ENTRY_POINT(CoSendCompleteHandler);
