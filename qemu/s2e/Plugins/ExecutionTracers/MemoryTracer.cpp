@@ -57,8 +57,15 @@ MemoryTracer::MemoryTracer(S2E* s2e)
 void MemoryTracer::initialize()
 {
 
-    m_tracer = (ExecutionTracer*)s2e()->getPlugin("ExecutionTracer");
-    assert(m_tracer);
+    m_tracer = static_cast<ExecutionTracer*>(s2e()->getPlugin("ExecutionTracer"));
+    m_execDetector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
+
+    //Retrict monitoring to configured modules only
+    m_monitorModules = s2e()->getConfig()->getBool(getConfigKey() + ".monitorModules");
+    if (m_monitorModules && !m_execDetector) {
+        s2e()->getWarningsStream() << "MemoryTracer: The monitorModules option requires ModuleExecutionDetector\n";
+        exit(-1);
+    }
 
     //Catch all accesses to the stack
     m_monitorStack = s2e()->getConfig()->getBool(getConfigKey() + ".monitorStack");
@@ -94,24 +101,6 @@ void MemoryTracer::initialize()
     s2e()->getCorePlugin()->onCustomInstruction.connect(
             sigc::mem_fun(*this, &MemoryTracer::onCustomInstruction));
 
-}
-
-bool MemoryTracer::decideTracing(S2EExecutionState *state, uint64_t addr, uint64_t data) const
-{
-    if (addr < m_catchAbove) {
-        //Skip uninteresting ranges
-        return false;
-    }
-
-    if (m_monitorStack) {
-        //Assume that the stack is 8k and 8k-aligned
-        if ((state->getSp() & ~0x3FFFF) == (addr & ~0x3FFFF)) {
-            return true;
-        }
-        return false;
-    }
-
-    return true;
 }
 
 void MemoryTracer::traceDataMemoryAccess(S2EExecutionState *state,
@@ -165,20 +154,30 @@ void MemoryTracer::onDataMemoryAccess(S2EExecutionState *state,
                                klee::ref<klee::Expr> value,
                                bool isWrite, bool isIO)
 {
-    bool isAddrCste = isa<klee::ConstantExpr>(address);
-    bool isValCste = isa<klee::ConstantExpr>(value);
-
-    if (isAddrCste && isValCste) {
-        uint64_t addr = cast<klee::ConstantExpr>(address)->getZExtValue(64);
-        uint64_t val = cast<klee::ConstantExpr>(value)->getZExtValue(64);
-
-        if (!decideTracing(state, addr, val)) {
-           return;
-        }
+    //XXX: This is a hack.
+    //Sometimes the onModuleTransition is not fired properly...
+    if (m_execDetector && !m_execDetector->getCurrentDescriptor(state)) {
+        m_memoryMonitor.disconnect();
+        return;
     }
 
     traceDataMemoryAccess(state, address, hostAddress, value, isWrite, isIO);
 }
+
+void MemoryTracer::onModuleTransition(S2EExecutionState *state,
+                                       const ModuleDescriptor *prevModule,
+                                       const ModuleDescriptor *nextModule)
+{
+    if(nextModule) {
+        m_memoryMonitor =
+            s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+                sigc::mem_fun(*this, &MemoryTracer::onDataMemoryAccess)
+            );
+    } else {
+        m_memoryMonitor.disconnect();
+    }
+}
+
 
 void MemoryTracer::onTlbMiss(S2EExecutionState *state, uint64_t addr, bool is_write)
 {
@@ -205,8 +204,16 @@ void MemoryTracer::enableTracing()
     if (m_monitorMemory) {
         s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling memory tracing" << std::endl;
         m_memoryMonitor.disconnect();
-        m_memoryMonitor = s2e()->getCorePlugin()->onDataMemoryAccess.connect(
-                sigc::mem_fun(*this, &MemoryTracer::onDataMemoryAccess));
+
+        if (m_monitorModules) {
+            m_execDetector->onModuleTransition.connect(
+                    sigc::mem_fun(*this,
+                            &MemoryTracer::onModuleTransition)
+                    );
+        } else {
+            m_memoryMonitor = s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+                    sigc::mem_fun(*this, &MemoryTracer::onDataMemoryAccess));
+        }
     }
 
     if (m_monitorPageFaults) {
