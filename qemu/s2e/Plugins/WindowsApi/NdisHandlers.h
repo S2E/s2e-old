@@ -104,13 +104,14 @@ private:
     typedef std::set<std::pair<uint32_t, uint32_t> > TimerEntryPoints;
     TimerEntryPoints m_timerEntryPoints;
 
+    DECLARE_ENTRY_POINT(NdisInitializeWrapper, uint32_t Handle);
     DECLARE_ENTRY_POINT(NdisMRegisterMiniport);
     void NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMonitorState *fns);
     DECLARE_ENTRY_POINT(NdisAllocateMemory, uint32_t Address, uint32_t Length);
     DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTag, uint32_t Address, uint32_t Length);
     DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTagPriority, uint32_t Length);
     DECLARE_ENTRY_POINT_CO(NdisFreeMemory);
-    DECLARE_ENTRY_POINT(NdisMAllocateSharedMemory);
+    DECLARE_ENTRY_POINT(NdisMAllocateSharedMemory, uint32_t Length, uint32_t pVirtualAddress, uint32_t pPhysicalAddress);
     DECLARE_ENTRY_POINT(NdisMFreeSharedMemory);
     DECLARE_ENTRY_POINT(NdisMRegisterIoPortRange);
     DECLARE_ENTRY_POINT(NdisMMapIoSpace);
@@ -120,30 +121,35 @@ private:
     DECLARE_ENTRY_POINT(NdisQueryPendingIOCount);
     DECLARE_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_ENTRY_POINT(NdisMAllocateMapRegisters);
-    DECLARE_ENTRY_POINT(NdisMInitializeTimer);
+    DECLARE_ENTRY_POINT(NdisMInitializeTimer, uint32_t Timer, uint32_t TimerFunction);
     DECLARE_ENTRY_POINT(NdisMSetAttributesEx);
     DECLARE_ENTRY_POINT(NdisMSetAttributes);
     DECLARE_ENTRY_POINT(NdisSetTimer);
     DECLARE_ENTRY_POINT(NdisMRegisterAdapterShutdownHandler);
-    DECLARE_ENTRY_POINT(NdisReadNetworkAddress);
-    DECLARE_ENTRY_POINT(NdisReadConfiguration);
+    DECLARE_ENTRY_POINT(NdisReadNetworkAddress, uint32_t pStatus, uint32_t pNetworkAddress,
+                        uint32_t pNetworkAddressLength, uint32_t ConfigurationHandle);
+    DECLARE_ENTRY_POINT(NdisReadConfiguration, uint32_t pStatus, uint32_t ppConfigParam, uint32_t Handle, uint32_t pConfigString);
     DECLARE_ENTRY_POINT_CO(NdisCloseConfiguration);
     DECLARE_ENTRY_POINT(NdisWriteErrorLogEntry);
 
     DECLARE_ENTRY_POINT(NdisAllocatePacket, uint32_t pStatus, uint32_t pPacket);
     DECLARE_ENTRY_POINT_CO(NdisFreePacket);
 
-    DECLARE_ENTRY_POINT(NdisAllocateBufferPool);
-    DECLARE_ENTRY_POINT(NdisAllocatePacketPool);
-    DECLARE_ENTRY_POINT(NdisAllocatePacketPoolEx);
-    DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer, uint32_t Length);
+    DECLARE_ENTRY_POINT(NdisAllocateBufferPool, uint32_t pStatus, uint32_t pPoolHandle);
+    DECLARE_ENTRY_POINT(NdisAllocatePacketPool, uint32_t pStatus, uint32_t pPoolHandle, uint32_t ProtocolReservedLength);
+    DECLARE_ENTRY_POINT(NdisAllocatePacketPoolEx, uint32_t pStatus, uint32_t pPoolHandle);
+    DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer);
 
-    DECLARE_ENTRY_POINT(NdisOpenAdapter);
+    DECLARE_ENTRY_POINT_CO(NdisFreeBufferPool);
+    DECLARE_ENTRY_POINT_CO(NdisFreePacketPool);
+    DECLARE_ENTRY_POINT_CO(NdisFreeBuffer);
+
+    DECLARE_ENTRY_POINT(NdisOpenAdapter, uint32_t pStatus, uint32_t pNdisBindingHandle);
     DECLARE_ENTRY_POINT(NdisOpenConfiguration);
 
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
     DECLARE_ENTRY_POINT(NdisWritePciSlotInformation);
-    
+
     //These are contained inside the miniport handle
     DECLARE_ENTRY_POINT(NdisMStatusHandler);
 
@@ -158,7 +164,9 @@ private:
     DECLARE_ENTRY_POINT(QueryInformationHandler);
     DECLARE_ENTRY_POINT(ReconfigureHandler);
     DECLARE_ENTRY_POINT(ResetHandler);
-    DECLARE_ENTRY_POINT(SendHandler);
+    DECLARE_ENTRY_POINT(SendHandler, uint32_t pPacket);
+    DECLARE_ENTRY_POINT(NdisMSendCompleteHandler);
+
     DECLARE_ENTRY_POINT(SendPacketsHandler);
     DECLARE_ENTRY_POINT(SetInformationHandler);
     DECLARE_ENTRY_POINT(TransferDataHandler);
@@ -180,15 +188,15 @@ private:
     DECLARE_ENTRY_POINT(TransferDataCompleteHandler);
     DECLARE_ENTRY_POINT(ResetCompleteHandler);
     DECLARE_ENTRY_POINT(RequestCompleteHandler);
-    DECLARE_ENTRY_POINT(ReceiveHandler);
+    DECLARE_ENTRY_POINT(ReceiveHandler, bool pushed);
     DECLARE_ENTRY_POINT(ReceiveCompleteHandler);
     DECLARE_ENTRY_POINT(StatusHandler);
     DECLARE_ENTRY_POINT(StatusCompleteHandler);
 
     DECLARE_ENTRY_POINT(ReceivePacketHandler);
-    DECLARE_ENTRY_POINT(BindAdapterHandler);
-    DECLARE_ENTRY_POINT(UnbindAdapterHandler);
-    DECLARE_ENTRY_POINT(PnPEventHandler);
+    DECLARE_ENTRY_POINT(BindAdapterHandler, uint32_t pStatus, bool pushed);
+    DECLARE_ENTRY_POINT(UnbindAdapterHandler, uint32_t pStatus);
+    DECLARE_ENTRY_POINT(PnPEventHandler, bool pushed);
     DECLARE_ENTRY_POINT(UnloadHandler);
 
     DECLARE_ENTRY_POINT(CoSendCompleteHandler);
@@ -198,6 +206,24 @@ private:
 
 
     bool makePacketSymbolic(S2EExecutionState *s, uint32_t packet, bool keepSymbolicData);
+
+    static std::string makeConfigurationRegionString(uint32_t handle, bool free);
+
+    /* XXX: All these functions should be automatically synthesized... */
+    void grantPacket(S2EExecutionState *state, uint32_t pNdisPacket, uint32_t ProtocolReservedLength);
+    void revokePacket(S2EExecutionState *state, uint32_t pNdisPacket);
+
+    void grantMiniportAdapterContext(S2EExecutionState *state, uint32_t HandleParamNum);
+    void revokeMiniportAdapterContext(S2EExecutionState *state);
+
+    void grantBindingHandle(S2EExecutionState *state, uint32_t NdisBindingHandle);
+    void revokeBindingHandle(S2EExecutionState *state);
+
+    virtual void detectLeaks(S2EExecutionState *state,
+                     const ModuleDescriptor &module) {
+        revokeMiniportAdapterContext(state);
+        WindowsAnnotations<NdisHandlers, NdisHandlersState>::detectLeaks(state, module);
+    }
 
     //friend void WindowsApiInitializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
 };
@@ -226,9 +252,13 @@ private:
 
     uint32_t shutdownHandler;
 
+    bool exercisingInitEntryPoint;
+
     //Indicates whether the cable is plugged or not in the current state.
     //It may be unknown
-    CableStatus cableStatus;    
+    CableStatus cableStatus;
+
+    uint32_t ProtocolReservedLength;
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();

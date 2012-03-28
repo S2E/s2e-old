@@ -48,6 +48,7 @@ extern "C" {
 
 #include "WindowsDriverExerciser.h"
 #include "NtoskrnlHandlers.h"
+#include "Ntddk.h"
 
 using namespace s2e::windows;
 
@@ -96,12 +97,8 @@ void WindowsDriverExerciser::initialize()
                     &WindowsDriverExerciser::onModuleUnload)
             );
 
-    if (m_memoryChecker) {
-        m_detector->onModuleTransition.connect(
-            sigc::mem_fun(*this,
-                &WindowsDriverExerciser::onModuleTransition)
-            );
-    }
+
+    ASSERT_STRUC_SIZE(ETHREAD32, ETHREAD32_SIZE)
 }
 
 void WindowsDriverExerciser::onModuleLoad(
@@ -137,6 +134,16 @@ void WindowsDriverExerciser::onModuleLoad(
         m_memoryChecker->grantMemoryForModuleSections(state, module);
     }
 
+#if 0
+    if (m_statsCollector) {
+        //XXX: this should go into ModuleExecutionDetector
+        m_statsCollector->incrementModuleLoads(state);
+        if (m_statsCollector->getStatistics(state).moduleLoads > 4) {
+            s2e()->getExecutor()->terminateStateEarly(*state, "Barrier");
+        }
+    }
+#endif
+
     state->enableSymbolicExecution();
     state->enableForking();
 }
@@ -160,7 +167,12 @@ void WindowsDriverExerciser::onModuleUnload(
 
     //XXX: We might want to monitor multiple modules, so avoid killing
     switch(m_unloadAction) {
-        case SUCCEED: m_manager->succeedState(state); break;
+        case SUCCEED:
+        if (m_manager) {
+            m_manager->succeedState(state);
+        }
+
+        break;
         case KILL: {
             std::stringstream ss;
             ss << module.Name << " unloaded";
@@ -169,41 +181,6 @@ void WindowsDriverExerciser::onModuleUnload(
     }
 
     return;
-}
-
-void WindowsDriverExerciser::onModuleTransition(S2EExecutionState *state,
-                        const ModuleDescriptor *prevModule,
-                        const ModuleDescriptor *nextModule)
-{
-    //Revoke rights for the stack when exiting the module
-
-    if (prevModule) {
-        const std::string *s = m_detector->getModuleId(*prevModule);
-        if (!s || (m_loadedModules.find(*s) == m_loadedModules.end())) {
-            //Not the right module we want to intercept
-            return;
-        }
-        //Revoke the rights of the current module
-        m_memoryChecker->revokeMemoryForModule(state, prevModule, "stack");
-    }
-
-    //Grant rights for the new module
-    if (nextModule) {
-        const std::string *s = m_detector->getModuleId(*nextModule);
-        if (!s || (m_loadedModules.find(*s) == m_loadedModules.end())) {
-            //Not the right module we want to intercept
-            return;
-        }
-        //Revoke the rights of the current module
-        uint64_t stackBase, stackSize;
-        if (!m_windowsMonitor->getCurrentStack(state, &stackBase, &stackSize)) {
-            s2e()->getWarningsStream() << "Could not retrieve current stack" << '\n';
-            return;
-        }
-
-        m_memoryChecker->grantMemoryForModule(state, nextModule, stackBase, stackSize,
-                                              MemoryChecker::READWRITE, "stack");
-    }
 }
 
 void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -228,13 +205,21 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
                                      "args:EntryPoint:RegistryPath");
     }
 
-    FUNCMON_REGISTER_RETURN_A(state, fns, WindowsDriverExerciser::DriverEntryPointRet, driverObject);
+    bool pushed = false;
+    pushed = changeConsistencyForEntryPoint(state, STRICT, 0);
+    incrementEntryPoint(state);
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, WindowsDriverExerciser::DriverEntryPointRet, driverObject, pushed);
 }
 
-void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint32_t pDriverObject)
+void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint32_t pDriverObject, bool pushed)
 {
     s2e()->getDebugStream(state) << "Returning from WindowsDriverExerciser entry point "
                 << " at " << hexval(state->getPc()) << '\n';
+
+    if (pushed) {
+        m_models->pop(state);
+    }
 
     if(m_memoryChecker) {
         m_memoryChecker->revokeMemoryForModule(state, "args:EntryPoint:*");
@@ -249,7 +234,7 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     if (!NtSuccess(s2e(), state, eax)) {
         std::stringstream ss;
         ss << "Entry point failed with 0x" << std::hex << eax;
-
+        incrementFailures(state);
         detectLeaks(state, *module);
 
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
@@ -260,8 +245,10 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
 
     //Register all major functions, only if they belong to the driver itself
     DRIVER_OBJECT32 driverObject;
+    bool driverObjectValid = state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject));
+
     if (ntosHandlers) {
-        if (state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
+        if (driverObjectValid) {
             const ModuleDescriptor *desc = module;
     
             for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
@@ -283,11 +270,35 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
         s2e()->getWarningsStream() << "NtoskrnlHandlers plugin not loaded. Skipping all IRP annotations." << '\n';
     }
 
-    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    if (m_memoryChecker) {
+        //Windows will unload that section after DriverEntry returns.
+        m_memoryChecker->revokeMemoryForModuleSection(state, *module, "INIT");
+    }
+
+    if (driverObjectValid && driverObject.DriverUnload) {
+        s2e()->getDebugStream() << "Registering " << "DriverUnload" << " at " << hexval(driverObject.DriverUnload) << std::endl; \
+        registerEntryPoint(state, &WindowsDriverExerciser::DriverUnload, driverObject.DriverUnload);
+    }
+
+    if (m_manager) {
+        m_manager->succeedState(state);
+        m_functionMonitor->eraseSp(state, state->getPc());
+        throw CpuExitException();
+    }
 }
 
+
+void WindowsDriverExerciser::DriverUnload(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+
+    FUNCMON_REGISTER_RETURN(state, fns, WindowsDriverExerciser::DriverUnloadRet)
+}
+
+void WindowsDriverExerciser::DriverUnloadRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
 
 }
 }

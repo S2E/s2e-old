@@ -66,9 +66,12 @@ class MemoryChecker : public Plugin
 
     bool m_checkMemoryLeaks;
     bool m_checkMemoryErrors;
+    bool m_checkResourceLeaks;
 
     bool m_terminateOnLeaks;
     bool m_terminateOnErrors;
+
+    bool m_traceMemoryAccesses;
 
     sigc::connection m_dataMemoryAccessConnection;
 
@@ -92,11 +95,44 @@ class MemoryChecker : public Plugin
     // number of any characters.
     bool matchRegionType(const std::string &pattern, const std::string &type);
 
+
+public:
+    bool terminateOnErrors() const {
+        return m_terminateOnErrors;
+    }
+
     std::string getPrettyCodeLocation(S2EExecutionState *state);
 
 public:
+    /**
+     * Fired right before the actual checking.
+     * This gives a chance for other plugins to perform
+     * more fine-grained checks.
+     * When all callbacks return, the memory checker proceeds normally.
+     */
+    sigc::signal<void,
+            S2EExecutionState *,
+            uint64_t /* virtual address */,
+            unsigned /* size */,
+            bool /* isWrite */>
+            onPreCheck;
+
+    /**
+     * Fired if the actual checking failed.
+     * This gives a chance for other plugins to perform
+     * more fine-grained checks that were missed by MemoryChecker.
+     */
+    sigc::signal<void,
+            S2EExecutionState *,
+            uint64_t /* virtual address */,
+            unsigned /* size */,
+            bool /* isWrite */,
+            bool * /* success */>
+            onPostCheck;
+
+public:
     enum Permissions {
-        NONE=0, READ=1, WRITE=2, READWRITE=3
+        NONE=0, READ=1, WRITE=2, READWRITE=3, ANY=-1
     };
 
     MemoryChecker(S2E* s2e): Plugin(s2e) {}
@@ -112,6 +148,11 @@ public:
                 S2EExecutionState *state,
                 const ModuleDescriptor &desc
             );
+
+    void revokeMemoryForModuleSection(
+                S2EExecutionState *state,
+                const ModuleDescriptor &module,
+                const std::string &section);
 
 
     void revokeMemoryForModuleSections(
@@ -133,11 +174,21 @@ public:
     bool revokeMemoryForModule(S2EExecutionState *state,
                      const std::string &regionTypePattern);
 
+
+    void grantResourceForModule(S2EExecutionState *state,
+                                uint64_t handle,
+                                const std::string &resourceType);
+
     bool revokeMemoryForModule(
             S2EExecutionState *state,
             const ModuleDescriptor *module,
             const std::string &regionTypePattern);
 
+    void grantResource(S2EExecutionState *state,
+                       uint64_t handle, const std::string &resourceType);
+
+    void revokeResource(S2EExecutionState *state,
+                       uint64_t handle);
 
     void grantMemory(S2EExecutionState *state,
                      uint64_t start, uint64_t size, Permissions perms,
@@ -148,7 +199,7 @@ public:
     // NOTE: end, perms and regionID can be -1, regionTypePattern can be NULL
     bool revokeMemory(S2EExecutionState *state,
                       uint64_t start, uint64_t size,
-                      Permissions perms = READWRITE,
+                      Permissions perms = ANY,
                       const std::string &regionTypePattern = "",
                       uint64_t regionID = uint64_t(-1));
 
@@ -176,6 +227,9 @@ public:
     bool checkMemoryAccess(S2EExecutionState *state,
                            uint64_t start, uint64_t size, uint8_t perms,
                            llvm::raw_ostream &message);
+
+    // Check that all resources were freed
+    bool checkResourceLeaks(S2EExecutionState *state);
 
     // Check that all memory objects were freed
     bool checkMemoryLeaks(S2EExecutionState *state);

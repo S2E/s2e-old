@@ -61,6 +61,14 @@ namespace {
         uint64_t size;
     };
 
+    //Used to track OS resources that are accessed
+    //through a handle
+    struct ResourceHandle {
+        uint64_t allocPC;
+        std::string type;
+        uint64_t handle;
+    };
+
     //XXX: Should also add per-module permissions
     struct MemoryRegion {
         MemoryRange range;
@@ -80,6 +88,8 @@ namespace {
     typedef klee::ImmutableMap<MemoryRange, const MemoryRegion*,
                                MemoryRangeLT> MemoryMap;
 
+    typedef klee::ImmutableMap<uint64_t, ResourceHandle> ResourceHandleMap;
+
     llvm::raw_ostream& operator <<(llvm::raw_ostream& out, const MemoryRegion& r) {
         out << "MemoryRegion(\n"
             << "    start = " << hexval(r.range.start) << "\n"
@@ -91,12 +101,21 @@ namespace {
             << "    permanent = " << r.permanent << ")";
         return out;
     }
+
+    llvm::raw_ostream& operator <<(std::ostream& out, const ResourceHandle& r) {
+        out << "ResourceHandle(\n"
+            << "    handle = " << hexval(r.handle) << "\n"
+            << "    allocPC = " << hexval(r.allocPC) << "\n"
+            << "    type = " << r.type << "\n";
+        return out;
+    }
 } // namespace
 
 class MemoryCheckerState: public PluginState
 {
 public:
     MemoryMap m_memoryMap;
+    ResourceHandleMap m_resourceMap;
 
 public:
     MemoryCheckerState() {}
@@ -114,17 +133,28 @@ public:
     void setMemoryMap(const MemoryMap& memoryMap) {
         m_memoryMap = memoryMap;
     }
+
+    ResourceHandleMap &getResourceMap() {
+        return m_resourceMap;
+    }
+
+    void setResourceMap(const ResourceHandleMap& resourceMap) {
+        m_resourceMap = resourceMap;
+    }
 };
 
 void MemoryChecker::initialize()
 {
     ConfigFile *cfg = s2e()->getConfig();
 
-    m_checkMemoryErrors = cfg->getBool(getConfigKey() + ".checkMemoryErrors");
-    m_checkMemoryLeaks = cfg->getBool(getConfigKey() + ".checkMemoryLeaks");
+    m_checkMemoryErrors = cfg->getBool(getConfigKey() + ".checkMemoryErrors", true);
+    m_checkMemoryLeaks = cfg->getBool(getConfigKey() + ".checkMemoryLeaks", true);
+    m_checkResourceLeaks = cfg->getBool(getConfigKey() + ".checkResourceLeaks", true);
 
-    m_terminateOnErrors = cfg->getBool(getConfigKey() + ".terminateOnErrors");
-    m_terminateOnLeaks = cfg->getBool(getConfigKey() + ".terminateOnLeaks");
+    m_terminateOnErrors = cfg->getBool(getConfigKey() + ".terminateOnErrors", true);
+    m_terminateOnLeaks = cfg->getBool(getConfigKey() + ".terminateOnLeaks", true);
+
+    m_traceMemoryAccesses = cfg->getBool(getConfigKey() + ".traceMemoryAccesses", false);
 
     m_moduleDetector = static_cast<ModuleExecutionDetector*>(
                             s2e()->getPlugin("ModuleExecutionDetector"));
@@ -205,7 +235,7 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
 {
     if (state->isRunningExceptionEmulationCode()) {
         //We do not check what memory the CPU accesses.
-        s2e()->getWarningsStream() << "Running emulation code" << '\n';
+        //s2e()->getWarningsStream() << "Running emulation code" << std::endl;
         return;
     }
 
@@ -215,16 +245,35 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
         return;
     }
 
+    //XXX: This is a hack.
+    //Sometimes the onModuleTransition is not fired properly...
+    if (!m_moduleDetector->getCurrentDescriptor(state)) {
+        m_dataMemoryAccessConnection.disconnect();
+        return;
+    }
+
+    if (m_traceMemoryAccesses) {
+        m_memoryTracer->traceDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
+    }
+
     uint64_t start = cast<klee::ConstantExpr>(virtualAddress)->getZExtValue();
+    unsigned accessSize = klee::Expr::getMinBytesForWidth(value->getWidth());
+
+    onPreCheck.emit(state, start, accessSize, isWrite);
 
     std::string errstr;
     llvm::raw_string_ostream err(errstr);
     bool result = checkMemoryAccess(state, start,
-                      klee::Expr::getMinBytesForWidth(value->getWidth()),
+                      accessSize,
                       isWrite ? 2 : 1, err);
 
+
     if (!result) {
-        m_memoryTracer->onDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
+        onPostCheck.emit(state, start, accessSize, isWrite, &result);
+        if (result) {
+            return;
+        }
+
         if(m_terminateOnErrors)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
@@ -251,8 +300,8 @@ bool MemoryChecker::matchRegionType(const std::string &pattern, const std::strin
     std::string typePrefix = type.substr(0, len-1);
     std::string patternPrefix = pattern.substr(0, len-1);
 
-    s2e()->getDebugStream() << "matchRegionType typePrefix=" << typePrefix
-            << " patternPrefix=" << patternPrefix << '\n';
+//    s2e()->getDebugStream() << "matchRegionType typePrefix=" << typePrefix
+//            << " patternPrefix=" << patternPrefix << std::endl;
 
     return typePrefix.compare(patternPrefix) == 0;
 }
@@ -289,6 +338,15 @@ void MemoryChecker::revokeMemoryForModuleSections(
         )
 {
     revokeMemoryForModule(state, &module, "section:*");
+}
+
+void MemoryChecker::revokeMemoryForModuleSection(
+            S2EExecutionState *state,
+            const ModuleDescriptor &module,
+            const std::string &section
+        )
+{
+    revokeMemoryForModule(state, &module, "section:" + section);
 }
 
 void MemoryChecker::revokeMemoryForModuleSections(
@@ -497,7 +555,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
                 << "  NOTE: requested region: " << *region << '\n';
         }
 
-        if(perms != uint8_t(-1) && res->second->perms != perms) {
+        if(perms != ANY && res->second->perms != perms) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory region with wrong permissions!" << '\n'
                 << "  NOTE: allocated region: " << *res->second << '\n'
@@ -608,7 +666,80 @@ bool MemoryChecker::revokeMemoryByPointer(S2EExecutionState *state, uint64_t poi
         return false;
     }
 
-    return revokeMemory(state, start, size, MemoryChecker::READWRITE, regionTypePattern);
+    return revokeMemory(state, start, size, ANY, regionTypePattern);
+}
+
+
+void MemoryChecker::grantResourceForModule(S2EExecutionState *state,
+                                           uint64_t handle, const std::string &resourceType)
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false);
+        return;
+    }
+
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":resource:" << resourceType;
+    grantResource(state, handle, resourceType);
+}
+
+void MemoryChecker::grantResource(S2EExecutionState *state,
+                   uint64_t handle, const std::string &resourceType)
+{
+    DECLARE_PLUGINSTATE(MemoryCheckerState, state);
+
+    ResourceHandleMap &resourceMap = plgState->getResourceMap();
+
+    ResourceHandle res;
+    res.allocPC = state->getPc();
+    res.handle = handle;
+    res.type = resourceType;
+
+    s2e()->getDebugStream(state) << "MemoryChecker::grantResource("
+            << res << ")" << std::endl;
+
+    /********************************************/
+    /* Write a log entry about the grant event */
+    unsigned traceEntrySize = 0;
+    ExecutionTraceMemChecker::Flags traceFlags =
+            ExecutionTraceMemChecker::Flags(
+            ExecutionTraceMemChecker::GRANT |
+            ExecutionTraceMemChecker::RESOURCE);
+
+    ExecutionTraceMemChecker::Serialized *traceEntry =
+            ExecutionTraceMemChecker::serialize(&traceEntrySize, handle, 0,
+                                                traceFlags,
+                                                resourceType);
+
+    m_executionTracer->writeData(state, traceEntry, traceEntrySize, TRACE_MEM_CHECKER);
+    delete [] (uint8_t*)traceEntry;
+    /********************************************/
+
+    const ResourceHandleMap::value_type *exres = resourceMap.lookup(handle);
+    if (exres) {
+        s2e()->getWarningsStream(state) << "MemoryChecker::grantResource: "
+            << "resource already allocated!" << '\n'
+            << "This probably means a bug in the OS or S2E API annotations"<< '\n'
+            << "NOTE: requested resource: " << hexval(handle) << '\n'
+            << "NOTE: existing region   : " << exres->second << '\n';
+        return;
+    }
+
+    plgState->setResourceMap(resourceMap.replace(std::make_pair(handle, res)));
+
+}
+
+void MemoryChecker::revokeResource(S2EExecutionState *state,  uint64_t handle)
+{
+    DECLARE_PLUGINSTATE(MemoryCheckerState, state);
+
+    ResourceHandleMap &resourceMap = plgState->getResourceMap();
+
+    s2e()->getDebugStream(state) << "MemoryChecker::revokeResource("
+                                 << "handle = '" << hexval(handle) << ")" << '\n';
+
+    plgState->setResourceMap(resourceMap.remove(handle));
 }
 
 bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
@@ -691,6 +822,45 @@ bool MemoryChecker::findMemoryRegion(S2EExecutionState *state,
 
     if (size)
         *size = res->first.size;
+
+    return true;
+}
+
+bool MemoryChecker::checkResourceLeaks(S2EExecutionState *state)
+{
+    if(!m_checkResourceLeaks)
+        return true;
+
+    DECLARE_PLUGINSTATE(MemoryCheckerState, state);
+
+    ResourceHandleMap &resourceMap = plgState->getResourceMap();
+
+    s2e()->getDebugStream(state) << "MemoryChecker::checkResourceLeaks" << '\n';
+
+    if (resourceMap.empty()) {
+        return true;
+    }
+
+    std::stringstream err;
+    ResourceHandleMap::iterator it = resourceMap.begin();
+
+    while(it != resourceMap.end()) {
+            if(err.str().empty()) {
+                err << "MemoryChecker::checkResourceLeaks: "
+                    << "resource leaks detected!" << '\n';
+            }
+            err << "  NOTE: leaked memory region: "
+                << it->second << '\n';
+            ++it;
+    }
+
+    if(!err.str().empty()) {
+        if(m_terminateOnLeaks)
+            s2e()->getExecutor()->terminateStateEarly(*state, err.str());
+        else
+            s2e()->getWarningsStream(state) << err.str() << std::flush;
+        return false;
+    }
 
     return true;
 }

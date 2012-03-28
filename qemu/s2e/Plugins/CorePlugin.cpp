@@ -279,6 +279,29 @@ void s2e_on_translate_instruction_end(
     }
 }
 
+void s2e_on_translate_register_access(
+        TranslationBlock *tb, uint64_t pc,
+        uint64_t readMask, uint64_t writeMask, int isMemoryAccess)
+{
+    assert(g_s2e_state->isActive());
+
+    ExecutionSignal *signal = static_cast<ExecutionSignal*>(
+                                    tb->s2e_tb->executionSignals.back());
+    assert(signal->empty());
+
+    try {
+        g_s2e->getCorePlugin()->onTranslateRegisterAccessEnd.emit(signal,
+                  g_s2e_state, tb, pc, readMask, writeMask, (bool)isMemoryAccess);
+
+        if(!signal->empty()) {
+            s2e_tcg_instrument_code(g_s2e, signal, pc);
+            tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
+        }
+    } catch(s2e::CpuExitException&) {
+        s2e_longjmp(env->jmp_env, 1);
+    }
+}
+
 static void s2e_on_exception_slow(unsigned intNb)
 {
     assert(g_s2e_state->isActive());
@@ -409,3 +432,33 @@ int s2e_is_mmio_symbolic_q(uint64_t address)
     return g_s2e->getCorePlugin()->isMmioSymbolic(address, 8);
 }
 
+void s2e_on_privilege_change(unsigned previous, unsigned current)
+{
+    assert(g_s2e_state->isActive());
+
+    try {
+        g_s2e->getCorePlugin()->onPrivilegeChange.emit(g_s2e_state, previous, current);
+    } catch(s2e::CpuExitException&) {
+        assert(false && "Cannot throw exceptions here. VM state may be inconsistent at this point.");
+    }
+}
+
+void s2e_on_page_directory_change(uint64_t previous, uint64_t current)
+{
+    assert(g_s2e_state->isActive());
+
+    try {
+        g_s2e->getCorePlugin()->onPageDirectoryChange.emit(g_s2e_state, previous, current);
+    } catch(s2e::CpuExitException&) {
+        assert(false && "Cannot throw exceptions here. VM state may be inconsistent at this point.");
+    }
+}
+
+void s2e_on_initialization_complete(void)
+{
+    try {
+        g_s2e->getCorePlugin()->onInitializationComplete.emit(g_s2e_state);
+    } catch(s2e::CpuExitException&) {
+        assert(false && "Cannot throw exceptions here. VM state may be inconsistent at this point.");
+    }
+}

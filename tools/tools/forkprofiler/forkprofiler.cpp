@@ -69,7 +69,7 @@ cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
 
 cl::list<std::string>
-    ModPath("modpath", cl::desc("Path to modules"));
+    ModDir("moddir", cl::desc("Directory containing the binary modules"));
 
 }
 
@@ -282,7 +282,7 @@ int main(int argc, char **argv)
     cl::ParseCommandLineOptions(argc, (char**) argv, " debugger");
 
     Library library;
-    library.setPaths(ModPath);
+    library.setPaths(ModDir);
 
     LogParser parser;
     PathBuilder pb(&parser);

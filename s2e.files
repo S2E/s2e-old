@@ -25,6 +25,8 @@ docs/Howtos/Parallel.html
 docs/Howtos/Parallel.rst
 docs/Howtos/WritingPlugins.html
 docs/Howtos/WritingPlugins.rst
+docs/Howtos/init_env.html
+docs/Howtos/init_env.rst
 docs/ImageInstallation.html
 docs/ImageInstallation.rst
 docs/Makefile
@@ -83,7 +85,10 @@ docs/rst2html-pygments
 docs/rst2latex-pygments
 docs/s2e.css
 docs/sample/factorial.c
+guest/Makefile
 guest/include/s2e.h
+guest/init_env/Makefile
+guest/init_env/init_env.c
 guest/s2ecmd/Makefile
 guest/s2ecmd/s2ecmd.c
 guest/s2eget/Makefile
@@ -1782,6 +1787,8 @@ qemu/s2e/Plugins/FunctionMonitor.cpp
 qemu/s2e/Plugins/FunctionMonitor.h
 qemu/s2e/Plugins/HostFiles.cpp
 qemu/s2e/Plugins/HostFiles.h
+qemu/s2e/Plugins/InterruptInjector.cpp
+qemu/s2e/Plugins/InterruptInjector.h
 qemu/s2e/Plugins/LibraryCallMonitor.cpp
 qemu/s2e/Plugins/LibraryCallMonitor.h
 qemu/s2e/Plugins/MemoryChecker.cpp
@@ -1797,10 +1804,15 @@ qemu/s2e/Plugins/Searchers/CooperativeSearcher.cpp
 qemu/s2e/Plugins/Searchers/CooperativeSearcher.h
 qemu/s2e/Plugins/Searchers/MaxTbSearcher.cpp
 qemu/s2e/Plugins/Searchers/MaxTbSearcher.h
+qemu/s2e/Plugins/StackChecker.cpp
+qemu/s2e/Plugins/StackChecker.h
+qemu/s2e/Plugins/StackMonitor.cpp
+qemu/s2e/Plugins/StackMonitor.h
 qemu/s2e/Plugins/StateManager.cpp
 qemu/s2e/Plugins/StateManager.h
 qemu/s2e/Plugins/SymbolicHardware.cpp
 qemu/s2e/Plugins/SymbolicHardware.h
+qemu/s2e/Plugins/ThreadDescriptor.h
 qemu/s2e/Plugins/WindowsApi/Api.cpp
 qemu/s2e/Plugins/WindowsApi/Api.h
 qemu/s2e/Plugins/WindowsApi/HalHandlers.cpp
@@ -1809,6 +1821,7 @@ qemu/s2e/Plugins/WindowsApi/Ndis.h
 qemu/s2e/Plugins/WindowsApi/NdisHandlers.cpp
 qemu/s2e/Plugins/WindowsApi/NdisHandlers.h
 qemu/s2e/Plugins/WindowsApi/NdisHandlersUtils.cpp
+qemu/s2e/Plugins/WindowsApi/NdisMemoryCheck.cpp
 qemu/s2e/Plugins/WindowsApi/NdisProtocolHandlers.cpp
 qemu/s2e/Plugins/WindowsApi/Ntddk.h
 qemu/s2e/Plugins/WindowsApi/NtoskrnlHandlers.cpp
@@ -2721,6 +2734,8 @@ tools/lib/BinaryReaders/Pe.cpp
 tools/lib/BinaryReaders/Pe.h
 tools/lib/BinaryReaders/TextModule.cpp
 tools/lib/BinaryReaders/TextModule.h
+tools/lib/ExecutionTracer/CacheProfiler.cpp
+tools/lib/ExecutionTracer/CacheProfiler.h
 tools/lib/ExecutionTracer/InstructionCounter.cpp
 tools/lib/ExecutionTracer/InstructionCounter.h
 tools/lib/ExecutionTracer/LogParser.cpp
@@ -2739,6 +2754,8 @@ tools/lib/Utils/BasicBlockListParser.cpp
 tools/lib/Utils/BasicBlockListParser.h
 tools/lib/Utils/Makefile
 tools/tools/Makefile
+tools/tools/cacheprof/Makefile
+tools/tools/cacheprof/cacheprof.cpp
 tools/tools/coverage/Coverage.cpp
 tools/tools/coverage/Coverage.h
 tools/tools/coverage/Makefile
@@ -2748,6 +2765,9 @@ tools/tools/debugger/Makefile
 tools/tools/forkprofiler/Makefile
 tools/tools/forkprofiler/forkprofiler.cpp
 tools/tools/forkprofiler/forkprofiler.h
+tools/tools/icounter/Makefile
+tools/tools/icounter/icounter.cpp
+tools/tools/icounter/icounter.h
 tools/tools/pfprofiler/CacheProfiler.cpp
 tools/tools/pfprofiler/CacheProfiler.h
 tools/tools/pfprofiler/Makefile
@@ -2756,6 +2776,7 @@ tools/tools/pfprofiler/pfprofiler.h
 tools/tools/s2etools-config/FinalLibDeps.txt
 tools/tools/s2etools-config/Makefile
 tools/tools/s2etools-config/s2etools-config.in.in
+tools/tools/scripts/gdb.ini
 tools/tools/scripts/ida/extractBasicBlocks.py
 tools/tools/scripts/ida/extractFunctions.py
 tools/tools/tbtrace/Makefile

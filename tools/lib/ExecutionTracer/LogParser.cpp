@@ -65,7 +65,7 @@ void LogEvents::processItem(unsigned currentItem,
     assert(hdr.type < TRACE_MAX);
 
 #ifdef DEBUG_LP
-    std::cerr << "Item " << currentItem << " sid=" << (int)hdr.stateId <<
+    std::cout << "Item " << currentItem << " sid=" << (int)hdr.stateId <<
             " type=" << (int) hdr.type << std::endl;
 #endif
 
@@ -205,6 +205,10 @@ bool LogParser::parse(const std::string &fileName)
             }
         }
 
+#ifdef DEBUG_PB
+        std::cout << fileName <<  " item=" << currentItem << " buffer="   << (void*)buffer <<
+                     " ts=" << hdr->timeStamp <<  " offset=" << currentOffset << std::endl;
+#endif
         processItem(currentItem, *hdr, buffer);
         buffer+=hdr->size;
 

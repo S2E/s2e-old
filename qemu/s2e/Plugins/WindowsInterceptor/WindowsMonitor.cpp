@@ -50,6 +50,8 @@ extern "C" {
 #include "UserModeInterceptor.h"
 #include "KernelModeInterceptor.h"
 
+#include <s2e/Plugins/WindowsApi/Ntddk.h>
+
 #include <string>
 #include <cstring>
 #include <sstream>
@@ -75,6 +77,7 @@ const char *WindowsMonitor::s_windowsStrings[] =
 
 bool WindowsMonitor::s_checkedMap[] = {false, false, true, true};
 
+/*                                             XPSP2         XPSP3        XPSP2-CHK   XPSP3-CHK   SRV2008SP2 */
 unsigned WindowsMonitor::s_pointerSize[] =     {4,4,4,4,4};
 uint64_t WindowsMonitor::s_kernelNativeBase[]= {0x00000000,  0x00400000,  0x00000000, 0x00400000, 0x00400000};
 //uint64_t WindowsMonitor::s_kernelLoadBase[]=   {0x00000000,  0x804d7000,  0x00000000, 0x80a02000, 0x81836000};
@@ -93,12 +96,23 @@ uint64_t WindowsMonitor::s_panicPc3[] =        {0x00000000, 0x0045C7F3, 0x000000
 
 uint64_t WindowsMonitor::s_ntTerminateProc[] = {0x00000000, 0x004ab3c8, 0x00000000, 0x005dab73, 0x0061913f};
 
+//Points to the instruction after which the kernel-mode stack in KTHREAD is properly initialized
+uint64_t WindowsMonitor::s_ntKeInitThread[] =  {0x00000000, 0x004b75fc, 0x00000000, 0x00000000, 0x00000000};
+
+//Points to the start of KeTerminateThread (this function terminates the current thread)
+uint64_t WindowsMonitor::s_ntKeTerminateThread[] = {0x00000000, 0x004214c9, 0x00000000, 0x00000000, 0x00000000};
+
 uint64_t WindowsMonitor::s_sysServicePc[] =    {0x00000000, 0x00407631, 0x00000000, 0x004dca05, 0x0045777E};
 
 uint64_t WindowsMonitor::s_psProcListPtr[] =   {0x00000000, 0x0048A358, 0x00000000, 0x005102b8, 0x00504150};
 
 uint64_t WindowsMonitor::s_ldrpCall[] =        {0x7C901193, 0x7C901176, 0x00000000, 0x00000000, 0x77F11698};
 uint64_t WindowsMonitor::s_dllUnloadPc[] =     {0x00000000, 0x7c91e12a, 0x00000000, 0x00000000, 0x77F0BB58};
+
+//Offset of the thread list head in EPROCESS
+uint64_t WindowsMonitor::s_offEprocAllThreads[] =     {0x0, 0x190, 0x0, 0x0, 0x0};
+//Offset of the thread list link in ETHREAD
+uint64_t WindowsMonitor::s_offEthreadLink[] =         {0x0, 0x22c, 0x0, 0x0, 0x0};
 
 
 WindowsMonitor::~WindowsMonitor()
@@ -122,6 +136,8 @@ void WindowsMonitor::initialize()
     m_MonitorModuleLoad = s2e()->getConfig()->getBool(getConfigKey() + ".monitorModuleLoad");
     m_MonitorModuleUnload = s2e()->getConfig()->getBool(getConfigKey() + ".monitorModuleUnload");
     m_MonitorProcessUnload = s2e()->getConfig()->getBool(getConfigKey() + ".monitorProcessUnload");
+    m_monitorThreads = s2e()->getConfig()->getBool(getConfigKey() + ".monitorThreads", true);
+
 
     m_KernelBase = GetKernelStart();
     m_FirstTime = true;
@@ -155,6 +171,14 @@ void WindowsMonitor::initialize()
             break;
     }
 
+    //XXX: Warn about some unsupported features
+    if (m_Version != XPSP3 && m_monitorThreads) {
+        s2e()->getWarningsStream() << "WindowsMonitor does not support threads for the chosen OS version.\n"
+                                   << "Please use monitorThreads=false in the configuration file\n"
+                                   << "Plugins that depend on this feature will not work.\n";
+        exit(-1);
+    }
+
     m_pKPCRAddr = 0;
     m_pKPRCBAddr = 0;
 
@@ -172,8 +196,8 @@ void WindowsMonitor::initialize()
     s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
         sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionStart));
 
-    s2e()->getCorePlugin()->onTranslateInstructionEnd.connect(
-        sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionEnd));
+    s2e()->getCorePlugin()->onPageDirectoryChange.connect(
+        sigc::mem_fun(*this, &WindowsMonitor::onPageDirectoryChange));
 
     readModuleCfg();
 }
@@ -247,6 +271,7 @@ error:
 
 }
 
+//XXX: This may slowdown translation as it is called on every instruction
 void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
                                                    S2EExecutionState *state,
                                                    TranslationBlock *tb,
@@ -278,35 +303,25 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
         //XXX: a module load can be notified twice if it was being loaded while the snapshot was saved.
         if (m_FirstTime) {
             slotKmUpdateModuleList(state, pc);
+            notifyLoadForAllThreads(state);
         }
 
         if (pc == GetDriverLoadPc()) {
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmModuleLoad));
         }else if (pc == GetDeleteDriverPc()) {
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmModuleUnload));
+        }else if (m_monitorThreads && pc == GetKeInitThread()) {
+            signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmThreadInit));
+        }else if (m_monitorThreads && pc == GetKeTerminateThread()) {
+            signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmThreadExit));
         }
     }
 
     m_FirstTime = false;
 }
 
-void WindowsMonitor::slotTranslateInstructionEnd(ExecutionSignal *signal,
-    S2EExecutionState *state,
-    TranslationBlock *tb,
-    uint64_t pc)
-{
-    if (!m_TrackPidSet) {
-        return;
-    }
 
-    if (!isTaskSwitch(state, pc)) {
-        return;
-    }
-
-   signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotMonitorProcessSwitch));
-}
-
-void WindowsMonitor::slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t pc)
+void WindowsMonitor::onPageDirectoryChange(S2EExecutionState *state, uint64_t previous, uint64_t current)
 {
     DECLARE_PLUGINSTATE(WindowsMonitorState, state);
 
@@ -315,7 +330,7 @@ void WindowsMonitor::slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t
         return;
     }
 
-    if (state->getPid() != plgState->m_CurrentPid) {
+    if (previous != current) {
         plgState->m_CurrentPid = state->getPid();
         if (m_PidSet.find(state->getPid()) != m_PidSet.end()) {
             if (!m_UserModeInterceptor->CatchModuleLoad(state)) {
@@ -364,6 +379,43 @@ void WindowsMonitor::slotKmModuleUnload(S2EExecutionState *state, uint64_t pc)
     m_KernelModeInterceptor->CatchModuleUnload(state);
 }
 
+void WindowsMonitor::slotKmThreadInit(S2EExecutionState *state, uint64_t pc)
+{
+    s2e()->getDebugStream() << "WindowsMonitor: creating kernel-mode thread\n";
+
+    uint32_t pThread;
+    assert(m_Version == XPSP3 && "Unsupported OS version");
+
+    //XXX: Fix assumption about ESI register
+    if (!state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESI]), &pThread, sizeof(pThread))) {
+        return;
+    }
+
+    ThreadDescriptor threadDescriptor;
+    bool res = getThreadDescriptor(state, pThread, threadDescriptor);
+    if (!res) {
+        return;
+    }
+
+    onThreadCreate.emit(state, threadDescriptor);
+}
+
+void WindowsMonitor::slotKmThreadExit(S2EExecutionState *state, uint64_t pc)
+{
+    uint64_t pThread = getCurrentThread(state);
+
+    ThreadDescriptor threadDescriptor;
+    bool res = getThreadDescriptor(state, pThread, threadDescriptor);
+    if (!res) {
+        return;
+    }
+
+    s2e()->getDebugStream() << "WindowsMonitor: terminating kernel-mode thread stack="
+                            << hexval(threadDescriptor.KernelStackBottom)
+                            << " size=" << hexval(threadDescriptor.KernelStackSize) << "\n";
+    onThreadExit.emit(state, threadDescriptor);
+}
+
 /**
  *  Scans the list of kernel modules and registers each entry.
  *  This is useful in case the VM snapshot was resumed (and all
@@ -376,6 +428,92 @@ void WindowsMonitor::slotKmUpdateModuleList(S2EExecutionState *state, uint64_t p
         //List updated, unregister
         m_SyscallConnection.disconnect();
         m_FirstTime = false;
+    }
+}
+
+bool WindowsMonitor::getAllProcesses(S2EExecutionState *state, std::vector<uint64_t> &pEProcess)
+{
+    windows::LIST_ENTRY32 ListHead;
+    uint64_t ActiveProcessList = GetPsActiveProcessListPtr();
+    uint64_t pItem;
+
+    //Read the head of the list
+    if (!state->readMemoryConcrete(ActiveProcessList, &ListHead, sizeof(ListHead))) {
+        return false;
+    }
+
+    //Check for empty list
+    if (ListHead.Flink == ActiveProcessList) {
+        return false;
+    }
+
+    for (pItem = ListHead.Flink; pItem != ActiveProcessList; pItem = ListHead.Flink) {
+        if (!state->readMemoryConcrete(pItem, &ListHead, sizeof(ListHead))) {
+            return false;
+        }
+
+        uint32_t pProcessEntry = getProcessFromLink(pItem);
+        pEProcess.push_back(pProcessEntry);
+    }
+    return true;
+}
+
+bool WindowsMonitor::getAllThreads(S2EExecutionState *state, uint64_t process, std::vector<uint64_t> &pEThread)
+{
+    uint64_t headOffset = s_offEprocAllThreads[m_Version];
+    uint64_t linkOffset = s_offEthreadLink[m_Version];
+
+    assert(linkOffset && headOffset && "Not implemented yet\n");
+
+    uint64_t ThreadList = process + headOffset;
+
+    windows::LIST_ENTRY32 ListHead;
+    //Read the head of the list
+    if (!state->readMemoryConcrete(ThreadList, &ListHead, sizeof(ListHead))) {
+        return false;
+    }
+
+    //Check for empty list
+    if (ListHead.Flink == ThreadList) {
+        return false;
+    }
+
+    for (uint32_t pItem = ListHead.Flink; pItem != ThreadList; pItem = ListHead.Flink) {
+        if (!state->readMemoryConcrete(pItem, &ListHead, sizeof(ListHead))) {
+            return false;
+        }
+
+        pEThread.push_back(pItem - linkOffset);
+    }
+    return true;
+
+}
+
+void WindowsMonitor::notifyLoadForAllThreads(S2EExecutionState *state)
+{
+    std::vector<uint64_t> processes, threads;
+    if (!getAllProcesses(state, processes)) {
+        return;
+    }
+
+    foreach2(it, processes.begin(), processes.end()) {
+        uint64_t eprocess = *it;
+
+        getAllThreads(state, eprocess, threads);
+
+        foreach2(tit, threads.begin(), threads.end()) {
+            ThreadDescriptor threadDescriptor;
+            bool res = getThreadDescriptor(state, *tit, threadDescriptor);
+            if (!res) {
+                return;
+            }
+
+            //XXX: some thread descriptors seem broken
+            if (threadDescriptor.KernelStackBottom &&
+                    threadDescriptor.KernelStackSize < 0x10000) {
+                onThreadCreate.emit(state, threadDescriptor);
+            }
+        }
     }
 }
 
@@ -402,64 +540,24 @@ bool WindowsMonitor::getExports(S2EExecutionState *s, const ModuleDescriptor &de
 }
 
 
-//XXX: put in an appropriate place to share between different OSes.
-//Detects whether the current instruction is a write to the Cr3 register
-bool WindowsMonitor::isTaskSwitch(S2EExecutionState *state, uint64_t pc)
-{
-    uint64_t oldpc  = pc;
-    uint8_t pref, reg;
-    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
-        goto failure;
-    }
-
-    if (pref != 0x0F) {
-        goto failure;
-    }
-
-    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
-        goto failure;
-    }
-
-    if (pref != 0x22) {
-        goto failure;
-    }
-
-    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
-        goto failure;
-    }
-
-    reg = ((pref >> 3) & 7);
-    if (reg != 3) {
-        goto failure;
-    }
-
-    //We have got a task switch!
-    s2e()->getDebugStream() << "Detected task switch at 0x" << oldpc << '\n';
-
-    return true;
-
-failure:
-    //s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::dec << '\n';
-    return false;
-}
-
 uint64_t WindowsMonitor::GetDriverLoadPc() const
 {
-    assert(s_driverLoadPc[m_Version]);
+    assert(s_driverLoadPc[m_Version]  && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
     return s_driverLoadPc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetKdDebuggerDataBlock() const
 {
-    assert(s_kdDbgDataBlock[m_Version]);
+    assert(s_kdDbgDataBlock[m_Version] && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
     return (s_kdDbgDataBlock[m_Version] + offset);
 }
 
 bool WindowsMonitor::CheckPanic(uint64_t eip) const
 {
-    assert(s_panicPc1[m_Version] && s_panicPc2[m_Version] && s_panicPc3[m_Version]);
+    assert(s_panicPc1[m_Version] && s_panicPc2[m_Version] && s_panicPc3[m_Version]
+           && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
     return eip == s_panicPc1[m_Version] + offset ||
            eip == s_panicPc2[m_Version] + offset ||
@@ -479,7 +577,7 @@ uint64_t WindowsMonitor::GetKernelStart() const
 
 uint64_t WindowsMonitor::GetLdrpCallInitRoutine() const
 {
-    assert(s_ldrpCall[m_Version] && "Unsupported OS version");
+    assert(s_ldrpCall[m_Version] && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = s_ntdllLoadBase[m_Version] - s_ntdllNativeBase[m_Version];
     return s_ldrpCall[m_Version] + offset;
 }
@@ -499,37 +597,51 @@ uint64_t WindowsMonitor::GetKernelLoadBase() const
 
 uint64_t WindowsMonitor::GetNtTerminateProcessEProcessPoint() const
 {
-    assert(s_ntTerminateProc[m_Version]);
+    assert(s_ntTerminateProc[m_Version] && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
     return s_ntTerminateProc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetDeleteDriverPc() const
 {
-    assert(s_driverDeletePc[m_Version]);
+    assert(s_driverDeletePc[m_Version] && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
     return s_driverDeletePc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetSystemServicePc() const
 {
-    assert(s_sysServicePc[m_Version]);
+    assert(s_sysServicePc[m_Version] && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
     return s_sysServicePc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetDllUnloadPc() const
 {
-    assert(s_dllUnloadPc[m_Version] && "Unsupported OS version");
+    assert(s_dllUnloadPc[m_Version] && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = s_ntdllLoadBase[m_Version] - s_ntdllNativeBase[m_Version];
     return s_dllUnloadPc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetPsActiveProcessListPtr() const
 {
-    assert(s_psProcListPtr[m_Version]);
+    assert(s_psProcListPtr[m_Version] && "WindowsMonitor does not support this OS version yet");
     uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
     return s_psProcListPtr[m_Version] + offset;
+}
+
+uint64_t WindowsMonitor::GetKeInitThread() const
+{
+    assert(s_ntKeInitThread[m_Version] && "WindowsMonitor does not support this OS version yet");
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return s_ntKeInitThread[m_Version] + offset;
+}
+
+uint64_t WindowsMonitor::GetKeTerminateThread() const
+{
+    assert(s_ntKeTerminateThread[m_Version] && "WindowsMonitor does not support this OS version yet");
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return s_ntKeTerminateThread[m_Version] + offset;
 }
 
 bool WindowsMonitor::isKernelAddress(uint64_t pc) const
@@ -559,6 +671,25 @@ uint64_t WindowsMonitor::getCurrentThread(S2EExecutionState *state)
     return pThread;
 }
 
+uint64_t WindowsMonitor::getFirstThread(S2EExecutionState *state, uint64_t eprocess)
+{
+    uint64_t threadListEntryOffset;
+
+    if (m_kdVersion.MinorVersion >= BUILD_LONGHORN) {
+        assert(false && "Not implemented yet");
+    }else {
+        threadListEntryOffset = windows::EPROCESS32_THREADLISTHEAD_OFFSET_XP;
+    }
+
+    windows::LIST_ENTRY32 nextThread;
+    if (!state->readMemoryConcrete(eprocess + threadListEntryOffset, &nextThread, sizeof(nextThread))) {
+        return 0;
+    }
+
+    return nextThread.Flink - threadListEntryOffset;
+}
+
+
 uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
 {
     uint64_t pThread = getCurrentThread(state);
@@ -581,6 +712,7 @@ uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
 
     return pProcess;
 }
+
 
 //Retrieves the current Thread Information Block, stored in the FS register
 uint64_t WindowsMonitor::getTibAddress(S2EExecutionState *state)
@@ -652,15 +784,38 @@ uint64_t WindowsMonitor::getModuleSizeFromCfg(const std::string &module) const
     return (*it).second;
 }
 
-bool WindowsMonitor::getCurrentStack(S2EExecutionState *state, uint64_t *base, uint64_t *size)
+//Returns true if the current stack pointer falls within the DPC stack
+//of the current processor
+bool WindowsMonitor::getDpcStack(S2EExecutionState *state, uint64_t *base, uint64_t *size)
+{
+    //XXX: Hack to get DPC stacks
+    uint32_t sp = state->getSp();
+    uint32_t dpcStackPtr = m_pKPRCBAddr + windows::KPRCB32_DPC_STACK_OFFSET;
+    uint32_t dpcStack;
+
+    if (state->readMemoryConcrete(dpcStackPtr, &dpcStack, sizeof(dpcStack))) {
+        dpcStack -= 0x3000;
+        s2e()->getDebugStream() << "WindowsMonitor esp=" << hexval(sp) << " dpc=" << hexval(dpcStack) << std::endl;
+        if (sp >= dpcStack && sp < (dpcStack + 0x3000)) {
+            if (base) {
+                *base = dpcStack;
+            }
+            if (size) {
+                *size = 0x3000;
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool WindowsMonitor::getThreadStack(S2EExecutionState *state,
+                                    uint64_t pThread,
+                                    uint64_t *base, uint64_t *size)
 {
     if (!isKernelAddress(state->getPc())) {
         assert(false && "User-mode stack retrieval not implemented");
-    }
-
-    uint64_t pThread = getCurrentThread(state);
-    if (!pThread) {
-        return false;
     }
 
     s2e::windows::KTHREAD32 kThread;
@@ -668,13 +823,44 @@ bool WindowsMonitor::getCurrentStack(S2EExecutionState *state, uint64_t *base, u
         return false;
     }
 
-
     if (base) {
         *base = kThread.StackLimit;
     }
     if (size) {
         *size = kThread.InitialStack - kThread.StackLimit;
     }
+
+    return true;
+}
+
+bool WindowsMonitor::getCurrentStack(S2EExecutionState *state, uint64_t *base, uint64_t *size)
+{
+    if (getDpcStack(state, base, size)) {
+        return true;
+    }
+
+    uint64_t pThread = getCurrentThread(state);
+    if (!pThread) {
+        return false;
+    }
+
+    return getThreadStack(state, pThread, base, size);
+}
+
+//XXX: Does not work for user-mode for now.
+bool WindowsMonitor::getThreadDescriptor(S2EExecutionState *state,
+                                         uint64_t pThread,
+                                         ThreadDescriptor &threadDescriptor)
+{
+    uint64_t base = 0, size = 0;
+
+    if (!getThreadStack(state, pThread, &base, &size)) {
+        return false;
+    }
+
+    threadDescriptor.KernelMode = true;
+    threadDescriptor.KernelStackBottom = base;
+    threadDescriptor.KernelStackSize = size;
 
     return true;
 }

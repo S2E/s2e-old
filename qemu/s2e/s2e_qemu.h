@@ -139,6 +139,10 @@ void s2e_on_translate_jump_start(
         struct TranslationBlock* tb, uint64_t pc,
         int jump_type);
 
+void s2e_on_translate_register_access(
+        struct TranslationBlock *tb, uint64_t pc,
+        uint64_t readMask, uint64_t writeMask, int isMemoryAccess);
+
 void s2e_on_exception(unsigned intNb);
 
 /** Called on memory accesses from generated code */
@@ -246,7 +250,13 @@ void s2e_tb_free(struct S2E* s2e, struct TranslationBlock *tb);
     in order to update tb->s2e_tb->llvm_function */
 void s2e_set_tb_function(struct S2E* s2e, struct TranslationBlock *tb);
 
-uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env, struct TranslationBlock *tb);
+void s2e_flush_tlb_cache(void);
+void s2e_flush_tlb_cache_page(void *objectState, int mmu_idx, int index);
+
+uintptr_t s2e_qemu_tb_exec(
+        struct S2E* s2e,
+        struct S2EExecutionState* state,
+        struct TranslationBlock* tb);
 
 /* Called by QEMU when execution is aborted using longjmp */
 void s2e_qemu_cleanup_tb_exec(
@@ -305,6 +315,11 @@ void s2e_write_dirty_mask(uint64_t host_address, uint8_t val);
 
 void s2e_dma_read(uint64_t hostAddress, uint8_t *buf, unsigned size);
 void s2e_dma_write(uint64_t hostAddress, uint8_t *buf, unsigned size);
+
+void s2e_on_privilege_change(unsigned previous, unsigned current);
+void s2e_on_page_directory_change(uint64_t previous, uint64_t current);
+
+void s2e_on_initialization_complete(void);
 
 //XXX: Provide a means of including KLEE header
 /* Return a possible constant value for the input expression. This

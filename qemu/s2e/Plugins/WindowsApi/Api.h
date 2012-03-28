@@ -50,10 +50,13 @@
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
 #include <s2e/Plugins/MemoryChecker.h>
+#include <s2e/Plugins/ExecutionStatisticsCollector.h>
+#include <s2e/Plugins/ConsistencyModels.h>
 
 #include <map>
 #include <set>
 #include <sstream>
+#include <stack>
 
 namespace s2e {
 namespace plugins {
@@ -80,17 +83,23 @@ namespace plugins {
 #define HANDLER_TRACE_FCNFAILED_VAL(val) s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed with 0x" <<  hexval(val) << '\n'
 #define HANDLER_TRACE_PARAM_FAILED(val) s2e()->getDebugStream() << "Faild to read parameter " << val << " in " << __FUNCTION__ << " at line " << __LINE__ << '\n'
 
+#define ASSERT_STRUC_SIZE(struc, expected) \
+    if (sizeof(struc) != (expected)) { \
+    s2e()->getDebugStream() << #struc <<  " has invalid size: " << sizeof(struc) << " instead of " << (expected) << "\n"; \
+    exit(-1); \
+    }
+
 template <typename F>
 struct WindowsApiHandler {
     const char *name;
     F function;
 };
 
+
 class WindowsApi: public Plugin
 {
 public:
     typedef std::set<std::string> StringSet;
-    typedef std::set<ModuleDescriptor, ModuleDescriptor::ModuleByLoadBase> CallingModules;
 
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s);
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &eq);
@@ -103,13 +112,11 @@ public:
     static klee::ref<klee::Expr> readParameter(S2EExecutionState *s, unsigned param);
     static bool readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val);
     static bool writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val);
+    uint32_t getReturnAddress(S2EExecutionState *s);
 
-    enum Consistency {
-        OVERCONSTR, STRICT, LOCAL, OVERAPPROX
-    };
 
     //Maps a function name to a consistency
-    typedef std::map<std::string, Consistency> ConsistencyMap;
+    typedef std::map<std::string, ExecutionConsistencyModel> ConsistencyMap;
 
 
 protected:
@@ -120,39 +127,25 @@ protected:
     MemoryChecker *m_memoryChecker;
     StateManager *m_manager;
     BlueScreenInterceptor *m_bsodInterceptor;
+    ExecutionStatisticsCollector *m_statsCollector;
+    ConsistencyModels *m_models;
 
     //Allows specifying per-function consistency
     ConsistencyMap m_specificConsistency;
-    Consistency m_consistency;
 
-    //The modules that will call registered API functions.
-    //Annotations will not be triggered when calling from other modules.
-    CallingModules m_callingModules;
+    bool m_terminateOnWarnings;
 
 public:
     WindowsApi(S2E *s2e) : Plugin(s2e) {
         m_detector = NULL;
         m_functionMonitor = NULL;
         m_windowsMonitor = NULL;
-        m_consistency = STRICT;
     }
 
     void initialize();
 
     void onModuleUnload(S2EExecutionState* state, const ModuleDescriptor &module);
 
-
-    void registerCaller(const ModuleDescriptor &modDesc)
-    {
-        m_callingModules.insert(modDesc);
-    }
-
-    void unregisterCaller(const ModuleDescriptor &modDesc)
-    {
-        m_callingModules.erase(modDesc);
-    }
-
-    const ModuleDescriptor *calledFromModule(S2EExecutionState *s);
 protected:
     bool forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values);
 
@@ -166,11 +159,10 @@ protected:
 
     //Provides a common method for configuring consistency for Windows modules
     void parseSpecificConsistency(const std::string &key);
-    void parseConsistency(const std::string &key);
-    Consistency getConsistency(const std::string &fcn) const;
 
     void registerImports(S2EExecutionState *state, const ModuleDescriptor &module);    
     virtual void unregisterEntryPoints(S2EExecutionState *state, const ModuleDescriptor &module) = 0;
+    virtual void unregisterCaller(S2EExecutionState *state, const ModuleDescriptor &modDesc) = 0;
 
     ///////////////////////////////////
 
@@ -183,6 +175,34 @@ protected:
 
     bool revokeAccessToUnicodeString(S2EExecutionState *state,
                                     uint64_t address);
+
+    ///////////////////////////////////
+    void warning(S2EExecutionState *state, const std::string &msg) {
+        if (m_terminateOnWarnings) {
+            s2e()->getExecutor()->terminateStateEarly(*state, msg);
+        } else {
+            s2e()->getWarningsStream(state) << msg << "\n";
+        }
+    }
+
+    ///////////////////////////////////
+    void incrementFailures(S2EExecutionState *state) {
+        if (m_statsCollector) {
+            m_statsCollector->incrementLibCallFailures(state);
+        }
+    }
+
+    void incrementSuccesses(S2EExecutionState *state) {
+        if (m_statsCollector) {
+            m_statsCollector->incrementLibCallSuccesses(state);
+        }
+    }
+
+    void incrementEntryPoint(S2EExecutionState *state) {
+        if (m_statsCollector) {
+            m_statsCollector->incrementEntryPointCallForModule(state);
+        }
+    }
 };
 
 //Implements methods and helpers common to all kinds of
@@ -213,6 +233,45 @@ public:
     FunctionMonitor::CallSignal* getCallSignalForImport(Imports &I, const std::string &dll, const std::string &name,
                                       S2EExecutionState *state);
 
+
+    ExecutionConsistencyModel getConsistency(S2EExecutionState *state, const std::string &fcn) const {
+        ConsistencyMap::const_iterator it = m_specificConsistency.find(fcn);
+        if (it != m_specificConsistency.end()) {
+            return (*it).second;
+        }
+
+        return m_models->get(state);
+    }
+
+
+    void registerCaller(S2EExecutionState *state, const ModuleDescriptor &modDesc)
+    {
+        DECLARE_PLUGINSTATE(ANNOTATIONS_PLUGIN_STATE, state);
+        plgState->registerCaller(modDesc);
+    }
+
+    virtual void unregisterCaller(S2EExecutionState *state, const ModuleDescriptor &modDesc)
+    {
+        DECLARE_PLUGINSTATE(ANNOTATIONS_PLUGIN_STATE, state);
+        plgState->unregisterCaller(modDesc);
+    }
+
+    const ModuleDescriptor *calledFromModule(S2EExecutionState *state) {
+        DECLARE_PLUGINSTATE(ANNOTATIONS_PLUGIN_STATE, state);
+        uint32_t ra = getReturnAddress(state);
+        if (!ra) {
+            return NULL;
+        }
+
+        const ModuleDescriptor *mod = m_detector->getModule(state, ra);
+        if (!mod) {
+            return NULL;
+        }
+
+        const typename ANNOTATIONS_PLUGIN_STATE::CallingModules &cm = plgState->getCallingModules();
+
+        return (cm.find(*mod) != cm.end()) ? mod : NULL;
+    }
 
     //template <typename HANDLING_PLUGIN, typename HANDLER_PTR>
     static AnnotationsMap initializeHandlerMap() {
@@ -327,7 +386,9 @@ public:
         foreach2(it, entryPoints.begin(), entryPoints.end()) {
             if (!registerEntryPoint(state, (*it).first, (uint64_t)(*it).second)) {
                 if (ANNOTATIONS_PLUGIN::s_ignoredFunctions.find((*it).first) == ANNOTATIONS_PLUGIN::s_ignoredFunctions.end()) {
-                    s2e()->getWarningsStream() << "Import " << (*it).first << " not supported by " << getPluginInfo()->name << '\n';
+                    if (!isExportedVariable((*it).first)) {
+                        s2e()->getWarningsStream() << "Import " << (*it).first << " not supported by " << getPluginInfo()->name << '\n';
+                    }
                 }
             }
         }
@@ -367,7 +428,7 @@ public:
             foreach2(fit, symbols.begin(), symbols.end()) {
                 const std::string &fname = (*fit).first;
                 uint64_t address = (*fit).second;
-                unsigned size;
+                unsigned size = 0;
                 if (isExportedVariable(fname, &size)) {
                     assert(size > 0);
                     std::string impName = "import:";
@@ -393,13 +454,14 @@ public:
         }
     }
 
-    void detectLeaks(S2EExecutionState *state,
+    virtual void detectLeaks(S2EExecutionState *state,
                      const ModuleDescriptor &module) {
         if(m_memoryChecker) {
             unregisterImportedVariables(state, module);
             m_memoryChecker->revokeMemoryForModuleSections(state, module);
             m_memoryChecker->revokeMemoryForModule(state, &module, "stack");
             m_memoryChecker->checkMemoryLeaks(state);
+            m_memoryChecker->checkResourceLeaks(state);
         }
     }
 
@@ -413,6 +475,21 @@ public:
         }
     }
 #endif
+
+    bool changeConsistencyForEntryPoint(
+            S2EExecutionState *state,
+            ExecutionConsistencyModel model,
+            unsigned invocationThreshold) {
+
+        if (m_statsCollector) {
+            if (m_statsCollector->getTotalEntryPointCallCountForModule(state) > invocationThreshold) {
+                m_models->push(state, model);
+                return true;
+            }
+        }
+
+        return false;
+    }
 
 public:
 
@@ -442,7 +519,17 @@ private:
 public:
     typedef std::set<Annotation, Annotation> RegisteredAnnotations;
     typedef typename std::set<Annotation, Annotation>::iterator AnnotationsIterator;
+    typedef std::set<ModuleDescriptor, ModuleDescriptor::ModuleByLoadBase> CallingModules;
 
+private:
+    RegisteredAnnotations m_annotations;
+
+    //The modules that will call registered API functions.
+    //Annotations will not be triggered when calling from other modules.
+    CallingModules m_callingModules;
+
+
+public:
 
     template <class T>
     bool registerAnnotation(uint64_t pc, uint64_t pid, typename T::Callback annotation) {
@@ -477,6 +564,7 @@ public:
     }
 
     WindowsApiState(){}
+
     virtual ~WindowsApiState(){};
     virtual WindowsApiState* clone() const {
         return new WindowsApiState<ANNOTATIONS_PLUGIN>(*this);
@@ -486,8 +574,20 @@ public:
         return new WindowsApiState();
     }
 
-private:
-    RegisteredAnnotations m_annotations;
+
+    void registerCaller(const ModuleDescriptor &modDesc) {
+        m_callingModules.insert(modDesc);
+    }
+
+    void unregisterCaller(const ModuleDescriptor &modDesc) {
+        m_callingModules.erase(modDesc);
+    }
+
+    const CallingModules& getCallingModules() const {
+        return m_callingModules;
+    }
+
+
 };
 
 

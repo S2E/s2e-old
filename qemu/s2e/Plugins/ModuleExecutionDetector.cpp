@@ -54,11 +54,20 @@
  */
 //#define NDEBUG
 
+
+extern "C" {
+#include "config.h"
+#include "qemu-common.h"
+extern struct CPUX86State *env;
+}
+
+
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/s2e_qemu.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+#include <s2e/Plugins/Opcodes.h>
 
 #include "ModuleExecutionDetector.h"
 #include <assert.h>
@@ -83,48 +92,25 @@ void ModuleExecutionDetector::initialize()
     assert(m_Monitor);
 
     m_Monitor->onModuleLoad.connect(
-        sigc::mem_fun(
-            *this,
-            &ModuleExecutionDetector::moduleLoadListener
-        )
-    );
+        sigc::mem_fun(*this, &ModuleExecutionDetector::moduleLoadListener));
 
     m_Monitor->onModuleUnload.connect(
-        sigc::mem_fun(
-            *this,
-            &ModuleExecutionDetector::moduleUnloadListener
-        )
-    );
+        sigc::mem_fun(*this, &ModuleExecutionDetector::moduleUnloadListener));
 
     m_Monitor->onProcessUnload.connect(
-        sigc::mem_fun(
-            *this,
-            &ModuleExecutionDetector::processUnloadListener
-        )
-    );
+        sigc::mem_fun(*this, &ModuleExecutionDetector::processUnloadListener));
 
     s2e()->getCorePlugin()->onTranslateBlockStart.connect(
-        sigc::mem_fun(
-            *this,
-            &ModuleExecutionDetector::onTranslateBlockStart
-        )
-    );
+        sigc::mem_fun(*this, &ModuleExecutionDetector::onTranslateBlockStart));
 
     s2e()->getCorePlugin()->onTranslateBlockEnd.connect(
-            sigc::mem_fun(
-                *this,
-                &ModuleExecutionDetector::onTranslateBlockEnd
-            )
-        );
-
+            sigc::mem_fun(*this, &ModuleExecutionDetector::onTranslateBlockEnd));
 
     s2e()->getCorePlugin()->onException.connect(
-        sigc::mem_fun(
-            *this,
-            &ModuleExecutionDetector::exceptionListener
-        )
-    );
+        sigc::mem_fun(*this, &ModuleExecutionDetector::exceptionListener));
 
+    s2e()->getCorePlugin()->onCustomInstruction.connect(
+        sigc::mem_fun(*this, &ModuleExecutionDetector::onCustomInstruction));
 
     initializeConfiguration();
 }
@@ -188,6 +174,91 @@ void ModuleExecutionDetector::initializeConfiguration()
         m_ConfiguredModulesName.insert(d);
     }
 }
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+bool ModuleExecutionDetector::opAddModuleConfigEntry(S2EExecutionState *state)
+{
+    bool ok = true;
+    //XXX: 32-bits guests only
+    uint32_t moduleId, moduleName, isKernelMode;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &moduleId, sizeof(moduleId));
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &moduleName, sizeof(moduleName));
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EDX]), &isKernelMode, sizeof(isKernelMode));
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ModuleExecutionDetector: Could not read parameters.\n";
+        return false;
+    }
+
+    std::string strModuleId, strModuleName;
+    if (!state->readString(moduleId, strModuleId)) {
+        s2e()->getWarningsStream(state)
+            << "ModuleExecutionDetector: Could not read the module id string.\n";
+        return false;
+    }
+
+    if (!state->readString(moduleName, strModuleName)) {
+        s2e()->getWarningsStream(state)
+            << "ModuleExecutionDetector: Could not read the module name string.\n";
+        return false;
+    }
+
+    ModuleExecutionCfg desc;
+    desc.id = strModuleId;
+    desc.moduleName = strModuleName;
+    desc.kernelMode = (bool) isKernelMode;
+
+    s2e()->getMessagesStream() << "ModuleExecutionDetector: Adding module " <<
+            "id=" << desc.id <<
+            " moduleName=" << desc.moduleName <<
+            " kernelMode=" << desc.kernelMode << "\n";
+
+    if (m_ConfiguredModulesName.find(desc) != m_ConfiguredModulesName.end()) {
+        s2e()->getWarningsStream() << "ModuleExecutionDetector: " <<
+                "module name " << desc.moduleName << " already exists\n";
+        return false;
+    }
+
+
+    if (m_ConfiguredModulesId.find(desc) != m_ConfiguredModulesId.end()) {
+        s2e()->getWarningsStream() << "ModuleExecutionDetector: " <<
+                "module id " << desc.id << " already exists\n";
+        return false;
+    }
+
+    m_ConfiguredModulesId.insert(desc);
+    m_ConfiguredModulesName.insert(desc);
+
+    return true;
+}
+
+void ModuleExecutionDetector::onCustomInstruction(
+        S2EExecutionState *state,
+        uint64_t operand
+        )
+{
+    if (!OPCODE_CHECK(operand, MODULE_EXECUTION_DETECTOR_OPCODE)) {
+        return;
+    }
+
+    uint64_t subfunction = OPCODE_GETSUBFUNCTION(operand);
+
+    switch(subfunction) {
+        case 0: {
+            if (opAddModuleConfigEntry(state)) {
+                tb_flush(env);
+                state->setPc(state->getPc() + OPCODE_SIZE);
+                throw CpuExitException();
+            }
+            break;
+        }
+    }
+
+}
+
+
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -241,10 +312,6 @@ void ModuleExecutionDetector::moduleLoadListener(
         }
         return;
     }
-
-
-
-
 }
 
 void ModuleExecutionDetector::moduleUnloadListener(

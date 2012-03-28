@@ -51,6 +51,7 @@ extern struct CPUX86State *env;
 #include <s2e/S2EDeviceState.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/Plugin.h>
+#include <s2e/Utils.h>
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
@@ -77,6 +78,7 @@ CPUTLBEntry s_cputlb_empty_entry = { -1, -1, -1, -1 };
 }
 
 extern llvm::cl::opt<bool> PrintModeSwitch;
+extern llvm::cl::opt<bool> PrintForkingStatus;
 
 namespace s2e {
 
@@ -132,8 +134,8 @@ void S2EExecutionState::enableSymbolicExecution()
     m_symbexEnabled = true;
 
     g_s2e->getMessagesStream(this) << "Enabled symbex"
-            << " at pc = " << (void*) getPc() << '\n';
-
+            << " at pc = " << (void*) getPc()
+            << " and pid = " << hexval(getPid()) << '\n';
 }
 
 void S2EExecutionState::disableSymbolicExecution()
@@ -145,8 +147,8 @@ void S2EExecutionState::disableSymbolicExecution()
     m_symbexEnabled = false;
 
     g_s2e->getMessagesStream(this) << "Disabled symbex"
-            << " at pc = " << (void*) getPc() << '\n';
-
+            << " at pc = " << (void*) getPc()
+            << " and pid = " << hexval(getPid()) << '\n';
 }
 
 void S2EExecutionState::enableForking()
@@ -157,8 +159,11 @@ void S2EExecutionState::enableForking()
 
     forkDisabled = false;
 
-    g_s2e->getMessagesStream(this) << "Enabled forking"
-            << " at pc = " << (void*) getPc() << '\n';
+    if (PrintForkingStatus) {
+        g_s2e->getMessagesStream(this) << "Enabled forking"
+                << " at pc = " << (void*) getPc()
+                << " and pid = " << hexval(getPid()) << '\n';
+    }
 }
 
 void S2EExecutionState::disableForking()
@@ -169,8 +174,11 @@ void S2EExecutionState::disableForking()
 
     forkDisabled = true;
 
-    g_s2e->getMessagesStream(this) << "Disabled forking"
-            << " at pc = " << (void*) getPc() << '\n';
+    if (PrintForkingStatus) {
+        g_s2e->getMessagesStream(this) << "Disabled forking"
+                << " at pc = " << (void*) getPc()
+                << " and pid = " << hexval(getPid()) << '\n';
+    }
 }
 
 
@@ -188,29 +196,70 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
                 (CPUX86State*)(m_cpuSystemObject->getConcreteStore(true)
                               - offsetof(CPUX86State, eip));
 
-        for(unsigned i=0; i<NB_MMU_MODES; ++i) {
-            for(unsigned j=0; j<CPU_S2E_TLB_SIZE; ++j) {
-                if(cpu->s2e_tlb_table[i][j].objectState == (void*) oldState) {
-                    assert(newState); // we never delete memory pages
-                    cpu->s2e_tlb_table[i][j].objectState = newState;
-                    if(!mo->isSharedConcrete) {
-                        cpu->s2e_tlb_table[i][j].addend =
-                                (cpu->s2e_tlb_table[i][j].addend & ~1)
-                                - (uintptr_t) oldState->getConcreteStore(true)
-                                + (uintptr_t) newState->getConcreteStore(true);
-                        if(addressSpace.isOwnedByUs(newState))
-                            cpu->s2e_tlb_table[i][j].addend |= 1;
-                    }
+#ifdef S2E_DEBUG_TLBCACHE
+        g_s2e->getDebugStream(this) << std::dec << "Replacing " << oldState << " by " << newState <<  "\n";
+        g_s2e->getDebugStream(this) << "tlb map size=" << m_tlbMap.size() << '\n';
+#endif
+
+        TlbMap::iterator it = m_tlbMap.find(const_cast<ObjectState*>(oldState));
+        bool found = false;
+        if (it != m_tlbMap.end()) {
+            found = true;
+            ObjectStateTlbReferences vec = (*it).second;
+            unsigned size = vec.size();
+            assert(size > 0);
+            for (unsigned i = 0; i < size; ++i) {
+                const TlbCoordinates &coords = vec[i];
+#ifdef S2E_DEBUG_TLBCACHE
+                g_s2e->getDebugStream() << "  mmu_idx=" << coords.first<<
+                                           " index=" << coords.second << "\n";
+#endif
+                S2ETLBEntry *entry = &cpu->s2e_tlb_table[coords.first][coords.second];
+                assert(entry->objectState == (void*) oldState);
+                assert(newState);
+                entry->objectState = newState;
+
+                if(!mo->isSharedConcrete) {
+                    entry->addend =
+                            (entry->addend & ~1)
+                            - (uintptr_t) oldState->getConcreteStore(true)
+                            + (uintptr_t) newState->getConcreteStore(true);
+                    if(addressSpace.isOwnedByUs(newState))
+                        entry->addend |= 1;
                 }
             }
+
+            m_tlbMap[newState] = vec;
+            m_tlbMap.erase(const_cast<ObjectState*>(oldState));
         }
+
+#ifdef S2E_DEBUG_TLBCACHE
+        for(unsigned i=0; i<NB_MMU_MODES; ++i) {
+            for(unsigned j=0; j<CPU_S2E_TLB_SIZE; ++j) {
+                if (cpu->s2e_tlb_table[i][j].objectState == oldState) {
+                    assert(found);
+                }
+                assert(cpu->s2e_tlb_table[i][j].objectState != oldState);
+            }
+        }
+#endif
     }
 #endif
 
-    ObjectPair op = m_memcache.get(mo->address);
-    if (op.first) {
-        op.second = newState;
-        m_memcache.put(mo->address, op);
+    if (mo == m_cpuRegistersState) {
+        //It may happen that an execution state is copied in other places
+        //than fork, in which case clone() is not called and the state
+        //is left with stale references to memory objects. We patch these
+        //objects here.
+        m_cpuRegistersObject = newState;
+    } else if (mo == m_cpuSystemState) {
+        m_cpuSystemObject = newState;
+    } else {
+        ObjectPair op = m_memcache.get(mo->address);
+        if (op.first) {
+            op.second = newState;
+            m_memcache.put(mo->address, op);
+        }
     }
 }
 
@@ -223,12 +272,15 @@ ExecutionState* S2EExecutionState::clone()
     CPUX86State* cpu = (CPUX86State*)(m_cpuSystemState->address
                           - offsetof(CPUX86State, eip));
 
-    for(unsigned i=0; i<NB_MMU_MODES; ++i) {
-        for(unsigned j=0; j<CPU_S2E_TLB_SIZE; ++j) {
-            ObjectState* os = static_cast<ObjectState*>(
-                    cpu->s2e_tlb_table[i][j].objectState);
+    foreach2(it, m_tlbMap.begin(), m_tlbMap.end()) {
+        ObjectStateTlbReferences &vec = (*it).second;
+        unsigned size = vec.size();
+        for (unsigned i = 0; i < size; ++i) {
+            const TlbCoordinates &coords = vec[i];
+            S2ETLBEntry *entry = &cpu->s2e_tlb_table[coords.first][coords.second];
+            ObjectState* os = static_cast<ObjectState*>(entry->objectState);
             if(os && !os->getObject()->isSharedConcrete) {
-                cpu->s2e_tlb_table[i][j].addend &= ~1;
+                entry->addend &= ~1;
             }
         }
     }
@@ -1439,6 +1491,44 @@ void S2EExecutionState::dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned si
     }
 }
 
+void S2EExecutionState::flushTlbCache()
+{
+#ifdef S2E_DEBUG_TLBCACHE
+    g_s2e->getDebugStream(this) << "Flushing TLB cache\n";
+#endif
+    m_tlbMap.clear();
+}
+
+void S2EExecutionState::flushTlbCachePage(klee::ObjectState *objectState, int mmu_idx, int index)
+{
+    if (!objectState) {
+        return;
+    }
+
+    bool found = false;
+    TlbMap::iterator tlbIt = m_tlbMap.find(objectState);
+    assert(tlbIt != m_tlbMap.end());
+
+    ObjectStateTlbReferences &vec = (*tlbIt).second;
+    foreach2(vit, vec.begin(), vec.end()) {
+        if ((*vit).first == (unsigned)mmu_idx && (*vit).second == (unsigned)index) {
+            vec.erase(vit);
+            found = true;
+            break;
+        }
+    }
+
+    assert(found && "Invalid cache!");
+
+    if (vec.empty()) {
+#ifdef S2E_DEBUG_TLBCACHE
+        g_s2e->getDebugStream(this) << "Erasing cache entry for " <<
+                                       (*tlbIt).first << "\n";
+#endif
+        m_tlbMap.erase(tlbIt);
+    }
+}
+
 void S2EExecutionState::updateTlbEntry(CPUX86State* env,
                           int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
 {
@@ -1451,6 +1541,7 @@ void S2EExecutionState::updateTlbEntry(CPUX86State* env,
     unsigned int index = (virtAddr >> S2E_RAM_OBJECT_BITS) & (CPU_S2E_TLB_SIZE - 1);
     for(int i = 0; i < CPU_S2E_TLB_SIZE / CPU_TLB_SIZE; ++i) {
         S2ETLBEntry* entry = &env->s2e_tlb_table[mmu_idx][index];
+        ObjectState *oldObjectState = static_cast<ObjectState *>(entry->objectState);
 
         ObjectPair op;
 
@@ -1461,6 +1552,8 @@ void S2EExecutionState::updateTlbEntry(CPUX86State* env,
             }
         }
         assert(op.first && op.second && op.second->getObject() == op.first && op.first->address == hostAddr);
+
+        klee::ObjectState *ros = const_cast<ObjectState*>(op.second);
 
         if(op.first->isSharedConcrete) {
             entry->objectState = const_cast<klee::ObjectState*>(op.second);
@@ -1479,6 +1572,16 @@ void S2EExecutionState::updateTlbEntry(CPUX86State* env,
             ops = m_memcache.getArray(hostAddr & TARGET_PAGE_MASK);
         }
         ops[i] = op;
+
+
+        /* Store the new mapping in the cache */
+#ifdef S2E_DEBUG_TLBCACHE
+        g_s2e->getDebugStream() << std::dec << "Storing " << op.second << " (" << mmu_idx << ',' << index << ")\n";
+#endif
+        if (oldObjectState != ros) {
+            flushTlbCachePage(oldObjectState, mmu_idx, index);
+            m_tlbMap[const_cast<ObjectState *>(op.second)].push_back(TlbCoordinates(mmu_idx, index));
+        }
 
         index += 1;
         hostAddr += S2E_RAM_OBJECT_SIZE;

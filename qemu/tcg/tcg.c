@@ -1053,6 +1053,12 @@ void tcg_dump_ops(TCGContext *s, FILE *outfile)
 void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
                       uint64_t *accesses_mem)
 {
+    tcg_calc_regmask_ex(s, rmask, wmask, accesses_mem, gen_opc_buf, gen_opparam_buf);
+}
+
+void tcg_calc_regmask_ex(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
+                      uint64_t *accesses_mem, uint16_t *opc, TCGArg *opparam)
+{
     const uint16_t *opc_ptr;
     const TCGArg *args;
     int c, i, nb_oargs, nb_iargs, nb_cargs;
@@ -1063,8 +1069,8 @@ void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
 
     *rmask = *wmask = *accesses_mem = 0;
 
-    opc_ptr = gen_opc_buf;
-    args = gen_opparam_buf;
+    opc_ptr = opc;
+    args = opparam;
     while (opc_ptr < gen_opc_ptr) {
         c = *opc_ptr++;
         def = &tcg_op_defs[c];

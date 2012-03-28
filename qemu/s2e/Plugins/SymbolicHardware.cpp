@@ -597,6 +597,7 @@ void PciDeviceDescriptor::print(llvm::raw_ostream &os) const
         os << "R[" << i << "]: " <<
                 "Size=0x" << res.size << " IsIO=" << (int)res.isIo <<
                 " IsPrefetchable=" << hexval(res.prefetchable) << '\n';
+        ++i;
     }
     os << '\n';
 }

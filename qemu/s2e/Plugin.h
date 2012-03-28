@@ -41,6 +41,7 @@
 #include <vector>
 //#include <tr1/unordered_map>
 #include <map>
+#include <set>
 #include <s2e/Signals/Signals.h>
 
 namespace s2e {
@@ -148,6 +149,29 @@ public:
     Plugin* createPlugin(S2E* s2e, const std::string& name) const;
 };
 
+
+class CompiledPlugin {
+public:
+    typedef std::set<const PluginInfo *> CompiledPlugins;
+
+private:
+    static CompiledPlugins *s_compiledPlugins;
+
+    CompiledPlugin();
+public:
+    CompiledPlugin(const PluginInfo *info) {
+        if (!s_compiledPlugins) {
+            s_compiledPlugins = new CompiledPlugins();
+        }
+        s_compiledPlugins->insert(info);
+    }
+
+    static CompiledPlugins* getPlugins() {
+        return s_compiledPlugins;
+    }
+};
+
+
 /** Should be put at the begining of any S2E plugin */
 #define S2E_PLUGIN                                                                 \
     private:                                                                       \
@@ -168,7 +192,8 @@ public:
             + sizeof(className::s_pluginDeps)/sizeof(className::s_pluginDeps[0])), \
          "pluginsConfig['" #className "']",                                        \
         _pluginCreatorHelper<className>                                            \
-    }
+    }; \
+    static CompiledPlugin s_##className(className::getPluginInfoStatic())
 
 template<class C>
 Plugin* _pluginCreatorHelper(S2E* s2e) { return new C(s2e); }

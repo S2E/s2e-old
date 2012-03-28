@@ -36,10 +36,18 @@
 
 //#define NDEBUG
 
+extern "C" {
+#include "config.h"
+#include "qemu-common.h"
+extern struct CPUX86State *env;
+}
+
+
 #include <sstream>
 #include <s2e/ConfigFile.h>
 
 #include "CodeSelector.h"
+#include "Opcodes.h"
 #include "ModuleExecutionDetector.h"
 
 #include <s2e/S2E.h>
@@ -68,8 +76,8 @@ CodeSelector::~CodeSelector()
 
 void CodeSelector::initialize()
 {
-    m_ExecutionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-    assert(m_ExecutionDetector);
+    m_executionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    assert(m_executionDetector);
 
     ConfigFile *cfg = s2e()->getConfig();
 
@@ -77,16 +85,15 @@ void CodeSelector::initialize()
 
     //Fetch the list of modules where forking should be enabled
     ConfigFile::string_list moduleList =
-            cfg->getStringList(getConfigKey() + ".modules", ConfigFile::string_list(), &ok);
+            cfg->getStringList(getConfigKey() + ".moduleIds", ConfigFile::string_list(), &ok);
 
-    if (!ok) {
-        s2e()->getWarningsStream() << "You must specify a list of modules in " <<
-                getConfigKey() + ".modules\n";
-        exit(-1);
+    if (!ok || moduleList.empty()) {
+        s2e()->getWarningsStream() << "You should specify a list of modules in " <<
+                getConfigKey() + ".moduleIds\n";
     }
 
     foreach2(it, moduleList.begin(), moduleList.end()) {
-        if (m_ExecutionDetector->isModuleConfigured(*it)) {
+        if (m_executionDetector->isModuleConfigured(*it)) {
             m_interceptedModules.insert(*it);
         }else {
             s2e()->getWarningsStream() << "CodeSelector: " <<
@@ -96,9 +103,11 @@ void CodeSelector::initialize()
     }
 
     //Attach the signals
-    m_ExecutionDetector->onModuleTransition.connect(
+    m_executionDetector->onModuleTransition.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTransition));
 
+    s2e()->getCorePlugin()->onCustomInstruction.connect(
+        sigc::mem_fun(*this, &CodeSelector::onCustomInstruction));
 }
 
 void CodeSelector::onModuleTransition(
@@ -112,13 +121,190 @@ void CodeSelector::onModuleTransition(
         return;
     }
 
-    if (m_interceptedModules.find(currentModule->Name) ==
-        m_interceptedModules.end()) {
+    const std::string *id = m_executionDetector->getModuleId(*currentModule);
+    if (m_interceptedModules.find(*id) == m_interceptedModules.end()) {
         state->disableForking();
         return;
     }
 
     state->enableForking();
+}
+
+void CodeSelector::onPageDirectoryChange(
+        S2EExecutionState *state,
+        uint64_t previous, uint64_t current
+        )
+{
+    if (m_pidsToTrack.empty()) {
+        return;
+    }
+
+    Pids::const_iterator it = m_pidsToTrack.find(current);
+    if (it == m_pidsToTrack.end()) {
+        state->disableForking();
+        return;
+    }
+
+    //Enable forking if we track the entire address space
+    if ((*it).second == true) {
+        state->enableForking();
+    }
+}
+
+/**
+ *  Monitor privilege level changes and enable forking
+ *  if execution is in a tracked address space and in
+ *  user-mode.
+ */
+void CodeSelector::onPrivilegeChange(
+        S2EExecutionState *state,
+        unsigned previous, unsigned current
+        )
+{
+    if (m_pidsToTrack.empty()) {
+        return;
+    }
+
+    Pids::const_iterator it = m_pidsToTrack.find(state->getPid());
+    if (it == m_pidsToTrack.end()) {
+        //Not in a tracked process
+        state->disableForking();
+        return;
+    }
+
+    //We are inside a process that we are tracking.
+    //Check now if we are in user-mode.
+    if ((*it).second == false) {
+        //XXX: Remove hard-coded CPL level. It is x86-architecture-specific.
+        if (current == 3) {
+            //Enable forking in user mode.
+            state->enableForking();
+        } else {
+            state->disableForking();
+        }
+    }
+}
+
+void CodeSelector::opSelectProcess(S2EExecutionState *state)
+{
+    bool ok = true;
+    uint32_t isUserSpace;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &isUserSpace, 4);
+
+
+    if (isUserSpace) {
+        //Track the current process, but user-space only
+        m_pidsToTrack[state->getPid()] = false;
+
+        if (!m_privilegeTracking.connected()) {
+            m_privilegeTracking = s2e()->getCorePlugin()->onPrivilegeChange.connect(
+                    sigc::mem_fun(*this, &CodeSelector::onPrivilegeChange));
+        }
+    } else {
+        m_pidsToTrack[state->getPid()] = true;
+
+        if (!m_privilegeTracking.connected()) {
+            m_privilegeTracking = s2e()->getCorePlugin()->onPageDirectoryChange.connect(
+                    sigc::mem_fun(*this, &CodeSelector::onPageDirectoryChange));
+        }
+    }
+}
+
+void CodeSelector::opUnselectProcess(S2EExecutionState *state)
+{
+    bool ok = true;
+    uint32_t pid;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &pid, 4);
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "CodeSelector: Could not read the pid value of the process to disable.\n";
+        return;
+    }
+
+    if (pid == 0) {
+        pid = state->getPid();
+    }
+
+    m_pidsToTrack.erase(pid);
+
+    if (m_pidsToTrack.empty()) {
+        m_privilegeTracking.disconnect();
+        m_addressSpaceTracking.disconnect();
+    }
+}
+
+bool CodeSelector::opSelectModule(S2EExecutionState *state)
+{
+    bool ok = true;
+    //XXX: 32-bits guests only
+    uint32_t moduleId;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &moduleId, sizeof(moduleId));
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "CodeSelector: Could not read the module id pointer.\n";
+        return false;
+    }
+
+    std::string strModuleId;
+    if (!state->readString(moduleId, strModuleId)) {
+        s2e()->getWarningsStream(state)
+            << "CodeSelector: Could not read the module id string.\n";
+        return false;
+    }
+
+    if (m_executionDetector->isModuleConfigured(strModuleId)) {
+        m_interceptedModules.insert(strModuleId);
+    }else {
+        s2e()->getWarningsStream() << "CodeSelector: " <<
+                "Module " << strModuleId << " is not configured" << std::endl;
+        return false;
+    }
+
+    s2e()->getMessagesStream() << "CodeSelector: tracking module " << strModuleId << '\n';
+
+    return true;
+}
+
+void CodeSelector::onCustomInstruction(
+        S2EExecutionState *state,
+        uint64_t operand
+        )
+{
+    if (!OPCODE_CHECK(operand, CODE_SELECTOR_OPCODE)) {
+        return;
+    }
+
+    uint64_t subfunction = OPCODE_GETSUBFUNCTION(operand);
+
+    switch(subfunction) {
+        //Track the currently-running process (either whole system or user-space only)
+        case 0: {
+            opSelectProcess(state);
+        }
+        break;
+
+
+        //Disable tracking of the selected process
+        //The process's id to not track is in the ecx register.
+        //If ecx is 0, untrack the current process.
+        case 1: {
+            opUnselectProcess(state);
+        }
+        break;
+
+        //Adds the module id specified in ecx to the list
+        //of modules where to enable forking.
+        case 2: {
+            if (opSelectModule(state)) {
+                tb_flush(env);
+                state->setPc(state->getPc() + OPCODE_SIZE);
+                throw CpuExitException();
+            }
+        }
+        break;
+    }
 }
 
 
@@ -150,8 +336,8 @@ CodeSelector::~CodeSelector()
  */
 void CodeSelector::initialize()
 {
-    m_ExecutionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-    assert(m_ExecutionDetector);
+    m_executionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    assert(m_executionDetector);
 
     ConfigFile *cfg = s2e()->getConfig();
 
@@ -172,13 +358,13 @@ void CodeSelector::initialize()
         m_CodeSelDesc.insert(csd);
     }
 
-    m_ExecutionDetector->onModuleTransition.connect(
+    m_executionDetector->onModuleTransition.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTransition));
 
-    m_ExecutionDetector->onModuleTranslateBlockStart.connect(
+    m_executionDetector->onModuleTranslateBlockStart.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTranslateBlockStart));
 
-    m_ExecutionDetector->onModuleTranslateBlockEnd.connect(
+    m_executionDetector->onModuleTranslateBlockEnd.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTranslateBlockEnd));
 }
 

@@ -140,7 +140,14 @@ typedef struct DisasContext {
     int useNextPc; /* indicates whether nextPc is valid */
     target_ulong nextPc; /* pc of the instruction following insPc */
     int enable_jmp_im;
-    int done_instr_end; //1 when onTranslateInstructionEnd was called
+    int done_instr_end; /* 1 when onTranslateInstructionEnd was called */
+
+    //Pointer to tcg pointer for the current instruction
+    uint16_t *ins_opc;
+    TCGArg *ins_arg;
+
+    int done_reg_access_end; /* 1 when onTranslateRegisterAccess was called */
+
 #endif
     //enum ETranslationBlockType tb_type;
 } DisasContext;
@@ -152,6 +159,27 @@ typedef struct DisasContext {
 #define s2e_on_translate_jump_start(...)
 #endif
 
+#ifdef CONFIG_S2E
+static inline void s2e_translate_compute_reg_mask_end(DisasContext *dc)
+{
+    uint64_t rmask, wmask, accesses_mem;
+
+    if (dc->done_reg_access_end) {
+        return;
+    }
+
+    tcg_calc_regmask_ex(&tcg_ctx, &rmask, &wmask, &accesses_mem, dc->ins_opc, dc->ins_arg);
+
+    //First five bits contain flag registers
+    rmask >>= 5;
+    wmask >>= 5;
+
+    s2e_on_translate_register_access(dc->tb, dc->insPc, rmask, wmask, (int)accesses_mem);
+
+    dc->done_reg_access_end = 1;
+}
+
+#endif
 
 static void gen_eob(DisasContext *s);
 static void gen_jmp(DisasContext *s, target_ulong eip);
@@ -437,6 +465,7 @@ static inline void gen_op_jmp_T0(DisasContext *s)
 {
     tcg_gen_st_tl(cpu_T[0], cpu_env, offsetof(CPUState, eip));
     #ifdef CONFIG_S2E
+    s2e_translate_compute_reg_mask_end(s);
     s2e_on_translate_block_end(g_s2e, g_s2e_state,
                                s->tb, s->insPc, 0, 0);
     #endif
@@ -636,8 +665,9 @@ static inline void gen_jmp_im(DisasContext *s, target_ulong pc)
     tcg_gen_movi_tl(cpu_tmp0, pc);
     tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
     #ifdef CONFIG_S2E
-    /* XXX: this is not always the case! Move this to gen_eob() ! */
+    /* gen_eob may come after gototb, so we need to instrument here ! */
     if (s->enable_jmp_im) {
+        s2e_translate_compute_reg_mask_end(s);
         s2e_on_translate_block_end(g_s2e, g_s2e_state,
                                    s->tb, s->insPc, 1, pc);
     }
@@ -2350,8 +2380,6 @@ static inline void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
 #ifdef CONFIG_S2E
         //s->enable_jmp_im = 0;
         gen_jmp_im(s, eip);
-        //s2e_on_translate_block_end(g_s2e, g_s2e_state,
-        //                           s->cpuState, s->tb, s->insPc, 1, eip);
 
         gen_instr_end(s);
 
@@ -7846,6 +7874,7 @@ void optimize_flags_init(void)
 #include "helper.h"
 }
 
+
 /* generate intermediate code in gen_opc_buf and gen_opparam_buf for
    basic block 'tb'. If search_pc is TRUE, also generate PC
    information for each intermediate instruction. */
@@ -7863,10 +7892,6 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     target_ulong cs_base;
     int num_insns;
     int max_insns;
-
-    if (env->eip == 0x30cf && env->segs[R_CS].base == 0x80d0) {
-        asm("int $3");
-    }
 
     /* generate intermediate code */
     pc_start = tb->pc;
@@ -7981,13 +8006,23 @@ static inline void gen_intermediate_code_internal(CPUState *env,
 #ifdef CONFIG_S2E
         dc->insPc = pc_ptr;
         dc->done_instr_end = 0;
+        dc->done_reg_access_end = 0;
 
         s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_ptr);
         tb->pcOfLastInstr = pc_ptr;
         dc->useNextPc = 0;
         dc->nextPc = -1;
+
+        dc->ins_opc = gen_opc_ptr;
+        dc->ins_arg = gen_opparam_ptr;
 #endif
         new_pc_ptr = disas_insn(dc, pc_ptr);
+
+#ifdef CONFIG_S2E
+        //Compute the register mask and send the onRegisterAccess event
+        s2e_translate_compute_reg_mask_end(dc);
+#endif
+
 #ifdef CONFIG_S2E
         if (!dc->is_jmp) {
             //Allow proper pc update for onTranslateInstruction events

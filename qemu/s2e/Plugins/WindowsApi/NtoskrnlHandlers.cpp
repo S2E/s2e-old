@@ -64,7 +64,7 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(NtoskrnlHandlers, "Basic collection of NT Kernel API functions.", "NtoskrnlHandlers",
-                  "FunctionMonitor", "Interceptor");
+                  "FunctionMonitor", "Interceptor", "ConsistencyModels");
 
 const NtoskrnlHandlers::AnnotationsArray NtoskrnlHandlers::s_handlers[] = {
 
@@ -237,7 +237,9 @@ void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMo
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -267,7 +269,10 @@ void NtoskrnlHandlers::IoCreateSymbolicLinkRet(S2EExecutionState* state)
 
     if (!NtSuccess(g_s2e, state)) {
         HANDLER_TRACE_FCNFAILED();
+        incrementFailures(state);
         return;
+    } else {
+        incrementSuccesses(state);
     }
 }
 
@@ -277,13 +282,15 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
     uint32_t pDeviceObject;
     if (!readConcreteParameter(state, 6, &pDeviceObject)) {
         HANDLER_TRACE_PARAM_FAILED("pDeviceObject");
         return;
     }
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    if (consistency < LOCAL) {
         FUNCMON_REGISTER_RETURN_A(state, fns, NtoskrnlHandlers::IoCreateDeviceRet, pDeviceObject);
         return;
     }
@@ -299,7 +306,7 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
 
     klee::ref<klee::Expr> symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
     state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
-
+    incrementFailures(state);
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
@@ -312,8 +319,11 @@ void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state, uint32_t pDev
 
     if (!NtSuccess(g_s2e, state)) {
         HANDLER_TRACE_FCNFAILED();
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     if (m_memoryChecker) {
         s2e()->getDebugStream() << "IoCreateDeviceRet pDeviceObject=0x" << hexval(pDeviceObject) << '\n';
@@ -354,7 +364,9 @@ void NtoskrnlHandlers::IoIsWdmVersionAvailable(S2EExecutionState* state, Functio
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -434,7 +446,9 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) == STRICT) {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency == STRICT) {
         return;
     }
 
@@ -443,7 +457,7 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
     //XXX: local assumes the stuff comes from the registry
     //XXX: local consistency is broken, because each time gets a new symbolic value,
     //disregarding the string.
-    if (getConsistency(__FUNCTION__) == OVERAPPROX || getConsistency(__FUNCTION__) == LOCAL) {
+    if (consistency == OVERAPPROX || consistency == LOCAL) {
         klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
         state->bypassFunction(3);
@@ -455,7 +469,9 @@ void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, Function
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -467,6 +483,7 @@ void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, Function
 
     //Skip the call in the current state
     state->bypassFunction(4);
+    incrementFailures(state);
 
     state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
                             createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
@@ -478,7 +495,9 @@ void NtoskrnlHandlers::MmGetSystemRoutineAddress(S2EExecutionState* state, Funct
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -490,6 +509,7 @@ void NtoskrnlHandlers::MmGetSystemRoutineAddress(S2EExecutionState* state, Funct
 
     //Skip the call in the current state
     state->bypassFunction(1);
+    incrementFailures(state);
 
     klee::ref<klee::Expr> symb;
     std::vector<uint32_t> vec;
@@ -506,7 +526,9 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -516,7 +538,7 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
     std::vector<S2EExecutionState *> states;
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if (consistency == OVERAPPROX) {
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
@@ -533,10 +555,11 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
         vec.push_back(STATUS_UNKNOWN_REVISION);
         klee::ref<klee::Expr> symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
-    }
 
-    //Skip the call in the current state
-    state->bypassFunction(2);
+        //Skip the call in the current state
+        state->bypassFunction(2);
+        incrementFailures(state);
+    }
 
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -545,7 +568,9 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, Fu
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -555,7 +580,7 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, Fu
     std::vector<S2EExecutionState *> states;
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if (consistency == OVERAPPROX) {
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
@@ -568,6 +593,7 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, Fu
 
     //Skip the call in the current state
     state->bypassFunction(4);
+    incrementFailures(state);
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
@@ -581,6 +607,9 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptorRet(S2EExecutionState* state)
     if (state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &res, sizeof(res))) {
         if ((int)res < 0) {
             HANDLER_TRACE_FCNFAILED_VAL(res);
+            incrementFailures(state);
+        } else {
+            incrementSuccesses(state);
         }
     }
 }
@@ -590,7 +619,9 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, Fun
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    if (consistency < LOCAL) {
         return;
     }
 
@@ -600,7 +631,7 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, Fun
     std::vector<S2EExecutionState *> states;
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if (consistency == OVERAPPROX) {
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
@@ -613,6 +644,7 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, Fun
 
     //Skip the call in the current state
     state->bypassFunction(3);
+    incrementFailures(state);
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
@@ -626,6 +658,9 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSDRet(S2EExecutionState* state)
     if (state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &res, sizeof(res))) {
         if ((int)res < 0) {
             HANDLER_TRACE_FCNFAILED_VAL(res);
+            incrementFailures(state);
+        } else {
+            incrementSuccesses(state);
         }
     }
 }
@@ -637,6 +672,8 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
 
     state->undoCallAndJumpToSymbolic();
 
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
     bool ok = true;
     uint32_t poolType, size;
     ok &= readConcreteParameter(state, 0, &poolType);
@@ -646,7 +683,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
         return;
     }
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    if (consistency < LOCAL) {
         //We'll have to grant access to the memory array
         FUNCMON_REGISTER_RETURN_A(state, fns, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
         return;
@@ -660,6 +697,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
     state->bypassFunction(4);
     uint32_t failValue = 0;
     state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
+    incrementFailures(state);
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
@@ -676,8 +714,11 @@ void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32
     }
     if (!address) {
         HANDLER_TRACE_FCNFAILED();
+        incrementFailures(state);
         return;
     }
+
+    incrementSuccesses(state);
 
     if (m_memoryChecker) {
         m_memoryChecker->grantMemory(state, address, size, MemoryChecker::READWRITE,
@@ -707,11 +748,144 @@ void NtoskrnlHandlers::ExFreePoolWithTag(S2EExecutionState* state, FunctionMonit
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::DispatchWrite(S2EExecutionState* state,
+                                     uint64_t pIrp,
+                                     const IRP &irp,
+                                     const IO_STACK_LOCATION &stackLocation)
+{
+   #if 0
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    //Allocate permissions
+
+
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_fakewrite");
+
+    S2EExecutionState *realState = states[0] == state ? states[1] : states[0];
+    S2EExecutionState *fakeState = state;
+#endif
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
+                                     uint64_t pIrp,
+                                     const IRP &irp,
+                                     const IO_STACK_LOCATION &stackLocation)
+{
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
+    uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
+    uint32_t ioctlOffset = offsetof(IO_STACK_LOCATION, Parameters.DeviceIoControl.IoControlCode);
+
+    s2e()->getMessagesStream() << "IOCTL code " << hexval(ioctl) << '\n';
+
+    uint64_t inputLength = stackLocation.Parameters.DeviceIoControl.InputBufferLength;
+    uint64_t outputLength = stackLocation.Parameters.DeviceIoControl.OutputBufferLength;
+    uint64_t inputBuffer = 0;
+
+    std::stringstream regionType;
+    regionType << "DispatchDeviceControl:IRP_MJ_DEVICE_IOCTL:" << hexval(pIrp) << ":";
+
+    //Grant privileges to the data buffers
+    switch (ioctl & 0x3) {
+        case METHOD_BUFFERED: {
+            regionType << "METHOD_BUFFERED:Buffer";
+            uint64_t buffer = irp.AssociatedIrp.SystemBuffer;
+
+            uint64_t length = inputLength < outputLength ? outputLength : inputLength;
+            if (m_memoryChecker && buffer && length > 0) {
+                m_memoryChecker->grantMemory(state, buffer,
+                                             length, MemoryChecker::READWRITE,
+                                             regionType.str());
+            }
+
+            inputBuffer = buffer;
+        }
+        break;
+
+        case METHOD_OUT_DIRECT:
+        case METHOD_IN_DIRECT: {
+            regionType << "METHOD_INOUT_DIRECT:";
+            //Reading of input data can be done directly
+            inputBuffer = irp.AssociatedIrp.SystemBuffer;
+            if (m_memoryChecker && inputBuffer && inputLength > 0) {
+                m_memoryChecker->grantMemory(state, inputBuffer,
+                                             inputLength, MemoryChecker::READWRITE,
+                                             regionType.str() + "InputBuffer");
+            }
+
+            //Grant write acesses to output data only if it is already mapped,
+            //otherwise, we'll have to hook other system functions
+            uint64_t mdlAddress = irp.MdlAddress;
+            MDL32 mdl;
+            if (state->readMemoryConcrete(mdlAddress, &mdl, sizeof(mdl))) {
+                if (mdl.MdlFlags & (MDL_MAPPED_TO_SYSTEM_VA | MDL_SOURCE_IS_NONPAGED_POOL)) {
+                    m_memoryChecker->grantMemory(state, mdl.MappedSystemVa,
+                                                 mdl.Size, MemoryChecker::READWRITE,
+                                                 regionType.str() + "InputOutputBuffer");
+                }
+            }
+
+        }
+        break;
+
+        case METHOD_NEITHER: {
+            //uint64_t inputBuffer = stackLocation.Parameters.DeviceIoControl.Type3InputBuffer;
+            //uint64_t outputBuffer = irp.UserBuffer;
+
+            s2e()->getWarningsStream() << "METHOD_NEITHER not implemented yet..." << std::endl;
+        }
+        break;
+    }
+
+#if 0
+    if (inputBuffer) {
+        for (uint64_t i=0; i<inputLength; ++i) {
+            klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int8,
+                                         getVariableName(state, __FUNCTION__) + "_IoctlBuffer");
+            state->writeMemory(inputBuffer + i, symb);
+        }
+    }
+#endif
+
+    DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
+    if (consistency>=LOCAL) { // && !plgState->isIoctlIrpExplored) {
+        uint32_t pStackLocation = IoGetCurrentIrpStackLocation(&irp);
+
+        plgState->isIoctlIrpExplored = true;
+
+        //Fork one state that will run unmodified and one fake state with symbolic ioctl code
+        std::vector<S2EExecutionState *> states;
+        forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_fakeioctl");
+
+        S2EExecutionState *realState = states[0] == state ? states[1] : states[0];
+        S2EExecutionState *fakeState = state;
+
+        klee::ref<klee::Expr> symb = fakeState->createSymbolicValue(klee::Expr::Int32,
+                                                                getVariableName(state, __FUNCTION__) + "_IoctlCode");
+        symb = klee::OrExpr::create(symb, klee::ConstantExpr::create(ioctl & 3, klee::Expr::Int32));
+        fakeState->writeMemory(pStackLocation + ioctlOffset, symb);
+
+        FUNCMON_REGISTER_RETURN_A(fakeState, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, IRP_MJ_DEVICE_CONTROL, true, pIrp);
+        FUNCMON_REGISTER_RETURN_A(realState, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, IRP_MJ_DEVICE_CONTROL, false, pIrp);
+    } else {
+        s2e()->getDebugStream() << "Already explored or <LOCAL consistency\n";
+
+        FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, IRP_MJ_DEVICE_CONTROL, false, pIrp);
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorState *fns, uint32_t irpMajor)
 {
     HANDLER_TRACE_CALL();
     s2e()->getMessagesStream() << "IRP " << irpMajor << " " << s_irpMjArray[irpMajor] << '\n';
-
     state->undoCallAndJumpToSymbolic();
 
     //Read the parameters
@@ -733,8 +907,6 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         grantAccessToIrp(state, pIrp);
     }
 
-
-
     IRP irp;
     if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
         HANDLER_TRACE_PARAM_FAILED("irp");
@@ -749,62 +921,30 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
-    FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor);
+    switch (irpMajor) {
+        case IRP_MJ_DEVICE_CONTROL:
+            DispatchIoctl(state, pIrp, irp, stackLocation);
+            break;
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
-        return;
-    }
+        case IRP_MJ_WRITE:
+            DispatchWrite(state, pIrp, irp, stackLocation);
+            break;
 
-    if (irpMajor == IRP_MJ_DEVICE_CONTROL) {
-        /*if (m_bsodInterceptor) {
-            m_bsodInterceptor->enableCrashDumpGeneration(true);
-        }*/
-
-        uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
-
-        s2e()->getMessagesStream() << s_irpMjArray[irpMajor] << " control code " << hexval(ioctl) << '\n';
-
-        DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
-        if (plgState->isIoctlIrpExplored) {
-            return;
-        }
-        plgState->isIoctlIrpExplored = true;
-
-
-        uint32_t ioctlOffset = offsetof(IO_STACK_LOCATION, Parameters.DeviceIoControl.IoControlCode);
-
-        //Fork one state that will run unmodified and one fake state with symbolic ioctl code
-        std::vector<S2EExecutionState *> states;
-        forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_fakeioctl");
-
-
-        plgState->isFakeState = true;
-
-        klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32,
-                                                                getVariableName(state, __FUNCTION__) + "_IoctlCode");
-        symb = klee::OrExpr::create(symb, klee::ConstantExpr::create(ioctl & 3, klee::Expr::Int32));
-        state->writeMemory(pStackLocation + ioctlOffset, symb);
-
+        default:
+            FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor, false, pIrp);
+            break;
     }
 
 }
 
-void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpMajor)
+void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpMajor, bool isFake, uint32_t pIrp)
 {
     HANDLER_TRACE_RETURN();
 
     //Get the return value
     klee::ref<klee::Expr> result = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
 
-
-    /*if (!NtSuccess(s2e(), state, result)) {
-        std::stringstream ss;
-        ss << __FUNCTION__ << " " << s_irpMjArray[irpMajor] << " failed with " << std::hex << result;
-        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
-    }*/
-
-    DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
-    if (plgState->isFakeState) {
+    if (isFake) {
         std::stringstream ss;
         ss << "Killing faked " << __FUNCTION__ << " " << s_irpMjArray[irpMajor];
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
@@ -813,11 +953,11 @@ void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpM
     if (m_memoryChecker) {
         m_memoryChecker->revokeMemoryForModule(state, "args:DispatchDeviceControl:*");
     }
-
-/*    m_manager->succeedState(state);
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();*/
 }
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //This is a FASTCALL function!
 void NtoskrnlHandlers::IofCompleteRequest(S2EExecutionState* state, FunctionMonitorState *fns)

@@ -504,6 +504,14 @@ public:
     return states;
   }
 
+  const std::set<ExecutionState*> &getAddedStates() {
+    return addedStates;
+  }
+
+  const std::set<ExecutionState*> &getRemovedStates() {
+    return removedStates;
+  }
+
   Solver *getSolver() const;
   void initializeSolver();
 

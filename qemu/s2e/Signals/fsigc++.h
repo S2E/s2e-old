@@ -528,6 +528,41 @@ bind(functor_base<RET, BE1, A1, A2, A3, nil, nil, nil> *f, B1 a1, B2 a2, B3 a3) 
     return new functor1_3<RET, BE1, A1, A2, A3>(f, a1, a2, a3);
 }
 
+//1 arguments base event - 4 extra argument
+template <typename RET, typename BE1, typename A1, typename A2, typename A3, typename A4>
+class functor1_4 : public functor_base<RET, BE1, nil, nil, nil, nil, nil, nil>
+{
+public:
+    typedef functor_base<RET, BE1, A1, A2, A3, A4, nil, nil> functor_t;
+
+private:
+    functor_t *m_fb;
+    A1 a1; A2 a2; A3 a3; A4 a4;
+
+public:
+
+    functor1_4(functor_t *fb, A1 a1_, A2 a2_, A3 a3_, A4 a4_):m_fb(fb), a1(a1_), a2(a2_), a3(a3_), a4(a4_) {
+        m_fb->incref();
+    }
+    virtual ~functor1_4() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
+    virtual RET operator()(BE1 be1) {
+        FASSERT(this->m_refcount > 0);
+        return m_fb->operator ()(be1, a1, a2, a3, a4);
+    };
+
+};
+
+template <typename RET, typename BE1, typename A1, typename B1, typename A2, typename B2, typename A3, typename B3,
+          typename A4, typename B4>
+inline functor_base<RET, BE1, nil, nil, nil, nil, nil, nil>*
+bind(functor_base<RET, BE1, A1, A2, A3, A4, nil, nil> *f, B1 a1, B2 a2, B3 a3, B4 a4) {
+    return new functor1_4<RET, BE1, A1, A2, A3, A4>(f, a1, a2, a3, a4);
+}
+
 //*************************************************
 //2 arguments base event - 1 extra argument
 template <typename RET, typename BE1, typename BE2, typename A1>

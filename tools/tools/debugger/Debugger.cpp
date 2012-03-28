@@ -70,7 +70,8 @@ namespace {
         PathId("pathid", cl::desc("Which path to analyze (-1 for all)"), cl::init(0));
 
     cl::list<std::string>
-        ModPath("modpath", cl::desc("Path to modules"));
+        ModDir("moddir", cl::desc("Directory containing the binary modules"));
+
 
 }
 
@@ -214,7 +215,7 @@ void MemoryDebugger::onItem(unsigned traceIndex,
 Debugger::Debugger(const std::string &file)
 {
     m_fileName = file;
-    m_binaries.setPaths(ModPath);
+    m_binaries.setPaths(ModDir);
 }
 
 Debugger::~Debugger()

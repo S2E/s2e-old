@@ -18,7 +18,7 @@ Omitting the ``-pathId`` option will cause the command to output the trace for a
   ::
 
       $ /home/s2e/tools/Release/bin/tbtrace -trace=s2e-last/ExecutionTracer.dat -outputdir=s2e-last/traces \
-        -modpath=/home/s2e/experiments/rtl8139.sys/driver -modpath=/home/s2e/experiments/rtl8029.sys/driver \
+        -moddir=/home/s2e/experiments/rtl8139.sys/driver -moddir=/home/s2e/experiments/rtl8029.sys/driver \
         -pathId=0 -pathId=34
         
 
@@ -28,10 +28,10 @@ Required Plugins
 * ModuleExecutionDetector (only the translation blocks of those modules that are configured will be traced)
 * ExecutionTracer
 * TranslationBlockTracer
-
+* ModuleTracer (for module information)
 
 Optional Plugins
 ~~~~~~~~~~~~~~~~
 
-* ModuleTracer (for debug information)
+
 * TestCaseGenerator (for test cases)

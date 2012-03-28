@@ -62,7 +62,26 @@ void LibraryCallMonitor::initialize()
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
 
     ConfigFile *cfg = s2e()->getConfig();
-    m_displayOnce = cfg->getBool(getConfigKey() + ".displayOnce");
+    m_displayOnce = cfg->getBool(getConfigKey() + ".displayOnce", false);
+
+    bool ok = false;
+
+    //Fetch the list of modules where to report the calls
+    ConfigFile::string_list moduleList =
+            cfg->getStringList(getConfigKey() + ".moduleIds", ConfigFile::string_list(), &ok);
+
+    if (!ok || moduleList.empty()) {
+        s2e()->getWarningsStream() << "LibraryCallMonitor: no modules specified, tracking everything.\n";
+    }
+
+    foreach2(it, moduleList.begin(), moduleList.end()) {
+        if (!m_detector->isModuleConfigured(*it)) {
+            s2e()->getWarningsStream() << "LibraryCallMonitor: module " << *it
+                    << " is not configured\n";
+            exit(-1);
+        }
+        m_trackedModules.insert(*it);
+    }
 
     m_detector->onModuleLoad.connect(
             sigc::mem_fun(*this,
@@ -86,6 +105,14 @@ void LibraryCallMonitor::onModuleLoad(
     if (!m_monitor->getImports(state, module, imports)) {
         s2e()->getWarningsStream() << "LibraryCallMonitor could not retrieve imported functions in " << module.Name << '\n';
         return;
+    }
+
+    //Unless otherwise specified, LibraryCallMonitor tracks all library calls in the system
+    if (!m_trackedModules.empty()) {
+        const std::string *moduleId = m_detector->getModuleId(module);
+        if (!moduleId || (m_trackedModules.find(*moduleId) == m_trackedModules.end())) {
+            return;
+        }
     }
 
     DECLARE_PLUGINSTATE(LibraryCallMonitorState, state);
@@ -141,6 +168,8 @@ void LibraryCallMonitor::onFunctionCall(S2EExecutionState* state, FunctionMonito
     if (it != plgState->m_functions.end()) {
         const char *str = (*it).second;
         s2e()->getMessagesStream() << mod->Name << "@" << hexval(mod->ToNativeBase(caller)) << " called function " << str << '\n';
+
+        onLibraryCall.emit(state, fns, *mod);
 
         if (m_displayOnce) {
             m_alreadyCalledFunctions.insert(std::make_pair(mod->Pid, pc));

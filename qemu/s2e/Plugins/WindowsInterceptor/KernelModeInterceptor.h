@@ -65,8 +65,6 @@ public:
   bool CatchModuleLoad(S2EExecutionState *state);
   bool CatchModuleUnload(S2EExecutionState *state);
   bool ReadModuleList(S2EExecutionState *state);
-
-
 };
 
 

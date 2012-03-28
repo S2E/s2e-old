@@ -335,6 +335,7 @@ int WindowsImage::InitImports(S2EExecutionState *state)
             }
 
             if (!state->readString(Name+2, FunctionName)) {
+                j++;
                 continue;
             }
 

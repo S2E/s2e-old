@@ -52,6 +52,7 @@ extern "C" {
 #include "Api.h"
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
+#include <s2e/Plugins/ConsistencyModels.h>
 
 #include "NdisHandlers.h"
 #include "NtoskrnlHandlers.h"
@@ -73,8 +74,13 @@ void WindowsApi::initialize()
     m_memoryChecker = static_cast<MemoryChecker*>(s2e()->getPlugin("MemoryChecker"));
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
     m_bsodInterceptor = static_cast<BlueScreenInterceptor*>(s2e()->getPlugin("BlueScreenInterceptor"));
+    m_statsCollector = static_cast<ExecutionStatisticsCollector*>(s2e()->getPlugin("ExecutionStatisticsCollector"));
+    m_models = static_cast<ConsistencyModels*>(s2e()->getPlugin("ConsistencyModels"));
 
-    parseConsistency(getConfigKey());
+    ConfigFile *cfg = s2e()->getConfig();
+
+    m_terminateOnWarnings = cfg->getBool(getConfigKey() + ".terminateOnWarnings");
+
     parseSpecificConsistency(getConfigKey());
 }
 
@@ -99,7 +105,7 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
                 s2e()->getWarningsStream() << "NdisHandlers not activated!" << '\n';
             } else {
                 ndisHandlers->registerEntryPoints(state, functions);
-                ndisHandlers->registerCaller(module);
+                ndisHandlers->registerCaller(state, module);
                 ndisHandlers->registerImportedVariables(state, module, functions);
             }
 
@@ -109,43 +115,10 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
                 s2e()->getWarningsStream() << "NtoskrnlHandlers not activated!" << '\n';
             } else {
                 ntoskrnlHandlers->registerEntryPoints(state, functions);
-                ntoskrnlHandlers->registerCaller(module);
+                ntoskrnlHandlers->registerCaller(state, module);
                 ntoskrnlHandlers->registerImportedVariables(state, module, functions);
             }
         }
-    }
-}
-
-const ModuleDescriptor* WindowsApi::calledFromModule(S2EExecutionState *s)
-{
-    const ModuleDescriptor *mod = m_detector->getModule(s, s->getTb()->pcOfLastInstr);
-    if (!mod) {
-        return NULL;
-    }
-    return (m_callingModules.find(*mod) != m_callingModules.end()) ? mod : NULL;
-}
-
-
-void WindowsApi::parseConsistency(const std::string &key)
-{
-    ConfigFile *cfg = s2e()->getConfig();
-    bool ok = false;
-    std::string consistency = cfg->getString(key + ".consistency", "", &ok);
-
-    if (consistency == "strict") {
-        m_consistency = STRICT;
-    }else if (consistency == "local") {
-        m_consistency = LOCAL;
-    }else if (consistency == "overapproximate") {
-        m_consistency = OVERAPPROX;
-    }else if  (consistency == "overconstrained") {
-        //This is strict consistency with forced concretizations
-        //XXX: cannot have multiple plugins with overconstrained
-        m_consistency = STRICT;
-        s2e()->getExecutor()->setForceConcretizations(true);
-    }else {
-        s2e()->getWarningsStream() << "Incorrect consistency " << consistency << '\n';
-        exit(-1);
     }
 }
 
@@ -168,19 +141,14 @@ void WindowsApi::parseSpecificConsistency(const std::string &key)
             exit(-1);
         }
 
-        Consistency consistency = STRICT;
-        //Check the consistency type
-        if (pairs[1] == "strict") {
-            consistency = STRICT;
-        }else if (pairs[1] == "local") {
-            consistency = LOCAL;
-        }else if (pairs[1] == "overapproximate") {
-            consistency = OVERAPPROX;
-        }else if  (pairs[1] == "overconstrained") {
-            //This is strict consistency with forced concretizations
-            s2e()->getWarningsStream() << "NDISHANDLERS: Cannot handle overconstrained for specific functions " << '\n';
+        ExecutionConsistencyModel consistency;
+        consistency = ConsistencyModels::fromString(pairs[1]);
+        if (consistency == OVERCONSTR) {
+            s2e()->getWarningsStream() << "NDISHANDLERS: Cannot handle overconstrained for specific functions\n";
             exit(-1);
-        }else {
+        }
+
+        if (consistency == NONE) {
             s2e()->getWarningsStream() << "NDISHANDLERS: Incorrect consistency " << consistency <<
                     " for " << ss.str() << '\n';
             exit(-1);
@@ -190,15 +158,6 @@ void WindowsApi::parseSpecificConsistency(const std::string &key)
         m_specificConsistency[pairs[0]] = consistency;
     }
 
-}
-
-WindowsApi::Consistency WindowsApi::getConsistency(const std::string &fcn) const
-{
-    ConsistencyMap::const_iterator it = m_specificConsistency.find(fcn);
-    if (it != m_specificConsistency.end()) {
-        return (*it).second;
-    }
-    return m_consistency;
 }
 
 
@@ -283,6 +242,17 @@ bool WindowsApi::ReadUnicodeString(S2EExecutionState *state, uint32_t address, s
     return ok;
 }
 
+uint32_t WindowsApi::getReturnAddress(S2EExecutionState *s)
+{
+    uint32_t ra;
+    bool b = s->readMemoryConcrete(s->getSp(), &ra, sizeof(ra));
+    if (b) {
+        return ra;
+    } else {
+        return 0;
+    }
+}
+
 bool WindowsApi::readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val)
 {
     return s->readMemoryConcrete(s->getSp() + (param+1) * sizeof(uint32_t), val, sizeof(*val));
@@ -318,6 +288,7 @@ S2EExecutionState* WindowsApi::forkSuccessFailure(S2EExecutionState *state, bool
         skippedState->bypassFunction(argCount);
     }
 
+    incrementFailures(skippedState);
     return normalState;
 }
 
@@ -464,7 +435,7 @@ void WindowsApi::onModuleUnload(
 {
     m_functionMonitor->disconnect(state, module);
     unregisterEntryPoints(state, module);
-    unregisterCaller(module);
+    unregisterCaller(state, module);
 }
 
 

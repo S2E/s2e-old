@@ -36,42 +36,8 @@
 
 #include <s2e/Plugin.h>
 #include <s2e/S2E.h>
-
-// XXX: hack: for now we include and register all plugins right there
-#include <s2e/Plugins/CorePlugin.h>
-#include <s2e/Plugins/Example.h>
-#include <s2e/Plugins/RawMonitor.h>
-#include <s2e/Plugins/FunctionMonitor.h>
-#include <s2e/Plugins/LibraryCallMonitor.h>
-#include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
-#include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
-#include <s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.h>
-#include <s2e/Plugins/ModuleExecutionDetector.h>
-#include <s2e/Plugins/CodeSelector.h>
-#include <s2e/Plugins/BaseInstructions.h>
-#include <s2e/Plugins/DataSelectors/WindowsService.h>
-#include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
-#include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
-#include <s2e/Plugins/ExecutionTracers/ModuleTracer.h>
-#include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
-#include <s2e/Plugins/ExecutionTracers/MemoryTracer.h>
-#include <s2e/Plugins/ExecutionTracers/InstructionCounter.h>
-#include <s2e/Plugins/ExecutionTracers/TranslationBlockTracer.h>
-#include <s2e/Plugins/CacheSim.h>
-#include <s2e/Plugins/Debugger.h>
-#include <s2e/Plugins/SymbolicHardware.h>
-#include <s2e/Plugins/EdgeKiller.h>
-#include <s2e/Plugins/StateManager.h>
-#include <s2e/Plugins/Annotation.h>
-#include <s2e/Plugins/X86ExceptionInterceptor.h>
-#include <s2e/Plugins/HostFiles.h>
-#include <s2e/Plugins/MemoryChecker.h>
-#include <s2e/Plugins/WindowsApi/NdisHandlers.h>
-#include <s2e/Plugins/WindowsApi/NtoskrnlHandlers.h>
-#include <s2e/Plugins/WindowsApi/HalHandlers.h>
-#include <s2e/Plugins/WindowsApi/WindowsDriverExerciser.h>
-#include <s2e/Plugins/Searchers/MaxTbSearcher.h>
-#include <s2e/Plugins/Searchers/CooperativeSearcher.h>
+#include <s2e/S2EExecutionState.h>
+#include <s2e/Utils.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -79,6 +45,8 @@
 namespace s2e {
 
 using namespace std;
+
+CompiledPlugin::CompiledPlugins* CompiledPlugin::s_compiledPlugins = NULL;
 
 void Plugin::initialize()
 {
@@ -96,53 +64,11 @@ PluginState *Plugin::getPluginState(S2EExecutionState *s, PluginStateFactory f) 
 
 PluginsFactory::PluginsFactory()
 {
-#define __S2E_REGISTER_PLUGIN(className) \
-    registerPlugin(className::getPluginInfoStatic())
+    CompiledPlugin::CompiledPlugins *plugins = CompiledPlugin::getPlugins();
 
-    __S2E_REGISTER_PLUGIN(CorePlugin);
-    __S2E_REGISTER_PLUGIN(plugins::RawMonitor);
-    __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
-    __S2E_REGISTER_PLUGIN(plugins::LibraryCallMonitor);
-    __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
-    __S2E_REGISTER_PLUGIN(plugins::BlueScreenInterceptor);
-    __S2E_REGISTER_PLUGIN(plugins::WindowsCrashDumpGenerator);
-    __S2E_REGISTER_PLUGIN(plugins::ModuleExecutionDetector);
-    __S2E_REGISTER_PLUGIN(plugins::CodeSelector);
-    __S2E_REGISTER_PLUGIN(plugins::BaseInstructions);
-    __S2E_REGISTER_PLUGIN(plugins::WindowsService);
-    __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
-    __S2E_REGISTER_PLUGIN(plugins::CacheSim);
-
-    __S2E_REGISTER_PLUGIN(plugins::ExecutionTracer);
-    __S2E_REGISTER_PLUGIN(plugins::ModuleTracer);
-    __S2E_REGISTER_PLUGIN(plugins::TestCaseGenerator);
-    __S2E_REGISTER_PLUGIN(plugins::MemoryTracer);
-    __S2E_REGISTER_PLUGIN(plugins::InstructionCounter);
-    __S2E_REGISTER_PLUGIN(plugins::TranslationBlockTracer);
-
-    __S2E_REGISTER_PLUGIN(plugins::SymbolicHardware);
-    __S2E_REGISTER_PLUGIN(plugins::EdgeKiller);
-    __S2E_REGISTER_PLUGIN(plugins::Annotation);
-    __S2E_REGISTER_PLUGIN(plugins::X86ExceptionInterceptor);
-
-    __S2E_REGISTER_PLUGIN(plugins::WindowsDriverExerciser);
-    __S2E_REGISTER_PLUGIN(plugins::NdisHandlers);
-    __S2E_REGISTER_PLUGIN(plugins::NtoskrnlHandlers);
-    __S2E_REGISTER_PLUGIN(plugins::HalHandlers);
-
-    __S2E_REGISTER_PLUGIN(plugins::StateManager);
-
-    __S2E_REGISTER_PLUGIN(plugins::MaxTbSearcher);
-    __S2E_REGISTER_PLUGIN(plugins::CooperativeSearcher);
-
-    __S2E_REGISTER_PLUGIN(plugins::HostFiles);
-
-    __S2E_REGISTER_PLUGIN(plugins::MemoryChecker);
-
-    __S2E_REGISTER_PLUGIN(plugins::Debugger);
-    __S2E_REGISTER_PLUGIN(plugins::Example);
-
-#undef __S2E_REGISTER_PLUGIN
+    foreach2(it, plugins->begin(), plugins->end()) {
+        registerPlugin(*it);
+    }
 }
 
 void PluginsFactory::registerPlugin(const PluginInfo* pluginInfo)

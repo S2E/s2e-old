@@ -931,6 +931,9 @@ int cpu_x86_get_descr_debug(CPUX86State *env, unsigned int selector,
 /* wrapper, just in case memory mappings must be changed */
 static inline void cpu_x86_set_cpl(CPUX86State *s, int cpl)
 {
+#ifdef CONFIG_S2E
+    s2e_on_privilege_change(s->hflags & HF_CPL_MASK, cpl);
+#endif
 #if HF_CPL_MASK == 3
     s->hflags = (s->hflags & ~HF_CPL_MASK) | cpl;
 #else

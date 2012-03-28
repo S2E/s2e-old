@@ -14,13 +14,15 @@ include $(HWDIR)/config.mak
 endif
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
-$(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw)
+
+$(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw:$(S2E_PLUGIN_DIR))
 ifdef CONFIG_LINUX
 QEMU_CFLAGS += -I../linux-headers
 endif
 QEMU_CFLAGS += -I.. -I$(TARGET_PATH) -DNEED_CPU_H
 
 include $(SRC_PATH)/Makefile.objs
+
 
 ifdef CONFIG_USER_ONLY
 # user emulator name
@@ -422,7 +424,9 @@ s2eobj-y += s2e/Plugins/ModuleExecutionDetector.o
 s2eobj-y += s2e/Plugins/CodeSelector.o
 s2eobj-y += s2e/Plugins/RawMonitor.o
 s2eobj-y += s2e/Plugins/FunctionMonitor.o
+s2eobj-y += s2e/Plugins/StackMonitor.o
 s2eobj-y += s2e/Plugins/LibraryCallMonitor.o
+s2eobj-y += s2e/Plugins/InterruptInjector.o
 s2eobj-y += s2e/Plugins/BaseInstructions.o
 s2eobj-y += s2e/Plugins/X86ExceptionInterceptor.o
 s2eobj-y += s2e/Plugins/DataSelectors/DataSelector.o
@@ -436,11 +440,13 @@ s2eobj-y += s2e/Plugins/WindowsInterceptor/KernelModeInterceptor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsImage.o
 s2eobj-y += s2e/Plugins/WindowsApi/NdisHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/NdisHandlersUtils.o
+s2eobj-y += s2e/Plugins/WindowsApi/NdisMemoryCheck.o
 s2eobj-y += s2e/Plugins/WindowsApi/NdisProtocolHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/NtoskrnlHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/HalHandlers.o
 s2eobj-y += s2e/Plugins/WindowsApi/Api.o
 s2eobj-y += s2e/Plugins/WindowsApi/WindowsDriverExerciser.o
+s2eobj-y += s2e/Plugins/ConsistencyModels.o
 
 s2eobj-y += s2e/Plugins/ExecutionTracers/ExecutionTracer.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/ModuleTracer.o
@@ -460,6 +466,9 @@ s2eobj-y += s2e/Plugins/Searchers/CooperativeSearcher.o
 s2eobj-y += s2e/Plugins/HostFiles.o
 
 s2eobj-y += s2e/Plugins/MemoryChecker.o
+s2eobj-y += s2e/Plugins/StackChecker.o
+
+s2eobj-y += s2e/Plugins/ExecutionStatisticsCollector.o
 
 s2eobj-y += s2e/sqlite3.o
 s2eobj-y += s2e/Database.o
@@ -475,8 +484,11 @@ s2eobj-y += s2e/S2EStatsTracker.o
 s2eobj-y += s2e/S2E.o
 s2eobj-y += s2e/x64.o
 
+-include $(S2E_PLUGIN_DIR)/Makefile.target
 
-
+s2e/Plugins/ModuleExecutionDetector.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/StackMonitor.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/CodeSelector.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/StateManager.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Annotation.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/BranchCoverage.o s2e/Plugins/WindowsInterceptor/WindowsMonitor.o: QEMU_CXXFLAGS+=-fno-inline
@@ -491,6 +503,7 @@ s2e/Plugins/ExecutionTracers/TranslationBlockTracer.o: QEMU_CXXFLAGS+=-fno-inlin
 s2e/Plugins/Searchers/MaxTbSearcher.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Searchers/CooperativeSearcher.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/WindowsApi/NdisHandlers.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/WindowsApi/NdisProtocolHandlers.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/WindowsApi/NtoskrnlHandlers.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/WindowsApi/WindowsDriverExerciser.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/X86ExceptionInterceptor.o: QEMU_CXXFLAGS+=-fno-inline

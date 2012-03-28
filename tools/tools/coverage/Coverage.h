@@ -115,6 +115,7 @@ public:
     typedef std::set<BasicBlock, BasicBlock::SortByTime> BlocksByTime;
     typedef std::map<std::string, BasicBlocks> Functions;
 
+    typedef std::set<std::string> FunctionNames;
 
 private:
     std::string m_name;
@@ -123,20 +124,28 @@ private:
     Functions m_functions;
 
     Functions m_coveredFunctions;
+    FunctionNames m_ignoredFunctions;
     Blocks m_uniqueTbs;
 public:
-    BasicBlockCoverage(const std::string &basicBlockListFile,
+    BasicBlockCoverage(const std::string &moduleDir,
                    const std::string &moduleName);
+
+    void parseExcludeFile(const std::string &moduleDir,
+                          const std::string &moduleName);
 
     //Start and end must be local to the module
     //Returns true if the added block resulted in covering new basic blocks
     bool addTranslationBlock(uint64_t ts, uint64_t start, uint64_t end);
-
+    uint64_t getTimeCoverage() const;
     void convertTbToBb();
     void printTimeCoverage(std::ostream &os) const;
-    void printReport(std::ostream &os) const;
+    void printReport(std::ostream &os, uint64_t pathCount, bool useIgnoreList = false, bool csv = false) const;
     void printBBCov(std::ostream &os) const;
 
+
+    bool hasIgnoredFunctions() const {
+        return m_ignoredFunctions.size() > 0;
+    }
 
 };
 
@@ -150,6 +159,7 @@ private:
     Library *m_library;
 
     sigc::connection m_connection;
+    uint64_t m_pathCount;
 
     typedef std::map<std::string, BasicBlockCoverage*> BbCoverageMap;
 
@@ -165,6 +175,10 @@ public:
     virtual ~Coverage();
 
     void outputCoverage(const std::string &Path) const;
+
+    uint64_t getPathCount() const {
+        return m_pathCount;
+    }
 
 };
 

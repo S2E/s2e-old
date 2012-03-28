@@ -8,6 +8,14 @@ S2E works on Windows XP x64 and Windows 7.
 All the files can be found on the `S2E web site <https://s2e.epfl.ch/projects/s2e/files>`_.
 
 
+*WARNING: Windows support is currently experimental and may not work/compile on all setups. Only basic symbolic execution
+is currently supported. Most of the plugins will not work because of exception support issues.
+We recommend to run S2E in a Linux virtual machine (e.g., VMware). This is almost as fast as running S2E natively,
+provided that you give a sufficient amount of memory to the virtual machine (at least 4GB).
+We welcome contributions for full Windows support!*
+
+
+
 Quick install
 =============
 

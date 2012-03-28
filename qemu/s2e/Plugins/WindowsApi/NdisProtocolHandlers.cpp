@@ -55,6 +55,8 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
 
     state->undoCallAndJumpToSymbolic();
 
+    ExecutionConsistencyModel consistency = getConsistency(state, __FUNCTION__);
+
     //Extract the function pointers from the passed data structure
     uint32_t pProtocol, pStatus;
     if (!readConcreteParameter(state, 2, &pProtocol)) {
@@ -101,7 +103,7 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
     klee::ref<klee::Expr> symb;
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if (consistency == OVERAPPROX) {
         symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
     }else {
         std::vector<uint32_t> vec;
@@ -114,12 +116,37 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
 
     //Skip the call in the current state
     state->bypassFunction(4);
+    incrementFailures(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+VOID ProtocolOpenAdapterComplete(
+  __in  NDIS_HANDLE ProtocolBindingContext,
+  __in  NDIS_STATUS Status,
+  __in  NDIS_STATUS OpenErrorStatus
+)
+*/
 void NdisHandlers::OpenAdapterCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
+
+    //Read the status and grant access to the handle
+    uint32_t ProtocolBindingContext = 0;
+    uint32_t Status = 0;
+
+    readConcreteParameter(state, 0, &ProtocolBindingContext);
+    readConcreteParameter(state, 1, &Status);
+
+    s2e()->getDebugStream() << "ProtocolBindingContext=" << hexval(ProtocolBindingContext)
+                            << " Status=" << hexval(Status) << "\n";
+
+    if (NT_SUCCESS(Status)) {
+        incrementSuccesses(state);
+    } else {
+        incrementFailures(state);
+    }
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::OpenAdapterCompleteHandlerRet)
 }
 
@@ -177,9 +204,37 @@ void NdisHandlers::ResetCompleteHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+VOID ProtocolRequestComplete(
+  NDIS_HANDLE ProtocolBindingContext,
+  PNDIS_REQUEST NdisRequest,
+  NDIS_STATUS Status
+);
+*/
 void NdisHandlers::RequestCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
+
+    //Read the status and grant access to the handle
+    uint32_t ProtocolBindingContext = 0;
+    uint32_t Status = 0;
+    uint32_t pNdisRequest = 0;
+
+    readConcreteParameter(state, 0, &ProtocolBindingContext);
+    readConcreteParameter(state, 1, &pNdisRequest);
+    readConcreteParameter(state, 2, &Status);
+
+    s2e()->getDebugStream() << "ProtocolBindingContext=" << hexval(ProtocolBindingContext)
+                            << " pNdisRequest=" << hexval(pNdisRequest) << "\n"
+                            << " Status=" << hexval(Status) << "\n";
+
+
+    if (NT_SUCCESS(Status)) {
+        incrementSuccesses(state);
+    } else {
+        incrementFailures(state);
+    }
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::RequestCompleteHandlerRet)
 }
 
@@ -191,12 +246,19 @@ void NdisHandlers::RequestCompleteHandlerRet(S2EExecutionState* state)
 void NdisHandlers::ReceiveHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ReceiveHandlerRet)
+
+    bool pushed = changeConsistencyForEntryPoint(state, STRICT, 0);
+    incrementEntryPoint(state);
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::ReceiveHandlerRet, pushed);
 }
 
-void NdisHandlers::ReceiveHandlerRet(S2EExecutionState* state)
+void NdisHandlers::ReceiveHandlerRet(S2EExecutionState* state, bool pushed)
 {
     HANDLER_TRACE_RETURN();
+    if (pushed) {
+        m_models->pop(state);
+    }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::ReceiveCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -284,12 +346,29 @@ void NdisHandlers::BindAdapterHandler(S2EExecutionState* state, FunctionMonitorS
 
     s2e()->getMessagesStream() << "BindAdapterHandler: DeviceName=" << deviceName << '\n';
 
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::BindAdapterHandlerRet)
+
+    bool pushed = changeConsistencyForEntryPoint(state, STRICT, 0);
+    incrementEntryPoint(state);
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::BindAdapterHandlerRet, pStatus, pushed)
 }
 
-void NdisHandlers::BindAdapterHandlerRet(S2EExecutionState* state)
+void NdisHandlers::BindAdapterHandlerRet(S2EExecutionState* state, uint32_t pStatus, bool pushed)
 {
     HANDLER_TRACE_RETURN();
+
+    if (pushed) {
+        m_models->pop(state);
+    }
+
+    uint32_t Status;
+    if (state->readMemoryConcrete(pStatus, &Status, sizeof(Status))) {
+        if (NT_SUCCESS(Status)) {
+            incrementSuccesses(state);
+        } else {
+            incrementFailures(state);
+        }
+    }
 
     if (m_memoryChecker) {
         m_memoryChecker->revokeMemoryForModule(state, "args:BindAdapterHandler:*");
@@ -300,12 +379,28 @@ void NdisHandlers::BindAdapterHandlerRet(S2EExecutionState* state)
 void NdisHandlers::UnbindAdapterHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::UnbindAdapterHandlerRet)
+
+    uint32_t pStatus;
+    if (!readConcreteParameter(state, 0, &pStatus)) {
+        HANDLER_TRACE_PARAM_FAILED("Status");
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::UnbindAdapterHandlerRet, pStatus)
 }
 
-void NdisHandlers::UnbindAdapterHandlerRet(S2EExecutionState* state)
+void NdisHandlers::UnbindAdapterHandlerRet(S2EExecutionState* state, uint32_t pStatus)
 {
     HANDLER_TRACE_RETURN();
+
+    uint32_t Status;
+    if (state->readMemoryConcrete(pStatus, &Status, sizeof(Status))) {
+        if (NT_SUCCESS(Status)) {
+            incrementSuccesses(state);
+        } else {
+            incrementFailures(state);
+        }
+    }
 }
 
 
@@ -313,12 +408,20 @@ void NdisHandlers::UnbindAdapterHandlerRet(S2EExecutionState* state)
 void NdisHandlers::PnPEventHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::PnPEventHandlerRet)
+
+    bool pushed = changeConsistencyForEntryPoint(state, STRICT, 0);
+    incrementEntryPoint(state);
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::PnPEventHandlerRet, pushed)
 }
 
-void NdisHandlers::PnPEventHandlerRet(S2EExecutionState* state)
+void NdisHandlers::PnPEventHandlerRet(S2EExecutionState* state, bool pushed)
 {
     HANDLER_TRACE_RETURN();
+
+    if (pushed) {
+        m_models->pop(state);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

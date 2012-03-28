@@ -73,7 +73,7 @@ cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the list of translation blocks into the given folder"), cl::init("."));
 
 cl::list<std::string>
-    ModPath("modpath", cl::desc("Path to modules. Must contain *.lst and *.bblist files as well if needed."));
+    ModDir("moddir", cl::desc("Directory containing the binary modules"));
 
 cl::list<unsigned>
     PathList("pathId",
@@ -243,7 +243,7 @@ void TbTrace::printDisassembly(const std::string &module, uint64_t relPc, unsign
             //Print the vector we've got
             for(DisassemblyEntry::const_iterator asmIt = (*it).second.begin();
                 asmIt != (*it).second.end(); ++asmIt) {
-                m_output << *asmIt << std::endl;
+                m_output << "\033[1;33m" << *asmIt << "\033[0m" << std::endl;
             }
         }
 
@@ -350,6 +350,22 @@ void TbTrace::onItem(unsigned traceIndex,
             const s2e::plugins::ExecutionTraceItemHeader &hdr,
             void *item)
 {
+    //m_output << "Trace index " << std::dec << traceIndex << std::endl;
+    if (hdr.type == s2e::plugins::TRACE_MOD_LOAD) {
+        const s2e::plugins::ExecutionTraceModuleLoad &load = *(s2e::plugins::ExecutionTraceModuleLoad*)item;
+        m_output << "Loaded module " << load.name
+                 << " at 0x" << std::hex << load.loadBase;
+        m_output << std::endl;
+        return;
+    }
+
+    if (hdr.type == s2e::plugins::TRACE_MOD_UNLOAD) {
+        const s2e::plugins::ExecutionTraceModuleUnload &unload = *(s2e::plugins::ExecutionTraceModuleUnload*)item;
+        m_output << "Unloaded module at 0x" << unload.loadBase;
+        m_output << std::endl;
+        return;
+    }
+
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         m_output << "Forked at 0x" << std::hex << f->pc << " - ";
@@ -409,7 +425,7 @@ void TbTrace::onItem(unsigned traceIndex,
 
 TbTraceTool::TbTraceTool()
 {
-    m_binaries.setPaths(ModPath);
+    m_binaries.setPaths(ModDir);
 }
 
 TbTraceTool::~TbTraceTool()

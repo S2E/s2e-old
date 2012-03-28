@@ -735,6 +735,10 @@ for opt do
   ;;
   --enable-s2e) s2e="yes"
   ;;
+  --enable-boost) boost="yes"
+  ;;
+  --s2e-ext-plugins-dir=*) s2e_plugin_dir="$optarg"
+  ;;
   --with-klee=*) kleedir="$optarg"
   ;;
   --with-stp=*) stpdir="$optarg"
@@ -776,7 +780,8 @@ for opt do
   ;;
   --enable-linux-user) linux_user="yes"
   ;;
-  --disable-darwin-user) darwin_user="no"
+  --disable-darwin-user) 
+_user="no"
   ;;
   --enable-darwin-user) darwin_user="yes"
   ;;
@@ -1114,6 +1119,7 @@ echo "  --disable-slirp          disable SLIRP userspace network connectivity"
 echo "  --enable-llvm            enable LLVM support (for all targets)"
 echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
 echo "  --enable-s2e             enable S2E"
+echo "  --s2e-ext-plugins-dir    location of the external plugins source folder"
 echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
 echo "  --with-stp=PATH          STP path (PATH/lib/libstp.a must exist)"
 echo "  --with-clang=PATH        path to Clang"
@@ -3064,6 +3070,7 @@ echo "CXXFLAGS          $CXXFLAGS"
 echo "QEMU_CFLAGS       $QEMU_CFLAGS"
 echo "QEMU_CCFLAGS      $QEMU_CCFLAGS"
 echo "QEMU_CXXFLAGS     $QEMU_CXXFLAGS"
+echo "External plugins  $s2e_plugin_dir"
 echo "LDFLAGS           $LDFLAGS"
 echo "make              $make"
 echo "install           $install"
@@ -3941,7 +3948,12 @@ if test "$target_s2e" = "yes" ; then
   echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_target_mak
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
   echo "LLVMCC:=$clang" >> $config_target_mak
+  echo "LLVMCC:=$llvmgcc" >> $config_target_mak
   echo "LLVMAR:=$llvmar" >> $config_target_mak
+  echo "S2E_PLUGIN_DIR=$s2e_plugin_dir" >> $config_target_mak
+  if test "$boost" = "yes"; then
+      echo "LIBS+=-lboost_serialization" >> $config_target_mak
+  fi
 fi
 
 if [ "$llvm" = "yes" ]; then

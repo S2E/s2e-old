@@ -1,7 +1,16 @@
 S2ESRC:=$(CURDIR)/../s2e
 S2EBUILD:=$(CURDIR)
 
+<<<<<<< HEAD
 JOBS:=4
+=======
+JOBS:=2
+
+CP=cp
+ifeq ($(shell uname -s),Darwin)
+CP=gcp
+endif
+>>>>>>> internal
 
 all: all-release
 
@@ -149,7 +158,7 @@ stamps/llvm-make-release-asan: stamps/llvm-configure-asan
 #######
 
 stamps/stp-copy:
-	cp -Rup $(S2ESRC)/stp stp
+	$(CP) -Rup $(S2ESRC)/stp stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
@@ -158,7 +167,7 @@ stamps/stp-configure: stamps/stp-copy
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
-	cp -Rup $(S2ESRC)/stp stp
+	$(CP) -Rup $(S2ESRC)/stp stp
 	cd stp && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
@@ -251,8 +260,13 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e \
+<<<<<<< HEAD
 		--enable-debug --compile-all-with-clang
 
+=======
+		--enable-debug \
+                $(EXTRA_QEMU_FLAGS)
+>>>>>>> internal
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
@@ -265,7 +279,12 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
+<<<<<<< HEAD
 		--enable-s2e --compile-all-with-clang
+=======
+		--enable-s2e \
+                $(EXTRA_QEMU_FLAGS)
+>>>>>>> internal
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS

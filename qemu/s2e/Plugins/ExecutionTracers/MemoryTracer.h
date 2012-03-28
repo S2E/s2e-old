@@ -41,6 +41,7 @@
 #include <s2e/Plugins/Opcodes.h>
 #include <string>
 #include "ExecutionTracer.h"
+#include <s2e/Plugins/ModuleExecutionDetector.h>
 
 namespace s2e{
 namespace plugins{
@@ -68,6 +69,7 @@ private:
     bool m_monitorTlbMisses;
     bool m_monitorMemory;
 
+    bool m_monitorModules;
     bool m_monitorStack;
     bool m_traceHostAddresses;
     uint64_t m_catchAbove;
@@ -81,9 +83,7 @@ private:
     sigc::connection m_tlbMissesMonitor;
 
     ExecutionTracer *m_tracer;
-
-    bool decideTracing(S2EExecutionState *state, uint64_t addr, uint64_t data) const;
-
+    ModuleExecutionDetector *m_execDetector;
 
     void onTlbMiss(S2EExecutionState *state, uint64_t addr, bool is_write);
     void onPageFault(S2EExecutionState *state, uint64_t addr, bool is_write);
@@ -94,14 +94,22 @@ private:
     void disableTracing();
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
 
-public:
-    //May be called directly by other plugins
     void onDataMemoryAccess(S2EExecutionState *state,
                                    klee::ref<klee::Expr> address,
                                    klee::ref<klee::Expr> hostAddress,
                                    klee::ref<klee::Expr> value,
                                    bool isWrite, bool isIO);
 
+    void onModuleTransition(S2EExecutionState *state,
+                            const ModuleDescriptor *prevModule,
+                            const ModuleDescriptor *nextModule);
+public:
+    //May be called directly by other plugins
+    void traceDataMemoryAccess(S2EExecutionState *state,
+                                   klee::ref<klee::Expr> &address,
+                                   klee::ref<klee::Expr> &hostAddress,
+                                   klee::ref<klee::Expr> &value,
+                                   bool isWrite, bool isIO);
 };
 
 

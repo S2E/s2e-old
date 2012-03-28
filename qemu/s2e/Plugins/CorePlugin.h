@@ -53,7 +53,7 @@ namespace s2e {
 
 class S2EExecutionState;
 
-/** A type of a signal emited on instruction execution. Instances of this signal
+/** A type of a signal emitted on instruction execution. Instances of this signal
     will be dynamically created and destroyed on demand during translation. */
 typedef sigc::signal<void, S2EExecutionState*, uint64_t /* pc */> ExecutionSignal;
 
@@ -133,11 +133,27 @@ public:
 
     
     /** Signal that is emitted on code generation for each instruction */
-    sigc::signal<void, ExecutionSignal*, 
+    sigc::signal<void, ExecutionSignal*,
             S2EExecutionState*,
             TranslationBlock*,
             uint64_t /* instruction PC */>
             onTranslateInstructionStart, onTranslateInstructionEnd;
+
+    /**
+     *  Triggered *after* each instruction is translated to notify
+     *  plugins of which registers are used by the instruction.
+     *  Each bit of the mask corresponds to one of the registers of
+     *  the architecture (e.g., R_EAX, R_ECX, etc).
+     */
+    sigc::signal<void,
+                 ExecutionSignal*,
+                 S2EExecutionState* /* current state */,
+                 TranslationBlock*,
+                 uint64_t /* program counter of the instruction */,
+                 uint64_t /* registers read by the instruction */,
+                 uint64_t /* registers written by the instruction */,
+                 bool /* instruction accesses memory */>
+          onTranslateRegisterAccessEnd;
 
     /** Signal that is emitted on code generation for each jump instruction */
     sigc::signal<void, ExecutionSignal*,
@@ -177,7 +193,7 @@ public:
 
     sigc::signal<void> onTimer;
 
-    /** Signal emited when the state is forked */
+    /** Signal emitted when the state is forked */
     sigc::signal<void, S2EExecutionState* /* originalState */,
                  const std::vector<S2EExecutionState*>& /* newStates */,
                  const std::vector<klee::ref<klee::Expr> >& /* newConditions */>
@@ -188,11 +204,18 @@ public:
                  S2EExecutionState*> /* nextState */
             onStateSwitch;
 
-    /** Signal emited when spawning a new S2E process */
-    /** The signal is emitted in the child processes only */
+    /** Signal emitted when spawning a new S2E process */
     sigc::signal<void, bool /* prefork */,
                 bool /* ischild */,
                 unsigned /* parentProcId */> onProcessFork;
+
+    /**
+     * Signal emitted when a new S2E process was spawned and all
+     * parent states were removed from the child and child states
+     * removed from the parent.
+     */
+    sigc::signal<void, bool /* isChild */> onProcessForkComplete;
+
 
     /** Signal that is emitted upon TLB miss */
     sigc::signal<void, S2EExecutionState*, uint64_t, bool> onTlbMiss;
@@ -206,6 +229,35 @@ public:
     /** Signal emitted when QEMU is ready to activate registered devices */
     sigc::signal<void, struct PCIBus*> onDeviceActivation;
 
+    /**
+     * The current execution privilege level was changed (e.g., kernel-mode=>user-mode)
+     * previous and current are privilege levels. The meaning of the value may
+     * depend on the architecture.
+     */
+    sigc::signal<void,
+                 S2EExecutionState* /* current state */,
+                 unsigned /* previous level */,
+                 unsigned /* current level */>
+          onPrivilegeChange;
+
+    /**
+     * The current page directory was changed.
+     * This may occur, e.g., when the OS swaps address spaces.
+     * The addresses correspond to physical addresses.
+     */
+    sigc::signal<void,
+                 S2EExecutionState* /* current state */,
+                 uint64_t /* previous page directory base */,
+                 uint64_t /* current page directory base */>
+          onPageDirectoryChange;
+
+    /**
+     * S2E completed initialization and is about to enter
+     * the main execution loop for the first time.
+     */
+    sigc::signal<void,
+                 S2EExecutionState* /* current state */>
+          onInitializationComplete;
 };
 
 } // namespace s2e

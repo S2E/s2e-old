@@ -97,20 +97,20 @@ void BlueScreenInterceptor::onTranslateBlockStart(
 void BlueScreenInterceptor::onBsod(
         S2EExecutionState *state, uint64_t pc)
 {
-    llvm::raw_ostream &os = s2e()->getMessagesStream(state);
+    llvm::raw_ostream &os = s2e()->getWarningsStream(state);
 
-    os << "Killing state "  << state->getID() <<
-            " because of BSOD " << '\n';
-
-    ModuleExecutionDetector *m_exec = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    os << "Killing state "  << state->getID() << " because of BSOD " << '\n';
 
     dispatchErrorCodes(state);
 
-    if (m_exec) {
-        m_exec->dumpMemory(state, os, state->getSp(), 512);
+#if 0
+    ModuleExecutionDetector *exec = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    if (exec) {
+        exec->dumpMemory(state, os, state->getSp(), 512);
     }else {
         state->dumpStack(512);
     }
+#endif
 
     if (m_generateCrashDump && m_currentDumpCount < m_maxDumpCount) {
         ++m_currentDumpCount;

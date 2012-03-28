@@ -38,6 +38,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#ifdef WIN32
+#include <windows.h>
+#endif
 
 typedef void (*cmd_handler_t)(const char **args);
 
@@ -45,6 +50,7 @@ typedef struct _cmd_t {
     char *name;
     cmd_handler_t handler;
     unsigned args_count;
+    char *description;
 }cmd_t;
 
 void handler_kill(const char **args)
@@ -59,21 +65,63 @@ void handler_message(const char **args)
     s2e_message(args[0]);
 }
 
+void handler_wait(const char **args)
+{
+    s2e_message("Waiting for S2E...");
+    while (!s2e_version()) {
+#ifdef WIN32
+       Sleep(1000);
+#else
+       sleep(1);
+#endif
+    }
+    s2e_message("Done waiting for S2E.");
+}
 
-#define COMMAND(c, args) {#c, handler_##c, args}
+void handler_symbwrite(const char **args)
+{
+    int n_bytes = -1;
+    int i;
+
+    n_bytes = atoi(args[0]);
+    if (n_bytes < 0) {
+        fprintf(stderr, "number of bytes may not be negative\n");
+        return;
+    } else if (n_bytes == 0) {
+        return;
+    }
+
+    char* buffer = malloc(n_bytes+1);
+    memset(buffer, 0, n_bytes + 1);
+    s2e_make_symbolic(buffer, n_bytes, "buffer");
+
+    for (i = 0; i < n_bytes; ++i) {
+        putchar(buffer[i]);
+    }
+
+    free(buffer);
+
+    return;
+}
+
+
+#define COMMAND(c, args, desc) {#c, handler_##c, args, desc}
 
 static cmd_t s_commands[] = {
-    COMMAND(kill, 2),
-    COMMAND(message, 1),
+    COMMAND(kill, 2, "Kill the current state with the specified numeric status and message"),
+    COMMAND(message, 1, "Display a message"),
+    COMMAND(wait, 0, "Wait for S2E mode"),
+    COMMAND(symbwrite, 1, "Write n symbolic bytes to stdout"),
     {NULL, NULL, 0}
 };
 
 void print_commands()
 {
     unsigned i=0;
-    printf("%-15s  %s\n\n", "Command name", "Argument count");
+    printf("%-15s  %s %s\n\n", "Command name", "Argument count", "Description");
     while(s_commands[i].handler) {
-        printf("%-15s  %d\n", s_commands[i].name, s_commands[i].args_count);
+        printf("%-15s  %d              %s\n", s_commands[i].name, s_commands[i].args_count,
+                s_commands[i].description);
         ++i;
     }
 }
