@@ -2415,7 +2415,7 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 
     if (!isTrue) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
-                                           " because InitializeHandler failed with " << hexval(eax) << '\n';
+                                           " because InitializeHandler failed with " << eax << '\n';
         detectLeaks(state, *module);
         s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler failed");
         return;
@@ -2428,7 +2428,7 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
     plgState->exercisingInitEntryPoint = false;
 
-    s2e()->getDebugStream(state) << "InitializeHandler succeeded with " << hexval(eax) << '\n';
+    s2e()->getDebugStream(state) << "InitializeHandler succeeded with " << eax << '\n';
 
     if (m_manager) {
         m_manager->succeedState(state);

@@ -49,13 +49,14 @@
 
 #include <s2e/s2e_qemu.h>
 #include <llvm/Support/FileSystem.h>
-
 #include <llvm/Support/Path.h>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/raw_os_ostream.h>
+
 #include <llvm/Module.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
-#include <llvm/Support/CommandLine.h>
 #include <llvm/Bitcode/ReaderWriter.h>
-#include <llvm/Support/raw_os_ostream.h>
+
 
 #include <klee/Interpreter.h>
 #include <klee/Common.h>
@@ -342,7 +343,8 @@ S2E::~S2E()
 
     // KModule wants to delete the llvm::Module in destroyer.
     // llvm::ModuleProvider wants to delete it too. We have to arbitrate.
-    m_tcgLLVMContext->getModuleProvider()->releaseModule();
+    //XXX: llvm 3.0. How doe it work?
+    //m_tcgLLVMContext->getModuleProvider()->releaseModule();
 
     //Make sure everything is clean
     m_s2eExecutor->flushTb();

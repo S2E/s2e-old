@@ -258,7 +258,7 @@ bool CodeSelector::opSelectModule(S2EExecutionState *state)
         m_interceptedModules.insert(strModuleId);
     }else {
         s2e()->getWarningsStream() << "CodeSelector: " <<
-                "Module " << strModuleId << " is not configured" << std::endl;
+                "Module " << strModuleId << " is not configured\n";
         return false;
     }
 

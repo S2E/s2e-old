@@ -276,7 +276,7 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     }
 
     if (driverObjectValid && driverObject.DriverUnload) {
-        s2e()->getDebugStream() << "Registering " << "DriverUnload" << " at " << hexval(driverObject.DriverUnload) << std::endl; \
+        s2e()->getDebugStream() << "Registering " << "DriverUnload" << " at " << hexval(driverObject.DriverUnload) << '\n';
         registerEntryPoint(state, &WindowsDriverExerciser::DriverUnload, driverObject.DriverUnload);
     }
 

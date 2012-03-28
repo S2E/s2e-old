@@ -60,7 +60,7 @@ void InterruptInjector::initialize()
 
     m_deviceDescriptor = m_symbolicHardware->findDevice(m_hardwareId);
     if (!m_deviceDescriptor) {
-        s2e()->getWarningsStream() << "InterruptInjector: you must specifiy a valid hardware id." << std::endl;
+        s2e()->getWarningsStream() << "InterruptInjector: you must specifiy a valid hardware id.\n";
         exit(-1);
     }
 }

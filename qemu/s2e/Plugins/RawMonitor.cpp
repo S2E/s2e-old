@@ -171,14 +171,14 @@ void RawMonitor::opLoadConfiguredModule(S2EExecutionState *state)
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
-               "rawmonitor loadmodule" << std::endl;
+               "rawmonitor loadmodule\n";
         return;
     }
 
     std::string nameStr;
     if(!state->readString(name, nameStr)) {
         s2e()->getWarningsStream(state)
-                << "Error reading module name string from the guest" << std::endl;
+                << "Error reading module name string from the guest\n";
         return;
     }
 
@@ -189,7 +189,7 @@ void RawMonitor::opLoadConfiguredModule(S2EExecutionState *state)
         Cfg &c = *it;
         if (c.name == nameStr) {
             s2e()->getMessagesStream() << "RawMonitor: Registering " << nameStr << " "
-                    " @0x" << std::hex << rtloadbase << " size=0x" << size  << std::endl;
+                                          " @" << hexval(rtloadbase) << " size=" << hexval(size)  << '\n';
             c.start = rtloadbase;
             c.size = size;
             loadModule(state, c, false);
@@ -252,26 +252,26 @@ void RawMonitor::opCreateImportDescriptor(S2EExecutionState *state)
     if (!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
-               "rawmonitor loadimportdescriptor" << std::endl;
+               "rawmonitor loadimportdescriptor\n";
         return;
     }
 
     std::string dllnameStr;
     if(!state->readString(dllname, dllnameStr)) {
         s2e()->getWarningsStream(state)
-                << "Error reading dll name string from the guest" << std::endl;
+                << "Error reading dll name string from the guest\n";
         return;
     }
 
     std::string funcnameStr;
     if(!state->readString(funcname, funcnameStr)) {
         s2e()->getWarningsStream(state)
-                << "Error reading function name string from the guest" << std::endl;
+                << "Error reading function name string from the guest\n";
         return;
     }
 
     s2e()->getMessagesStream() << "RawMonitor: Registering " << dllnameStr << " "
-            << funcnameStr << " @0x" << std::hex << funcptr << std::endl;
+                               << funcnameStr << " @" << hexval(funcptr) << '\n';
 
     m_imports[dllnameStr][funcnameStr] = funcptr;
 }

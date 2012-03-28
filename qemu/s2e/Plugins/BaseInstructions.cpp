@@ -87,7 +87,7 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state)
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
-               " insert_symbolic opcode" << std::endl;
+               " insert_symbolic opcode\n";
         return;
     }
 
@@ -100,7 +100,7 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state)
     s2e()->getMessagesStream(state)
             << "Inserting symbolic data at " << hexval(address)
             << " of size " << hexval(size)
-            << " with name '" << nameStr << "'" << std::endl;
+            << " with name '" << nameStr << "'\n";
 
     vector<ref<Expr> > symb = state->createSymbolicArray(size, nameStr);
     for(unsigned i = 0; i < size; ++i) {
@@ -108,7 +108,7 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state)
             s2e()->getWarningsStream(state)
                 << "Can not insert symbolic value"
                 << " at " << hexval(address + i)
-                << ": can not write to memory" << std::endl;
+                << ": can not write to memory\n";
         }
     }
 }
@@ -124,8 +124,7 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
 
     if(!ok) {
         s2e()->getWarningsStream(state)
-            << "ERROR: symbolic argument was passed to s2e_op is_symbolic"
-            << std::endl;
+            << "ERROR: symbolic argument was passed to s2e_op is_symbolic\n";
         return;
     }
 
@@ -136,7 +135,7 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
     // readMemoryConcrete fails if the value is symbolic
     result = !state->readMemoryConcrete(address, &buf, 1);
     s2e()->getMessagesStream(state)
-            << (result ? " true" : " false") << endl;
+            << (result ? " true" : " false") << '\n';
     state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, 4);
 }
 
@@ -150,18 +149,17 @@ void BaseInstructions::killState(S2EExecutionState *state)
 
     if (!ok) {
         s2e()->getWarningsStream(state)
-            << "ERROR: symbolic argument was passed to s2e_kill_state "
-            << std::endl;
+            << "ERROR: symbolic argument was passed to s2e_kill_state \n";
     } else {
         message="<NO MESSAGE>";
         if(!messagePtr || !state->readString(messagePtr, message)) {
             s2e()->getWarningsStream(state)
-                << "Error reading file name string from the guest" << std::endl;
+                << "Error reading file name string from the guest\n";
         }
     }
 
     //Kill the current state
-    s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << std::endl;
+    s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << '\n';
     std::ostringstream os;
     os << "State was terminated by opcode\n"
        << "            message: \"" << message << "\"\n"
@@ -181,7 +179,7 @@ void BaseInstructions::printExpression(S2EExecutionState *state)
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
-               "print_expression opcode" << std::endl;
+               "print_expression opcode\n";
         return;
     }
 
@@ -193,7 +191,7 @@ void BaseInstructions::printExpression(S2EExecutionState *state)
 
 
     s2e()->getMessagesStream() << "SymbExpression " << nameStr << " - "
-            <<val << std::endl;
+                               <<val << '\n';
 }
 
 void BaseInstructions::printMemory(S2EExecutionState *state)
@@ -210,7 +208,7 @@ void BaseInstructions::printMemory(S2EExecutionState *state)
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
-               "print_expression opcode" << std::endl;
+               "print_expression opcode\n";
         return;
     }
 
@@ -220,16 +218,16 @@ void BaseInstructions::printMemory(S2EExecutionState *state)
                 << "Error reading string from the guest\n";
     }
 
-    s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << std::endl;
+    s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << '\n';
 
     for (uint32_t i=0; i<size; ++i) {
 
-        s2e()->getMessagesStream() << std::hex << "0x" << std::setw(8) << (address+i) << ": " << std::dec;
+        s2e()->getMessagesStream() << hexval(address+i) << ": ";
         ref<Expr> res = state->readMemory8(address+i);
         if (res.isNull()) {
-            s2e()->getMessagesStream() << "Invalid pointer" << std::endl;
+            s2e()->getMessagesStream() << "Invalid pointer\n";
         }else {
-            s2e()->getMessagesStream() << res << std::endl;
+            s2e()->getMessagesStream() << res << '\n';
         }
     }
 }
@@ -248,7 +246,7 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
-               " get_example opcode" << std::endl;
+               " get_example opcode\n";
         return;
     }
 
@@ -264,12 +262,12 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
             if(!state->writeMemory(address + i, expr)) {
                 s2e()->getWarningsStream(state)
                     << "Can not write to memory"
-                    << " at " << hexval(address + i) << std::endl;
+                    << " at " << hexval(address + i) << '\n';
             }
         } else {
             s2e()->getWarningsStream(state)
                 << "Can not read from memory"
-                << " at " << hexval(address + i) << std::endl;
+                << " at " << hexval(address + i) << '\n';
         }
     }
 }
@@ -278,7 +276,7 @@ void BaseInstructions::sleep(S2EExecutionState *state)
 {
     uint32_t duration = 0;
     state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration, sizeof(uint32_t));
-    s2e()->getDebugStream() << "Sleeping " << std::dec << duration << " seconds" << std::endl;
+    s2e()->getDebugStream() << "Sleeping " << duration << " seconds\n";
 
     llvm::sys::TimeValue startTime = llvm::sys::TimeValue::now();
 
@@ -299,7 +297,7 @@ void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
-               " message opcode" << std::endl;
+               " message opcode\n";
         return;
     }
 
@@ -307,16 +305,15 @@ void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
     if(!address || !state->readString(address, str)) {
         s2e()->getWarningsStream(state)
                 << "Error reading string message from the guest at address 0x"
-                << std::hex << address
-                << std::endl;
+                << hexval(address) << '\n';
     } else {
-        ostream *stream;
+        llvm::raw_ostream *stream;
         if(isWarning)
             stream = &s2e()->getWarningsStream(state);
         else
             stream = &s2e()->getMessagesStream(state);
-        (*stream) << "Message from guest (0x" << std::hex << address <<
-                "): " <<  str << std::endl;
+        (*stream) << "Message from guest (0x" << hexval(address) <<
+                     "): " <<  str << '\n';
     }
 }
 

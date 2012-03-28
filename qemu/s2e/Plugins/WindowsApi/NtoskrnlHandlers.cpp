@@ -837,7 +837,7 @@ void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
             //uint64_t inputBuffer = stackLocation.Parameters.DeviceIoControl.Type3InputBuffer;
             //uint64_t outputBuffer = irp.UserBuffer;
 
-            s2e()->getWarningsStream() << "METHOD_NEITHER not implemented yet..." << std::endl;
+            s2e()->getWarningsStream() << "METHOD_NEITHER not implemented yet...\n";
         }
         break;
     }

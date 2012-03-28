@@ -199,8 +199,8 @@ public:
     const std::string *getModuleId(const ModuleDescriptor &desc) const;
 
     void dumpMemory(S2EExecutionState *state,
-                                             std::ostream &os,
-                                             uint64_t va, unsigned count);
+                    llvm::raw_ostream &os_llvm,
+                    uint64_t va, unsigned count);
 
     const ConfiguredModulesById &getConfiguredModulesById() const {
         return m_ConfiguredModulesId;

@@ -34,6 +34,7 @@
  *
  */
 
+#include <s2e/Utils.h>
 #include "NdisHandlers.h"
 #include "Ndis.h"
 
@@ -118,7 +119,7 @@ void NdisHandlers::grantMiniportAdapterContext(S2EExecutionState *state, uint32_
 
    uint32_t NdisHandle;
    if (!readConcreteParameter(state, HandleParamNum, &NdisHandle)) {
-       s2e()->getDebugStream(state) << "Could not read NdisHandle" << std::endl;
+       s2e()->getDebugStream(state) << "Could not read NdisHandle\n";
        return;
    }
    if (NdisHandle) {

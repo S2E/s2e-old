@@ -63,6 +63,12 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const hexval& h)
     return out;
 }
 
+inline std::ostream& operator<<(std::ostream& out, const hexval& h)
+{
+    out << std::hex << (h.value);
+    return out;
+}
+
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const klee::ref<klee::Expr> &expr)
 {
     std::stringstream ss;

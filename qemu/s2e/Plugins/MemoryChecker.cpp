@@ -102,7 +102,15 @@ namespace {
         return out;
     }
 
-    llvm::raw_ostream& operator <<(std::ostream& out, const ResourceHandle& r) {
+    llvm::raw_ostream& operator <<(llvm::raw_ostream& out, const ResourceHandle& r) {
+        out << "ResourceHandle(\n"
+            << "    handle = " << hexval(r.handle) << "\n"
+            << "    allocPC = " << hexval(r.allocPC) << "\n"
+            << "    type = " << r.type << "\n";
+        return out;
+    }
+
+    std::ostream& operator <<(std::ostream& out, const ResourceHandle& r) {
         out << "ResourceHandle(\n"
             << "    handle = " << hexval(r.handle) << "\n"
             << "    allocPC = " << hexval(r.allocPC) << "\n"
@@ -696,8 +704,7 @@ void MemoryChecker::grantResource(S2EExecutionState *state,
     res.handle = handle;
     res.type = resourceType;
 
-    s2e()->getDebugStream(state) << "MemoryChecker::grantResource("
-            << res << ")" << std::endl;
+    s2e()->getDebugStream(state) << "MemoryChecker::grantResource(" << res << ")\n";
 
     /********************************************/
     /* Write a log entry about the grant event */
@@ -858,7 +865,7 @@ bool MemoryChecker::checkResourceLeaks(S2EExecutionState *state)
         if(m_terminateOnLeaks)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
-            s2e()->getWarningsStream(state) << err.str() << std::flush;
+            s2e()->getWarningsStream(state) << err.str();
         return false;
     }
 

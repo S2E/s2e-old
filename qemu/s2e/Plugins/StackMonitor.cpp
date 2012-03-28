@@ -53,7 +53,6 @@ namespace plugins {
 S2E_DEFINE_PLUGIN(StackMonitor, "Tracks stack usage by modules", "StackMonitor",
                   "ModuleExecutionDetector", "Interceptor");
 
-//namespace {
 class StackMonitorState : public PluginState
 {
 public:
@@ -104,6 +103,8 @@ public:
         bool operator < (const StackFrame &f1) {
             return top + size <= f1.size;
         }
+
+        friend llvm::raw_ostream& operator<<(llvm::raw_ostream &os, const StackFrame &frame);
     };
 
     //The frames are sorted by decreasing stack pointer
@@ -248,7 +249,7 @@ public:
             }
         }
 
-        friend std::ostream& operator<<(std::ostream &os, const Stack &stack);
+        friend llvm::raw_ostream& operator<<(llvm::raw_ostream &os, const Stack &stack);
     };
 
     //Maps a stack base to a stack representation
@@ -285,13 +286,13 @@ public:
     friend class StackMonitor;
 };
 
-std::ostream& operator<<(std::ostream &os, const StackMonitorState::StackFrame &frame)
+llvm::raw_ostream& operator<<(llvm::raw_ostream &os, const StackMonitorState::StackFrame &frame)
 {
     os << "  Frame pc=" << hexval(frame.pc) << " @" << hexval(frame.top) << " size=" << hexval(frame.size);
     return os;
 }
 
-std::ostream& operator<<(std::ostream &os, const StackMonitorState::Stack &stack)
+llvm::raw_ostream& operator<<(llvm::raw_ostream &os, const StackMonitorState::Stack &stack)
 {
     os << "Stack " << hexval(stack.m_stackBase) << " size=" << hexval(stack.m_stackSize) << "\n";
     foreach2(it, stack.m_frames.begin(), stack.m_frames.end()) {
@@ -301,7 +302,6 @@ std::ostream& operator<<(std::ostream &os, const StackMonitorState::Stack &stack
     return os;
 }
 
-//}
 
 void StackMonitor::initialize()
 {

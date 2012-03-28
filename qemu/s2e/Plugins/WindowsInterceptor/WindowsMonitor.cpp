@@ -795,7 +795,7 @@ bool WindowsMonitor::getDpcStack(S2EExecutionState *state, uint64_t *base, uint6
 
     if (state->readMemoryConcrete(dpcStackPtr, &dpcStack, sizeof(dpcStack))) {
         dpcStack -= 0x3000;
-        s2e()->getDebugStream() << "WindowsMonitor esp=" << hexval(sp) << " dpc=" << hexval(dpcStack) << std::endl;
+        s2e()->getDebugStream() << "WindowsMonitor esp=" << hexval(sp) << " dpc=" << hexval(dpcStack) << '\n';
         if (sp >= dpcStack && sp < (dpcStack + 0x3000)) {
             if (base) {
                 *base = dpcStack;
