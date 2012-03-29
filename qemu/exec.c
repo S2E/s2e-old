@@ -4125,17 +4125,17 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                    potential bugs */
                 if (l >= 4 && ((addr1 & 3) == 0)) {
                     /* 32 bit write access */
-                    val = ldl_p(buf);
+                    val = ldl_raw(buf);
                     io_mem_write[io_index][2](io_mem_opaque[io_index], addr1, val);
                     l = 4;
                 } else if (l >= 2 && ((addr1 & 1) == 0)) {
                     /* 16 bit write access */
-                    val = lduw_p(buf);
+                    val = lduw_raw(buf);
                     io_mem_write[io_index][1](io_mem_opaque[io_index], addr1, val);
                     l = 2;
                 } else {
                     /* 8 bit write access */
-                    val = ldub_p(buf);
+                    val = ldub_raw(buf);
                     io_mem_write[io_index][0](io_mem_opaque[io_index], addr1, val);
                     l = 1;
                 }
@@ -4169,17 +4169,17 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                 if (l >= 4 && ((addr1 & 3) == 0)) {
                     /* 32 bit read access */
                     val = io_mem_read[io_index][2](io_mem_opaque[io_index], addr1);
-                    stl_p(buf, val);
+                    stl_raw(buf, val);
                     l = 4;
                 } else if (l >= 2 && ((addr1 & 1) == 0)) {
                     /* 16 bit read access */
                     val = io_mem_read[io_index][1](io_mem_opaque[io_index], addr1);
-                    stw_p(buf, val);
+                    stw_raw(buf, val);
                     l = 2;
                 } else {
                     /* 8 bit read access */
                     val = io_mem_read[io_index][0](io_mem_opaque[io_index], addr1);
-                    stb_p(buf, val);
+                    stb_raw(buf, val);
                     l = 1;
                 }
             } else {
@@ -4444,13 +4444,13 @@ static inline uint32_t ldl_phys_internal(target_phys_addr_t addr,
             (addr & ~TARGET_PAGE_MASK);
         switch (endian) {
         case DEVICE_LITTLE_ENDIAN:
-            val = ldl_le_p(ptr);
+            val = ldl_le_raw(ptr);
             break;
         case DEVICE_BIG_ENDIAN:
-            val = ldl_be_p(ptr);
+            val = ldl_be_raw(ptr);
             break;
         default:
-            val = ldl_p(ptr);
+            val = ldl_raw(ptr);
             break;
         }
     }
@@ -4511,13 +4511,13 @@ static inline uint64_t ldq_phys_internal(target_phys_addr_t addr,
             (addr & ~TARGET_PAGE_MASK);
         switch (endian) {
         case DEVICE_LITTLE_ENDIAN:
-            val = ldq_le_p(ptr);
+            val = ldq_le_raw(ptr);
             break;
         case DEVICE_BIG_ENDIAN:
-            val = ldq_be_p(ptr);
+            val = ldq_be_raw(ptr);
             break;
         default:
-            val = ldq_p(ptr);
+            val = ldq_raw(ptr);
             break;
         }
     }
@@ -4586,13 +4586,13 @@ static inline uint32_t lduw_phys_internal(target_phys_addr_t addr,
             (addr & ~TARGET_PAGE_MASK);
         switch (endian) {
         case DEVICE_LITTLE_ENDIAN:
-            val = lduw_le_p(ptr);
+            val = lduw_le_raw(ptr);
             break;
         case DEVICE_BIG_ENDIAN:
-            val = lduw_be_p(ptr);
+            val = lduw_be_raw(ptr);
             break;
         default:
-            val = lduw_p(ptr);
+            val = lduw_raw(ptr);
             break;
         }
     }
@@ -4639,7 +4639,7 @@ void stl_phys_notdirty(target_phys_addr_t addr, uint32_t val)
     } else {
         unsigned long addr1 = (pd & TARGET_PAGE_MASK) + (addr & ~TARGET_PAGE_MASK);
         ptr = qemu_get_ram_ptr(addr1);
-        stl_p(ptr, val);
+        stl_raw(ptr, val);
 
         if (unlikely(in_migration)) {
             if (!cpu_physical_memory_is_dirty(addr1)) {
@@ -4681,7 +4681,7 @@ void stq_phys_notdirty(target_phys_addr_t addr, uint64_t val)
     } else {
         ptr = qemu_get_ram_ptr(pd & TARGET_PAGE_MASK) +
             (addr & ~TARGET_PAGE_MASK);
-        stq_p(ptr, val);
+        stq_raw(ptr, val);
     }
 }
 
@@ -4722,13 +4722,13 @@ static inline void stl_phys_internal(target_phys_addr_t addr, uint32_t val,
         ptr = qemu_get_ram_ptr(addr1);
         switch (endian) {
         case DEVICE_LITTLE_ENDIAN:
-            stl_le_p(ptr, val);
+            stl_le_raw(ptr, val);
             break;
         case DEVICE_BIG_ENDIAN:
-            stl_be_p(ptr, val);
+            stl_be_raw(ptr, val);
             break;
         default:
-            stl_p(ptr, val);
+            stl_raw(ptr, val);
             break;
         }
         if (!cpu_physical_memory_is_dirty(addr1)) {
@@ -4800,13 +4800,13 @@ static inline void stw_phys_internal(target_phys_addr_t addr, uint32_t val,
         ptr = qemu_get_ram_ptr(addr1);
         switch (endian) {
         case DEVICE_LITTLE_ENDIAN:
-            stw_le_p(ptr, val);
+            stw_le_raw(ptr, val);
             break;
         case DEVICE_BIG_ENDIAN:
-            stw_be_p(ptr, val);
+            stw_be_raw(ptr, val);
             break;
         default:
-            stw_p(ptr, val);
+            stw_raw(ptr, val);
             break;
         }
         if (!cpu_physical_memory_is_dirty(addr1)) {

@@ -261,6 +261,32 @@ extern unsigned long reserved_va;
 #define stfl_raw(p, v) stfl_p(saddr((p)), v)
 #define stfq_raw(p, v) stfq_p(saddr((p)), v)
 
+#define lduw_le_raw(p) lduw_le_p(laddr((p)))
+#define ldsw_le_raw(p) ldsw_le_p(laddr((p)))
+#define ldl_le_raw(p) ldl_le_p(laddr((p)))
+#define ldq_le_raw(p) ldq_le_p(laddr((p)))
+#define ldfl_le_raw(p) ldfl_le_p(laddr((p)))
+#define ldfq_le_raw(p) ldfq_le_p(laddr((p)))
+#define stb_le_raw(p, v) stb_le_p(saddr((p)), v)
+#define stw_le_raw(p, v) stw_le_p(saddr((p)), v)
+#define stl_le_raw(p, v) stl_le_p(saddr((p)), v)
+#define stq_le_raw(p, v) stq_le_p(saddr((p)), v)
+#define stfl_le_raw(p, v) stfl_le_p(saddr((p)), v)
+#define stfq_le_raw(p, v) stfq_le_p(saddr((p)), v)
+
+#define lduw_be_raw(p) lduw_be_p(laddr((p)))
+#define ldsw_be_raw(p) ldsw_be_p(laddr((p)))
+#define ldl_be_raw(p) ldl_be_p(laddr((p)))
+#define ldq_be_raw(p) ldq_be_p(laddr((p)))
+#define ldfl_be_raw(p) ldfl_be_p(laddr((p)))
+#define ldfq_be_raw(p) ldfq_be_p(laddr((p)))
+#define stb_be_raw(p, v) stb_be_p(saddr((p)), v)
+#define stw_be_raw(p, v) stw_be_p(saddr((p)), v)
+#define stl_be_raw(p, v) stl_be_p(saddr((p)), v)
+#define stq_be_raw(p, v) stq_be_p(saddr((p)), v)
+#define stfl_be_raw(p, v) stfl_be_p(saddr((p)), v)
+#define stfq_be_raw(p, v) stfq_be_p(saddr((p)), v)
+
 #else /* CONFIG_S2E */
 
 static inline int _s2e_check_concrete(void *objectState,
@@ -283,6 +309,8 @@ static inline int _s2e_check_concrete(void *objectState,
 }
 
 /* Functions suffixed with symb abort execution if it is in concrete mode */
+
+/* host endianness */
 #define _s2e_define_ld_raw(ct, t, s) \
     static inline ct ld ## t ## _raw(const void* p) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
@@ -299,6 +327,41 @@ static inline int _s2e_check_concrete(void *objectState,
         } else return ld ## t ## _p(p); \
     }
 
+/* explicit little endian */
+#define _s2e_define_ld_raw_le(ct, t, s) \
+    static inline ct ld ## t ## _le_raw(const void* p) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+            return ld ## t ## _le_p(buf); /* read right type of value from buf */ \
+        } else return ld ## t ## _le_p(p); \
+    } \
+    static inline ct ld ## t ## _le_raw_symb(const void* p) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            s2e_read_ram_concrete_check(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+            return ld ## t ## _le_p(buf); \
+        } else return ld ## t ## _le_p(p); \
+    }
+
+/* explicit big endian */
+#define _s2e_define_ld_raw_be(ct, t, s) \
+    static inline ct ld ## t ## _be_raw(const void* p) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+            return ld ## t ## _be_p(buf); /* read right type of value from buf */ \
+        } else return ld ## t ## _be_p(p); \
+    } \
+    static inline ct ld ## t ## _be_raw_symb(const void* p) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            s2e_read_ram_concrete_check(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+            return ld ## t ## _be_p(buf); \
+        } else return ld ## t ## _be_p(p); \
+    }
+
+/* host endianness */
 #define _s2e_define_st_raw(ct, t, s) \
     static inline void st ## t ## _raw(void* p, ct v) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
@@ -309,6 +372,32 @@ static inline int _s2e_check_concrete(void *objectState,
     }\
     static inline void st ## t ## _raw_symb(void* p, ct v) { \
         st ## t ## _raw(p, v); \
+    }
+
+/* explicit little endian */
+#define _s2e_define_st_raw_le(ct, t, s) \
+    static inline void st ## t ## _le_raw(void* p, ct v) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            st ## t ## _le_p(buf, v); \
+            s2e_write_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+        } else st ## t ## _le_p(p, v); \
+    }\
+    static inline void st ## t ## _le_raw_symb(void* p, ct v) { \
+        st ## t ## _le_raw(p, v); \
+    }
+
+/* explicit big endian */
+#define _s2e_define_st_raw_be(ct, t, s) \
+    static inline void st ## t ## _be_raw(void* p, ct v) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            st ## t ## _be_p(buf, v); \
+            s2e_write_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+        } else st ## t ## _be_p(p, v); \
+    }\
+    static inline void st ## t ## _be_raw_symb(void* p, ct v) { \
+        st ## t ## _be_raw(p, v); \
     }
 
 _s2e_define_ld_raw(int, ub, 1)
@@ -326,6 +415,32 @@ _s2e_define_st_raw(int, l, 4)
 _s2e_define_st_raw(uint64_t,  q, 8)
 _s2e_define_st_raw(float32,  fl, 4)
 _s2e_define_st_raw(float64,  fq, 8)
+
+_s2e_define_ld_raw_le(int, uw, 2)
+_s2e_define_ld_raw_le(int, sw, 2)
+_s2e_define_ld_raw_le(int,  l, 4)
+_s2e_define_ld_raw_le(uint64_t,  q, 8)
+_s2e_define_ld_raw_le(float32,  fl, 4)
+_s2e_define_ld_raw_le(float64,  fq, 8)
+
+_s2e_define_st_raw_le(int, w, 2)
+_s2e_define_st_raw_le(int, l, 4)
+_s2e_define_st_raw_le(uint64_t,  q, 8)
+_s2e_define_st_raw_le(float32,  fl, 4)
+_s2e_define_st_raw_le(float64,  fq, 8)
+
+_s2e_define_ld_raw_be(int, uw, 2)
+_s2e_define_ld_raw_be(int, sw, 2)
+_s2e_define_ld_raw_be(int,  l, 4)
+_s2e_define_ld_raw_be(uint64_t,  q, 8)
+_s2e_define_ld_raw_be(float32,  fl, 4)
+_s2e_define_ld_raw_be(float64,  fq, 8)
+
+_s2e_define_st_raw_be(int, w, 2)
+_s2e_define_st_raw_be(int, l, 4)
+_s2e_define_st_raw_be(uint64_t,  q, 8)
+_s2e_define_st_raw_be(float32,  fl, 4)
+_s2e_define_st_raw_be(float64,  fq, 8)
 
 #endif
 
