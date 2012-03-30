@@ -185,6 +185,7 @@ public:
     Type* intType(int w) { return IntegerType::get(m_context, w); }
     Type* intPtrType(int w) { return PointerType::get(intType(w), 0); }
     Type* wordType() { return intType(TCG_TARGET_REG_BITS); }
+    Type* wordType(int bits) { return intType(bits); }
     Type* wordPtrType() { return intPtrType(TCG_TARGET_REG_BITS); }
 
     Type* tcgType(int type) {
@@ -203,6 +204,7 @@ public:
     Value* getPtrForValue(int idx);
     void delPtrForValue(int idx);
     void initGlobalsAndLocalTemps();
+    unsigned getValueBits(int idx);
 
     void invalidateCachedMemory();
 
@@ -445,6 +447,16 @@ inline void TCGLLVMContextPrivate::delPtrForValue(int idx)
     }
     */
     m_memValuesPtr[idx] = NULL;
+}
+
+unsigned TCGLLVMContextPrivate::getValueBits(int idx)
+{
+    switch (m_tcgContext->temps[idx].type) {
+        case TCG_TYPE_I32: return 32;
+        case TCG_TYPE_I64: return 64;
+        default: assert(false && "Unknown size");
+    }
+    return 0;
 }
 
 Value* TCGLLVMContextPrivate::getValue(int idx)
@@ -845,7 +857,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
             assert(nb_oargs == 0 || nb_oargs == 1);
             Type* retType = nb_oargs == 0 ?
-                Type::getVoidTy(m_context) : wordType(); // XXX?
+                Type::getVoidTy(m_context) : wordType(getValueBits(args[1]));
 
             Value* helperAddr = getValue(args[nb_oargs + nb_iargs]);
 #ifdef CONFIG_S2E
@@ -1378,6 +1390,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
         }
 
         args += generateOperation(opc, args);
+        //llvm::errs() << *m_tbFunction << "\n";
     }
 
     /* Finalize function */
