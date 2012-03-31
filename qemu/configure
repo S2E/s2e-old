@@ -3402,8 +3402,12 @@ fi
 echo "GLIB_CFLAGS=$glib_cflags" >> $config_host_mak
 
 if test "$llvm" = "yes" ; then
+  if test "$debug" = "yes" ; then
+     FILTERFLAGS="-O2 -O1 -O3 -fomit-frame-pointer"
+  fi
+
   echo "CONFIG_LLVM=y" >> $config_host_mak
-  echo "LLVM_CXXFLAGS=$llvm_cxxflags" >> $config_host_mak
+  echo "LLVM_CXXFLAGS=\$(filter-out $FILTERFLAGS,$llvm_cxxflags)" >> $config_host_mak
 fi
 if test "$compileallwithclang" = "yes"; then
   echo "CONFIG_CLANG=y" >> $config_host_mak
@@ -3943,7 +3947,7 @@ if test "$target_s2e" = "yes" ; then
 
   echo "CONFIG_S2E=y" >> $config_target_mak
   echo "CONFIG_LLVM=y" >> $config_target_mak
-  echo "LLVM_CXXFLAGS:=$llvm_cxxflags" >> $config_target_mak
+  echo "LLVM_CXXFLAGS:=\$(filter-out $FILTERFLAGS,$llvm_cxxflags)" >> $config_target_mak
   echo "S2E_CXXFLAGS:=\$(filter-out $llvm_cxxflags $FILTERFLAGS, $klee_cxxflags)" >> $config_target_mak
   echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_target_mak
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
