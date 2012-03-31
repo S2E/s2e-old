@@ -590,7 +590,10 @@ void tcg_gen_shifti_i64(TCGv_i64 ret, TCGv_i64 arg1,
 TCGArg *tcg_optimize(TCGContext *s, uint16_t *tcg_opc_ptr, TCGArg *args,
                      TCGOpDef *tcg_op_def);
 
-/* only used for debugging purposes */
+/* accesses_mem should be set to one if the helper can access symb memory */
+void tcg_register_helper_with_reg_mask(void *func, const char *name,
+                                   uint64_t reg_rmask, uint64_t reg_wmask,
+                                   uint64_t accesses_mem);
 void tcg_register_helper(void *func, const char *name);
 const char *tcg_helper_get_name(TCGContext *s, void *func);
 void tcg_helper_get_reg_mask(TCGContext *s, void *func,
