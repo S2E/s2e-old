@@ -2648,12 +2648,11 @@ DEF("s2e-verbose", 0, QEMU_OPTION_s2e_verbose,
     "-s2e-verbose    show more information during execution\n", QEMU_ARCH_ALL)
 DEF("always-klee", 0, QEMU_OPTION_always_klee,
     "-always-klee    execute everything using KLEE interpreter\n", QEMU_ARCH_ALL)
-#else
+#endif
 DEF("llvm", 0, QEMU_OPTION_execute_llvm,
     "-llvm           execute code using LLVM JIT\n", QEMU_ARCH_ALL)
 DEF("generate-llvm", 0, QEMU_OPTION_generate_llvm,
     "-generate-llvm  translate code into LLVM but don't execute it\n", QEMU_ARCH_ALL)
-#endif
 #endif
 
 HXCOMM This is the last statement. Insert new options before this line!

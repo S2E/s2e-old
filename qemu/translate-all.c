@@ -118,7 +118,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
                      &tb->helper_accesses_mem);
 #endif
 
-#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+#if defined(CONFIG_LLVM)
     if(generate_llvm)
         tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
 #endif
@@ -137,7 +137,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
         qemu_log("\n");
         qemu_log_flush();
     }
-#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+#if defined(CONFIG_LLVM)
     if(generate_llvm && qemu_loglevel_mask(CPU_LOG_LLVM_ASM)
             && tb->llvm_tc_ptr) {
         ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;

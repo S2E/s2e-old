@@ -3188,7 +3188,7 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
-#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+#if defined(CONFIG_LLVM)
             case QEMU_OPTION_execute_llvm:
                 if (!has_llvm_engine) {
                     fprintf(stderr, "Cannot execute un LLVM mode (S2E mode present or LLVM mode missing)\n");
@@ -3258,7 +3258,14 @@ int main(int argc, char **argv, char **envp)
         fprintf(stderr, "No machine found.\n");
         exit(1);
     }
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_LLVM)
+#if defined(CONFIG_S2E)
+    if (execute_always_klee && execute_llvm) {
+        fprintf(stderr, "Cannot execute both in KLEE and LLVM mode\n");
+        exit(1);
+    }
+#endif
+
     tcg_llvm_ctx = tcg_llvm_initialize();
 #endif
 

@@ -40,17 +40,13 @@
 #include "s2e/s2e_qemu.h"
 #endif
 
-#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+#if defined(CONFIG_LLVM)
 #include "tcg/tcg-llvm.h"
 const int has_llvm_engine = 1;
-int generate_llvm = 0;
-int execute_llvm = 0;
-#else
-const int has_llvm_engine = 0;
-int generate_llvm = 0;
-int execute_llvm = 0;
 #endif
 
+int generate_llvm = 0;
+int execute_llvm = 0;
 
 int tb_invalidated_flag;
 
@@ -621,7 +617,6 @@ int cpu_exec(CPUState *env)
                     env->s2e_current_tb = NULL;
 #elif defined(CONFIG_LLVM)
                     if(execute_llvm) {
-                        //assert(false && "Not ported yet");
                         next_tb = tcg_llvm_qemu_tb_exec(env, tb);
                     } else {
                         next_tb = tcg_qemu_tb_exec(env, tc_ptr);

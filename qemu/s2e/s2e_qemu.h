@@ -332,7 +332,7 @@ int init_timer_alarm(void);
 /* NOTE: this functions should never be defined. They */
 /* are implemented as a special function handlers.    */
 
-#if defined(S2E_LLVM_LIB)
+//#if defined(S2E_LLVM_LIB)
 uint64_t tcg_llvm_fork_and_concretize(uint64_t value,
                                       uint64_t knownMin,
                                       uint64_t knownMax);
@@ -341,7 +341,7 @@ void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
                                   uint8_t isWrite, uint8_t isIo);
 void tcg_llvm_trace_port_access(uint64_t port, uint64_t value,
                                 unsigned bits, int isWrite);
-#endif
+//#endif
 
 #ifdef __cplusplus
 }

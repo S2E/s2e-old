@@ -711,10 +711,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(s2e_on_page_fault);
 
 
-    /* XXX: disable for now
     __DEFINE_EXT_FUNCTION(s2e_ismemfunc)
     __DEFINE_EXT_FUNCTION(s2e_notdirty_mem_write)
-    */
 
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
     __DEFINE_EXT_FUNCTION(can_do_io)
@@ -731,25 +729,37 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(ldq_phys)
     __DEFINE_EXT_FUNCTION(stq_phys)
 
+    if (execute_llvm) {
+        __DEFINE_EXT_FUNCTION(tcg_llvm_fork_and_concretize)
+        __DEFINE_EXT_FUNCTION(tcg_llvm_trace_memory_access)
+        __DEFINE_EXT_FUNCTION(tcg_llvm_trace_port_access)
+    }
+
     if(UseSelectCleaner) {
         m_tcgLLVMContext->getFunctionPassManager()->add(new SelectRemovalPass());
         m_tcgLLVMContext->getFunctionPassManager()->doInitialization();
     }
 
+    ModuleOptions MOpts = ModuleOptions(vector<string>(),
+                                        /* Optimize= */ true, /* CheckDivZero= */ false);
     /* Set module for the executor */
-#if 1
-    char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
-    assert(filename);
-    ModuleOptions MOpts(vector<string>(1, filename),
-            /* Optimize= */ true, /* CheckDivZero= */ false,
-            m_tcgLLVMContext->getFunctionPassManager());
 
-    g_free(filename);
 
-#else
-    ModuleOptions MOpts(vector<string>(),
-            /* Optimize= */ true, /* CheckDivZero= */ false);
-#endif
+    /**
+     * When execute_llvm is true, all code is translated to LLVM, then JITed to x86.
+     * This is basically a debug mode that allows reusing all S2E's plugin infrastructure
+     * while testing the LLVM backend.
+     * Symolic execution IS NOT SUPPORTED when running in LLVM mode!
+     */
+    if (!execute_llvm) {
+        char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
+        assert(filename);
+        MOpts = ModuleOptions(vector<string>(1, filename),
+                /* Optimize= */ true, /* CheckDivZero= */ false,
+                m_tcgLLVMContext->getFunctionPassManager());
+
+        g_free(filename);
+    }
 
     /* This catches obvious LLVM misconfigurations */
     const Module *M = m_tcgLLVMContext->getModule();
@@ -760,7 +770,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     s2e->getDebugStream() << "Current target triple: " << m_tcgLLVMContext->getModule()->getTargetTriple() << '\n';
 
     setModule(m_tcgLLVMContext->getModule(), MOpts, false);
-
 
     /* Add dummy TB function declaration */
     PointerType* tbFunctionArgTy =
@@ -790,30 +799,33 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     ReturnInst::Create(m_tcgLLVMContext->getLLVMContext(), dummyMainBB);
 
     kmodule->updateModuleWithFunction(dummyMain);
+    m_dummyMain = kmodule->functionMap[dummyMain];
+
+
+    if (!execute_llvm) {
+        Function* function;
+
+        function = kmodule->module->getFunction("tcg_llvm_trace_memory_access");
+        assert(function);
+        addSpecialFunctionHandler(function, handlerTraceMemoryAccess);
+
+        function = kmodule->module->getFunction("tcg_llvm_trace_port_access");
+        assert(function);
+        addSpecialFunctionHandler(function, handlerTracePortAccess);
+
+        function = kmodule->module->getFunction("s2e_on_tlb_miss");
+        assert(function);
+        addSpecialFunctionHandler(function, handlerOnTlbMiss);
+
+        function = kmodule->module->getFunction("tcg_llvm_fork_and_concretize");
+        assert(function);
+        addSpecialFunctionHandler(function, handleForkAndConcretize);
+
+        m_tcgLLVMContext->initializeHelpers();
+    }
 
     initializeStatistics();
 
-    m_tcgLLVMContext->initializeHelpers();
-
-    m_dummyMain = kmodule->functionMap[dummyMain];
-
-    Function* function;
-
-    function = kmodule->module->getFunction("tcg_llvm_trace_memory_access");
-    assert(function);
-    addSpecialFunctionHandler(function, handlerTraceMemoryAccess);
-
-    function = kmodule->module->getFunction("tcg_llvm_trace_port_access");
-    assert(function);
-    addSpecialFunctionHandler(function, handlerTracePortAccess);
-
-    function = kmodule->module->getFunction("s2e_on_tlb_miss");
-    assert(function);
-    addSpecialFunctionHandler(function, handlerOnTlbMiss);
-
-    function = kmodule->module->getFunction("tcg_llvm_fork_and_concretize");
-    assert(function);
-    addSpecialFunctionHandler(function, handleForkAndConcretize);
 
     searcher = constructUserSearcher(*this);
 
@@ -1563,7 +1575,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
         /* Make sure to init tb_next value */
         tcg_llvm_runtime.goto_tb = 0xff;
 
-        /* Generate LLVM code if nesessary */
+        /* Generate LLVM code if necessary */
         if(!tb->llvm_function) {
             cpu_gen_llvm(env, tb);
             assert(tb->llvm_function);
@@ -1671,7 +1683,12 @@ uintptr_t S2EExecutor::executeTranslationBlockConcrete(S2EExecutionState *state,
         memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
         throw CpuExitException();
     } else {
-        ret = tcg_qemu_tb_exec(env, tb->tc_ptr);
+
+        if(execute_llvm) {
+            ret = tcg_llvm_qemu_tb_exec(env, tb);
+        } else {
+            ret = tcg_qemu_tb_exec(env, tb->tc_ptr);
+        }
     }
 
     memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));

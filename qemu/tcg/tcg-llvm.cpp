@@ -49,7 +49,7 @@ extern "C" {
 
 #include "../../softmmu_defs.h"
 
-#ifndef CONFIG_S2E
+
 static void *qemu_ld_helpers[5] = {
     (void*) __ldb_mmu,
     (void*) __ldw_mmu,
@@ -65,7 +65,6 @@ static void *qemu_st_helpers[5] = {
     (void*) __stq_mmu,
     (void*) __stq_mmu,
 };
-#endif
 
 #endif
 
@@ -108,10 +107,35 @@ extern "C" {
     };
 
 #ifdef CONFIG_S2E
-    void tcg_llvm_trace_memory_access(void);
-    void tcg_llvm_trace_memory_access(void) {
-        assert("This must never be called" && false);
+    uint64_t tcg_llvm_fork_and_concretize(uint64_t value,
+                                          uint64_t knownMin,
+                                          uint64_t knownMax);
+    void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
+                                      uint64_t value, uint32_t bits,
+                                      uint8_t isWrite, uint8_t isIo);
+    void tcg_llvm_trace_port_access(uint64_t port, uint64_t value,
+                                    unsigned bits, int isWrite);
+
+    uint64_t tcg_llvm_fork_and_concretize(uint64_t value,
+                                          uint64_t knownMin,
+                                          uint64_t knownMax)
+    {
+        return value;
     }
+
+    void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
+                                      uint64_t value, uint32_t bits,
+                                      uint8_t isWrite, uint8_t isIo)
+    {
+
+    }
+
+    void tcg_llvm_trace_port_access(uint64_t port, uint64_t value,
+                                    unsigned bits, int isWrite)
+    {
+
+    }
+
 #else
     void tcg_llvm_helper_wrapper(void);
 #endif
@@ -197,6 +221,21 @@ public:
                 assert(false);
             }
         }
+    }
+
+    //This handles the special case of symbolic values
+    //assigned to the program counter register
+    Value* handleSymbolicPcAssignment(Value *orig) {
+#ifdef CONFIG_S2E
+        Value *valueToStore = m_builder.CreateCall3(m_helperForkAndConcretize,
+                            m_builder.CreateZExt(orig, intType(64)),
+                            ConstantInt::get(intType(64), 0),
+                            ConstantInt::get(intType(64), 0xffffffff));
+        valueToStore = m_builder.CreateTrunc(valueToStore, intType(32));
+        return valueToStore;
+#else
+        return orig;
+#endif
     }
 
     void adjustTypeSize(unsigned target, Value **v1, Value **v2) {
@@ -634,7 +673,10 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
 
 #ifdef CONFIG_SOFTMMU
 
-#if  defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+#if  defined(CONFIG_LLVM)
+#if defined (CONFIG_S2E)
+    if (execute_llvm) {
+#endif
     uintptr_t helperFunc = ld ? (uint64_t) qemu_ld_helpers[bits>>4]:
                            (uint64_t) qemu_st_helpers[bits>>4];
 
@@ -661,154 +703,19 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
             ConstantInt::get(wordType(), helperFunc),
             helperFunctionPtrTy);
     return m_builder.CreateCall(funcAddr, ArrayRef<Value*>(argValues));
-
-#endif
-
-#ifdef CONFIG_S2E
-    if(ld) {
-        return m_builder.CreateCall2(m_qemu_ld_helpers[bits>>4], addr,
-                    ConstantInt::get(intType(8*sizeof(int)), mem_index));
+#if defined (CONFIG_S2E)
     } else {
-        m_builder.CreateCall3(m_qemu_st_helpers[bits>>4], addr, value,
-                    ConstantInt::get(intType(8*sizeof(int)), mem_index));
-        return NULL;
+        if(ld) {
+            return m_builder.CreateCall2(m_qemu_ld_helpers[bits>>4], addr,
+                        ConstantInt::get(intType(8*sizeof(int)), mem_index));
+        } else {
+            m_builder.CreateCall3(m_qemu_st_helpers[bits>>4], addr, value,
+                        ConstantInt::get(intType(8*sizeof(int)), mem_index));
+            return NULL;
+        }
     }
 #endif
-#if 0
-
-#define __x_offsetof(TYPE, MEMBER) ((size_t) &((TYPE *) 0)->MEMBER)
-
-    BasicBlock *bb_1 = BasicBlock::Create(m_context);
-    BasicBlock *bb_2 = BasicBlock::Create(m_context);
-    BasicBlock *bb_m = BasicBlock::Create(m_context);
-
-    Value *v, *v1, *v2;
-
-    v = m_builder.CreateLShr(addr, ConstantInt::get(addr->getType(),
-                (TARGET_PAGE_BITS - CPU_TLB_ENTRY_BITS)));
-    v = m_builder.CreateAnd(v, ConstantInt::get(addr->getType(),
-            ((CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS)));
-
-    assert(m_tcgContext->temps[0].reg == TCG_AREG0);
-    assert(getValue(0)->getType() == wordType());
-    v = m_builder.CreateAdd(
-            m_builder.CreateZExt(v, wordType()),
-            getValue(0)); // XXX
-
-    v1 = m_builder.CreateAdd(v, ConstantInt::get(wordType(),
-            ld ?
-                __x_offsetof(CPUState, tlb_table[mem_index][0].addr_read) :
-                __x_offsetof(CPUState, tlb_table[mem_index][0].addr_write)));
-
-    v1 = m_builder.CreateLoad(
-            m_builder.CreateIntToPtr(v1, intPtrType(TARGET_LONG_BITS)));
-
-    v2 = m_builder.CreateAnd(addr, ConstantInt::get(addr->getType(),
-            (TARGET_PAGE_MASK | ((bits>>3) - 1))));
-
-    m_builder.CreateCondBr(m_builder.CreateICmpEQ(v1, v2), bb_1, bb_2);
-
-    /* TLB miss: call qemu helper */
-    m_tbFunction->getBasicBlockList().push_back(bb_2);
-    m_builder.SetInsertPoint(bb_2);
-
-    std::vector<Value*> argValues; argValues.reserve(3);
-    argValues.push_back(addr);
-    if(!ld)
-        argValues.push_back(value);
-    argValues.push_back(ConstantInt::get(intType(8*sizeof(int)), mem_index));
-
-#ifdef CONFIG_S2E
-    Function* funcAddr = ld ? m_qemu_ld_helpers[bits>>4] :
-                              m_qemu_st_helpers[bits>>4];
-    assert(funcAddr);
-    v2 = m_builder.CreateCall(funcAddr, argValues.begin(), argValues.end());
-
-#else
-    uintptr_t helperFunc = ld ? (uint64_t) qemu_ld_helpers[bits>>4]:
-                           (uint64_t) qemu_st_helpers[bits>>4];
-
-/*    m_builder.CreateStore(
-        ConstantInt::get(wordType(), helperFunc),
-        m_builder.CreateIntToPtr(
-            ConstantInt::get(wordType(),
-                (uint64_t) &tcg_llvm_runtime.helper_call_addr),
-            wordPtrType()));*/
-
-    std::vector<Type*> argTypes; argTypes.reserve(3);
-    for(int i=0; i<(ld?2:3); ++i)
-        argTypes.push_back(argValues[i]->getType());
-
-    Type* helperFunctionPtrTy = PointerType::get(
-            FunctionType::get(
-                    ld ? intType(bits) : Type::getVoidTy(m_context),
-                    argTypes, false),
-            0);
-
-//#ifdef CONFIG_S2E
-//    Value* funcAddr = m_builder.CreateBitCast(
-//           m_helperWrapperFunction, helperFunctionPtrTy);
-//#else
-    Value* funcAddr = m_builder.CreateIntToPtr(
-            ConstantInt::get(wordType(), helperFunc),
-            helperFunctionPtrTy);
-//#endif
-    v2 = m_builder.CreateCall(funcAddr, ArrayRef<Value*>(argValues));
 #endif
-
-    m_builder.CreateBr(bb_m);
-
-    /* TLB hit: load or store value directly */
-    m_tbFunction->getBasicBlockList().push_back(bb_1);
-    m_builder.SetInsertPoint(bb_1);
-
-    v = m_builder.CreateAdd(v, ConstantInt::get(wordType(),
-            __x_offsetof(CPUState, tlb_table[mem_index][0].addend)));
-    v1 = m_builder.CreateLoad(
-            m_builder.CreateIntToPtr(v,
-                intPtrType(8*sizeof(target_phys_addr_t))));
-    Value* haddr = m_builder.CreateAdd(
-            m_builder.CreateZExt(addr, wordType()),
-            m_builder.CreateZExt(v1, wordType()));
-    v1 = m_builder.CreateIntToPtr(haddr, intPtrType(bits));
-
-    if(ld)
-        v1 = m_builder.CreateLoad(v1);
-    else
-        m_builder.CreateStore(value, v1);
-
-#ifdef CONFIG_S2E
-    /* Call memory trace function */
-    std::vector<Value*> traceArgs;
-    traceArgs.push_back(m_builder.CreateZExt(addr, intType(64)));
-    traceArgs.push_back(m_builder.CreateZExt(haddr, intType(64)));
-    traceArgs.push_back(m_builder.CreateZExt(ld ? v1 : value, intType(64)));
-    traceArgs.push_back(ConstantInt::get(intType(32), bits));
-    traceArgs.push_back(ConstantInt::get(intType(8), ld ? 0 : 1));
-    traceArgs.push_back(ConstantInt::get(intType(8), 0));
-
-    m_builder.CreateCall(m_helperTraceMemoryAccess,
-                         traceArgs.begin(), traceArgs.end());
-#endif
-
-    m_builder.CreateBr(bb_m);
-
-    /* end */
-    m_tbFunction->getBasicBlockList().push_back(bb_m);
-    m_builder.SetInsertPoint(bb_m);
-
-    if(ld) {
-        PHINode *phi = m_builder.CreatePHI(intType(bits),0);
-        phi->addIncoming(v1, bb_1);
-        phi->addIncoming(v2, bb_2);
-        return phi;
-    } else {
-        return NULL;
-    }
-
-#undef __x_offsetof
-
-#endif // CONFIG_S2E
 
 #else // CONFIG_SOFTMMU
     addr = m_builder.CreateZExt(addr, wordType());
@@ -876,48 +783,46 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
                 Type::getVoidTy(m_context) : wordType(getValueBits(args[1]));
 
             Value* helperAddr = getValue(args[nb_oargs + nb_iargs]);
-#ifdef CONFIG_S2E
-            tcg_target_ulong helperAddrC = (tcg_target_ulong)
-                   cast<ConstantInt>(helperAddr)->getZExtValue();
-            assert(helperAddrC);
+            Value* result;
 
-            const char *helperName = tcg_helper_get_name(m_tcgContext,
-                                                         (void*) helperAddrC);
-            assert(helperName);
+            if (!execute_llvm) {
+                //Generate this in S2E mode
+                tcg_target_ulong helperAddrC = (tcg_target_ulong)
+                       cast<ConstantInt>(helperAddr)->getZExtValue();
+                assert(helperAddrC);
 
-            std::string funcName = std::string("helper_") + helperName;
-            Function* helperFunc = m_module->getFunction(funcName);
-            if(!helperFunc) {
-                helperFunc = Function::Create(
-                        FunctionType::get(retType, argTypes, false),
-                        Function::PrivateLinkage, funcName, m_module);
-                m_executionEngine->addGlobalMapping(helperFunc,
-                                                    (void*) helperAddrC);
-                /* XXX: Why do we need this ? */
-                sys::DynamicLibrary::AddSymbol(funcName, (void*) helperAddrC);
+                const char *helperName = tcg_helper_get_name(m_tcgContext,
+                                                             (void*) helperAddrC);
+                assert(helperName);
+
+                std::string funcName = std::string("helper_") + helperName;
+                Function* helperFunc = m_module->getFunction(funcName);
+                if(!helperFunc) {
+                    helperFunc = Function::Create(
+                            FunctionType::get(retType, argTypes, false),
+                            Function::PrivateLinkage, funcName, m_module);
+                    m_executionEngine->addGlobalMapping(helperFunc,
+                                                        (void*) helperAddrC);
+                    /* XXX: Why do we need this ? */
+                    sys::DynamicLibrary::AddSymbol(funcName, (void*) helperAddrC);
+                }
+
+                result = m_builder.CreateCall(helperFunc,
+                                              ArrayRef<Value*>(argValues));
+            } else { //if (!execute_llvm)
+                //Generate this in LLVM mode
+                Type* helperFunctionPtrTy = PointerType::get(
+                        FunctionType::get(retType, argTypes, false), 0);
+
+                Value* funcAddr = m_builder.CreateIntToPtr(
+                        //ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
+                        helperAddr,
+                        helperFunctionPtrTy);
+
+                result = m_builder.CreateCall(funcAddr,
+                                    ArrayRef<Value*>(argValues));
             }
 
-            Value* result = m_builder.CreateCall(helperFunc,
-                                          ArrayRef<Value*>(argValues));
-
-#else
-            /*m_builder.CreateStore(helperAddr, m_builder.CreateIntToPtr(
-                        ConstantInt::get(wordType(),
-                            (uint64_t) &tcg_llvm_runtime.helper_call_addr),
-                        wordPtrType()));
-            */
-
-            Type* helperFunctionPtrTy = PointerType::get(
-                    FunctionType::get(retType, argTypes, false), 0);
-
-            Value* funcAddr = m_builder.CreateIntToPtr(
-                    //ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
-                    helperAddr,
-                    helperFunctionPtrTy);
-
-            Value* result = m_builder.CreateCall(funcAddr,
-                                ArrayRef<Value*>(argValues));
-#endif
 
             /* Invalidate in-memory values because
              * function might have changed them */
@@ -1050,15 +955,21 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         break;
 
 #define __ST_OP(opc_name, memBits, regBits)                         \
-    case opc_name:                                                  \
+    case opc_name:  {                                                 \
         assert(getValue(args[0])->getType() == intType(regBits));   \
         assert(getValue(args[1])->getType() == wordType());         \
+        Value* valueToStore = getValue(args[0]);                    \
+                                                                    \
+        if (memBits == 32 && !execute_llvm && args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) { \
+            valueToStore = handleSymbolicPcAssignment(valueToStore);\
+        }                                                           \
+                                                                    \
         v = m_builder.CreateAdd(getValue(args[1]),                  \
                     ConstantInt::get(wordType(), args[2]));         \
         v = m_builder.CreateIntToPtr(v, intPtrType(memBits));       \
         m_builder.CreateStore(m_builder.CreateTrunc(                \
-                getValue(args[0]), intType(memBits)), v);           \
-        break;
+                valueToStore, intType(memBits)), v);           \
+    } break;
 
     __LD_OP(INDEX_op_ld8u_i32,   8, 32, Z)
     __LD_OP(INDEX_op_ld8s_i32,   8, 32, S)
@@ -1068,31 +979,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
     __ST_OP(INDEX_op_st8_i32,   8, 32)
     __ST_OP(INDEX_op_st16_i32, 16, 32)
-
-#ifndef CONFIG_S2E
     __ST_OP(INDEX_op_st_i32,   32, 32)
-#else
-    case INDEX_op_st_i32: {
-        assert(getValue(args[0])->getType() == intType(32));
-        assert(getValue(args[1])->getType() == wordType());
-
-        Value* valueToStore = getValue(args[0]);
-        if (args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) {
-            valueToStore = m_builder.CreateCall3(m_helperForkAndConcretize,
-                                m_builder.CreateZExt(valueToStore, intType(64)),
-                                ConstantInt::get(intType(64), 0),
-                                ConstantInt::get(intType(64), 0xffffffff));
-            valueToStore = m_builder.CreateTrunc(valueToStore, intType(32));
-        }
-
-        v = m_builder.CreateAdd(getValue(args[1]),
-                    ConstantInt::get(wordType(), args[2]));
-        v = m_builder.CreateIntToPtr(v, intPtrType(32));
-        m_builder.CreateStore(m_builder.CreateTrunc(
-                    valueToStore, intType(32)), v);
-        }
-        break;
-#endif
 
 #if TCG_TARGET_REG_BITS == 64
     __LD_OP(INDEX_op_ld8u_i64,   8, 64, Z)
@@ -1302,10 +1189,12 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
     case INDEX_op_goto_tb:
 #ifdef CONFIG_S2E
-        m_builder.CreateStore(ConstantInt::get(intType(8), args[0]),
-                m_builder.CreateIntToPtr(ConstantInt::get(wordType(),
-                    (uint64_t) &tcg_llvm_runtime.goto_tb),
-                intPtrType(8)));
+        if (!execute_llvm) {
+            m_builder.CreateStore(ConstantInt::get(intType(8), args[0]),
+                    m_builder.CreateIntToPtr(ConstantInt::get(wordType(),
+                        (uint64_t) &tcg_llvm_runtime.goto_tb),
+                    intPtrType(8)));
+        }
 #endif
         /* XXX: tb linking is disabled */
         break;
@@ -1434,19 +1323,15 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
 
     tb->llvm_function = m_tbFunction;
 
-#ifdef CONFIG_S2E
-    if(qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
-#endif
-    tb->llvm_tc_ptr = (uint8_t*)
-            m_executionEngine->getPointerToFunction(m_tbFunction);
-    tb->llvm_tc_end = tb->llvm_tc_ptr +
-            m_jitMemoryManager->getLastFunctionSize();
-#ifdef CONFIG_S2E
+    if(execute_llvm || qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
+        tb->llvm_tc_ptr = (uint8_t*)
+                m_executionEngine->getPointerToFunction(m_tbFunction);
+        tb->llvm_tc_end = tb->llvm_tc_ptr +
+                m_jitMemoryManager->getLastFunctionSize();
     } else {
-    tb->llvm_tc_ptr = 0;
-    tb->llvm_tc_end = 0;
+        tb->llvm_tc_ptr = 0;
+        tb->llvm_tc_end = 0;
     }
-#endif
 
     if(qemu_loglevel_mask(CPU_LOG_LLVM_IR)) {
         std::string fcnString;
@@ -1598,3 +1483,4 @@ uintptr_t tcg_llvm_qemu_tb_exec(void *env1, TranslationBlock *tb)
 
     return next_tb;
 }
+
