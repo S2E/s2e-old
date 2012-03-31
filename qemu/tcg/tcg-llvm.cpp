@@ -188,6 +188,22 @@ public:
     Type* wordType(int bits) { return intType(bits); }
     Type* wordPtrType() { return intPtrType(TCG_TARGET_REG_BITS); }
 
+    void adjustTypeSize(unsigned target, Value **v1) {
+        Value *va = *v1;
+        if (target == 32) {
+            if (va->getType() == intType(64)) {
+                *v1 = m_builder.CreateTrunc(va, intType(target));
+            } else if (va->getType() != intType(32)) {
+                assert(false);
+            }
+        }
+    }
+
+    void adjustTypeSize(unsigned target, Value **v1, Value **v2) {
+        adjustTypeSize(target, v1);
+        adjustTypeSize(target, v2);
+    }
+
     Type* tcgType(int type) {
         return type == TCG_TYPE_I64 ? intType(64) : intType(32);
     }
@@ -1098,12 +1114,14 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
     /* arith */
 #define __ARITH_OP(opc_name, op, bits)                              \
-    case opc_name:                                                  \
-        assert(getValue(args[1])->getType() == intType(bits));      \
-        assert(getValue(args[2])->getType() == intType(bits));      \
-        setValue(args[0], m_builder.Create ## op(                   \
-                getValue(args[1]), getValue(args[2])));             \
-        break;
+    case opc_name: {                                                \
+        Value *v1 = getValue(args[1]);                              \
+        Value *v2 = getValue(args[2]);                              \
+        adjustTypeSize(bits, &v1, &v2);                             \
+        assert(v1->getType() == intType(bits));                     \
+        assert(v2->getType() == intType(bits));                     \
+        setValue(args[0], m_builder.Create ## op(v1, v2));          \
+    } break;
 
 #define __ARITH_OP_DIV2(opc_name, signE, bits)                      \
     case opc_name:                                                  \
