@@ -185,6 +185,13 @@ int cpu_restore_state(TranslationBlock *tb,
         env->can_do_io = 0;
     }
 
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+    if(execute_llvm) {
+        assert(tb->llvm_function != NULL);
+        j = tcg_llvm_search_last_pc(tb, searched_pc);
+    } else {
+#endif
+
     /* find opc index corresponding to search_pc */
     tc_ptr = (unsigned long)tb->tc_ptr;
     if (searched_pc < tc_ptr)
@@ -204,6 +211,10 @@ int cpu_restore_state(TranslationBlock *tb,
     /* now find start of instruction before */
     while (gen_opc_instr_start[j] == 0)
         j--;
+#ifdef CONFIG_LLVM
+    }
+#endif
+
     env->icount_decr.u16.low -= gen_opc_icount[j];
 
     restore_state_to_opc(env, tb, j);
