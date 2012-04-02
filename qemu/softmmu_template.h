@@ -204,6 +204,9 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
                                           target_ulong addr,
                                           void *retaddr)
 {
+    DATA_TYPE res;
+    MemoryRegion *mr = iotlb_to_region(physaddr);
+
     target_ulong naddr = (physaddr & TARGET_PAGE_MASK)+addr;
     char label[64];
     int isSymb = 0;
@@ -213,29 +216,27 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
     }
 
     //If it is not DMA, then check if it is normal memory
-    int index;
-    target_phys_addr_t oldphysaddr = physaddr;
-    index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
-    physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
     env->mem_io_pc = (uintptr_t)retaddr;
-    if (index > (IO_MEM_NOTDIRTY >> IO_MEM_SHIFT)
+    if (mr != &io_mem_ram && mr != &io_mem_rom
+        && mr != &io_mem_unassigned
+        && mr != &io_mem_notdirty
             && !can_do_io(env)) {
         cpu_io_recompile(env, retaddr);
     }
 
     env->mem_io_vaddr = addr;
 #if SHIFT <= 2
-    if (s2e_ismemfunc(io_mem_read[index][SHIFT])) {
+    if (s2e_ismemfunc(mr->ops->read)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         if (isSymb) {
             return glue(io_read_chk_symb_, SUFFIX)(ENV_VAR label, naddr, (uintptr_t)(pa));
         }
-        return glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa));
+        res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa));
+        return res;
     }
 #else
 #ifdef TARGET_WORDS_BIGENDIAN
-    if (s2e_ismemfunc(io_mem_read[index][SHIFT])) {
-        DATA_TYPE res;
+    if (s2e_ismemfunc(mr->ops->read)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
 
         if (isSymb) {
@@ -249,8 +250,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
         return res;
     }
 #else
-    if (s2e_ismemfunc(io_mem_read[index][SHIFT])) {
-        DATA_TYPE res;
+    if (s2e_ismemfunc(mr->ops->read)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         if (isSymb) {
             res = glue(io_read_chk_symb_, SUFFIX)(label, naddr, (uintptr_t)(pa));
@@ -265,7 +265,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
 #endif /* SHIFT > 2 */
 
     //By default, call the original io_read function, which is external
-    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(oldphysaddr, addr, retaddr);
+    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(ENV_VAR physaddr, addr, retaddr);
 }
 
 
@@ -498,33 +498,35 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_ad
                                           target_ulong addr,
                                           void *retaddr)
 {
-    int index;
-    target_phys_addr_t oldphysaddr = physaddr;
-    index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
+    MemoryRegion *mr = iotlb_to_region(physaddr);
+
     physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
-    if (index > (IO_MEM_NOTDIRTY >> IO_MEM_SHIFT)
+    if (mr != &io_mem_ram && mr != &io_mem_rom
+        && mr != &io_mem_unassigned
+        && mr != &io_mem_notdirty
             && !can_do_io(env)) {
         cpu_io_recompile(env, retaddr);
     }
 
+
     env->mem_io_vaddr = addr;
     env->mem_io_pc = (uintptr_t)retaddr;
 #if SHIFT <= 2
-    if (s2e_ismemfunc(io_mem_write[index][SHIFT])) {
+    if (s2e_ismemfunc(mr->ops->write)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(pa), val);
         return;
     }
 #else
 #ifdef TARGET_WORDS_BIGENDIAN
-    if (s2e_ismemfunc(io_mem_write[index][SHIFT])) {
+    if (s2e_ismemfunc(s2e_ismemfunc(mr->ops->write)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         stl_raw((uint8_t *)(intptr_t)(pa), val>>32);
         stl_raw((uint8_t *)(intptr_t)(pa+4), val);
         return;
     }
 #else
-    if (s2e_ismemfunc(io_mem_write[index][SHIFT])) {
+    if (s2e_ismemfunc(mr->ops->write)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         stl_raw((uint8_t *)(intptr_t)(pa), val);
         stl_raw((uint8_t *)(intptr_t)(pa+4), val>>32);
@@ -546,7 +548,7 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_ad
     }
 
     //By default, call the original io_write function, which is external
-    glue(glue(io_write, SUFFIX), MMUSUFFIX)(ENV_VAR oldphysaddr, val, addr, retaddr);
+    glue(glue(io_write, SUFFIX), MMUSUFFIX)(ENV_VAR physaddr, val, addr, retaddr);
 }
 
 #endif
