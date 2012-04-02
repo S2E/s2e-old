@@ -419,7 +419,7 @@ QemuCocoaView *cocoaView;
         [normalWindow setFrame:NSMakeRect([normalWindow frame].origin.x, [normalWindow frame].origin.y - h + screen.height, w, h + [normalWindow frame].size.height - screen.height) display:NO animate:NO];
     } else {
         if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s", qemu_name]];
+            [normalWindow setTitle:[NSString stringWithFormat:@"S2E %s", qemu_name]];
         [normalWindow setFrame:NSMakeRect([normalWindow frame].origin.x, [normalWindow frame].origin.y - h + screen.height, w, h + [normalWindow frame].size.height - screen.height) display:YES animate:NO];
     }
     screen.width = w;
@@ -666,9 +666,9 @@ QemuCocoaView *cocoaView;
 
     if (!isFullscreen) {
         if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s - (Press ctrl + alt to release Mouse)", qemu_name]];
+            [normalWindow setTitle:[NSString stringWithFormat:@"S2E %s - (Press ctrl + alt to release Mouse)", qemu_name]];
         else
-            [normalWindow setTitle:@"QEMU - (Press ctrl + alt to release Mouse)"];
+            [normalWindow setTitle:@"S2E - (Press ctrl + alt to release Mouse)"];
     }
     [NSCursor hide];
     CGAssociateMouseAndMouseCursorPosition(FALSE);
@@ -681,9 +681,9 @@ QemuCocoaView *cocoaView;
 
     if (!isFullscreen) {
         if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s", qemu_name]];
+            [normalWindow setTitle:[NSString stringWithFormat:@"S2E %s", qemu_name]];
         else
-            [normalWindow setTitle:@"QEMU"];
+            [normalWindow setTitle:@"S2E"];
     }
     [NSCursor unhide];
     CGAssociateMouseAndMouseCursorPosition(TRUE);
@@ -739,7 +739,7 @@ QemuCocoaView *cocoaView;
             exit(1);
         }
         [normalWindow setAcceptsMouseMovedEvents:YES];
-        [normalWindow setTitle:[NSString stringWithFormat:@"QEMU"]];
+        [normalWindow setTitle:[NSString stringWithFormat:@"S2E"]];
         [normalWindow setContentView:cocoaView];
         [normalWindow useOptimizedDrawing:YES];
         [normalWindow makeKeyAndOrderFront:self];
