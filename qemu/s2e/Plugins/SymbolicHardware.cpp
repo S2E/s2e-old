@@ -85,12 +85,12 @@ extern "C" {
 
     static bool symbhw_is_mmio_symbolic(uint64_t physaddr, uint64_t size, void *opaque);
     static bool symbhw_is_mmio_symbolic_none(uint64_t physaddr, uint64_t size, void *opaque);
-
+#if 0
     static int pci_symbhw_init(PCIDevice *pci_dev);
     static int pci_symbhw_uninit(PCIDevice *pci_dev);
     static int isa_symbhw_init(ISADevice *dev);
 
-#if 0
+
     static void symbhw_write8(void *opaque, uint32_t address, uint32_t data);
     static void symbhw_write16(void *opaque, uint32_t address, uint32_t data);
     static void symbhw_write32(void *opaque, uint32_t address, uint32_t data);
@@ -317,6 +317,7 @@ IsaDeviceDescriptor::IsaDeviceDescriptor(const std::string &id, const IsaResourc
 
 void IsaDeviceDescriptor::initializeQemuDevice()
 {
+#if 0
     m_isaInfo = new ISADeviceInfo();
     m_isaProperties = new Property[1];
     memset(m_isaProperties, 0, sizeof(Property));
@@ -327,24 +328,28 @@ void IsaDeviceDescriptor::initializeQemuDevice()
     m_isaInfo->qdev.props = m_isaProperties;
 
     isa_qdev_register(m_isaInfo);
+#endif
 }
 
 void IsaDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
 {
+#if 0
     isa_create_simple(m_id.c_str());
     if (!isActive()) {
         g_s2e->getWarningsStream() << "ISA device " <<
                 m_id << " is not active. Check that its ID does not collide with native QEMU devices." << '\n';
         exit(-1);
     }
+#endif
 }
 
 IsaDeviceDescriptor::~IsaDeviceDescriptor()
 {
+#if 0
     if (m_isaInfo) {
         delete m_isaInfo;
     }
-
+#endif
     if (m_isaProperties) {
         delete [] m_isaProperties;
     }
@@ -510,6 +515,7 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 void PciDeviceDescriptor::initializeQemuDevice()
 {
     g_s2e->getDebugStream() << "PciDeviceDescriptor::initializeQemuDevice()" << '\n';
+#if 0
     m_vmStateFields = new VMStateField[2];
     memset(m_vmStateFields, 0, sizeof(VMStateField)*2);
     m_vmStateFields[0].name = "dev";
@@ -540,6 +546,7 @@ void PciDeviceDescriptor::initializeQemuDevice()
 
     m_pciInfo->qdev.props = m_pciInfoProperties;
     pci_qdev_register(m_pciInfo);
+#endif
 }
 
 void PciDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
@@ -576,9 +583,11 @@ PciDeviceDescriptor::PciDeviceDescriptor(const std::string &id):DeviceDescriptor
 
 PciDeviceDescriptor::~PciDeviceDescriptor()
 {
+#if 0
     if (m_pciInfo) delete m_pciInfo;
     if (m_pciInfoProperties) delete [] m_pciInfoProperties;
     if (m_vmState) delete m_vmState;
+#endif
 }
 
 void PciDeviceDescriptor::print(llvm::raw_ostream &os) const
@@ -647,7 +656,7 @@ static const MemoryRegionOps symbhw_io_ops = {
 
 
 /////////////////////////////////////////////////////////////////////
-
+#if 0
 static int isa_symbhw_init(ISADevice *dev)
 {
     g_s2e->getDebugStream() << __FUNCTION__ << " called" << '\n';
@@ -680,6 +689,7 @@ static int isa_symbhw_init(ISADevice *dev)
 
     isa_init_irq(dev, &isa->qirq, irq);
     dd->assignIrq(&isa->qirq);
+
     return 0;
 }
 
@@ -726,7 +736,6 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
 
         memory_region_init_io(&d->io[i], &symbhw_io_ops, d, ss.str().c_str(), res.size);
         pci_register_bar(&d->dev, i, type, &d->io[i]);
-
         ++i;
     }
 
@@ -743,6 +752,7 @@ static int pci_symbhw_uninit(PCIDevice *pci_dev)
     return 0;
 }
 
+#endif
 
 
 //////////////////////////////////////////////////////////////
