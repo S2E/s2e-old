@@ -337,8 +337,6 @@ S2E::~S2E()
     m_sync.release();
 
     delete m_pluginsFactory;
-    delete m_database;
-
     writeBitCodeToFile();
 
     // KModule wants to delete the llvm::Module in destroyer.
@@ -540,10 +538,6 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
 
     klee::klee_message_stream = m_messagesFile;
     klee::klee_warning_stream = m_warningsFile;
-
-    /* Init the data base */
-    m_database = new s2e::Database(m_outputDirectory + "/s2e.db");
-
 }
 
 void S2E::initKleeOptions()

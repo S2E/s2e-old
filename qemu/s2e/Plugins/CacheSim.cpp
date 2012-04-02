@@ -45,7 +45,6 @@ extern "C" {
 #include <s2e/ConfigFile.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
-#include <s2e/Database.h>
 
 #include <llvm/Support/TimeValue.h>
 
@@ -294,10 +293,6 @@ CacheSimState::CacheSimState(S2EExecutionState *s, Plugin *p)
         }
     }
 
-    s2e->getCorePlugin()->onTimer.connect(
-        sigc::mem_fun(*csp, &CacheSim::onTimer)
-    );
-
 }
 
 CacheSimState::~CacheSimState()
@@ -363,11 +358,10 @@ inline Cache* CacheSimState::getCache(const std::string& name)
 ///////////////////////////////////////////////////////////////////////////////
 
 
-S2E_DEFINE_PLUGIN(CacheSim, "Cache simulator", "",);
+S2E_DEFINE_PLUGIN(CacheSim, "Cache simulator", "", "ExecutionTracer");
 
 CacheSim::~CacheSim()
 {
-    flushLogEntries();
 
 }
 
@@ -392,9 +386,6 @@ void CacheSim::initialize()
     //Profile only for the selected modules
     m_profileModulesOnly = conf->getBool(getConfigKey() + ".profileModulesOnly");
 
-    //Write to the binary log instead of the sql db.
-    m_useBinaryLogFile = conf->getBool(getConfigKey() + ".useBinaryLogFile");
-
     //Start cache profiling when the first configured module is loaded
     m_startOnModuleLoad = conf->getBool(getConfigKey() + ".startOnModuleLoad");
 
@@ -402,10 +393,6 @@ void CacheSim::initialize()
     m_physAddress = conf->getBool(getConfigKey() + ".physicalAddressing");
 
     m_cacheStructureWrittenToLog = false;
-    if (m_useBinaryLogFile && !m_Tracer) {
-        s2e()->getWarningsStream() << "ExecutionTracer is required when useBinaryLogFile is set!" << '\n';
-        exit(-1);
-    }
 
     ////////////////////
     //XXX: trick to force the initialization of the cache upon first memory access.
@@ -415,20 +402,6 @@ void CacheSim::initialize()
     m_i1_connection = s2e()->getCorePlugin()->onTranslateBlockStart.connect(
          sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
 
-    ////////////////////
-    const char *query = "create table CacheSim("
-          "'timestamp' unsigned big int, "
-          "'pc' unsigned big int, "
-          "'address' unsigned bit int, "
-          "'size' unsigned int, "
-          "'isWrite' boolean, "
-          "'isCode' boolean, "
-          "'cacheName' varchar(30), "
-          "'missCount' unsigned int"
-          "); create index if not exists CacheSimIdx on CacheSim (pc);";
-
-    bool ok = s2e()->getDb()->executeQuery(query);
-    assert(ok && "create table failed");
 
     m_cacheLog.reserve(CACHESIM_LOG_SIZE);
 
@@ -437,7 +410,7 @@ void CacheSim::initialize()
 
 void CacheSim::writeCacheDescriptionToLog(S2EExecutionState *state)
 {
-    if (!m_useBinaryLogFile || m_cacheStructureWrittenToLog) {
+    if (m_cacheStructureWrittenToLog) {
         return;
     }
 
@@ -505,34 +478,6 @@ void CacheSim::onModuleTranslateBlockStart(
     m_ModuleConnection.disconnect();
 }
 
-//Periodically flush the cache
-void CacheSim::onTimer()
-{
-    flushLogEntries();
-}
-
-void CacheSim::flushLogEntries()
-{
-    if (m_useBinaryLogFile) {
-        return;
-    }
-
-    char query[512];
-    bool ok = s2e()->getDb()->executeQuery("begin transaction;");
-    assert(ok && "Can not execute database query");
-    foreach(const CacheLogEntry& ce, m_cacheLog) {
-        snprintf(query, sizeof(query),
-             "insert into CacheSim values(%"PRIu64",%"PRIu64",%"PRIu64",%u,%u,%u,'%s',%u);",
-             ce.timestamp, ce.pc, ce.address, ce.size,
-             ce.isWrite, ce.isCode,
-             ce.cacheName, ce.missCount);
-        ok = s2e()->getDb()->executeQuery(query);
-        assert(ok && "Can not execute database query");
-    }
-    ok = s2e()->getDb()->executeQuery("end transaction;");
-    assert(ok && "Can not execute database query");
-    m_cacheLog.resize(0);
-}
 
 bool CacheSim::profileAccess(S2EExecutionState *state) const
 {
@@ -596,13 +541,7 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
 
     unsigned i = 0;
     for(Cache* c = cache; c != NULL; c = c->getUpperCache(), ++i) {
-        if(m_cacheLog.size() == CACHESIM_LOG_SIZE)
-            flushLogEntries();
-
-       // std::cout << state->getPc() << " "  << c->getName() << ": " << missCount[i] << '\n';
-
         if (m_reportZeroMisses || missCount[i]) {
-            if (m_useBinaryLogFile) {
                 ExecutionTraceCacheSimEntry e;
                 e.type = CACHE_ENTRY;
                 e.cacheId = c->getId();
@@ -613,18 +552,6 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
                 e.isCode = isCode;
                 e.missCount = missCount[i];
                 m_Tracer->writeData(state, &e, sizeof(e), TRACE_CACHESIM);
-            }else {
-                m_cacheLog.resize(m_cacheLog.size()+1);
-                CacheLogEntry& ce = m_cacheLog.back();
-                ce.timestamp = llvm::sys::TimeValue::now().usec();
-                ce.pc = state->getPc();
-                ce.address = address;
-                ce.size = size;
-                ce.isWrite = isWrite;
-                ce.isCode = false;
-                ce.cacheName = c->getName().c_str();
-                ce.missCount = missCount[i];
-            }
         }
 
         if(missCount[i] == 0)

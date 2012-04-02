@@ -86,7 +86,6 @@ protected:
     bool m_reportWholeSystem;
     bool m_reportZeroMisses;
     bool m_profileModulesOnly;
-    bool m_useBinaryLogFile;
     bool m_cacheStructureWrittenToLog;
     bool m_startOnModuleLoad;
     bool m_physAddress;
@@ -94,8 +93,6 @@ protected:
 
     sigc::connection m_d1_connection;
     sigc::connection m_i1_connection;
-
-    void flushLogEntries();
 
     void onModuleTranslateBlockStart(
         ExecutionSignal* signal,
@@ -122,7 +119,6 @@ protected:
     void onExecuteBlockStart(S2EExecutionState* state, uint64_t pc,
                              TranslationBlock* tb, uint64_t hostAddress);
 
-    void onTimer();
 
     void writeCacheDescriptionToLog(S2EExecutionState *state);
 

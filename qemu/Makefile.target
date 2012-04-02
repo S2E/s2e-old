@@ -504,8 +504,10 @@ s2eobj-y += s2e/Plugins/StackChecker.o
 
 s2eobj-y += s2e/Plugins/ExecutionStatisticsCollector.o
 
+#sqlite database is deprecated now
 #s2eobj-y += s2e/sqlite3.o
-s2eobj-y += s2e/Database.o
+#s2eobj-y += s2e/Database.o
+
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o
 s2eobj-y += s2e/ConfigFile.o
 s2eobj-y += s2e/SelectRemovalPass.o

@@ -121,8 +121,6 @@ protected:
     std::streambuf* m_messagesStreamBuf;
     std::streambuf* m_warningsStreamBuf;
 
-    Database *m_database;
-
     TCGLLVMContext *m_tcgLLVMContext;
 
     uint64_t m_startTimeSeconds;
@@ -171,10 +169,6 @@ public:
     /** Get Core plugin */
     inline CorePlugin* getCorePlugin() const { return m_corePlugin; }
 
-    /** Get database */
-    Database *getDb() const {
-        return m_database;
-    }
 
     /*************************/
     /* Directories and files */
