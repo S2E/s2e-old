@@ -282,7 +282,7 @@ S2EExecutionState* WindowsApi::forkSuccessFailure(S2EExecutionState *state, bool
     assert(skippedState == state);
 
     //symb < STATUS_SUCCESS
-    skippedState->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    skippedState->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
 
     if (bypass) {
         skippedState->bypassFunction(argCount);
@@ -315,7 +315,7 @@ bool WindowsApi::forkRange(S2EExecutionState *state,
         m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
 
         //uint32_t retVal = values[i];
-        fs->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+        fs->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
         curState = ts;
         fs->setForking(oldForkStatus);
     }
@@ -323,7 +323,7 @@ bool WindowsApi::forkRange(S2EExecutionState *state,
     uint32_t retVal = values[values.size()-1];
     klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(retVal, klee::Expr::Int32));
     curState->addConstraint(cond);
-    curState->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+    curState->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
 
     curState->setForking(oldForkStatus);
     return true;

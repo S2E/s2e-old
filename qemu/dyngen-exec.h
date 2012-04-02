@@ -31,7 +31,7 @@
 #elif defined(_ARCH_PPC)
 #define AREG0 "r27"
 #elif defined(__arm__)
-#define AREG0 "r7"
+#define AREG0 "r6"
 #elif defined(__hppa__)
 #define AREG0 "r17"
 #elif defined(__mips__)
@@ -63,10 +63,10 @@
 #if defined(AREG0)
 //register CPUState *env asm(AREG0);
 //clang does not support register-based global variables.
-extern CPUState *env;
+extern CPUArchState *env;
 #else
 /* TODO: Try env = cpu_single_env. */
-extern CPUState *env;
+extern CPUArchState *env;
 #endif
 
 #endif /* !defined(__DYNGEN_EXEC_H__) */

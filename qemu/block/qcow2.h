@@ -78,7 +78,7 @@ typedef struct QCowSnapshot {
     uint32_t l1_size;
     char *id_str;
     char *name;
-    uint32_t vm_state_size;
+    uint64_t vm_state_size;
     uint32_t date_sec;
     uint32_t date_nsec;
     uint64_t vm_clock_nsec;
@@ -86,6 +86,13 @@ typedef struct QCowSnapshot {
 
 struct Qcow2Cache;
 typedef struct Qcow2Cache Qcow2Cache;
+
+typedef struct Qcow2UnknownHeaderExtension {
+    uint32_t magic;
+    uint32_t len;
+    QLIST_ENTRY(Qcow2UnknownHeaderExtension) next;
+    uint8_t data[];
+} Qcow2UnknownHeaderExtension;
 
 typedef struct BDRVQcowState {
     int cluster_bits;
@@ -127,6 +134,7 @@ typedef struct BDRVQcowState {
     QCowSnapshot *snapshots;
 
     int flags;
+    QLIST_HEAD(, Qcow2UnknownHeaderExtension) unknown_header_ext;
 } BDRVQcowState;
 
 /* XXX: use std qcow open function ? */
@@ -147,6 +155,7 @@ typedef struct QCowL2Meta
 {
     uint64_t offset;
     uint64_t cluster_offset;
+    uint64_t alloc_offset;
     int n_start;
     int nb_available;
     int nb_clusters;
@@ -178,12 +187,15 @@ static inline int64_t align_offset(int64_t offset, int n)
 /* qcow2.c functions */
 int qcow2_backing_read1(BlockDriverState *bs, QEMUIOVector *qiov,
                   int64_t sector_num, int nb_sectors);
+int qcow2_update_header(BlockDriverState *bs);
 
 /* qcow2-refcount.c functions */
 int qcow2_refcount_init(BlockDriverState *bs);
 void qcow2_refcount_close(BlockDriverState *bs);
 
 int64_t qcow2_alloc_clusters(BlockDriverState *bs, int64_t size);
+int qcow2_alloc_clusters_at(BlockDriverState *bs, uint64_t offset,
+    int nb_clusters);
 int64_t qcow2_alloc_bytes(BlockDriverState *bs, int size);
 void qcow2_free_clusters(BlockDriverState *bs,
     int64_t offset, int64_t size);

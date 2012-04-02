@@ -53,7 +53,7 @@ static void pic_update(struct etrax_pic *fs)
 
     fs->regs[R_R_MASKED_VECT] = fs->regs[R_R_VECT] & fs->regs[R_RW_MASK];
 
-    /* The ETRAX interrupt controller signals interrupts to teh core
+    /* The ETRAX interrupt controller signals interrupts to the core
        through an interrupt request wire and an irq vector bus. If 
        multiple interrupts are simultaneously active it chooses vector 
        0x30 and lets the sw choose the priorities.  */
@@ -147,23 +147,34 @@ static int etraxfs_pic_init(SysBusDevice *dev)
     sysbus_init_irq(dev, &s->parent_nmi);
 
     memory_region_init_io(&s->mmio, &pic_ops, s, "etraxfs-pic", R_MAX * 4);
-    sysbus_init_mmio_region(dev, &s->mmio);
+    sysbus_init_mmio(dev, &s->mmio);
     return 0;
 }
 
-static SysBusDeviceInfo etraxfs_pic_info = {
-    .init = etraxfs_pic_init,
-    .qdev.name  = "etraxfs,pic",
-    .qdev.size  = sizeof(struct etrax_pic),
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_PTR("interrupt_vector", struct etrax_pic, interrupt_vector),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property etraxfs_pic_properties[] = {
+    DEFINE_PROP_PTR("interrupt_vector", struct etrax_pic, interrupt_vector),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void etraxfs_pic_register(void)
+static void etraxfs_pic_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&etraxfs_pic_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = etraxfs_pic_init;
+    dc->props = etraxfs_pic_properties;
 }
 
-device_init(etraxfs_pic_register)
+static TypeInfo etraxfs_pic_info = {
+    .name          = "etraxfs,pic",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(struct etrax_pic),
+    .class_init    = etraxfs_pic_class_init,
+};
+
+static void etraxfs_pic_register_types(void)
+{
+    type_register_static(&etraxfs_pic_info);
+}
+
+type_init(etraxfs_pic_register_types)

@@ -79,30 +79,6 @@ typedef struct _PCIFakeState {
     MemoryRegion io[PCI_NUM_REGIONS];
 }PCIFakeState;
 
-#if 0
-static void pci_fake_map(PCIDevice *pci_dev, int region_num,
-                       pcibus_t addr, pcibus_t size, int type)
-{
-    PCIFakeState *s = DO_UPCAST(PCIFakeState, dev, pci_dev);
-
-    if (type & PCI_BASE_ADDRESS_SPACE_IO) {
-        register_ioport_write(addr, size, 1, symbhw_write8, s);
-        register_ioport_read(addr, size, 1, symbhw_read8, s);
-
-        register_ioport_write(addr, size, 2, symbhw_write16, s);
-        register_ioport_read(addr, size, 2, symbhw_read16, s);
-
-        register_ioport_write(addr, size, 4, symbhw_write32, s);
-        register_ioport_read(addr, size, 4, symbhw_read32, s);
-    }
-
-    if (type & PCI_BASE_ADDRESS_SPACE_MEMORY) {
-        cpu_register_physical_memory(addr, size, s_fake_pci->mmioidx);
-    }
-}
-#endif
-
-
 static int pci_fake_init(PCIDevice *pci_dev)
 {
     PCIFakeState *d = DO_UPCAST(PCIFakeState, dev, pci_dev);
@@ -143,33 +119,45 @@ static  VMStateDescription vmstate_pci_fake = {
     }
 };
 
-static PCIDeviceInfo fake_info = {
-    .qdev.name  = "fake", //Should be replaced!
-    .qdev.size  = sizeof(PCIFakeState),
-    .qdev.vmsd  = &vmstate_pci_fake,
-    .init       = pci_fake_init,
-    .exit       = pci_fake_exit,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_END_OF_LIST(),
-    }
+
+static Property fakepci_properties[] = {
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-void fake_register_devices(fake_pci_t *fake);
-void fake_activate_devices(struct PCIBus *bus);
-
-void fake_register_devices(fake_pci_t *fake)
+static void fakepci_class_init(ObjectClass *klass, void *data)
 {
-    s_fake_pci = fake;
-    vmstate_pci_fake.name = fake->fake_pci_name;
-    fake_info.qdev.name = fake->fake_pci_name;
-    pci_qdev_register(&fake_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = pci_fake_init;
+    k->exit = pci_fake_exit;
+
+#if 0
+    k->vendor_id = s_fake_pci->fake_pci_vendor_id;
+    k->device_id = s_fake_pci->fake_pci_device_id;
+    k->revision = s_fake_pci->fake_pci_revision_id;
+    k->class_id = s_fake_pci->fake_pci_class_code;
+    k->subsystem_vendor_id = s_fake_pci->fake_pci_ss_vendor_id;
+    k->subsystem_id = s_fake_pci->fake_pci_ss_id;
+#endif
+
+    dc->vmsd = &vmstate_pci_fake;
+    dc->props = fakepci_properties;
 }
 
-void fake_activate_devices(struct PCIBus *bus)
+static TypeInfo fakepci_info = {
+    .name          = "fakepci",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIFakeState),
+    .class_init    = fakepci_class_init,
+};
+
+static void pci_fakepci_register_types(void)
 {
-    if(s_fake_pci->fake_pci_name)
-        pci_create_simple(bus, -1, s_fake_pci->fake_pci_name);
+    type_register_static(&fakepci_info);
 }
+
+type_init(pci_fakepci_register_types)
 
 
 #endif

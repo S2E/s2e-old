@@ -56,26 +56,18 @@ typedef struct TCXState {
     uint8_t dac_index, dac_state;
 } TCXState;
 
-static void tcx_screen_dump(void *opaque, const char *filename);
-static void tcx24_screen_dump(void *opaque, const char *filename);
+static void tcx_screen_dump(void *opaque, const char *filename, bool cswitch);
+static void tcx24_screen_dump(void *opaque, const char *filename, bool cswitch);
 
 static void tcx_set_dirty(TCXState *s)
 {
-    unsigned int i;
-
-    for (i = 0; i < MAXX * MAXY; i += TARGET_PAGE_SIZE) {
-        memory_region_set_dirty(&s->vram_mem, i);
-    }
+    memory_region_set_dirty(&s->vram_mem, 0, MAXX * MAXY);
 }
 
 static void tcx24_set_dirty(TCXState *s)
 {
-    unsigned int i;
-
-    for (i = 0; i < MAXX * MAXY * 4; i += TARGET_PAGE_SIZE) {
-        memory_region_set_dirty(&s->vram_mem, s->vram24_offset + i);
-        memory_region_set_dirty(&s->vram_mem, s->cplane_offset + i);
-    }
+    memory_region_set_dirty(&s->vram_mem, s->vram24_offset, MAXX * MAXY * 4);
+    memory_region_set_dirty(&s->vram_mem, s->cplane_offset, MAXX * MAXY * 4);
 }
 
 static void update_palette_entries(TCXState *s, int start, int end)
@@ -186,15 +178,13 @@ static inline int check_dirty(TCXState *s, ram_addr_t page, ram_addr_t page24,
                               ram_addr_t cpage)
 {
     int ret;
-    unsigned int off;
 
-    ret = memory_region_get_dirty(&s->vram_mem, page, DIRTY_MEMORY_VGA);
-    for (off = 0; off < TARGET_PAGE_SIZE * 4; off += TARGET_PAGE_SIZE) {
-        ret |= memory_region_get_dirty(&s->vram_mem, page24 + off,
-                                       DIRTY_MEMORY_VGA);
-        ret |= memory_region_get_dirty(&s->vram_mem, cpage + off,
-                                       DIRTY_MEMORY_VGA);
-    }
+    ret = memory_region_get_dirty(&s->vram_mem, page, TARGET_PAGE_SIZE,
+                                  DIRTY_MEMORY_VGA);
+    ret |= memory_region_get_dirty(&s->vram_mem, page24, TARGET_PAGE_SIZE * 4,
+                                   DIRTY_MEMORY_VGA);
+    ret |= memory_region_get_dirty(&s->vram_mem, cpage, TARGET_PAGE_SIZE * 4,
+                                   DIRTY_MEMORY_VGA);
     return ret;
 }
 
@@ -253,7 +243,8 @@ static void tcx_update_display(void *opaque)
     }
 
     for(y = 0; y < ts->height; y += 4, page += TARGET_PAGE_SIZE) {
-        if (memory_region_get_dirty(&ts->vram_mem, page, DIRTY_MEMORY_VGA)) {
+        if (memory_region_get_dirty(&ts->vram_mem, page, TARGET_PAGE_SIZE,
+                                    DIRTY_MEMORY_VGA)) {
             if (y_start < 0)
                 y_start = y;
             if (page < page_min)
@@ -520,8 +511,9 @@ static int tcx_init1(SysBusDevice *dev)
     int size;
     uint8_t *vram_base;
 
-    memory_region_init_ram(&s->vram_mem, NULL, "tcx.vram",
+    memory_region_init_ram(&s->vram_mem, "tcx.vram",
                            s->vram_size * (1 + 4 + 4));
+    vmstate_register_ram_global(&s->vram_mem);
     vram_base = memory_region_get_ram_ptr(&s->vram_mem);
 
     /* 8-bit plane */
@@ -529,21 +521,21 @@ static int tcx_init1(SysBusDevice *dev)
     size = s->vram_size;
     memory_region_init_alias(&s->vram_8bit, "tcx.vram.8bit",
                              &s->vram_mem, vram_offset, size);
-    sysbus_init_mmio_region(dev, &s->vram_8bit);
+    sysbus_init_mmio(dev, &s->vram_8bit);
     vram_offset += size;
     vram_base += size;
 
     /* DAC */
     memory_region_init_io(&s->dac, &tcx_dac_ops, s, "tcx.dac", TCX_DAC_NREGS);
-    sysbus_init_mmio_region(dev, &s->dac);
+    sysbus_init_mmio(dev, &s->dac);
 
     /* TEC (dummy) */
     memory_region_init_io(&s->tec, &dummy_ops, s, "tcx.tec", TCX_TEC_NREGS);
-    sysbus_init_mmio_region(dev, &s->tec);
+    sysbus_init_mmio(dev, &s->tec);
     /* THC: NetBSD writes here even with 8-bit display: dummy */
     memory_region_init_io(&s->thc24, &dummy_ops, s, "tcx.thc24",
                           TCX_THC_NREGS_24);
-    sysbus_init_mmio_region(dev, &s->thc24);
+    sysbus_init_mmio(dev, &s->thc24);
 
     if (s->depth == 24) {
         /* 24-bit plane */
@@ -552,7 +544,7 @@ static int tcx_init1(SysBusDevice *dev)
         s->vram24_offset = vram_offset;
         memory_region_init_alias(&s->vram_24bit, "tcx.vram.24bit",
                                  &s->vram_mem, vram_offset, size);
-        sysbus_init_mmio_region(dev, &s->vram_24bit);
+        sysbus_init_mmio(dev, &s->vram_24bit);
         vram_offset += size;
         vram_base += size;
 
@@ -562,7 +554,7 @@ static int tcx_init1(SysBusDevice *dev)
         s->cplane_offset = vram_offset;
         memory_region_init_alias(&s->vram_cplane, "tcx.vram.cplane",
                                  &s->vram_mem, vram_offset, size);
-        sysbus_init_mmio_region(dev, &s->vram_cplane);
+        sysbus_init_mmio(dev, &s->vram_cplane);
 
         s->ds = graphic_console_init(tcx24_update_display,
                                      tcx24_invalidate_display,
@@ -571,7 +563,7 @@ static int tcx_init1(SysBusDevice *dev)
         /* THC 8 bit (dummy) */
         memory_region_init_io(&s->thc8, &dummy_ops, s, "tcx.thc8",
                               TCX_THC_NREGS_8);
-        sysbus_init_mmio_region(dev, &s->thc8);
+        sysbus_init_mmio(dev, &s->thc8);
 
         s->ds = graphic_console_init(tcx_update_display,
                                      tcx_invalidate_display,
@@ -582,7 +574,7 @@ static int tcx_init1(SysBusDevice *dev)
     return 0;
 }
 
-static void tcx_screen_dump(void *opaque, const char *filename)
+static void tcx_screen_dump(void *opaque, const char *filename, bool cswitch)
 {
     TCXState *s = opaque;
     FILE *f;
@@ -609,7 +601,7 @@ static void tcx_screen_dump(void *opaque, const char *filename)
     return;
 }
 
-static void tcx24_screen_dump(void *opaque, const char *filename)
+static void tcx24_screen_dump(void *opaque, const char *filename, bool cswitch)
 {
     TCXState *s = opaque;
     FILE *f;
@@ -645,25 +637,36 @@ static void tcx24_screen_dump(void *opaque, const char *filename)
     return;
 }
 
-static SysBusDeviceInfo tcx_info = {
-    .init = tcx_init1,
-    .qdev.name  = "SUNW,tcx",
-    .qdev.size  = sizeof(TCXState),
-    .qdev.reset = tcx_reset,
-    .qdev.vmsd  = &vmstate_tcx,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_TADDR("addr",      TCXState, addr,      -1),
-        DEFINE_PROP_HEX32("vram_size", TCXState, vram_size, -1),
-        DEFINE_PROP_UINT16("width",    TCXState, width,     -1),
-        DEFINE_PROP_UINT16("height",   TCXState, height,    -1),
-        DEFINE_PROP_UINT16("depth",    TCXState, depth,     -1),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property tcx_properties[] = {
+    DEFINE_PROP_TADDR("addr",      TCXState, addr,      -1),
+    DEFINE_PROP_HEX32("vram_size", TCXState, vram_size, -1),
+    DEFINE_PROP_UINT16("width",    TCXState, width,     -1),
+    DEFINE_PROP_UINT16("height",   TCXState, height,    -1),
+    DEFINE_PROP_UINT16("depth",    TCXState, depth,     -1),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void tcx_register_devices(void)
+static void tcx_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&tcx_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = tcx_init1;
+    dc->reset = tcx_reset;
+    dc->vmsd = &vmstate_tcx;
+    dc->props = tcx_properties;
 }
 
-device_init(tcx_register_devices)
+static TypeInfo tcx_info = {
+    .name          = "SUNW,tcx",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(TCXState),
+    .class_init    = tcx_class_init,
+};
+
+static void tcx_register_types(void)
+{
+    type_register_static(&tcx_info);
+}
+
+type_init(tcx_register_types)

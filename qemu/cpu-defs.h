@@ -80,8 +80,6 @@ typedef uint64_t target_ulong __attribute__((aligned(TARGET_LONG_ALIGNMENT)));
 #error TARGET_LONG_SIZE undefined
 #endif
 
-#define HOST_LONG_SIZE (HOST_LONG_BITS / 8)
-
 #define EXCP_INTERRUPT 	0x10000 /* async interruption */
 #define EXCP_HLT        0x10001 /* hlt instruction reached */
 #define EXCP_DEBUG      0x10002 /* cpu stopped after a breakpoint or singlestep */
@@ -195,6 +193,14 @@ typedef struct CPUWatchpoint {
     QTAILQ_ENTRY(CPUWatchpoint) entry;
 } CPUWatchpoint;
 
+#ifdef _WIN32
+#define CPU_COMMON_THREAD \
+    void *hThread;
+
+#else
+#define CPU_COMMON_THREAD
+#endif
+
 #define CPU_TEMP_BUF_NLONGS 128
 #define CPU_COMMON                                                      \
     struct TranslationBlock *current_tb; /* currently executing TB  */  \
@@ -242,7 +248,7 @@ typedef struct CPUWatchpoint {
     s2e_jmp_buf jmp_env;                                                \
     int exception_index;                                                \
                                                                         \
-    CPUState *next_cpu; /* next CPU sharing TB cache */                 \
+    CPUArchState *next_cpu; /* next CPU sharing TB cache */                 \
     int cpu_index; /* CPU index (informative) */                        \
     uint32_t host_tid; /* host thread ID */                             \
     int numa_node; /* NUMA node this cpu is belonging to  */            \
@@ -257,6 +263,7 @@ typedef struct CPUWatchpoint {
     uint32_t stop;   /* Stop request */                                 \
     uint32_t stopped; /* Artificially stopped */                        \
     struct QemuThread *thread;                                          \
+    CPU_COMMON_THREAD                                                   \
     struct QemuCond *halt_cond;                                         \
     int thread_kicked;                                                  \
     struct qemu_work_item *queued_work_first, *queued_work_last;        \

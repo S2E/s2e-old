@@ -497,16 +497,25 @@ static int i8042_initfn(ISADevice *dev)
     return 0;
 }
 
-static ISADeviceInfo i8042_info = {
-    .qdev.name     = "i8042",
-    .qdev.size     = sizeof(ISAKBDState),
-    .qdev.vmsd     = &vmstate_kbd_isa,
-    .qdev.no_user  = 1,
-    .init          = i8042_initfn,
+static void i8042_class_initfn(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
+    ic->init = i8042_initfn;
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_kbd_isa;
+}
+
+static TypeInfo i8042_info = {
+    .name          = "i8042",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(ISAKBDState),
+    .class_init    = i8042_class_initfn,
 };
 
-static void i8042_register(void)
+static void i8042_register_types(void)
 {
-    isa_qdev_register(&i8042_info);
+    type_register_static(&i8042_info);
 }
-device_init(i8042_register)
+
+type_init(i8042_register_types)

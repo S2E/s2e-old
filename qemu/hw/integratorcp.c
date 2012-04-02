@@ -8,7 +8,6 @@
  */
 
 #include "sysbus.h"
-#include "primecell.h"
 #include "devices.h"
 #include "boards.h"
 #include "arm-misc.h"
@@ -18,9 +17,9 @@
 
 typedef struct {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     uint32_t memsz;
     MemoryRegion flash;
-    bool flash_mapped;
     uint32_t cm_osc;
     uint32_t cm_ctrl;
     uint32_t cm_lock;
@@ -39,7 +38,8 @@ static uint8_t integrator_spd[128] = {
    0xe, 4, 0x1c, 1, 2, 0x20, 0xc0, 0, 0, 0, 0, 0x30, 0x28, 0x30, 0x28, 0x40
 };
 
-static uint32_t integratorcm_read(void *opaque, target_phys_addr_t offset)
+static uint64_t integratorcm_read(void *opaque, target_phys_addr_t offset,
+                                  unsigned size)
 {
     integratorcm_state *s = (integratorcm_state *)opaque;
     if (offset >= 0x100 && offset < 0x200) {
@@ -108,29 +108,18 @@ static uint32_t integratorcm_read(void *opaque, target_phys_addr_t offset)
     }
 }
 
-static void integratorcm_do_remap(integratorcm_state *s, int flash)
+static void integratorcm_do_remap(integratorcm_state *s)
 {
-    if (flash) {
-        if (s->flash_mapped) {
-            sysbus_del_memory(&s->busdev, &s->flash);
-            s->flash_mapped = false;
-        }
-    } else {
-        if (!s->flash_mapped) {
-            sysbus_add_memory_overlap(&s->busdev, 0, &s->flash, 1);
-            s->flash_mapped = true;
-        }
-    }
-    //??? tlb_flush (cpu_single_env, 1);
+    /* Sync memory region state with CM_CTRL REMAP bit:
+     * bit 0 => flash at address 0; bit 1 => RAM
+     */
+    memory_region_set_enabled(&s->flash, !(s->cm_ctrl & 4));
 }
 
 static void integratorcm_set_ctrl(integratorcm_state *s, uint32_t value)
 {
     if (value & 8) {
         qemu_system_reset_request();
-    }
-    if ((s->cm_ctrl ^ value) & 4) {
-        integratorcm_do_remap(s, (value & 4) == 0);
     }
     if ((s->cm_ctrl ^ value) & 1) {
         /* (value & 1) != 0 means the green "MISC LED" is lit.
@@ -141,6 +130,7 @@ static void integratorcm_set_ctrl(integratorcm_state *s, uint32_t value)
     }
     /* Note that the RESET bit [3] always reads as zero */
     s->cm_ctrl = (s->cm_ctrl & ~5) | (value & 5);
+    integratorcm_do_remap(s);
 }
 
 static void integratorcm_update(integratorcm_state *s)
@@ -152,7 +142,7 @@ static void integratorcm_update(integratorcm_state *s)
 }
 
 static void integratorcm_write(void *opaque, target_phys_addr_t offset,
-                               uint32_t value)
+                               uint64_t value, unsigned size)
 {
     integratorcm_state *s = (integratorcm_state *)opaque;
     switch (offset >> 2) {
@@ -228,21 +218,14 @@ static void integratorcm_write(void *opaque, target_phys_addr_t offset,
 
 /* Integrator/CM control registers.  */
 
-static CPUReadMemoryFunc * const integratorcm_readfn[] = {
-   integratorcm_read,
-   integratorcm_read,
-   integratorcm_read
-};
-
-static CPUWriteMemoryFunc * const integratorcm_writefn[] = {
-   integratorcm_write,
-   integratorcm_write,
-   integratorcm_write
+static const MemoryRegionOps integratorcm_ops = {
+    .read = integratorcm_read,
+    .write = integratorcm_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static int integratorcm_init(SysBusDevice *dev)
 {
-    int iomemtype;
     integratorcm_state *s = FROM_SYSBUS(integratorcm_state, dev);
 
     s->cm_osc = 0x01000048;
@@ -266,14 +249,14 @@ static int integratorcm_init(SysBusDevice *dev)
     }
     memcpy(integrator_spd + 73, "QEMU-MEMORY", 11);
     s->cm_init = 0x00000112;
-    memory_region_init_ram(&s->flash, NULL, "integrator.flash", 0x100000);
-    s->flash_mapped = false;
+    memory_region_init_ram(&s->flash, "integrator.flash", 0x100000);
+    vmstate_register_ram_global(&s->flash);
 
-    iomemtype = cpu_register_io_memory(integratorcm_readfn,
-                                       integratorcm_writefn, s,
-                                       DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, 0x00800000, iomemtype);
-    integratorcm_do_remap(s, 1);
+    memory_region_init_io(&s->iomem, &integratorcm_ops, s,
+                          "integratorcm", 0x00800000);
+    sysbus_init_mmio(dev, &s->iomem);
+
+    integratorcm_do_remap(s);
     /* ??? Save/restore.  */
     return 0;
 }
@@ -284,6 +267,7 @@ static int integratorcm_init(SysBusDevice *dev)
 typedef struct icp_pic_state
 {
   SysBusDevice busdev;
+  MemoryRegion iomem;
   uint32_t level;
   uint32_t irq_enabled;
   uint32_t fiq_enabled;
@@ -311,7 +295,8 @@ static void icp_pic_set_irq(void *opaque, int irq, int level)
     icp_pic_update(s);
 }
 
-static uint32_t icp_pic_read(void *opaque, target_phys_addr_t offset)
+static uint64_t icp_pic_read(void *opaque, target_phys_addr_t offset,
+                             unsigned size)
 {
     icp_pic_state *s = (icp_pic_state *)opaque;
 
@@ -340,7 +325,7 @@ static uint32_t icp_pic_read(void *opaque, target_phys_addr_t offset)
 }
 
 static void icp_pic_write(void *opaque, target_phys_addr_t offset,
-                          uint32_t value)
+                          uint64_t value, unsigned size)
 {
     icp_pic_state *s = (icp_pic_state *)opaque;
 
@@ -376,35 +361,28 @@ static void icp_pic_write(void *opaque, target_phys_addr_t offset,
     icp_pic_update(s);
 }
 
-static CPUReadMemoryFunc * const icp_pic_readfn[] = {
-   icp_pic_read,
-   icp_pic_read,
-   icp_pic_read
-};
-
-static CPUWriteMemoryFunc * const icp_pic_writefn[] = {
-   icp_pic_write,
-   icp_pic_write,
-   icp_pic_write
+static const MemoryRegionOps icp_pic_ops = {
+    .read = icp_pic_read,
+    .write = icp_pic_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static int icp_pic_init(SysBusDevice *dev)
 {
     icp_pic_state *s = FROM_SYSBUS(icp_pic_state, dev);
-    int iomemtype;
 
     qdev_init_gpio_in(&dev->qdev, icp_pic_set_irq, 32);
     sysbus_init_irq(dev, &s->parent_irq);
     sysbus_init_irq(dev, &s->parent_fiq);
-    iomemtype = cpu_register_io_memory(icp_pic_readfn,
-                                       icp_pic_writefn, s,
-                                       DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, 0x00800000, iomemtype);
+    memory_region_init_io(&s->iomem, &icp_pic_ops, s, "icp-pic", 0x00800000);
+    sysbus_init_mmio(dev, &s->iomem);
     return 0;
 }
 
 /* CP control registers.  */
-static uint32_t icp_control_read(void *opaque, target_phys_addr_t offset)
+
+static uint64_t icp_control_read(void *opaque, target_phys_addr_t offset,
+                                 unsigned size)
 {
     switch (offset >> 2) {
     case 0: /* CP_IDFIELD */
@@ -422,7 +400,7 @@ static uint32_t icp_control_read(void *opaque, target_phys_addr_t offset)
 }
 
 static void icp_control_write(void *opaque, target_phys_addr_t offset,
-                          uint32_t value)
+                          uint64_t value, unsigned size)
 {
     switch (offset >> 2) {
     case 1: /* CP_FLASHPROG */
@@ -434,26 +412,21 @@ static void icp_control_write(void *opaque, target_phys_addr_t offset,
         hw_error("icp_control_write: Bad offset %x\n", (int)offset);
     }
 }
-static CPUReadMemoryFunc * const icp_control_readfn[] = {
-   icp_control_read,
-   icp_control_read,
-   icp_control_read
+
+static const MemoryRegionOps icp_control_ops = {
+    .read = icp_control_read,
+    .write = icp_control_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static CPUWriteMemoryFunc * const icp_control_writefn[] = {
-   icp_control_write,
-   icp_control_write,
-   icp_control_write
-};
-
-static void icp_control_init(uint32_t base)
+static void icp_control_init(target_phys_addr_t base)
 {
-    int iomemtype;
+    MemoryRegion *io;
 
-    iomemtype = cpu_register_io_memory(icp_control_readfn,
-                                       icp_control_writefn, NULL,
-                                       DEVICE_NATIVE_ENDIAN);
-    cpu_register_physical_memory(base, 0x00800000, iomemtype);
+    io = (MemoryRegion *)g_malloc0(sizeof(MemoryRegion));
+    memory_region_init_io(io, &icp_control_ops, NULL,
+                          "control", 0x00800000);
+    memory_region_add_subregion(get_system_memory(), base, io);
     /* ??? Save/restore.  */
 }
 
@@ -470,7 +443,7 @@ static void integratorcp_init(ram_addr_t ram_size,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
 {
-    CPUState *env;
+    CPUARMState *env;
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *ram = g_new(MemoryRegion, 1);
     MemoryRegion *ram_alias = g_new(MemoryRegion, 1);
@@ -486,7 +459,8 @@ static void integratorcp_init(ram_addr_t ram_size,
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
-    memory_region_init_ram(ram, NULL, "integrator.ram", ram_size);
+    memory_region_init_ram(ram, "integrator.ram", ram_size);
+    vmstate_register_ram_global(ram);
     /* ??? On a real system the first 1Mb is mapped as SSRAM or boot flash.  */
     /* ??? RAM should repeat to fill physical memory space.  */
     /* SDRAM at address zero*/
@@ -543,20 +517,45 @@ static void integratorcp_machine_init(void)
 
 machine_init(integratorcp_machine_init);
 
-static SysBusDeviceInfo core_info = {
-    .init = integratorcm_init,
-    .qdev.name  = "integrator_core",
-    .qdev.size  = sizeof(integratorcm_state),
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("memsz", integratorcm_state, memsz, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property core_properties[] = {
+    DEFINE_PROP_UINT32("memsz", integratorcm_state, memsz, 0),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void integratorcp_register_devices(void)
+static void core_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_dev("integrator_pic", sizeof(icp_pic_state), icp_pic_init);
-    sysbus_register_withprop(&core_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = integratorcm_init;
+    dc->props = core_properties;
 }
 
-device_init(integratorcp_register_devices)
+static TypeInfo core_info = {
+    .name          = "integrator_core",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(integratorcm_state),
+    .class_init    = core_class_init,
+};
+
+static void icp_pic_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = icp_pic_init;
+}
+
+static TypeInfo icp_pic_info = {
+    .name          = "integrator_pic",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(icp_pic_state),
+    .class_init    = icp_pic_class_init,
+};
+
+static void integratorcp_register_types(void)
+{
+    type_register_static(&icp_pic_info);
+    type_register_static(&core_info);
+}
+
+type_init(integratorcp_register_types)

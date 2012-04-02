@@ -228,7 +228,7 @@ void sun4m_irq_info(Monitor *mon)
         slavio_irq_info(mon, slavio_intctl);
 }
 
-void cpu_check_irqs(CPUState *env)
+void cpu_check_irqs(CPUSPARCState *env)
 {
     if (env->pil_in && (env->interrupt_index == 0 ||
                         (env->interrupt_index & ~15) == TT_EXTINT)) {
@@ -253,7 +253,7 @@ void cpu_check_irqs(CPUState *env)
     }
 }
 
-static void cpu_kick_irq(CPUState *env)
+static void cpu_kick_irq(CPUSPARCState *env)
 {
     env->halted = 0;
     cpu_check_irqs(env);
@@ -262,7 +262,7 @@ static void cpu_kick_irq(CPUState *env)
 
 static void cpu_set_irq(void *opaque, int irq, int level)
 {
-    CPUState *env = opaque;
+    CPUSPARCState *env = opaque;
 
     if (level) {
         trace_sun4m_cpu_set_irq_raise(irq);
@@ -281,17 +281,17 @@ static void dummy_cpu_set_irq(void *opaque, int irq, int level)
 
 static void main_cpu_reset(void *opaque)
 {
-    CPUState *env = opaque;
+    CPUSPARCState *env = opaque;
 
-    cpu_reset(env);
+    cpu_state_reset(env);
     env->halted = 0;
 }
 
 static void secondary_cpu_reset(void *opaque)
 {
-    CPUState *env = opaque;
+    CPUSPARCState *env = opaque;
 
-    cpu_reset(env);
+    cpu_state_reset(env);
     env->halted = 1;
 }
 
@@ -602,24 +602,26 @@ static int idreg_init1(SysBusDevice *dev)
 {
     IDRegState *s = FROM_SYSBUS(IDRegState, dev);
 
-    memory_region_init_ram(&s->mem, NULL, "sun4m.idreg", sizeof(idreg_data));
+    memory_region_init_ram(&s->mem, "sun4m.idreg", sizeof(idreg_data));
+    vmstate_register_ram_global(&s->mem);
     memory_region_set_readonly(&s->mem, true);
-    sysbus_init_mmio_region(dev, &s->mem);
+    sysbus_init_mmio(dev, &s->mem);
     return 0;
 }
 
-static SysBusDeviceInfo idreg_info = {
-    .init = idreg_init1,
-    .qdev.name  = "macio_idreg",
-    .qdev.size  = sizeof(IDRegState),
-};
-
-static void idreg_register_devices(void)
+static void idreg_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&idreg_info);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = idreg_init1;
 }
 
-device_init(idreg_register_devices);
+static TypeInfo idreg_info = {
+    .name          = "macio_idreg",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(IDRegState),
+    .class_init    = idreg_class_init,
+};
 
 typedef struct AFXState {
     SysBusDevice busdev;
@@ -643,23 +645,25 @@ static int afx_init1(SysBusDevice *dev)
 {
     AFXState *s = FROM_SYSBUS(AFXState, dev);
 
-    memory_region_init_ram(&s->mem, NULL, "sun4m.afx", 4);
-    sysbus_init_mmio_region(dev, &s->mem);
+    memory_region_init_ram(&s->mem, "sun4m.afx", 4);
+    vmstate_register_ram_global(&s->mem);
+    sysbus_init_mmio(dev, &s->mem);
     return 0;
 }
 
-static SysBusDeviceInfo afx_info = {
-    .init = afx_init1,
-    .qdev.name  = "tcx_afx",
-    .qdev.size  = sizeof(AFXState),
-};
-
-static void afx_register_devices(void)
+static void afx_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&afx_info);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = afx_init1;
 }
 
-device_init(afx_register_devices);
+static TypeInfo afx_info = {
+    .name          = "tcx_afx",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(AFXState),
+    .class_init    = afx_class_init,
+};
 
 typedef struct PROMState {
     SysBusDevice busdev;
@@ -711,27 +715,32 @@ static int prom_init1(SysBusDevice *dev)
 {
     PROMState *s = FROM_SYSBUS(PROMState, dev);
 
-    memory_region_init_ram(&s->prom, NULL, "sun4m.prom", PROM_SIZE_MAX);
+    memory_region_init_ram(&s->prom, "sun4m.prom", PROM_SIZE_MAX);
+    vmstate_register_ram_global(&s->prom);
     memory_region_set_readonly(&s->prom, true);
-    sysbus_init_mmio_region(dev, &s->prom);
+    sysbus_init_mmio(dev, &s->prom);
     return 0;
 }
 
-static SysBusDeviceInfo prom_info = {
-    .init = prom_init1,
-    .qdev.name  = "openprom",
-    .qdev.size  = sizeof(PROMState),
-    .qdev.props = (Property[]) {
-        {/* end of property list */}
-    }
+static Property prom_properties[] = {
+    {/* end of property list */},
 };
 
-static void prom_register_devices(void)
+static void prom_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&prom_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = prom_init1;
+    dc->props = prom_properties;
 }
 
-device_init(prom_register_devices);
+static TypeInfo prom_info = {
+    .name          = "openprom",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PROMState),
+    .class_init    = prom_class_init,
+};
 
 typedef struct RamDevice
 {
@@ -745,8 +754,9 @@ static int ram_init1(SysBusDevice *dev)
 {
     RamDevice *d = FROM_SYSBUS(RamDevice, dev);
 
-    memory_region_init_ram(&d->ram, NULL, "sun4m.ram", d->size);
-    sysbus_init_mmio_region(dev, &d->ram);
+    memory_region_init_ram(&d->ram, "sun4m.ram", d->size);
+    vmstate_register_ram_global(&d->ram);
+    sysbus_init_mmio(dev, &d->ram);
     return 0;
 }
 
@@ -775,27 +785,31 @@ static void ram_init(target_phys_addr_t addr, ram_addr_t RAM_size,
     sysbus_mmio_map(s, 0, addr);
 }
 
-static SysBusDeviceInfo ram_info = {
-    .init = ram_init1,
-    .qdev.name  = "memory",
-    .qdev.size  = sizeof(RamDevice),
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT64("size", RamDevice, size, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property ram_properties[] = {
+    DEFINE_PROP_UINT64("size", RamDevice, size, 0),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void ram_register_devices(void)
+static void ram_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&ram_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = ram_init1;
+    dc->props = ram_properties;
 }
 
-device_init(ram_register_devices);
+static TypeInfo ram_info = {
+    .name          = "memory",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(RamDevice),
+    .class_init    = ram_class_init,
+};
 
 static void cpu_devinit(const char *cpu_model, unsigned int id,
                         uint64_t prom_addr, qemu_irq **cpu_irqs)
 {
-    CPUState *env;
+    CPUSPARCState *env;
 
     env = cpu_init(cpu_model);
     if (!env) {
@@ -1823,6 +1837,14 @@ static QEMUMachine ss2_machine = {
     .use_scsi = 1,
 };
 
+static void sun4m_register_types(void)
+{
+    type_register_static(&idreg_info);
+    type_register_static(&afx_info);
+    type_register_static(&prom_info);
+    type_register_static(&ram_info);
+}
+
 static void ss2_machine_init(void)
 {
     qemu_register_machine(&ss5_machine);
@@ -1839,4 +1861,5 @@ static void ss2_machine_init(void)
     qemu_register_machine(&ss2_machine);
 }
 
+type_init(sun4m_register_types)
 machine_init(ss2_machine_init);

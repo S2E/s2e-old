@@ -23,16 +23,24 @@ QEMU_CFLAGS += -I.. -I$(TARGET_PATH) -DNEED_CPU_H
 
 include $(SRC_PATH)/Makefile.objs
 
+QEMU_CFLAGS+=-I$(SRC_PATH)/include
 
 ifdef CONFIG_USER_ONLY
 # user emulator name
 QEMU_PROG=qemu-$(TARGET_ARCH2)
 else
 # system emulator name
+ifneq (,$(findstring -mwindows,$(LIBS)))
+# Terminate program name with a 'w' because the linker builds a windows executable.
+QEMU_PROGW=qemu-system-$(TARGET_ARCH2)w$(EXESUF)
+endif # windows executable
 QEMU_PROG=qemu-system-$(TARGET_ARCH2)$(EXESUF)
 endif
 
 PROGS=$(QEMU_PROG)
+ifdef QEMU_PROGW
+PROGS+=$(QEMU_PROGW)
+endif
 STPFILES=
 
 ifndef CONFIG_HAIKU
@@ -76,19 +84,27 @@ libobj-y += tcg/tcg.o tcg/optimize.o
 libobj-$(CONFIG_LLVM) += tcg/tcg-llvm.o
 libobj-$(CONFIG_TCG_INTERPRETER) += tci.o
 libobj-y += fpu/softfloat.o
-libobj-y += op_helper.o helper.o
+ifneq ($(TARGET_BASE_ARCH), sparc)
+ifneq ($(TARGET_BASE_ARCH), alpha)
+libobj-y += op_helper.o
+endif
+endif
+libobj-y += helper.o
 ifeq ($(TARGET_BASE_ARCH), i386)
 libobj-y += cpuid.o
 endif
 libobj-$(TARGET_SPARC64) += vis_helper.o
 libobj-$(CONFIG_NEED_MMU) += mmu.o
 libobj-$(TARGET_ARM) += neon_helper.o iwmmxt_helper.o
+libobj-$(TARGET_ARM) += cpu.o
 ifeq ($(TARGET_BASE_ARCH), sparc)
 libobj-y += fop_helper.o cc_helper.o win_helper.o mmu_helper.o ldst_helper.o
 libobj-y += cpu_init.o
 endif
 libobj-$(TARGET_SPARC) += int32_helper.o
 libobj-$(TARGET_SPARC64) += int64_helper.o
+libobj-$(TARGET_UNICORE32) += cpu.o
+libobj-$(TARGET_ALPHA) += int_helper.o fpu_helper.o sys_helper.o mem_helper.o
 
 libobj-y += disas.o
 libobj-$(CONFIG_TCI_DIS) += tci-dis.o
@@ -106,9 +122,12 @@ translate-all.o: translate-all.c cpu.h
 
 tcg/tcg.o: cpu.h
 
-# HELPER_CFLAGS is used for all the code compiled with static register
+# HELPER_CFLAGS is used for all the legacy code compiled with static register
 # variables
-op_helper.o ldst_helper.o user-exec.o: QEMU_CFLAGS += $(HELPER_CFLAGS)
+ifneq ($(TARGET_BASE_ARCH), sparc)
+op_helper.o: QEMU_CFLAGS += $(HELPER_CFLAGS)
+endif
+user-exec.o: QEMU_CFLAGS += $(HELPER_CFLAGS)
 
 # Note: this is a workaround. The real fix is to avoid compiling
 # cpu_signal_handler() in user-exec.c.
@@ -141,6 +160,7 @@ obj-m68k-y += m68k-sim.o m68k-semi.o
 
 $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y): $(GENERATED_HEADERS)
 
+obj-y += $(addprefix ../, $(universal-obj-y))
 obj-y += $(addprefix ../libuser/, $(user-obj-y))
 obj-y += $(addprefix ../libdis-user/, $(libdis-y))
 obj-y += $(libobj-y)
@@ -168,6 +188,7 @@ obj-i386-y += ioport-user.o
 
 $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y): $(GENERATED_HEADERS)
 
+obj-y += $(addprefix ../, $(universal-obj-y))
 obj-y += $(addprefix ../libuser/, $(user-obj-y))
 obj-y += $(addprefix ../libdis-user/, $(libdis-y))
 obj-y += $(libobj-y)
@@ -190,6 +211,7 @@ obj-i386-y += ioport-user.o
 
 $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y): $(GENERATED_HEADERS)
 
+obj-y += $(addprefix ../, $(universal-obj-y))
 obj-y += $(addprefix ../libuser/, $(user-obj-y))
 obj-y += $(addprefix ../libdis-user/, $(libdis-y))
 obj-y += $(libobj-y)
@@ -205,19 +227,22 @@ obj-y = arch_init.o cpus.o monitor.o machine.o gdbstub.o balloon.o ioport.o
 # need to fix this properly
 obj-$(CONFIG_NO_PCI) += pci-stub.o
 obj-$(CONFIG_VIRTIO) += virtio.o virtio-blk.o virtio-balloon.o virtio-net.o virtio-serial-bus.o
+obj-$(CONFIG_VIRTIO) += virtio-scsi.o
 obj-y += vhost_net.o
 obj-$(CONFIG_VHOST_NET) += vhost.o
 obj-$(CONFIG_REALLY_VIRTFS) += 9pfs/virtio-9p-device.o
 obj-$(CONFIG_KVM) += kvm.o kvm-all.o
 obj-$(CONFIG_NO_KVM) += kvm-stub.o
-obj-y += memory.o
+obj-$(CONFIG_VGA) += vga.o
+obj-y += memory.o savevm.o
 LIBS+=-lz
+
+obj-i386-$(CONFIG_KVM) += hyperv.o
 
 QEMU_CFLAGS += $(VNC_TLS_CFLAGS)
 QEMU_CFLAGS += $(VNC_SASL_CFLAGS)
 QEMU_CFLAGS += $(VNC_JPEG_CFLAGS)
 QEMU_CFLAGS += $(VNC_PNG_CFLAGS)
-QEMU_CFLAGS += $(GLIB_CFLAGS)
 
 # xen support
 obj-$(CONFIG_XEN) += xen-all.o xen_machine_pv.o xen_domainbuild.o xen-mapcache.o
@@ -234,20 +259,24 @@ ifeq ($(CONFIG_KVM), y)
 endif
 obj-$(CONFIG_IVSHMEM) += ivshmem.o
 
+# Generic hotplugging
+obj-y += device-hotplug.o
+
 # Hardware support
 obj-i386-y += vga.o vl.o pci.o
 obj-i386-y += mc146818rtc.o pc.o
-obj-i386-y += cirrus_vga.o sga.o apic.o ioapic.o piix_pci.o
+obj-i386-y += apic_common.o apic.o kvmvapic.o
+obj-i386-y += sga.o ioapic_common.o ioapic.o piix_pci.o
 obj-i386-y += vmport.o
-obj-i386-y += device-hotplug.o pci-hotplug.o smbios.o wdt_ib700.o
+obj-i386-y += pci-hotplug.o smbios.o wdt_ib700.o
 obj-i386-y += debugcon.o multiboot.o
 obj-i386-y += pc_piix.o
-obj-i386-$(CONFIG_KVM) += kvmclock.o
+obj-i386-y += pc_sysfw.o
+obj-i386-$(CONFIG_KVM) += kvm/clock.o kvm/apic.o kvm/i8259.o kvm/ioapic.o kvm/i8254.o
 obj-i386-$(CONFIG_SPICE) += qxl.o qxl-logger.o qxl-render.o
 
 # shared objects
 obj-ppc-y = ppc.o ppc_booke.o
-obj-ppc-y += vga.o
 # PREP target
 obj-ppc-y += mc146818rtc.o
 obj-ppc-y += ppc_prep.o
@@ -261,7 +290,7 @@ obj-ppc-$(CONFIG_PSERIES) += xics.o spapr_vty.o spapr_llan.o spapr_vscsi.o
 obj-ppc-$(CONFIG_PSERIES) += spapr_pci.o device-hotplug.o pci-hotplug.o
 # PowerPC 4xx boards
 obj-ppc-y += ppc4xx_devs.o ppc4xx_pci.o ppc405_uc.o ppc405_boards.o
-obj-ppc-y += ppc440.o ppc440_bamboo.o
+obj-ppc-y += ppc440_bamboo.o
 # PowerPC E500 boards
 obj-ppc-y += ppce500_mpc8544ds.o mpc8544_guts.o ppce500_spin.o
 # PowerPC 440 Xilinx ML507 reference board.
@@ -301,14 +330,12 @@ obj-lm32-y += framebuffer.o
 
 obj-mips-y = mips_r4k.o mips_jazz.o mips_malta.o mips_mipssim.o
 obj-mips-y += mips_addr.o mips_timer.o mips_int.o
-obj-mips-y += vga.o
-obj-mips-y += jazz_led.o
 obj-mips-y += gt64xxx.o mc146818rtc.o
-obj-mips-y += cirrus_vga.o
 obj-mips-$(CONFIG_FULONG) += bonito.o vt82c686.o mips_fulong2e.o
 
 obj-microblaze-y = petalogix_s3adsp1800_mmu.o
 obj-microblaze-y += petalogix_ml605_mmu.o
+obj-microblaze-y += microblaze_boot.o
 
 obj-microblaze-y += microblaze_pic_cpu.o
 obj-microblaze-y += xilinx_intc.o
@@ -334,9 +361,7 @@ obj-cris-y += etraxfs_ser.o
 
 ifeq ($(TARGET_ARCH), sparc64)
 obj-sparc-y = sun4u.o apb_pci.o
-obj-sparc-y += vga.o
 obj-sparc-y += mc146818rtc.o
-obj-sparc-y += cirrus_vga.o
 else
 obj-sparc-y = sun4m.o lance.o tcx.o sun4m_iommu.o slavio_intctl.o
 obj-sparc-y += slavio_timer.o slavio_misc.o sparc32_dma.o
@@ -349,9 +374,20 @@ endif
 obj-arm-y = integratorcp.o versatilepb.o arm_pic.o arm_timer.o
 obj-arm-y += arm_boot.o pl011.o pl031.o pl050.o pl080.o pl110.o pl181.o pl190.o
 obj-arm-y += versatile_pci.o
+obj-arm-y += cadence_uart.o
+obj-arm-y += cadence_ttc.o
+obj-arm-y += cadence_gem.o
+obj-arm-y += xilinx_zynq.o zynq_slcr.o
 obj-arm-y += realview_gic.o realview.o arm_sysctl.o arm11mpcore.o a9mpcore.o
+obj-arm-y += exynos4210_gic.o exynos4210_combiner.o exynos4210.o
+obj-arm-y += exynos4_boards.o exynos4210_uart.o exynos4210_pwm.o
+obj-arm-y += exynos4210_pmu.o exynos4210_mct.o exynos4210_fimd.o
+obj-arm-y += arm_l2x0.o
+obj-arm-y += arm_mptimer.o a15mpcore.o
 obj-arm-y += armv7m.o armv7m_nvic.o stellaris.o pl022.o stellaris_enet.o
+obj-arm-y += highbank.o
 obj-arm-y += pl061.o
+obj-arm-y += xgmac.o
 obj-arm-y += arm-semi.o
 obj-arm-y += pxa2xx.o pxa2xx_pic.o pxa2xx_gpio.o pxa2xx_timer.o pxa2xx_dma.o
 obj-arm-y += pxa2xx_lcd.o pxa2xx_mmci.o pxa2xx_pcmcia.o pxa2xx_keypad.o
@@ -362,18 +398,16 @@ obj-arm-y += omap1.o omap_lcdc.o omap_dma.o omap_clk.o omap_mmc.o omap_i2c.o \
 obj-arm-y += omap2.o omap_dss.o soc_dma.o omap_gptimer.o omap_synctimer.o \
 		omap_gpmc.o omap_sdrc.o omap_spi.o omap_tap.o omap_l4.o
 obj-arm-y += omap_sx1.o palm.o tsc210x.o
-obj-arm-y += nseries.o blizzard.o onenand.o vga.o cbus.o tusb6010.o usb-musb.o
+obj-arm-y += nseries.o blizzard.o onenand.o cbus.o tusb6010.o usb/hcd-musb.o
 obj-arm-y += mst_fpga.o mainstone.o
 obj-arm-y += z2.o
 obj-arm-y += musicpal.o bitbang_i2c.o marvell_88w8618_audio.o
 obj-arm-y += framebuffer.o
-obj-arm-y += syborg.o syborg_fb.o syborg_interrupt.o syborg_keyboard.o
-obj-arm-y += syborg_serial.o syborg_timer.o syborg_pointer.o syborg_rtc.o
-obj-arm-y += syborg_virtio.o
 obj-arm-y += vexpress.o
 obj-arm-y += strongarm.o
 obj-arm-y += collie.o
 obj-arm-y += pl041.o lm4549.o
+obj-arm-$(CONFIG_FDT) += device_tree.o
 
 obj-sh4-y = shix.o r2d.o sh7750.o sh7750_regnames.o tc58128.o
 obj-sh4-y += sh_timer.o sh_serial.o sh_intc.o sh_pci.o sm501.o
@@ -385,7 +419,6 @@ obj-m68k-y += m68k-semi.o dummy_m68k.o
 obj-s390x-y = s390-virtio-bus.o s390-virtio.o
 
 obj-alpha-y = mc146818rtc.o
-obj-alpha-y += vga.o cirrus_vga.o
 obj-alpha-y += alpha_pci.o alpha_dp264.o alpha_typhoon.o
 
 obj-xtensa-y += xtensa_pic.o
@@ -401,6 +434,7 @@ monitor.o: hmp-commands.h qmp-commands-old.h
 
 $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y): $(GENERATED_HEADERS)
 
+obj-y += $(addprefix ../, $(universal-obj-y))
 obj-y += $(addprefix ../, $(common-obj-y))
 obj-y += $(addprefix ../libdis/, $(libdis-y))
 obj-y += $(libobj-y)
@@ -457,7 +491,7 @@ s2eobj-y += s2e/Plugins/ExecutionTracers/InstructionCounter.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/TranslationBlockTracer.o
 s2eobj-y += s2e/Plugins/CacheSim.o
 s2eobj-y += s2e/Plugins/Debugger.o
-s2eobj-y += s2e/Plugins/SymbolicHardware.o
+#s2eobj-y += s2e/Plugins/SymbolicHardware.o
 s2eobj-y += s2e/Plugins/EdgeKiller.o
 s2eobj-y += s2e/Plugins/StateManager.o
 s2eobj-y += s2e/Plugins/Annotation.o
@@ -470,7 +504,7 @@ s2eobj-y += s2e/Plugins/StackChecker.o
 
 s2eobj-y += s2e/Plugins/ExecutionStatisticsCollector.o
 
-s2eobj-y += s2e/sqlite3.o
+#s2eobj-y += s2e/sqlite3.o
 s2eobj-y += s2e/Database.o
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o
 s2eobj-y += s2e/ConfigFile.o
@@ -485,6 +519,8 @@ s2eobj-y += s2e/S2E.o
 s2eobj-y += s2e/x64.o
 
 -include $(S2E_PLUGIN_DIR)/Makefile.target
+
+vl.o: QEMU_CFLAGS+=-Wno-array-bounds
 
 s2e/Plugins/ModuleExecutionDetector.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/StackMonitor.o: QEMU_CXXFLAGS+=-fno-inline
@@ -542,9 +578,16 @@ endif # CONFIG_LINUX_USER
 
 obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
 
+ifdef QEMU_PROGW
+# The linker builds a windows executable. Make also a console executable.
+$(QEMU_PROGW): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(s2eobj-y)
+	$(call LINK,$^)
+$(QEMU_PROG): $(QEMU_PROGW)
+	$(call quiet-command,$(OBJCOPY) --subsystem console $(QEMU_PROGW) $(QEMU_PROG),"  GEN   $(TARGET_DIR)$(QEMU_PROG)")
+else
 $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(s2eobj-y)
 	$(call LINK,$^)
-
+endif
 
 gdbstub-xml.c: $(TARGET_XML_FILES) $(SRC_PATH)/scripts/feature_to_c.sh
 	$(call quiet-command,rm -f $@ && $(SHELL) $(SRC_PATH)/scripts/feature_to_c.sh $@ $(TARGET_XML_FILES),"  GEN   $(TARGET_DIR)$@")
@@ -557,7 +600,7 @@ qmp-commands-old.h: $(SRC_PATH)/qmp-commands.hx
 
 clean:
 	rm -f *.o *.a *~ $(PROGS) nwfpe/*.o fpu/*.o
-	rm -f *.d */*.d tcg/*.o ide/*.o 9pfs/*.o
+	rm -f *.d */*.d tcg/*.o ide/*.o 9pfs/*.o kvm/*.o
 	rm -f hmp-commands.h qmp-commands-old.h gdbstub-xml.c
 ifdef CONFIG_S2E
 	if [ -d s2e ]; then find s2e -name \*.o -exec rm {} \; ; fi

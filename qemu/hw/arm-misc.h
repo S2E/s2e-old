@@ -16,7 +16,7 @@
 /* The CPU is also modeled as an interrupt controller.  */
 #define ARM_PIC_CPU_IRQ 0
 #define ARM_PIC_CPU_FIQ 1
-qemu_irq *arm_pic_init_cpu(CPUState *env);
+qemu_irq *arm_pic_init_cpu(CPUARMState *env);
 
 /* armv7m.c */
 qemu_irq *armv7m_init(MemoryRegion *address_space_mem,
@@ -29,18 +29,37 @@ struct arm_boot_info {
     const char *kernel_filename;
     const char *kernel_cmdline;
     const char *initrd_filename;
+    const char *dtb_filename;
     target_phys_addr_t loader_start;
+    /* multicore boards that use the default secondary core boot functions
+     * need to put the address of the secondary boot code, the boot reg,
+     * and the GIC address in the next 3 values, respectively. boards that
+     * have their own boot functions can use these values as they want.
+     */
     target_phys_addr_t smp_loader_start;
-    target_phys_addr_t smp_priv_base;
+    target_phys_addr_t smp_bootreg_addr;
+    target_phys_addr_t gic_cpu_if_addr;
     int nb_cpus;
     int board_id;
     int (*atag_board)(const struct arm_boot_info *info, void *p);
+    /* multicore boards that use the default secondary core boot functions
+     * can ignore these two function calls. If the default functions won't
+     * work, then write_secondary_boot() should write a suitable blob of
+     * code mimicing the secondary CPU startup process used by the board's
+     * boot loader/boot ROM code, and secondary_cpu_reset_hook() should
+     * perform any necessary CPU reset handling and set the PC for thei
+     * secondary CPUs to point at this boot blob.
+     */
+    void (*write_secondary_boot)(CPUARMState *env,
+                                 const struct arm_boot_info *info);
+    void (*secondary_cpu_reset_hook)(CPUARMState *env,
+                                     const struct arm_boot_info *info);
     /* Used internally by arm_boot.c */
     int is_linux;
     target_phys_addr_t initrd_size;
     target_phys_addr_t entry;
 };
-void arm_load_kernel(CPUState *env, struct arm_boot_info *info);
+void arm_load_kernel(CPUARMState *env, struct arm_boot_info *info);
 
 /* Multiplication factor to convert from system clock ticks to qemu timer
    ticks.  */

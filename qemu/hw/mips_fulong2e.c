@@ -5,6 +5,9 @@
  * Copyright (c) 2009 chenming (chenming@rdc.faw.com.cn)
  * Copyright (c) 2010 Huacai Chen (zltjiangshi@gmail.com)
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 /*
@@ -26,7 +29,6 @@
 #include "mips.h"
 #include "mips_cpudevs.h"
 #include "pci.h"
-#include "usb-uhci.h"
 #include "qemu-char.h"
 #include "sysemu.h"
 #include "audio/audio.h"
@@ -37,6 +39,7 @@
 #include "elf.h"
 #include "vt82c686.h"
 #include "mc146818rtc.h"
+#include "i8254.h"
 #include "blockdev.h"
 #include "exec-memory.h"
 
@@ -99,7 +102,7 @@ static void GCC_FMT_ATTR(3, 4) prom_set(uint32_t* prom_buf, int index,
     va_end(ap);
 }
 
-static int64_t load_kernel (CPUState *env)
+static int64_t load_kernel (CPUMIPSState *env)
 {
     int64_t kernel_entry, kernel_low, kernel_high;
     int index = 0;
@@ -165,7 +168,7 @@ static int64_t load_kernel (CPUState *env)
     return kernel_entry;
 }
 
-static void write_bootloader (CPUState *env, uint8_t *base, int64_t kernel_addr)
+static void write_bootloader (CPUMIPSState *env, uint8_t *base, int64_t kernel_addr)
 {
     uint32_t *p;
 
@@ -195,9 +198,9 @@ static void write_bootloader (CPUState *env, uint8_t *base, int64_t kernel_addr)
 
 static void main_cpu_reset(void *opaque)
 {
-    CPUState *env = opaque;
+    CPUMIPSState *env = opaque;
 
-    cpu_reset(env);
+    cpu_state_reset(env);
     /* TODO: 2E reset stuff */
     if (loaderparams.kernel_filename) {
         env->CP0_Status &= ~((1 << CP0St_BEV) | (1 << CP0St_ERL));
@@ -245,7 +248,7 @@ static void network_init (void)
 
 static void cpu_request_exit(void *opaque, int irq, int level)
 {
-    CPUState *env = cpu_single_env;
+    CPUMIPSState *env = cpu_single_env;
 
     if (env && level) {
         cpu_exit(env);
@@ -264,12 +267,12 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     int64_t kernel_entry;
     qemu_irq *i8259;
     qemu_irq *cpu_exit_irq;
-    int via_devfn;
     PCIBus *pci_bus;
+    ISABus *isa_bus;
     i2c_bus *smbus;
     int i;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
-    CPUState *env;
+    CPUMIPSState *env;
 
     /* init CPUs */
     if (cpu_model == NULL) {
@@ -291,8 +294,10 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     bios_size = 1024 * 1024;
 
     /* allocate RAM */
-    memory_region_init_ram(ram, NULL, "fulong2e.ram", ram_size);
-    memory_region_init_ram(bios, NULL, "fulong2e.bios", bios_size);
+    memory_region_init_ram(ram, "fulong2e.ram", ram_size);
+    vmstate_register_ram_global(ram);
+    memory_region_init_ram(bios, "fulong2e.bios", bios_size);
+    vmstate_register_ram_global(bios);
     memory_region_set_readonly(bios, true);
 
     memory_region_add_subregion(address_space_mem, 0, ram);
@@ -337,20 +342,22 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     /* South bridge */
     ide_drive_get(hd, MAX_IDE_BUS);
 
-    via_devfn = vt82c686b_init(pci_bus, PCI_DEVFN(FULONG2E_VIA_SLOT, 0));
-    if (via_devfn < 0) {
+    isa_bus = vt82c686b_init(pci_bus, PCI_DEVFN(FULONG2E_VIA_SLOT, 0));
+    if (!isa_bus) {
         fprintf(stderr, "vt82c686b_init error\n");
         exit(1);
     }
 
     /* Interrupt controller */
     /* The 8259 -> IP5  */
-    i8259 = i8259_init(env->irq[5]);
-    isa_bus_irqs(i8259);
+    i8259 = i8259_init(isa_bus, env->irq[5]);
+    isa_bus_irqs(isa_bus, i8259);
 
     vt82c686b_ide_init(pci_bus, hd, PCI_DEVFN(FULONG2E_VIA_SLOT, 1));
-    usb_uhci_vt82c686b_init(pci_bus, PCI_DEVFN(FULONG2E_VIA_SLOT, 2));
-    usb_uhci_vt82c686b_init(pci_bus, PCI_DEVFN(FULONG2E_VIA_SLOT, 3));
+    pci_create_simple(pci_bus, PCI_DEVFN(FULONG2E_VIA_SLOT, 2),
+                      "vt82c686b-usb-uhci");
+    pci_create_simple(pci_bus, PCI_DEVFN(FULONG2E_VIA_SLOT, 3),
+                      "vt82c686b-usb-uhci");
 
     smbus = vt82c686b_pm_init(pci_bus, PCI_DEVFN(FULONG2E_VIA_SLOT, 4),
                               0xeee1, NULL);
@@ -358,23 +365,23 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     smbus_eeprom_init(smbus, 1, eeprom_spd, sizeof(eeprom_spd));
 
     /* init other devices */
-    pit = pit_init(0x40, 0);
+    pit = pit_init(isa_bus, 0x40, 0, NULL);
     cpu_exit_irq = qemu_allocate_irqs(cpu_request_exit, NULL, 1);
     DMA_init(0, cpu_exit_irq);
 
     /* Super I/O */
-    isa_create_simple("i8042");
+    isa_create_simple(isa_bus, "i8042");
 
-    rtc_init(2000, NULL);
+    rtc_init(isa_bus, 2000, NULL);
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
         if (serial_hds[i]) {
-            serial_isa_init(i, serial_hds[i]);
+            serial_isa_init(isa_bus, i, serial_hds[i]);
         }
     }
 
     if (parallel_hds[0]) {
-        parallel_init(0, parallel_hds[0]);
+        parallel_init(isa_bus, 0, parallel_hds[0]);
     }
 
     /* Sound card */

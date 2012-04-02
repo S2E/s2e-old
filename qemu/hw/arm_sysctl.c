@@ -378,45 +378,44 @@ static void arm_sysctl_gpio_set(void *opaque, int line, int level)
     }
 }
 
-static int arm_sysctl_init1(SysBusDevice *dev)
+static int arm_sysctl_init(SysBusDevice *dev)
 {
     arm_sysctl_state *s = FROM_SYSBUS(arm_sysctl_state, dev);
 
     memory_region_init_io(&s->iomem, &arm_sysctl_ops, s, "arm-sysctl", 0x1000);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
     qdev_init_gpio_in(&s->busdev.qdev, arm_sysctl_gpio_set, 2);
     qdev_init_gpio_out(&s->busdev.qdev, &s->pl110_mux_ctrl, 1);
     return 0;
 }
 
-/* Legacy helper function.  */
-void arm_sysctl_init(uint32_t base, uint32_t sys_id, uint32_t proc_id)
-{
-    DeviceState *dev;
-
-    dev = qdev_create(NULL, "realview_sysctl");
-    qdev_prop_set_uint32(dev, "sys_id", sys_id);
-    qdev_init_nofail(dev);
-    qdev_prop_set_uint32(dev, "proc_id", proc_id);
-    sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
-}
-
-static SysBusDeviceInfo arm_sysctl_info = {
-    .init = arm_sysctl_init1,
-    .qdev.name  = "realview_sysctl",
-    .qdev.size  = sizeof(arm_sysctl_state),
-    .qdev.vmsd = &vmstate_arm_sysctl,
-    .qdev.reset = arm_sysctl_reset,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("sys_id", arm_sysctl_state, sys_id, 0),
-        DEFINE_PROP_UINT32("proc_id", arm_sysctl_state, proc_id, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property arm_sysctl_properties[] = {
+    DEFINE_PROP_UINT32("sys_id", arm_sysctl_state, sys_id, 0),
+    DEFINE_PROP_UINT32("proc_id", arm_sysctl_state, proc_id, 0),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void arm_sysctl_register_devices(void)
+static void arm_sysctl_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&arm_sysctl_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = arm_sysctl_init;
+    dc->reset = arm_sysctl_reset;
+    dc->vmsd = &vmstate_arm_sysctl;
+    dc->props = arm_sysctl_properties;
 }
 
-device_init(arm_sysctl_register_devices)
+static TypeInfo arm_sysctl_info = {
+    .name          = "realview_sysctl",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(arm_sysctl_state),
+    .class_init    = arm_sysctl_class_init,
+};
+
+static void arm_sysctl_register_types(void)
+{
+    type_register_static(&arm_sysctl_info);
+}
+
+type_init(arm_sysctl_register_types)

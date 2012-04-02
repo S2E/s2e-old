@@ -42,7 +42,7 @@ typedef struct IB700state {
 
 /* This is the timer.  We use a global here because the watchdog
  * code ensures there is only one watchdog (it is located at a fixed,
- * unchangable IO port, so there could only ever be one anyway).
+ * unchangeable IO port, so there could only ever be one anyway).
  */
 
 /* A write to this register enables the timer. */
@@ -120,18 +120,26 @@ static WatchdogTimerModel model = {
     .wdt_description = "iBASE 700",
 };
 
-static ISADeviceInfo wdt_ib700_info = {
-    .qdev.name  = "ib700",
-    .qdev.size  = sizeof(IB700State),
-    .qdev.vmsd  = &vmstate_ib700,
-    .qdev.reset = wdt_ib700_reset,
-    .init       = wdt_ib700_init,
-};
-
-static void wdt_ib700_register_devices(void)
+static void wdt_ib700_class_init(ObjectClass *klass, void *data)
 {
-    watchdog_add_model(&model);
-    isa_qdev_register(&wdt_ib700_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
+    ic->init = wdt_ib700_init;
+    dc->reset = wdt_ib700_reset;
+    dc->vmsd = &vmstate_ib700;
 }
 
-device_init(wdt_ib700_register_devices);
+static TypeInfo wdt_ib700_info = {
+    .name          = "ib700",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(IB700State),
+    .class_init    = wdt_ib700_class_init,
+};
+
+static void wdt_ib700_register_types(void)
+{
+    watchdog_add_model(&model);
+    type_register_static(&wdt_ib700_info);
+}
+
+type_init(wdt_ib700_register_types)

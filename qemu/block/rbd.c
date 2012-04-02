@@ -7,6 +7,8 @@
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include <inttypes.h>
@@ -632,9 +634,6 @@ static BlockDriverAIOCB *rbd_aio_rw_vector(BlockDriverState *bs,
     BDRVRBDState *s = bs->opaque;
 
     acb = qemu_aio_get(&rbd_aio_pool, bs, cb, opaque);
-    if (!acb) {
-        return NULL;
-    }
     acb->write = write;
     acb->qiov = qiov;
     acb->bounce = qemu_blockalign(bs, qiov->size);
@@ -790,6 +789,26 @@ static int qemu_rbd_snap_create(BlockDriverState *bs,
     return 0;
 }
 
+static int qemu_rbd_snap_remove(BlockDriverState *bs,
+                                const char *snapshot_name)
+{
+    BDRVRBDState *s = bs->opaque;
+    int r;
+
+    r = rbd_snap_remove(s->image, snapshot_name);
+    return r;
+}
+
+static int qemu_rbd_snap_rollback(BlockDriverState *bs,
+                                  const char *snapshot_name)
+{
+    BDRVRBDState *s = bs->opaque;
+    int r;
+
+    r = rbd_snap_rollback(s->image, snapshot_name);
+    return r;
+}
+
 static int qemu_rbd_snap_list(BlockDriverState *bs,
                               QEMUSnapshotInfo **psn_tab)
 {
@@ -808,7 +827,7 @@ static int qemu_rbd_snap_list(BlockDriverState *bs,
     } while (snap_count == -ERANGE);
 
     if (snap_count <= 0) {
-        return snap_count;
+        goto done;
     }
 
     sn_tab = g_malloc0(snap_count * sizeof(QEMUSnapshotInfo));
@@ -827,6 +846,7 @@ static int qemu_rbd_snap_list(BlockDriverState *bs,
     }
     rbd_snap_list_end(snaps);
 
+ done:
     *psn_tab = sn_tab;
     return snap_count;
 }
@@ -862,7 +882,9 @@ static BlockDriver bdrv_rbd = {
     .bdrv_co_flush_to_disk  = qemu_rbd_co_flush,
 
     .bdrv_snapshot_create   = qemu_rbd_snap_create,
+    .bdrv_snapshot_delete   = qemu_rbd_snap_remove,
     .bdrv_snapshot_list     = qemu_rbd_snap_list,
+    .bdrv_snapshot_goto     = qemu_rbd_snap_rollback,
 };
 
 static void bdrv_rbd_init(void)

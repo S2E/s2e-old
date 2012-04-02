@@ -991,13 +991,13 @@ static ssize_t rtl8139_do_receive(VLANClientState *nc, const uint8_t *buf, size_
 
         uint32_t val, rxdw0,rxdw1,rxbufLO,rxbufHI;
 
-        pci_dma_read(&s->dev, cplus_rx_ring_desc, (uint8_t *)&val, 4);
+        pci_dma_read(&s->dev, cplus_rx_ring_desc, &val, 4);
         rxdw0 = le32_to_cpu(val);
-        pci_dma_read(&s->dev, cplus_rx_ring_desc+4, (uint8_t *)&val, 4);
+        pci_dma_read(&s->dev, cplus_rx_ring_desc+4, &val, 4);
         rxdw1 = le32_to_cpu(val);
-        pci_dma_read(&s->dev, cplus_rx_ring_desc+8, (uint8_t *)&val, 4);
+        pci_dma_read(&s->dev, cplus_rx_ring_desc+8, &val, 4);
         rxbufLO = le32_to_cpu(val);
-        pci_dma_read(&s->dev, cplus_rx_ring_desc+12, (uint8_t *)&val, 4);
+        pci_dma_read(&s->dev, cplus_rx_ring_desc+12, &val, 4);
         rxbufHI = le32_to_cpu(val);
 
         DPRINTF("+++ C+ mode RX descriptor %d %08x %08x %08x %08x\n",
@@ -2662,7 +2662,7 @@ static void rtl8139_IntrStatus_write(RTL8139State *s, uint32_t val)
      * Computing if we miss an interrupt here is not that correct but
      * considered that we should have had already an interrupt
      * and probably emulated is slower is better to assume this resetting was
-     * done before testing on previous rtl8139_update_irq lead to IRQ loosing
+     * done before testing on previous rtl8139_update_irq lead to IRQ losing
      */
     rtl8139_set_next_tctr_time(s, qemu_get_clock_ns(vm_clock));
     rtl8139_update_irq(s);
@@ -3478,7 +3478,7 @@ static int pci_rtl8139_init(PCIDevice *dev)
     s->eeprom.contents[9] = s->conf.macaddr.a[4] | s->conf.macaddr.a[5] << 8;
 
     s->nic = qemu_new_nic(&net_rtl8139_info, &s->conf,
-                          dev->qdev.info->name, dev->qdev.id, s);
+                          object_get_typename(OBJECT(dev)), dev->qdev.id, s);
     qemu_format_nic_info_str(&s->nic->nc, s->conf.macaddr.a);
 
     s->cplus_txbuffer = NULL;
@@ -3494,27 +3494,38 @@ static int pci_rtl8139_init(PCIDevice *dev)
     return 0;
 }
 
-static PCIDeviceInfo rtl8139_info = {
-    .qdev.name  = "rtl8139",
-    .qdev.size  = sizeof(RTL8139State),
-    .qdev.reset = rtl8139_reset,
-    .qdev.vmsd  = &vmstate_rtl8139,
-    .init       = pci_rtl8139_init,
-    .exit       = pci_rtl8139_uninit,
-    .romfile    = "pxe-rtl8139.rom",
-    .vendor_id  = PCI_VENDOR_ID_REALTEK,
-    .device_id  = PCI_DEVICE_ID_REALTEK_8139,
-    .revision   = RTL8139_PCI_REVID, /* >=0x20 is for 8139C+ */
-    .class_id   = PCI_CLASS_NETWORK_ETHERNET,
-    .qdev.props = (Property[]) {
-        DEFINE_NIC_PROPERTIES(RTL8139State, conf),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property rtl8139_properties[] = {
+    DEFINE_NIC_PROPERTIES(RTL8139State, conf),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void rtl8139_register_devices(void)
+static void rtl8139_class_init(ObjectClass *klass, void *data)
 {
-    pci_qdev_register(&rtl8139_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = pci_rtl8139_init;
+    k->exit = pci_rtl8139_uninit;
+    k->romfile = "pxe-rtl8139.rom";
+    k->vendor_id = PCI_VENDOR_ID_REALTEK;
+    k->device_id = PCI_DEVICE_ID_REALTEK_8139;
+    k->revision = RTL8139_PCI_REVID; /* >=0x20 is for 8139C+ */
+    k->class_id = PCI_CLASS_NETWORK_ETHERNET;
+    dc->reset = rtl8139_reset;
+    dc->vmsd = &vmstate_rtl8139;
+    dc->props = rtl8139_properties;
 }
 
-device_init(rtl8139_register_devices)
+static TypeInfo rtl8139_info = {
+    .name          = "rtl8139",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(RTL8139State),
+    .class_init    = rtl8139_class_init,
+};
+
+static void rtl8139_register_types(void)
+{
+    type_register_static(&rtl8139_info);
+}
+
+type_init(rtl8139_register_types)

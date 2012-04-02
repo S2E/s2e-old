@@ -27,6 +27,8 @@
 #include "qemu-option.h"
 #include "qemu-config.h"
 
+#include "hyperv.h"
+
 /* feature flags taken from "Intel Processor Identification and the CPUID
  * Instruction" and AMD's "CPUID Specification".  In cases of disagreement
  * between feature naming conventions, aliases may be added.
@@ -42,13 +44,13 @@ static const char *feature_name[] = {
     "ht" /* Intel htt */, "tm", "ia64", "pbe",
 };
 static const char *ext_feature_name[] = {
-    "pni|sse3" /* Intel,AMD sse3 */, "pclmuldq", "dtes64", "monitor",
+    "pni|sse3" /* Intel,AMD sse3 */, "pclmulqdq|pclmuldq", "dtes64", "monitor",
     "ds_cpl", "vmx", "smx", "est",
     "tm2", "ssse3", "cid", NULL,
     "fma", "cx16", "xtpr", "pdcm",
     NULL, NULL, "dca", "sse4.1|sse4_1",
     "sse4.2|sse4_2", "x2apic", "movbe", "popcnt",
-    NULL, "aes", "xsave", "osxsave",
+    "tsc-deadline", "aes", "xsave", "osxsave",
     "avx", NULL, NULL, "hypervisor",
 };
 static const char *ext2_feature_name[] = {
@@ -57,9 +59,9 @@ static const char *ext2_feature_name[] = {
     "cx8" /* AMD CMPXCHG8B */, "apic", NULL, "syscall",
     "mtrr", "pge", "mca", "cmov",
     "pat", "pse36", NULL, NULL /* Linux mp */,
-    "nx" /* Intel xd */, NULL, "mmxext", "mmx",
-    "fxsr", "fxsr_opt" /* AMD ffxsr */, "pdpe1gb" /* AMD Page1GB */, "rdtscp",
-    NULL, "lm" /* Intel 64 */, "3dnowext", "3dnow",
+    "nx|xd", NULL, "mmxext", "mmx",
+    "fxsr", "fxsr_opt|ffxsr", "pdpe1gb" /* AMD Page1GB */, "rdtscp",
+    NULL, "lm|i64", "3dnowext", "3dnow",
 };
 static const char *ext3_feature_name[] = {
     "lahf_lm" /* AMD LahfSahf */, "cmp_legacy", "svm", "extapic" /* AMD ExtApicSpace */,
@@ -595,6 +597,46 @@ static int check_features_against_host(x86_def_t *guest_def)
     return rv;
 }
 
+static void x86_cpuid_version_set_family(CPUX86State *env, int family)
+{
+    env->cpuid_version &= ~0xff00f00;
+    if (family > 0x0f) {
+        env->cpuid_version |= 0xf00 | ((family - 0x0f) << 20);
+    } else {
+        env->cpuid_version |= family << 8;
+    }
+}
+
+static void x86_cpuid_version_set_model(CPUX86State *env, int model)
+{
+    env->cpuid_version &= ~0xf00f0;
+    env->cpuid_version |= ((model & 0xf) << 4) | ((model >> 4) << 16);
+}
+
+static void x86_cpuid_version_set_stepping(CPUX86State *env, int stepping)
+{
+    env->cpuid_version &= ~0xf;
+    env->cpuid_version |= stepping & 0xf;
+}
+
+static void x86_cpuid_set_model_id(CPUX86State *env, const char *model_id)
+{
+    int c, len, i;
+
+    if (model_id == NULL) {
+        model_id = "";
+    }
+    len = strlen(model_id);
+    for (i = 0; i < 48; i++) {
+        if (i >= len) {
+            c = '\0';
+        } else {
+            c = (uint8_t)model_id[i];
+        }
+        env->cpuid_model[i >> 2] |= c << (8 * (i & 3));
+    }
+}
+
 static int cpu_x86_find_by_name(x86_def_t *x86_cpu_def, const char *cpu_model)
 {
     unsigned int i;
@@ -716,6 +758,14 @@ static int cpu_x86_find_by_name(x86_def_t *x86_cpu_def, const char *cpu_model)
                     goto error;
                 }
                 x86_cpu_def->tsc_khz = tsc_freq / 1000;
+            } else if (!strcmp(featurestr, "hv_spinlocks")) {
+                char *err;
+                numvalue = strtoul(val, &err, 0);
+                if (!*val || *err) {
+                    fprintf(stderr, "bad numerical value %s\n", val);
+                    goto error;
+                }
+                hyperv_set_spinlock_retries(numvalue);
             } else {
                 fprintf(stderr, "unrecognized feature %s\n", featurestr);
                 goto error;
@@ -724,6 +774,10 @@ static int cpu_x86_find_by_name(x86_def_t *x86_cpu_def, const char *cpu_model)
             check_cpuid = 1;
         } else if (!strcmp(featurestr, "enforce")) {
             check_cpuid = enforce_cpuid = 1;
+        } else if (!strcmp(featurestr, "hv_relaxed")) {
+            hyperv_enable_relaxed_timing(true);
+        } else if (!strcmp(featurestr, "hv_vapic")) {
+            hyperv_enable_vapic_recommended(true);
         } else {
             fprintf(stderr, "feature string `%s' not in format (+feature|-feature|feature=xyz)\n", featurestr);
             goto error;
@@ -869,12 +923,9 @@ int cpu_x86_register (CPUX86State *env, const char *cpu_model)
     }
     env->cpuid_vendor_override = def->vendor_override;
     env->cpuid_level = def->level;
-    if (def->family > 0x0f)
-        env->cpuid_version = 0xf00 | ((def->family - 0x0f) << 20);
-    else
-        env->cpuid_version = def->family << 8;
-    env->cpuid_version |= ((def->model & 0xf) << 4) | ((def->model >> 4) << 16);
-    env->cpuid_version |= def->stepping;
+    x86_cpuid_version_set_family(env, def->family);
+    x86_cpuid_version_set_model(env, def->model);
+    x86_cpuid_version_set_stepping(env, def->stepping);
     env->cpuid_features = def->features;
     env->cpuid_ext_features = def->ext_features;
     env->cpuid_ext2_features = def->ext2_features;
@@ -896,20 +947,7 @@ int cpu_x86_register (CPUX86State *env, const char *cpu_model)
         env->cpuid_ext3_features &= TCG_EXT3_FEATURES;
         env->cpuid_svm_features &= TCG_SVM_FEATURES;
     }
-    {
-        const char *model_id = def->model_id;
-        int c, len, i;
-        if (!model_id)
-            model_id = "";
-        len = strlen(model_id);
-        for(i = 0; i < 48; i++) {
-            if (i >= len)
-                c = '\0';
-            else
-                c = (uint8_t)model_id[i];
-            env->cpuid_model[i >> 2] |= c << (8 * (i & 3));
-        }
-    }
+    x86_cpuid_set_model_id(env, def->model_id);
     return 0;
 }
 
@@ -1180,10 +1218,19 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t index, uint32_t count,
         break;
     case 0xA:
         /* Architectural Performance Monitoring Leaf */
-        *eax = 0;
-        *ebx = 0;
-        *ecx = 0;
-        *edx = 0;
+        if (kvm_enabled()) {
+            KVMState *s = env->kvm_state;
+
+            *eax = kvm_arch_get_supported_cpuid(s, 0xA, count, R_EAX);
+            *ebx = kvm_arch_get_supported_cpuid(s, 0xA, count, R_EBX);
+            *ecx = kvm_arch_get_supported_cpuid(s, 0xA, count, R_ECX);
+            *edx = kvm_arch_get_supported_cpuid(s, 0xA, count, R_EDX);
+        } else {
+            *eax = 0;
+            *ebx = 0;
+            *ecx = 0;
+            *edx = 0;
+        }
         break;
     case 0xD:
         /* Processor Extended State */

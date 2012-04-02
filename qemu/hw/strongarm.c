@@ -22,6 +22,9 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, see <http://www.gnu.org/licenses/>.
+ *
+ *  Contributions after 2012-01-13 are licensed under the terms of the
+ *  GNU GPL, version 2 or (at your option) any later version.
  */
 #include "sysbus.h"
 #include "strongarm.h"
@@ -170,7 +173,7 @@ static int strongarm_pic_initfn(SysBusDevice *dev)
 
     qdev_init_gpio_in(&dev->qdev, strongarm_pic_set_irq, SA_PIC_SRCS);
     memory_region_init_io(&s->iomem, &strongarm_pic_ops, s, "pic", 0x1000);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
     sysbus_init_irq(dev, &s->fiq);
 
@@ -198,12 +201,21 @@ static VMStateDescription vmstate_strongarm_pic_regs = {
     },
 };
 
-static SysBusDeviceInfo strongarm_pic_info = {
-    .init       = strongarm_pic_initfn,
-    .qdev.name  = "strongarm_pic",
-    .qdev.desc  = "StrongARM PIC",
-    .qdev.size  = sizeof(StrongARMPICState),
-    .qdev.vmsd  = &vmstate_strongarm_pic_regs,
+static void strongarm_pic_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = strongarm_pic_initfn;
+    dc->desc = "StrongARM PIC";
+    dc->vmsd = &vmstate_strongarm_pic_regs;
+}
+
+static TypeInfo strongarm_pic_info = {
+    .name          = "strongarm_pic",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMPICState),
+    .class_init    = strongarm_pic_class_init,
 };
 
 /* Real-Time Clock */
@@ -243,7 +255,7 @@ static inline void strongarm_rtc_int_update(StrongARMRTCState *s)
 
 static void strongarm_rtc_hzupdate(StrongARMRTCState *s)
 {
-    int64_t rt = qemu_get_clock_ms(rt_clock);
+    int64_t rt = qemu_get_clock_ms(rtc_clock);
     s->last_rcnr += ((rt - s->last_hz) << 15) /
             (1000 * ((s->rttr & 0xffff) + 1));
     s->last_hz = rt;
@@ -296,7 +308,7 @@ static uint64_t strongarm_rtc_read(void *opaque, target_phys_addr_t addr,
         return s->rtar;
     case RCNR:
         return s->last_rcnr +
-                ((qemu_get_clock_ms(rt_clock) - s->last_hz) << 15) /
+                ((qemu_get_clock_ms(rtc_clock) - s->last_hz) << 15) /
                 (1000 * ((s->rttr & 0xffff) + 1));
     default:
         printf("%s: Bad register 0x" TARGET_FMT_plx "\n", __func__, addr);
@@ -362,16 +374,16 @@ static int strongarm_rtc_init(SysBusDevice *dev)
     qemu_get_timedate(&tm, 0);
 
     s->last_rcnr = (uint32_t) mktimegm(&tm);
-    s->last_hz = qemu_get_clock_ms(rt_clock);
+    s->last_hz = qemu_get_clock_ms(rtc_clock);
 
-    s->rtc_alarm = qemu_new_timer_ms(rt_clock, strongarm_rtc_alarm_tick, s);
-    s->rtc_hz = qemu_new_timer_ms(rt_clock, strongarm_rtc_hz_tick, s);
+    s->rtc_alarm = qemu_new_timer_ms(rtc_clock, strongarm_rtc_alarm_tick, s);
+    s->rtc_hz = qemu_new_timer_ms(rtc_clock, strongarm_rtc_hz_tick, s);
 
     sysbus_init_irq(dev, &s->rtc_irq);
     sysbus_init_irq(dev, &s->rtc_hz_irq);
 
     memory_region_init_io(&s->iomem, &strongarm_rtc_ops, s, "rtc", 0x10000);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
 
     return 0;
 }
@@ -410,12 +422,21 @@ static const VMStateDescription vmstate_strongarm_rtc_regs = {
     },
 };
 
-static SysBusDeviceInfo strongarm_rtc_sysbus_info = {
-    .init       = strongarm_rtc_init,
-    .qdev.name  = "strongarm-rtc",
-    .qdev.desc  = "StrongARM RTC Controller",
-    .qdev.size  = sizeof(StrongARMRTCState),
-    .qdev.vmsd  = &vmstate_strongarm_rtc_regs,
+static void strongarm_rtc_sysbus_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = strongarm_rtc_init;
+    dc->desc = "StrongARM RTC Controller";
+    dc->vmsd = &vmstate_strongarm_rtc_regs;
+}
+
+static TypeInfo strongarm_rtc_sysbus_info = {
+    .name          = "strongarm-rtc",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMRTCState),
+    .class_init    = strongarm_rtc_sysbus_class_init,
 };
 
 /* GPIO */
@@ -617,7 +638,7 @@ static int strongarm_gpio_initfn(SysBusDevice *dev)
 
     memory_region_init_io(&s->iomem, &strongarm_gpio_ops, s, "gpio", 0x1000);
 
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
     for (i = 0; i < 11; i++) {
         sysbus_init_irq(dev, &s->irqs[i]);
     }
@@ -643,11 +664,20 @@ static const VMStateDescription vmstate_strongarm_gpio_regs = {
     },
 };
 
-static SysBusDeviceInfo strongarm_gpio_info = {
-    .init       = strongarm_gpio_initfn,
-    .qdev.name  = "strongarm-gpio",
-    .qdev.desc  = "StrongARM GPIO controller",
-    .qdev.size  = sizeof(StrongARMGPIOInfo),
+static void strongarm_gpio_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = strongarm_gpio_initfn;
+    dc->desc = "StrongARM GPIO controller";
+}
+
+static TypeInfo strongarm_gpio_info = {
+    .name          = "strongarm-gpio",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMGPIOInfo),
+    .class_init    = strongarm_gpio_class_init,
 };
 
 /* Peripheral Pin Controller */
@@ -779,7 +809,7 @@ static int strongarm_ppc_init(SysBusDevice *dev)
 
     memory_region_init_io(&s->iomem, &strongarm_ppc_ops, s, "ppc", 0x1000);
 
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
 
     return 0;
 }
@@ -800,11 +830,20 @@ static const VMStateDescription vmstate_strongarm_ppc_regs = {
     },
 };
 
-static SysBusDeviceInfo strongarm_ppc_info = {
-    .init       = strongarm_ppc_init,
-    .qdev.name  = "strongarm-ppc",
-    .qdev.desc  = "StrongARM PPC controller",
-    .qdev.size  = sizeof(StrongARMPPCInfo),
+static void strongarm_ppc_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = strongarm_ppc_init;
+    dc->desc = "StrongARM PPC controller";
+}
+
+static TypeInfo strongarm_ppc_info = {
+    .name          = "strongarm-ppc",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMPPCInfo),
+    .class_init    = strongarm_ppc_class_init,
 };
 
 /* UART Ports */
@@ -1165,7 +1204,7 @@ static int strongarm_uart_init(SysBusDevice *dev)
     StrongARMUARTState *s = FROM_SYSBUS(StrongARMUARTState, dev);
 
     memory_region_init_io(&s->iomem, &strongarm_uart_ops, s, "uart", 0x10000);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
 
     s->rx_timeout_timer = qemu_new_timer_ns(vm_clock, strongarm_uart_rx_to, s);
@@ -1242,17 +1281,28 @@ static const VMStateDescription vmstate_strongarm_uart_regs = {
     },
 };
 
-static SysBusDeviceInfo strongarm_uart_info = {
-    .init       = strongarm_uart_init,
-    .qdev.name  = "strongarm-uart",
-    .qdev.desc  = "StrongARM UART controller",
-    .qdev.size  = sizeof(StrongARMUARTState),
-    .qdev.reset = strongarm_uart_reset,
-    .qdev.vmsd  = &vmstate_strongarm_uart_regs,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_CHR("chardev", StrongARMUARTState, chr),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property strongarm_uart_properties[] = {
+    DEFINE_PROP_CHR("chardev", StrongARMUARTState, chr),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void strongarm_uart_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = strongarm_uart_init;
+    dc->desc = "StrongARM UART controller";
+    dc->reset = strongarm_uart_reset;
+    dc->vmsd = &vmstate_strongarm_uart_regs;
+    dc->props = strongarm_uart_properties;
+}
+
+static TypeInfo strongarm_uart_info = {
+    .name          = "strongarm-uart",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMUARTState),
+    .class_init    = strongarm_uart_class_init,
 };
 
 /* Synchronous Serial Ports */
@@ -1446,7 +1496,7 @@ static int strongarm_ssp_init(SysBusDevice *dev)
     sysbus_init_irq(dev, &s->irq);
 
     memory_region_init_io(&s->iomem, &strongarm_ssp_ops, s, "ssp", 0x1000);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
 
     s->bus = ssi_create_bus(&dev->qdev, "ssi");
     return 0;
@@ -1476,13 +1526,22 @@ static const VMStateDescription vmstate_strongarm_ssp_regs = {
     },
 };
 
-static SysBusDeviceInfo strongarm_ssp_info = {
-    .init       = strongarm_ssp_init,
-    .qdev.name  = "strongarm-ssp",
-    .qdev.desc  = "StrongARM SSP controller",
-    .qdev.size  = sizeof(StrongARMSSPState),
-    .qdev.reset = strongarm_ssp_reset,
-    .qdev.vmsd  = &vmstate_strongarm_ssp_regs,
+static void strongarm_ssp_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = strongarm_ssp_init;
+    dc->desc = "StrongARM SSP controller";
+    dc->reset = strongarm_ssp_reset;
+    dc->vmsd = &vmstate_strongarm_ssp_regs;
+}
+
+static TypeInfo strongarm_ssp_info = {
+    .name          = "strongarm-ssp",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMSSPState),
+    .class_init    = strongarm_ssp_class_init,
 };
 
 /* Main CPU functions */
@@ -1511,7 +1570,8 @@ StrongARMState *sa1110_init(MemoryRegion *sysmem,
         exit(1);
     }
 
-    memory_region_init_ram(&s->sdram, NULL, "strongarm.sdram", sdram_size);
+    memory_region_init_ram(&s->sdram, "strongarm.sdram", sdram_size);
+    vmstate_register_ram_global(&s->sdram);
     memory_region_add_subregion(sysmem, SA_SDCS0, &s->sdram);
 
     pic = arm_pic_init_cpu(s->env);
@@ -1549,13 +1609,14 @@ StrongARMState *sa1110_init(MemoryRegion *sysmem,
     return s;
 }
 
-static void strongarm_register_devices(void)
+static void strongarm_register_types(void)
 {
-    sysbus_register_withprop(&strongarm_pic_info);
-    sysbus_register_withprop(&strongarm_rtc_sysbus_info);
-    sysbus_register_withprop(&strongarm_gpio_info);
-    sysbus_register_withprop(&strongarm_ppc_info);
-    sysbus_register_withprop(&strongarm_uart_info);
-    sysbus_register_withprop(&strongarm_ssp_info);
+    type_register_static(&strongarm_pic_info);
+    type_register_static(&strongarm_rtc_sysbus_info);
+    type_register_static(&strongarm_gpio_info);
+    type_register_static(&strongarm_ppc_info);
+    type_register_static(&strongarm_uart_info);
+    type_register_static(&strongarm_ssp_info);
 }
-device_init(strongarm_register_devices)
+
+type_init(strongarm_register_types)

@@ -91,6 +91,7 @@ enum {
 
 struct LM32UartState {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     CharDriverState *chr;
     qemu_irq irq;
 
@@ -124,7 +125,8 @@ static void uart_update_irq(LM32UartState *s)
     qemu_set_irq(s->irq, irq);
 }
 
-static uint32_t uart_read(void *opaque, target_phys_addr_t addr)
+static uint64_t uart_read(void *opaque, target_phys_addr_t addr,
+                          unsigned size)
 {
     LM32UartState *s = opaque;
     uint32_t r = 0;
@@ -158,7 +160,8 @@ static uint32_t uart_read(void *opaque, target_phys_addr_t addr)
     return r;
 }
 
-static void uart_write(void *opaque, target_phys_addr_t addr, uint32_t value)
+static void uart_write(void *opaque, target_phys_addr_t addr,
+                       uint64_t value, unsigned size)
 {
     LM32UartState *s = opaque;
     unsigned char ch = value;
@@ -192,16 +195,14 @@ static void uart_write(void *opaque, target_phys_addr_t addr, uint32_t value)
     uart_update_irq(s);
 }
 
-static CPUReadMemoryFunc * const uart_read_fn[] = {
-    NULL,
-    NULL,
-    &uart_read,
-};
-
-static CPUWriteMemoryFunc * const uart_write_fn[] = {
-    NULL,
-    NULL,
-    &uart_write,
+static const MemoryRegionOps uart_ops = {
+    .read = uart_read,
+    .write = uart_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
 };
 
 static void uart_rx(void *opaque, const uint8_t *buf, int size)
@@ -245,15 +246,13 @@ static void uart_reset(DeviceState *d)
 static int lm32_uart_init(SysBusDevice *dev)
 {
     LM32UartState *s = FROM_SYSBUS(typeof(*s), dev);
-    int uart_regs;
 
     sysbus_init_irq(dev, &s->irq);
 
-    uart_regs = cpu_register_io_memory(uart_read_fn, uart_write_fn, s,
-            DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, R_MAX * 4, uart_regs);
+    memory_region_init_io(&s->iomem, &uart_ops, s, "uart", R_MAX * 4);
+    sysbus_init_mmio(dev, &s->iomem);
 
-    s->chr = qdev_init_chardev(&dev->qdev);
+    s->chr = qemu_char_get_next_serial();
     if (s->chr) {
         qemu_chr_add_handlers(s->chr, uart_can_rx, uart_rx, uart_event, s);
     }
@@ -272,17 +271,26 @@ static const VMStateDescription vmstate_lm32_uart = {
     }
 };
 
-static SysBusDeviceInfo lm32_uart_info = {
-    .init = lm32_uart_init,
-    .qdev.name  = "lm32-uart",
-    .qdev.size  = sizeof(LM32UartState),
-    .qdev.vmsd  = &vmstate_lm32_uart,
-    .qdev.reset = uart_reset,
-};
-
-static void lm32_uart_register(void)
+static void lm32_uart_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&lm32_uart_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = lm32_uart_init;
+    dc->reset = uart_reset;
+    dc->vmsd = &vmstate_lm32_uart;
 }
 
-device_init(lm32_uart_register)
+static TypeInfo lm32_uart_info = {
+    .name          = "lm32-uart",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(LM32UartState),
+    .class_init    = lm32_uart_class_init,
+};
+
+static void lm32_uart_register_types(void)
+{
+    type_register_static(&lm32_uart_info);
+}
+
+type_init(lm32_uart_register_types)

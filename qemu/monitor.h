@@ -6,6 +6,7 @@
 #include "qerror.h"
 #include "qdict.h"
 #include "block.h"
+#include "readline.h"
 
 extern Monitor *cur_mon;
 extern Monitor *default_mon;
@@ -35,6 +36,11 @@ typedef enum MonitorEvent {
     QEVENT_SPICE_CONNECTED,
     QEVENT_SPICE_INITIALIZED,
     QEVENT_SPICE_DISCONNECTED,
+    QEVENT_BLOCK_JOB_COMPLETED,
+    QEVENT_BLOCK_JOB_CANCELLED,
+    QEVENT_DEVICE_TRAY_MOVED,
+    QEVENT_SUSPEND,
+    QEVENT_WAKEUP,
     QEVENT_MAX,
 } MonitorEvent;
 
@@ -49,6 +55,9 @@ void monitor_resume(Monitor *mon);
 int monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
                                 BlockDriverCompletionFunc *completion_cb,
                                 void *opaque);
+int monitor_read_block_device_key(Monitor *mon, const char *device,
+                                  BlockDriverCompletionFunc *completion_cb,
+                                  void *opaque);
 
 int monitor_get_fd(Monitor *mon, const char *fdname);
 
@@ -63,5 +72,13 @@ int monitor_get_cpu_index(void);
 typedef void (MonitorCompletion)(void *opaque, QObject *ret_data);
 
 void monitor_set_error(Monitor *mon, QError *qerror);
+void monitor_read_command(Monitor *mon, int show_prompt);
+ReadLineState *monitor_get_rs(Monitor *mon);
+int monitor_read_password(Monitor *mon, ReadLineFunc *readline_func,
+                          void *opaque);
+
+int qmp_qom_set(Monitor *mon, const QDict *qdict, QObject **ret);
+
+int qmp_qom_get(Monitor *mon, const QDict *qdict, QObject **ret);
 
 #endif /* !MONITOR_H */

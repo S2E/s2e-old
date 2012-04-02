@@ -98,6 +98,7 @@
 #define PCI_DEVICE_ID_MPC8533E           0x0030
 
 #define PCI_VENDOR_ID_INTEL              0x8086
+#define PCI_DEVICE_ID_INTEL_82378        0x0484
 #define PCI_DEVICE_ID_INTEL_82441        0x1237
 #define PCI_DEVICE_ID_INTEL_82801AA_5    0x2415
 #define PCI_DEVICE_ID_INTEL_82801D       0x24CD
@@ -120,3 +121,6 @@
 
 #define PCI_VENDOR_ID_XEN               0x5853
 #define PCI_DEVICE_ID_XEN_PLATFORM      0x0001
+
+#define PCI_VENDOR_ID_NEC                0x1033
+#define PCI_DEVICE_ID_NEC_UPD720200      0x0194

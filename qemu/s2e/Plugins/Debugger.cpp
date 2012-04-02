@@ -246,7 +246,7 @@ void Debugger::onTranslateInstructionStart(
 void Debugger::onInstruction(S2EExecutionState *state, uint64_t pc)
 {
     s2e()->getDebugStream() << "IT " << hexval(pc) <<
-            " CC_SRC=" << state->readCpuRegister(offsetof(CPUState, cc_src), klee::Expr::Int32) <<
+            " CC_SRC=" << state->readCpuRegister(offsetof(CPUX86State, cc_src), klee::Expr::Int32) <<
             '\n';
 }
 

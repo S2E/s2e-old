@@ -45,6 +45,7 @@ typedef struct ESPState ESPState;
 
 struct ESPState {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     uint8_t rregs[ESP_REGS];
     uint8_t wregs[ESP_REGS];
     qemu_irq irq;
@@ -389,7 +390,8 @@ static void esp_do_dma(ESPState *s)
     esp_dma_done(s);
 }
 
-static void esp_command_complete(SCSIRequest *req, uint32_t status)
+static void esp_command_complete(SCSIRequest *req, uint32_t status,
+                                 size_t resid)
 {
     ESPState *s = DO_UPCAST(ESPState, busdev.qdev, req->bus->qbus.parent);
 
@@ -504,7 +506,8 @@ static void esp_gpio_demux(void *opaque, int irq, int level)
     }
 }
 
-static uint32_t esp_mem_readb(void *opaque, target_phys_addr_t addr)
+static uint64_t esp_mem_read(void *opaque, target_phys_addr_t addr,
+                             unsigned size)
 {
     ESPState *s = opaque;
     uint32_t saddr, old_val;
@@ -545,7 +548,8 @@ static uint32_t esp_mem_readb(void *opaque, target_phys_addr_t addr)
     return s->rregs[saddr];
 }
 
-static void esp_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
+static void esp_mem_write(void *opaque, target_phys_addr_t addr,
+                          uint64_t val, unsigned size)
 {
     ESPState *s = opaque;
     uint32_t saddr;
@@ -641,7 +645,7 @@ static void esp_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
             s->rregs[ESP_RINTR] = 0;
             break;
         default:
-            ESP_ERROR("Unhandled ESP command (%2.2x)\n", val);
+            ESP_ERROR("Unhandled ESP command (%2.2x)\n", (unsigned)val);
             break;
         }
         break;
@@ -656,22 +660,23 @@ static void esp_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
         s->rregs[saddr] = val;
         break;
     default:
-        ESP_ERROR("invalid write of 0x%02x at [0x%x]\n", val, saddr);
+        ESP_ERROR("invalid write of 0x%02x at [0x%x]\n", (unsigned)val, saddr);
         return;
     }
     s->wregs[saddr] = val;
 }
 
-static CPUReadMemoryFunc * const esp_mem_read[3] = {
-    esp_mem_readb,
-    NULL,
-    NULL,
-};
+static bool esp_mem_accepts(void *opaque, target_phys_addr_t addr,
+                            unsigned size, bool is_write)
+{
+    return (size == 1) || (is_write && size == 4);
+}
 
-static CPUWriteMemoryFunc * const esp_mem_write[3] = {
-    esp_mem_writeb,
-    NULL,
-    esp_mem_writeb,
+static const MemoryRegionOps esp_mem_ops = {
+    .read = esp_mem_read,
+    .write = esp_mem_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid.accepts = esp_mem_accepts,
 };
 
 static const VMStateDescription vmstate_esp = {
@@ -735,14 +740,13 @@ static const struct SCSIBusInfo esp_scsi_info = {
 static int esp_init1(SysBusDevice *dev)
 {
     ESPState *s = FROM_SYSBUS(ESPState, dev);
-    int esp_io_memory;
 
     sysbus_init_irq(dev, &s->irq);
     assert(s->it_shift != -1);
 
-    esp_io_memory = cpu_register_io_memory(esp_mem_read, esp_mem_write, s,
-                                           DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, ESP_REGS << s->it_shift, esp_io_memory);
+    memory_region_init_io(&s->iomem, &esp_mem_ops, s,
+                          "esp", ESP_REGS << s->it_shift);
+    sysbus_init_mmio(dev, &s->iomem);
 
     qdev_init_gpio_in(&dev->qdev, esp_gpio_demux, 2);
 
@@ -750,20 +754,31 @@ static int esp_init1(SysBusDevice *dev)
     return scsi_bus_legacy_handle_cmdline(&s->bus);
 }
 
-static SysBusDeviceInfo esp_info = {
-    .init = esp_init1,
-    .qdev.name  = "esp",
-    .qdev.size  = sizeof(ESPState),
-    .qdev.vmsd  = &vmstate_esp,
-    .qdev.reset = esp_hard_reset,
-    .qdev.props = (Property[]) {
-        {.name = NULL}
-    }
+static Property esp_properties[] = {
+    {.name = NULL},
 };
 
-static void esp_register_devices(void)
+static void esp_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&esp_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = esp_init1;
+    dc->reset = esp_hard_reset;
+    dc->vmsd = &vmstate_esp;
+    dc->props = esp_properties;
 }
 
-device_init(esp_register_devices)
+static TypeInfo esp_info = {
+    .name          = "esp",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(ESPState),
+    .class_init    = esp_class_init,
+};
+
+static void esp_register_types(void)
+{
+    type_register_static(&esp_info);
+}
+
+type_init(esp_register_types)

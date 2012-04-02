@@ -14,7 +14,10 @@ CFLAGS += -I$(SRC_PATH)
 CFLAGS += $(call cc-option, $(CFLAGS), -fno-stack-protector)
 QEMU_CFLAGS = $(CFLAGS)
 
-build-all: multiboot.bin linuxboot.bin
+build-all: multiboot.bin linuxboot.bin kvmvapic.bin
+
+# suppress auto-removal of intermediate files
+.SECONDARY:
 
 %.img: %.o
 	$(call quiet-command,$(LD) -Ttext 0 -e _start -s -o $@ $<,"  Building $(TARGET_DIR)$@")

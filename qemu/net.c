@@ -34,8 +34,14 @@
 #include "monitor.h"
 #include "qemu-common.h"
 #include "qemu_socket.h"
+#include "qmp-commands.h"
 #include "hw/qdev.h"
 #include "iov.h"
+
+/* Net bridge is currently not supported for W32. */
+#if !defined(_WIN32)
+# define CONFIG_NET_BRIDGE
+#endif
 
 static QTAILQ_HEAD(, VLANState) vlans;
 static QTAILQ_HEAD(, VLANClientState) non_vlan_clients;
@@ -951,6 +957,12 @@ static const struct {
                 .type = QEMU_OPT_STRING,
                 .help = "script to shut down the interface",
             }, {
+#ifdef CONFIG_NET_BRIDGE
+                .name = "helper",
+                .type = QEMU_OPT_STRING,
+                .help = "command to execute to configure bridge",
+            }, {
+#endif
                 .name = "sndbuf",
                 .type = QEMU_OPT_SIZE,
                 .help = "send buffer limit"
@@ -999,7 +1011,11 @@ static const struct {
             }, {
                 .name = "localaddr",
                 .type = QEMU_OPT_STRING,
-                .help = "source address for multicast packets",
+                .help = "source address and port for multicast and udp packets",
+            }, {
+                .name = "udp",
+                .type = QEMU_OPT_STRING,
+                .help = "UDP unicast address and port number",
             },
             { /* end of list */ }
         },
@@ -1048,6 +1064,25 @@ static const struct {
             { /* end of list */ }
         },
     },
+#ifdef CONFIG_NET_BRIDGE
+    [NET_CLIENT_TYPE_BRIDGE] = {
+        .type = "bridge",
+        .init = net_init_bridge,
+        .desc = {
+            NET_COMMON_PARAMS_DESC,
+            {
+                .name = "br",
+                .type = QEMU_OPT_STRING,
+                .help = "bridge name",
+            }, {
+                .name = "helper",
+                .type = QEMU_OPT_STRING,
+                .help = "command to execute to configure bridge",
+            },
+            { /* end of list */ }
+        },
+    },
+#endif /* CONFIG_NET_BRIDGE */
 };
 
 int net_client_init(Monitor *mon, QemuOpts *opts, int is_netdev)
@@ -1064,6 +1099,9 @@ int net_client_init(Monitor *mon, QemuOpts *opts, int is_netdev)
 
     if (is_netdev) {
         if (strcmp(type, "tap") != 0 &&
+#ifdef CONFIG_NET_BRIDGE
+            strcmp(type, "bridge") != 0 &&
+#endif
 #ifdef CONFIG_SLIRP
             strcmp(type, "user") != 0 &&
 #endif
@@ -1134,6 +1172,9 @@ static int net_host_check_device(const char *device)
 {
     int i;
     const char *valid_param_list[] = { "tap", "socket", "dump"
+#ifdef CONFIG_NET_BRIDGE
+                                       , "bridge"
+#endif
 #ifdef CONFIG_SLIRP
                                        ,"user"
 #endif
@@ -1258,12 +1299,10 @@ void do_info_network(Monitor *mon)
     }
 }
 
-int do_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void qmp_set_link(const char *name, bool up, Error **errp)
 {
     VLANState *vlan;
     VLANClientState *vc = NULL;
-    const char *name = qdict_get_str(qdict, "name");
-    int up = qdict_get_bool(qdict, "up");
 
     QTAILQ_FOREACH(vlan, &vlans, next) {
         QTAILQ_FOREACH(vc, &vlan->clients, next) {
@@ -1280,8 +1319,8 @@ int do_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data)
 done:
 
     if (!vc) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, name);
-        return -1;
+        error_set(errp, QERR_DEVICE_NOT_FOUND, name);
+        return;
     }
 
     vc->link_down = !up;
@@ -1300,7 +1339,6 @@ done:
     if (vc->peer && vc->peer->info->link_status_changed) {
         vc->peer->info->link_status_changed(vc->peer);
     }
-    return 0;
 }
 
 void net_cleanup(void)

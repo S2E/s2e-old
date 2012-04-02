@@ -397,7 +397,7 @@ int qemu_timer_expired(QEMUTimer *timer_head, int64_t current_time)
     return qemu_timer_expired_ns(timer_head, current_time * timer_head->scale);
 }
 
-static void qemu_run_timers(QEMUClock *clock)
+void qemu_run_timers(QEMUClock *clock)
 {
     QEMUTimer **ptimer_head, *ts;
     int64_t current_time;
@@ -453,7 +453,7 @@ void qemu_register_clock_reset_notifier(QEMUClock *clock, Notifier *notifier)
 
 void qemu_unregister_clock_reset_notifier(QEMUClock *clock, Notifier *notifier)
 {
-    notifier_list_remove(&clock->reset_notifiers, notifier);
+    notifier_remove(notifier);
 }
 
 void init_clocks(void)
@@ -494,35 +494,6 @@ static void host_alarm_handler(int host_signum)
     if (!t)
 	return;
 
-#if 0
-#define DISP_FREQ 1000
-    {
-        static int64_t delta_min = INT64_MAX;
-        static int64_t delta_max, delta_cum, last_clock, delta, ti;
-        static int count;
-        ti = qemu_get_clock_ns(vm_clock);
-        if (last_clock != 0) {
-            delta = ti - last_clock;
-            if (delta < delta_min)
-                delta_min = delta;
-            if (delta > delta_max)
-                delta_max = delta;
-            delta_cum += delta;
-            if (++count == DISP_FREQ) {
-                printf("timer: min=%" PRId64 " us max=%" PRId64 " us avg=%" PRId64 " us avg_freq=%0.3f Hz\n",
-                       muldiv64(delta_min, 1000000, get_ticks_per_sec()),
-                       muldiv64(delta_max, 1000000, get_ticks_per_sec()),
-                       muldiv64(delta_cum, 1000000 / DISP_FREQ, get_ticks_per_sec()),
-                       (double)get_ticks_per_sec() / ((double)delta_cum / DISP_FREQ));
-                count = 0;
-                delta_min = INT64_MAX;
-                delta_max = 0;
-                delta_cum = 0;
-            }
-        }
-        last_clock = ti;
-    }
-#endif
     if (alarm_has_dynticks(t) ||
         qemu_next_alarm_deadline () <= 0) {
         t->expired = alarm_has_dynticks(t);

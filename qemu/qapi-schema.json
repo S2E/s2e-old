@@ -370,13 +370,27 @@
 #
 # @encrypted: true if the backing device is encrypted
 #
+# @bps: total throughput limit in bytes per second is specified
+#
+# @bps_rd: read throughput limit in bytes per second is specified
+#
+# @bps_wr: write throughput limit in bytes per second is specified
+#
+# @iops: total I/O operations per second is specified
+#
+# @iops_rd: read I/O operations per second is specified
+#
+# @iops_wr: write I/O operations per second is specified
+#
 # Since: 0.14.0
 #
 # Notes: This interface is only found in @BlockInfo.
 ##
 { 'type': 'BlockDeviceInfo',
   'data': { 'file': 'str', 'ro': 'bool', 'drv': 'str',
-            '*backing_file': 'str', 'encrypted': 'bool' } }
+            '*backing_file': 'str', 'encrypted': 'bool',
+            'bps': 'int', 'bps_rd': 'int', 'bps_wr': 'int',
+            'iops': 'int', 'iops_rd': 'int', 'iops_wr': 'int'} }
 
 ##
 # @BlockDeviceIoStatus:
@@ -602,11 +616,12 @@
 # @connection-id: SPICE connection id number.  All channels with the same id
 #                 belong to the same SPICE session.
 #
-# @connection-type: SPICE channel type number.  "1" is the main control channel,
-#                   filter for this one if you want track spice sessions only
+# @connection-type: SPICE channel type number.  "1" is the main control
+#                   channel, filter for this one if you want to track spice
+#                   sessions only
 #
-# @channel-id: SPICE channel ID number.  Usually "0", might be different needed
-#              when multiple channels of the same type exist, such as multiple
+# @channel-id: SPICE channel ID number.  Usually "0", might be different when
+#              multiple channels of the same type exist, such as multiple
 #              display channels in a multihead setup
 #
 # @tls: true if the channel is encrypted, false otherwise.
@@ -635,8 +650,9 @@
 # @tls-port: #optional The SPICE server's TLS port number.
 #
 # @auth: #optional the current authentication type used by the server
-#        'none' if no authentication is being used
-#        'spice' (TODO: describe)
+#        'none'  if no authentication is being used
+#        'spice' uses SASL or direct TLS authentication, depending on command
+#                line options
 #
 # @channels: a list of @SpiceChannel for each active spice channel
 #
@@ -831,6 +847,38 @@
 { 'command': 'query-pci', 'returns': ['PciInfo'] }
 
 ##
+# @BlockJobInfo:
+#
+# Information about a long-running block device operation.
+#
+# @type: the job type ('stream' for image streaming)
+#
+# @device: the block device name
+#
+# @len: the maximum progress value
+#
+# @offset: the current progress value
+#
+# @speed: the rate limit, bytes per second
+#
+# Since: 1.1
+##
+{ 'type': 'BlockJobInfo',
+  'data': {'type': 'str', 'device': 'str', 'len': 'int',
+           'offset': 'int', 'speed': 'int'} }
+
+##
+# @query-block-jobs:
+#
+# Return information about long-running block device operations.
+#
+# Returns: a list of @BlockJobInfo for each active block job
+#
+# Since: 1.1
+##
+{ 'command': 'query-block-jobs', 'returns': ['BlockJobInfo'] }
+
+##
 # @quit:
 #
 # This command will cause the QEMU process to exit gracefully.  While every
@@ -887,3 +935,769 @@
 # Notes: Do not use this command.
 ##
 { 'command': 'cpu', 'data': {'index': 'int'} }
+
+##
+# @memsave:
+#
+# Save a portion of guest memory to a file.
+#
+# @val: the virtual address of the guest to start from
+#
+# @size: the size of memory region to save
+#
+# @filename: the file to save the memory to as binary data
+#
+# @cpu-index: #optional the index of the virtual CPU to use for translating the
+#                       virtual address (defaults to CPU 0)
+#
+# Returns: Nothing on success
+#          If @cpu is not a valid VCPU, InvalidParameterValue
+#          If @filename cannot be opened, OpenFileFailed
+#          If an I/O error occurs while writing the file, IOError
+#
+# Since: 0.14.0
+#
+# Notes: Errors were not reliably returned until 1.1
+##
+{ 'command': 'memsave',
+  'data': {'val': 'int', 'size': 'int', 'filename': 'str', '*cpu-index': 'int'} }
+
+##
+# @pmemsave:
+#
+# Save a portion of guest physical memory to a file.
+#
+# @val: the physical address of the guest to start from
+#
+# @size: the size of memory region to save
+#
+# @filename: the file to save the memory to as binary data
+#
+# Returns: Nothing on success
+#          If @filename cannot be opened, OpenFileFailed
+#          If an I/O error occurs while writing the file, IOError
+#
+# Since: 0.14.0
+#
+# Notes: Errors were not reliably returned until 1.1
+##
+{ 'command': 'pmemsave',
+  'data': {'val': 'int', 'size': 'int', 'filename': 'str'} }
+
+##
+# @cont:
+#
+# Resume guest VCPU execution.
+#
+# Since:  0.14.0
+#
+# Returns:  If successful, nothing
+#           If the QEMU is waiting for an incoming migration, MigrationExpected
+#           If QEMU was started with an encrypted block device and a key has
+#              not yet been set, DeviceEncrypted.
+#
+# Notes:  This command will succeed if the guest is currently running.
+##
+{ 'command': 'cont' }
+
+##
+# @system_wakeup:
+#
+# Wakeup guest from suspend.  Does nothing in case the guest isn't suspended.
+#
+# Since:  1.1
+#
+# Returns:  nothing.
+##
+{ 'command': 'system_wakeup' }
+
+##
+# @inject-nmi:
+#
+# Injects an Non-Maskable Interrupt into all guest's VCPUs.
+#
+# Returns:  If successful, nothing
+#           If the Virtual Machine doesn't support NMI injection, Unsupported
+#
+# Since:  0.14.0
+#
+# Notes: Only x86 Virtual Machines support this command.
+##
+{ 'command': 'inject-nmi' }
+
+##
+# @set_link:
+#
+# Sets the link status of a virtual network adapter.
+#
+# @name: the device name of the virtual network adapter
+#
+# @up: true to set the link status to be up
+#
+# Returns: Nothing on success
+#          If @name is not a valid network device, DeviceNotFound
+#
+# Since: 0.14.0
+#
+# Notes: Not all network adapters support setting link status.  This command
+#        will succeed even if the network adapter does not support link status
+#        notification.
+##
+{ 'command': 'set_link', 'data': {'name': 'str', 'up': 'bool'} }
+
+##
+# @block_passwd:
+#
+# This command sets the password of a block device that has not been open
+# with a password and requires one.
+#
+# The two cases where this can happen are a block device is created through
+# QEMU's initial command line or a block device is changed through the legacy
+# @change interface.
+#
+# In the event that the block device is created through the initial command
+# line, the VM will start in the stopped state regardless of whether '-S' is
+# used.  The intention is for a management tool to query the block devices to
+# determine which ones are encrypted, set the passwords with this command, and
+# then start the guest with the @cont command.
+#
+# @device:   the name of the device to set the password on
+#
+# @password: the password to use for the device
+#
+# Returns: nothing on success
+#          If @device is not a valid block device, DeviceNotFound
+#          If @device is not encrypted, DeviceNotEncrypted
+#          If @password is not valid for this device, InvalidPassword
+#
+# Notes:  Not all block formats support encryption and some that do are not
+#         able to validate that a password is correct.  Disk corruption may
+#         occur if an invalid password is specified.
+#
+# Since: 0.14.0
+##
+{ 'command': 'block_passwd', 'data': {'device': 'str', 'password': 'str'} }
+
+##
+# @balloon:
+#
+# Request the balloon driver to change its balloon size.
+#
+# @value: the target size of the balloon in bytes
+#
+# Returns: Nothing on success
+#          If the balloon driver is enabled but not functional because the KVM
+#            kernel module cannot support it, KvmMissingCap
+#          If no balloon device is present, DeviceNotActive
+#
+# Notes: This command just issues a request to the guest.  When it returns,
+#        the balloon size may not have changed.  A guest can change the balloon
+#        size independent of this command.
+#
+# Since: 0.14.0
+##
+{ 'command': 'balloon', 'data': {'value': 'int'} }
+
+##
+# @block_resize
+#
+# Resize a block image while a guest is running.
+#
+# @device:  the name of the device to get the image resized
+#
+# @size:  new image size in bytes
+#
+# Returns: nothing on success
+#          If @device is not a valid block device, DeviceNotFound
+#          If @size is negative, InvalidParameterValue
+#          If the block device has no medium inserted, DeviceHasNoMedium
+#          If the block device does not support resize, Unsupported
+#          If the block device is read-only, DeviceIsReadOnly
+#          If a long-running operation is using the device, DeviceInUse
+#
+# Since: 0.14.0
+##
+{ 'command': 'block_resize', 'data': { 'device': 'str', 'size': 'int' }}
+
+##
+# @NewImageMode
+#
+# An enumeration that tells QEMU how to set the backing file path in
+# a new image file.
+#
+# @existing: QEMU should look for an existing image file.
+#
+# @absolute-paths: QEMU should create a new image with absolute paths
+# for the backing file.
+#
+# Since: 1.1
+##
+{ 'enum': 'NewImageMode'
+  'data': [ 'existing', 'absolute-paths' ] }
+
+##
+# @BlockdevSnapshot
+#
+# @device:  the name of the device to generate the snapshot from.
+#
+# @snapshot-file: the target of the new image. A new file will be created.
+#
+# @format: #optional the format of the snapshot image, default is 'qcow2'.
+#
+# @mode: #optional whether and how QEMU should create a new image, default is
+# 'absolute-paths'.
+##
+{ 'type': 'BlockdevSnapshot',
+  'data': { 'device': 'str', 'snapshot-file': 'str', '*format': 'str',
+            '*mode': 'NewImageMode' } }
+
+##
+# @BlockdevAction
+#
+# A discriminated record of operations that can be performed with
+# @transaction.
+##
+{ 'union': 'BlockdevAction',
+  'data': {
+       'blockdev-snapshot-sync': 'BlockdevSnapshot',
+   } }
+
+##
+# @transaction
+#
+# Atomically operate on a group of one or more block devices.  If
+# any operation fails, then the entire set of actions will be
+# abandoned and the appropriate error returned.  The only operation
+# supported is currently blockdev-snapshot-sync.
+#
+#  List of:
+#  @BlockdevAction: information needed for the device snapshot
+#
+# Returns: nothing on success
+#          If @device is not a valid block device, DeviceNotFound
+#          If @device is busy, DeviceInUse will be returned
+#          If @snapshot-file can't be created, OpenFileFailed
+#          If @snapshot-file can't be opened, OpenFileFailed
+#          If @format is invalid, InvalidBlockFormat
+#
+# Note: The transaction aborts on the first failure.  Therefore, there will
+# be only one device or snapshot file returned in an error condition, and
+# subsequent actions will not have been attempted.
+#
+# Since 1.1
+##
+{ 'command': 'transaction',
+  'data': { 'actions': [ 'BlockdevAction' ] } }
+
+##
+# @blockdev-snapshot-sync
+#
+# Generates a synchronous snapshot of a block device.
+#
+# @device:  the name of the device to generate the snapshot from.
+#
+# @snapshot-file: the target of the new image. If the file exists, or if it
+#                 is a device, the snapshot will be created in the existing
+#                 file/device. If does not exist, a new file will be created.
+#
+# @format: #optional the format of the snapshot image, default is 'qcow2'.
+#
+# @mode: #optional whether and how QEMU should create a new image, default is
+# 'absolute-paths'.
+#
+# Returns: nothing on success
+#          If @device is not a valid block device, DeviceNotFound
+#          If @snapshot-file can't be opened, OpenFileFailed
+#          If @format is invalid, InvalidBlockFormat
+#
+# Since 0.14.0
+##
+{ 'command': 'blockdev-snapshot-sync',
+  'data': { 'device': 'str', 'snapshot-file': 'str', '*format': 'str',
+            '*mode': 'NewImageMode'} }
+
+##
+# @human-monitor-command:
+#
+# Execute a command on the human monitor and return the output.
+#
+# @command-line: the command to execute in the human monitor
+#
+# @cpu-index: #optional The CPU to use for commands that require an implicit CPU
+#
+# Returns: the output of the command as a string
+#
+# Since: 0.14.0
+#
+# Notes: This command only exists as a stop-gap.  It's use is highly
+#        discouraged.  The semantics of this command are not guaranteed.
+#
+#        Known limitations:
+#
+#        o This command is stateless, this means that commands that depend
+#          on state information (such as getfd) might not work
+#
+#       o Commands that prompt the user for data (eg. 'cont' when the block
+#         device is encrypted) don't currently work
+##
+{ 'command': 'human-monitor-command',
+  'data': {'command-line': 'str', '*cpu-index': 'int'},
+  'returns': 'str' } 
+
+##
+# @migrate_cancel
+#
+# Cancel the current executing migration process.
+#
+# Returns: nothing on success
+#
+# Notes: This command succeeds even if there is no migration process running.
+#
+# Since: 0.14.0
+##
+{ 'command': 'migrate_cancel' }
+
+##
+# @migrate_set_downtime
+#
+# Set maximum tolerated downtime for migration.
+#
+# @value: maximum downtime in seconds
+#
+# Returns: nothing on success
+#
+# Since: 0.14.0
+##
+{ 'command': 'migrate_set_downtime', 'data': {'value': 'number'} }
+
+##
+# @migrate_set_speed
+#
+# Set maximum speed for migration.
+#
+# @value: maximum speed in bytes.
+#
+# Returns: nothing on success
+#
+# Notes: A value lesser than zero will be automatically round up to zero.
+#
+# Since: 0.14.0
+##
+{ 'command': 'migrate_set_speed', 'data': {'value': 'int'} }
+
+##
+# @ObjectPropertyInfo:
+#
+# @name: the name of the property
+#
+# @type: the type of the property.  This will typically come in one of four
+#        forms:
+#
+#        1) A primitive type such as 'u8', 'u16', 'bool', 'str', or 'double'.
+#           These types are mapped to the appropriate JSON type.
+#
+#        2) A legacy type in the form 'legacy<subtype>' where subtype is the
+#           legacy qdev typename.  These types are always treated as strings.
+#
+#        3) A child type in the form 'child<subtype>' where subtype is a qdev
+#           device type name.  Child properties create the composition tree.
+#
+#        4) A link type in the form 'link<subtype>' where subtype is a qdev
+#           device type name.  Link properties form the device model graph.
+#
+# Since: 1.1
+#
+# Notes: This type is experimental.  Its syntax may change in future releases.
+##
+{ 'type': 'ObjectPropertyInfo',
+  'data': { 'name': 'str', 'type': 'str' } }
+
+##
+# @qom-list:
+#
+# This command will list any properties of a object given a path in the object
+# model.
+#
+# @path: the path within the object model.  See @qom-get for a description of
+#        this parameter.
+#
+# Returns: a list of @ObjectPropertyInfo that describe the properties of the
+#          object.
+#
+# Since: 1.1
+#
+# Notes: This command is experimental.  It's syntax may change in future
+#        releases.
+##
+{ 'command': 'qom-list',
+  'data': { 'path': 'str' },
+  'returns': [ 'ObjectPropertyInfo' ] }
+
+##
+# @qom-get:
+#
+# This command will get a property from a object model path and return the
+# value.
+#
+# @path: The path within the object model.  There are two forms of supported
+#        paths--absolute and partial paths.
+#
+#        Absolute paths are derived from the root object and can follow child<>
+#        or link<> properties.  Since they can follow link<> properties, they
+#        can be arbitrarily long.  Absolute paths look like absolute filenames
+#        and are prefixed  with a leading slash.
+#
+#        Partial paths look like relative filenames.  They do not begin
+#        with a prefix.  The matching rules for partial paths are subtle but
+#        designed to make specifying objects easy.  At each level of the
+#        composition tree, the partial path is matched as an absolute path.
+#        The first match is not returned.  At least two matches are searched
+#        for.  A successful result is only returned if only one match is
+#        found.  If more than one match is found, a flag is return to
+#        indicate that the match was ambiguous.
+#
+# @property: The property name to read
+#
+# Returns: The property value.  The type depends on the property type.  legacy<>
+#          properties are returned as #str.  child<> and link<> properties are
+#          returns as #str pathnames.  All integer property types (u8, u16, etc)
+#          are returned as #int.
+#
+# Since: 1.1
+#
+# Notes: This command is experimental and may change syntax in future releases.
+##
+{ 'command': 'qom-get',
+  'data': { 'path': 'str', 'property': 'str' },
+  'returns': 'visitor',
+  'gen': 'no' }
+
+##
+# @qom-set:
+#
+# This command will set a property from a object model path.
+#
+# @path: see @qom-get for a description of this parameter
+#
+# @property: the property name to set
+#
+# @value: a value who's type is appropriate for the property type.  See @qom-get
+#         for a description of type mapping.
+#
+# Since: 1.1
+#
+# Notes: This command is experimental and may change syntax in future releases.
+##
+{ 'command': 'qom-set',
+  'data': { 'path': 'str', 'property': 'str', 'value': 'visitor' },
+  'gen': 'no' }
+
+##
+# @set_password:
+#
+# Sets the password of a remote display session.
+#
+# @protocol: `vnc' to modify the VNC server password
+#            `spice' to modify the Spice server password
+#
+# @password: the new password
+#
+# @connected: #optional how to handle existing clients when changing the
+#                       password.  If nothing is specified, defaults to `keep' 
+#                       `fail' to fail the command if clients are connected
+#                       `disconnect' to disconnect existing clients
+#                       `keep' to maintain existing clients
+#
+# Returns: Nothing on success
+#          If Spice is not enabled, DeviceNotFound
+#          If @protocol does not support connected, InvalidParameter
+#          If @protocol is invalid, InvalidParameter
+#          If any other error occurs, SetPasswdFailed
+#
+# Notes: If VNC is not enabled, SetPasswdFailed is returned.
+#
+# Since: 0.14.0
+##
+{ 'command': 'set_password',
+  'data': {'protocol': 'str', 'password': 'str', '*connected': 'str'} }
+
+##
+# @expire_password:
+#
+# Expire the password of a remote display server.
+#
+# @protocol: the name of the remote display protocol `vnc' or `spice'
+#
+# @time: when to expire the password.
+#        `now' to expire the password immediately
+#        `never' to cancel password expiration
+#        `+INT' where INT is the number of seconds from now (integer)
+#        `INT' where INT is the absolute time in seconds
+#
+# Returns: Nothing on success
+#          If @protocol is `spice' and Spice is not active, DeviceNotFound
+#          If an error occurs setting password expiration, SetPasswdFailed
+#          If @protocol is not `spice' or 'vnc', InvalidParameter
+#
+# Since: 0.14.0
+#
+# Notes: Time is relative to the server and currently there is no way to
+#        coordinate server time with client time.  It is not recommended to
+#        use the absolute time version of the @time parameter unless you're
+#        sure you are on the same machine as the QEMU instance.
+##
+{ 'command': 'expire_password', 'data': {'protocol': 'str', 'time': 'str'} }
+
+##
+# @eject:
+#
+# Ejects a device from a removable drive.
+#
+# @device:  The name of the device
+#
+# @force:   @optional If true, eject regardless of whether the drive is locked.
+#           If not specified, the default value is false.
+#
+# Returns:  Nothing on success
+#           If @device is not a valid block device, DeviceNotFound
+#           If @device is not removable and @force is false, DeviceNotRemovable
+#           If @force is false and @device is locked, DeviceLocked
+#
+# Notes:    Ejecting a device will no media results in success
+#
+# Since: 0.14.0
+##
+{ 'command': 'eject', 'data': {'device': 'str', '*force': 'bool'} }
+
+##
+# @change-vnc-password:
+#
+# Change the VNC server password.
+#
+# @target:  the new password to use with VNC authentication
+#
+# Since: 1.1
+#
+# Notes:  An empty password in this command will set the password to the empty
+#         string.  Existing clients are unaffected by executing this command.
+##
+{ 'command': 'change-vnc-password', 'data': {'password': 'str'} }
+
+##
+# @change:
+#
+# This command is multiple commands multiplexed together.
+#
+# @device: This is normally the name of a block device but it may also be 'vnc'.
+#          when it's 'vnc', then sub command depends on @target
+#
+# @target: If @device is a block device, then this is the new filename.
+#          If @device is 'vnc', then if the value 'password' selects the vnc
+#          change password command.   Otherwise, this specifies a new server URI
+#          address to listen to for VNC connections.
+#
+# @arg:    If @device is a block device, then this is an optional format to open
+#          the device with.
+#          If @device is 'vnc' and @target is 'password', this is the new VNC
+#          password to set.  If this argument is an empty string, then no future
+#          logins will be allowed.
+#
+# Returns: Nothing on success.
+#          If @device is not a valid block device, DeviceNotFound
+#          If @format is not a valid block format, InvalidBlockFormat
+#          If the new block device is encrypted, DeviceEncrypted.  Note that
+#          if this error is returned, the device has been opened successfully
+#          and an additional call to @block_passwd is required to set the
+#          device's password.  The behavior of reads and writes to the block
+#          device between when these calls are executed is undefined.
+#
+# Notes:  It is strongly recommended that this interface is not used especially
+#         for changing block devices.
+#
+# Since: 0.14.0
+##
+{ 'command': 'change',
+  'data': {'device': 'str', 'target': 'str', '*arg': 'str'} }
+
+##
+# @block_set_io_throttle:
+#
+# Change I/O throttle limits for a block drive.
+#
+# @device: The name of the device
+#
+# @bps: total throughput limit in bytes per second
+#
+# @bps_rd: read throughput limit in bytes per second
+#
+# @bps_wr: write throughput limit in bytes per second
+#
+# @iops: total I/O operations per second
+#
+# @ops_rd: read I/O operations per second
+#
+# @iops_wr: write I/O operations per second
+#
+# Returns: Nothing on success
+#          If @device is not a valid block device, DeviceNotFound
+#          If the argument combination is invalid, InvalidParameterCombination
+#
+# Since: 1.1
+## 
+{ 'command': 'block_set_io_throttle',
+  'data': { 'device': 'str', 'bps': 'int', 'bps_rd': 'int', 'bps_wr': 'int',
+            'iops': 'int', 'iops_rd': 'int', 'iops_wr': 'int' } }
+
+# @block_stream:
+#
+# Copy data from a backing file into a block device.
+#
+# The block streaming operation is performed in the background until the entire
+# backing file has been copied.  This command returns immediately once streaming
+# has started.  The status of ongoing block streaming operations can be checked
+# with query-block-jobs.  The operation can be stopped before it has completed
+# using the block_job_cancel command.
+#
+# If a base file is specified then sectors are not copied from that base file and
+# its backing chain.  When streaming completes the image file will have the base
+# file as its backing file.  This can be used to stream a subset of the backing
+# file chain instead of flattening the entire image.
+#
+# On successful completion the image file is updated to drop the backing file
+# and the BLOCK_JOB_COMPLETED event is emitted.
+#
+# @device: the device name
+#
+# @base:   #optional the common backing file name
+#
+# Returns: Nothing on success
+#          If streaming is already active on this device, DeviceInUse
+#          If @device does not exist, DeviceNotFound
+#          If image streaming is not supported by this device, NotSupported
+#          If @base does not exist, BaseNotFound
+#
+# Since: 1.1
+##
+{ 'command': 'block_stream', 'data': { 'device': 'str', '*base': 'str' } }
+
+##
+# @block_job_set_speed:
+#
+# Set maximum speed for a background block operation.
+#
+# This command can only be issued when there is an active block job.
+#
+# Throttling can be disabled by setting the speed to 0.
+#
+# @device: the device name
+#
+# @value:  the maximum speed, in bytes per second
+#
+# Returns: Nothing on success
+#          If the job type does not support throttling, NotSupported
+#          If streaming is not active on this device, DeviceNotActive
+#
+# Since: 1.1
+##
+{ 'command': 'block_job_set_speed',
+  'data': { 'device': 'str', 'value': 'int' } }
+
+##
+# @block_job_cancel:
+#
+# Stop an active block streaming operation.
+#
+# This command returns immediately after marking the active block streaming
+# operation for cancellation.  It is an error to call this command if no
+# operation is in progress.
+#
+# The operation will cancel as soon as possible and then emit the
+# BLOCK_JOB_CANCELLED event.  Before that happens the job is still visible when
+# enumerated using query-block-jobs.
+#
+# The image file retains its backing file unless the streaming operation happens
+# to complete just as it is being cancelled.
+#
+# A new block streaming operation can be started at a later time to finish
+# copying all data from the backing file.
+#
+# @device: the device name
+#
+# Returns: Nothing on success
+#          If streaming is not active on this device, DeviceNotActive
+#          If cancellation already in progress, DeviceInUse
+#
+# Since: 1.1
+##
+{ 'command': 'block_job_cancel', 'data': { 'device': 'str' } }
+
+##
+# @ObjectTypeInfo:
+#
+# This structure describes a search result from @qom-list-types
+#
+# @name: the type name found in the search
+#
+# Since: 1.1
+#
+# Notes: This command is experimental and may change syntax in future releases.
+##
+{ 'type': 'ObjectTypeInfo',
+  'data': { 'name': 'str' } }
+
+##
+# @qom-list-types:
+#
+# This command will return a list of types given search parameters
+#
+# @implements: if specified, only return types that implement this type name
+#
+# @abstract: if true, include abstract types in the results
+#
+# Returns: a list of @ObjectTypeInfo or an empty list if no results are found
+#
+# Since: 1.1
+#
+# Notes: This command is experimental and may change syntax in future releases.
+##
+{ 'command': 'qom-list-types',
+  'data': { '*implements': 'str', '*abstract': 'bool' },
+  'returns': [ 'ObjectTypeInfo' ] }
+
+##
+# @migrate
+#
+# Migrates the current running guest to another Virtual Machine.
+#
+# @uri: the Uniform Resource Identifier of the destination VM
+#
+# @blk: #optional do block migration (full disk copy)
+#
+# @inc: #optional incremental disk copy migration
+#
+# @detach: this argument exists only for compatibility reasons and
+#          is ignored by QEMU
+#
+# Returns: nothing on success
+#
+# Since: 0.14.0
+##
+{ 'command': 'migrate',
+  'data': {'uri': 'str', '*blk': 'bool', '*inc': 'bool', '*detach': 'bool' } }
+
+# @xen-save-devices-state:
+#
+# Save the state of all devices to file. The RAM and the block devices
+# of the VM are not saved by this command.
+#
+# @filename: the file to save the state of the devices to as binary
+# data. See xen-save-devices-state.txt for a description of the binary
+# format.
+#
+# Returns: Nothing on success
+#          If @filename cannot be opened, OpenFileFailed
+#          If an I/O error occurs while writing the file, IOError
+#
+# Since: 1.1
+##
+{ 'command': 'xen-save-devices-state', 'data': {'filename': 'str'} }

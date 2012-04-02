@@ -229,7 +229,7 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     assert(module);
 
     //Check the success status
-    klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
+    klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
 
     if (!NtSuccess(s2e(), state, eax)) {
         std::stringstream ss;

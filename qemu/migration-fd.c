@@ -9,6 +9,8 @@
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "qemu-common.h"
@@ -73,7 +75,7 @@ static int fd_close(MigrationState *s)
 
 int fd_start_outgoing_migration(MigrationState *s, const char *fdname)
 {
-    s->fd = monitor_get_fd(s->mon, fdname);
+    s->fd = monitor_get_fd(cur_mon, fdname);
     if (s->fd == -1) {
         DPRINTF("fd_migration: invalid file descriptor identifier\n");
         goto err_after_get_fd;

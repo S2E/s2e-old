@@ -23,14 +23,18 @@
 #endif
 
 extern int kvm_allowed;
+extern bool kvm_kernel_irqchip;
 
 #if defined CONFIG_KVM || !defined NEED_CPU_H
-#define kvm_enabled() (kvm_allowed)
+#define kvm_enabled()           (kvm_allowed)
+#define kvm_irqchip_in_kernel() (kvm_kernel_irqchip)
 #else
-#define kvm_enabled() (0)
+#define kvm_enabled()           (0)
+#define kvm_irqchip_in_kernel() (false)
 #endif
 
 struct kvm_run;
+struct kvm_lapic_state;
 
 typedef struct KVMCapabilityInfo {
     const char *name;
@@ -50,12 +54,16 @@ int kvm_has_robust_singlestep(void);
 int kvm_has_debugregs(void);
 int kvm_has_xsave(void);
 int kvm_has_xcrs(void);
+int kvm_has_pit_state2(void);
 int kvm_has_many_ioeventfds(void);
+int kvm_has_gsi_routing(void);
+
+int kvm_allows_irq0_override(void);
 
 #ifdef NEED_CPU_H
-int kvm_init_vcpu(CPUState *env);
+int kvm_init_vcpu(CPUArchState *env);
 
-int kvm_cpu_exec(CPUState *env);
+int kvm_cpu_exec(CPUArchState *env);
 
 #if !defined(CONFIG_USER_ONLY)
 void kvm_setup_guest_memory(void *start, size_t size);
@@ -65,20 +73,19 @@ int kvm_uncoalesce_mmio_region(target_phys_addr_t start, ram_addr_t size);
 void kvm_flush_coalesced_mmio_buffer(void);
 #endif
 
-int kvm_insert_breakpoint(CPUState *current_env, target_ulong addr,
+int kvm_insert_breakpoint(CPUArchState *current_env, target_ulong addr,
                           target_ulong len, int type);
-int kvm_remove_breakpoint(CPUState *current_env, target_ulong addr,
+int kvm_remove_breakpoint(CPUArchState *current_env, target_ulong addr,
                           target_ulong len, int type);
-void kvm_remove_all_breakpoints(CPUState *current_env);
-int kvm_update_guest_debug(CPUState *env, unsigned long reinject_trap);
+void kvm_remove_all_breakpoints(CPUArchState *current_env);
+int kvm_update_guest_debug(CPUArchState *env, unsigned long reinject_trap);
 #ifndef _WIN32
-int kvm_set_signal_mask(CPUState *env, const sigset_t *sigset);
+int kvm_set_signal_mask(CPUArchState *env, const sigset_t *sigset);
 #endif
 
 int kvm_pit_in_kernel(void);
-int kvm_irqchip_in_kernel(void);
 
-int kvm_on_sigbus_vcpu(CPUState *env, int code, void *addr);
+int kvm_on_sigbus_vcpu(CPUArchState *env, int code, void *addr);
 int kvm_on_sigbus(int code, void *addr);
 
 /* internal API */
@@ -91,20 +98,20 @@ int kvm_ioctl(KVMState *s, int type, ...);
 
 int kvm_vm_ioctl(KVMState *s, int type, ...);
 
-int kvm_vcpu_ioctl(CPUState *env, int type, ...);
+int kvm_vcpu_ioctl(CPUArchState *env, int type, ...);
 
 /* Arch specific hooks */
 
 extern const KVMCapabilityInfo kvm_arch_required_capabilities[];
 
-void kvm_arch_pre_run(CPUState *env, struct kvm_run *run);
-void kvm_arch_post_run(CPUState *env, struct kvm_run *run);
+void kvm_arch_pre_run(CPUArchState *env, struct kvm_run *run);
+void kvm_arch_post_run(CPUArchState *env, struct kvm_run *run);
 
-int kvm_arch_handle_exit(CPUState *env, struct kvm_run *run);
+int kvm_arch_handle_exit(CPUArchState *env, struct kvm_run *run);
 
-int kvm_arch_process_async_events(CPUState *env);
+int kvm_arch_process_async_events(CPUArchState *env);
 
-int kvm_arch_get_registers(CPUState *env);
+int kvm_arch_get_registers(CPUArchState *env);
 
 /* state subset only touched by the VCPU itself during runtime */
 #define KVM_PUT_RUNTIME_STATE   1
@@ -113,16 +120,26 @@ int kvm_arch_get_registers(CPUState *env);
 /* full state set, modified during initialization or on vmload */
 #define KVM_PUT_FULL_STATE      3
 
-int kvm_arch_put_registers(CPUState *env, int level);
+int kvm_arch_put_registers(CPUArchState *env, int level);
 
 int kvm_arch_init(KVMState *s);
 
-int kvm_arch_init_vcpu(CPUState *env);
+int kvm_arch_init_vcpu(CPUArchState *env);
 
-void kvm_arch_reset_vcpu(CPUState *env);
+void kvm_arch_reset_vcpu(CPUArchState *env);
 
-int kvm_arch_on_sigbus_vcpu(CPUState *env, int code, void *addr);
+int kvm_arch_on_sigbus_vcpu(CPUArchState *env, int code, void *addr);
 int kvm_arch_on_sigbus(int code, void *addr);
+
+void kvm_arch_init_irq_routing(KVMState *s);
+
+int kvm_irqchip_set_irq(KVMState *s, int irq, int level);
+
+void kvm_irqchip_add_route(KVMState *s, int gsi, int irqchip, int pin);
+int kvm_irqchip_commit_routes(KVMState *s);
+
+void kvm_put_apic_state(DeviceState *d, struct kvm_lapic_state *kapic);
+void kvm_get_apic_state(DeviceState *d, struct kvm_lapic_state *kapic);
 
 struct kvm_guest_debug;
 struct kvm_debug_exit_arch;
@@ -136,14 +153,14 @@ struct kvm_sw_breakpoint {
 
 QTAILQ_HEAD(kvm_sw_breakpoint_head, kvm_sw_breakpoint);
 
-struct kvm_sw_breakpoint *kvm_find_sw_breakpoint(CPUState *env,
+struct kvm_sw_breakpoint *kvm_find_sw_breakpoint(CPUArchState *env,
                                                  target_ulong pc);
 
-int kvm_sw_breakpoints_active(CPUState *env);
+int kvm_sw_breakpoints_active(CPUArchState *env);
 
-int kvm_arch_insert_sw_breakpoint(CPUState *current_env,
+int kvm_arch_insert_sw_breakpoint(CPUArchState *current_env,
                                   struct kvm_sw_breakpoint *bp);
-int kvm_arch_remove_sw_breakpoint(CPUState *current_env,
+int kvm_arch_remove_sw_breakpoint(CPUArchState *current_env,
                                   struct kvm_sw_breakpoint *bp);
 int kvm_arch_insert_hw_breakpoint(target_ulong addr,
                                   target_ulong len, int type);
@@ -151,35 +168,35 @@ int kvm_arch_remove_hw_breakpoint(target_ulong addr,
                                   target_ulong len, int type);
 void kvm_arch_remove_all_hw_breakpoints(void);
 
-void kvm_arch_update_guest_debug(CPUState *env, struct kvm_guest_debug *dbg);
+void kvm_arch_update_guest_debug(CPUArchState *env, struct kvm_guest_debug *dbg);
 
-bool kvm_arch_stop_on_emulation_error(CPUState *env);
+bool kvm_arch_stop_on_emulation_error(CPUArchState *env);
 
 int kvm_check_extension(KVMState *s, unsigned int extension);
 
 uint32_t kvm_arch_get_supported_cpuid(KVMState *env, uint32_t function,
                                       uint32_t index, int reg);
-void kvm_cpu_synchronize_state(CPUState *env);
-void kvm_cpu_synchronize_post_reset(CPUState *env);
-void kvm_cpu_synchronize_post_init(CPUState *env);
+void kvm_cpu_synchronize_state(CPUArchState *env);
+void kvm_cpu_synchronize_post_reset(CPUArchState *env);
+void kvm_cpu_synchronize_post_init(CPUArchState *env);
 
 /* generic hooks - to be moved/refactored once there are more users */
 
-static inline void cpu_synchronize_state(CPUState *env)
+static inline void cpu_synchronize_state(CPUArchState *env)
 {
     if (kvm_enabled()) {
         kvm_cpu_synchronize_state(env);
     }
 }
 
-static inline void cpu_synchronize_post_reset(CPUState *env)
+static inline void cpu_synchronize_post_reset(CPUArchState *env)
 {
     if (kvm_enabled()) {
         kvm_cpu_synchronize_post_reset(env);
     }
 }
 
-static inline void cpu_synchronize_post_init(CPUState *env)
+static inline void cpu_synchronize_post_init(CPUArchState *env)
 {
     if (kvm_enabled()) {
         kvm_cpu_synchronize_post_init(env);
@@ -188,8 +205,8 @@ static inline void cpu_synchronize_post_init(CPUState *env)
 
 
 #if !defined(CONFIG_USER_ONLY)
-int kvm_physical_memory_addr_from_ram(KVMState *s, ram_addr_t ram_addr,
-                                      target_phys_addr_t *phys_addr);
+int kvm_physical_memory_addr_from_host(KVMState *s, void *ram_addr,
+                                       target_phys_addr_t *phys_addr);
 #endif
 
 #endif

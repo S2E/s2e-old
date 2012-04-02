@@ -24,7 +24,7 @@ static void an5206_init(ram_addr_t ram_size,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
 {
-    CPUState *env;
+    CPUM68KState *env;
     int kernel_size;
     uint64_t elf_entry;
     target_phys_addr_t entry;
@@ -46,14 +46,16 @@ static void an5206_init(ram_addr_t ram_size,
     env->rambar0 = AN5206_RAMBAR_ADDR | 1;
 
     /* DRAM at address zero */
-    memory_region_init_ram(ram, NULL, "an5206.ram", ram_size);
+    memory_region_init_ram(ram, "an5206.ram", ram_size);
+    vmstate_register_ram_global(ram);
     memory_region_add_subregion(address_space_mem, 0, ram);
 
     /* Internal SRAM.  */
-    memory_region_init_ram(sram, NULL, "an5206.sram", 512);
+    memory_region_init_ram(sram, "an5206.sram", 512);
+    vmstate_register_ram_global(sram);
     memory_region_add_subregion(address_space_mem, AN5206_RAMBAR_ADDR, sram);
 
-    mcf5206_init(AN5206_MBAR_ADDR, env);
+    mcf5206_init(address_space_mem, AN5206_MBAR_ADDR, env);
 
     /* Load kernel.  */
     if (!kernel_filename) {

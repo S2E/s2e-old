@@ -1019,7 +1019,7 @@ void S2EExecutionState::readRegisterConcrete(
     }
 
 #ifdef S2E_TRACE_EFLAGS
-    if (offsetof(CPUState, cc_src) == offset) {
+    if (offsetof(CPUX86State, cc_src) == offset) {
         m_s2e->getDebugStream() <<  std::hex << getPc() <<
                 "read conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << '\n';
     }
@@ -1044,7 +1044,7 @@ void S2EExecutionState::writeRegisterConcrete(CPUX86State *cpuState,
     }
 
 #ifdef S2E_TRACE_EFLAGS
-    if (offsetof(CPUState, cc_src) == offset) {
+    if (offsetof(CPUX86State, cc_src) == offset) {
         m_s2e->getDebugStream() <<  std::hex << getPc() <<
                 "write conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << '\n';
     }
@@ -1159,16 +1159,16 @@ void S2EExecutionState::dumpX86State(llvm::raw_ostream &os) const
 {
 
     os << "CPU dump" << '\n';
-    os << "EAX=" << readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32) << '\n';
-    os << "EBX=" << readCpuRegister(offsetof(CPUState, regs[R_EBX]), klee::Expr::Int32) << '\n';
-    os << "ECX=" << readCpuRegister(offsetof(CPUState, regs[R_ECX]), klee::Expr::Int32) << '\n';
-    os << "EDX=" << readCpuRegister(offsetof(CPUState, regs[R_EDX]), klee::Expr::Int32) << '\n';
-    os << "ESI=" << readCpuRegister(offsetof(CPUState, regs[R_ESI]), klee::Expr::Int32) << '\n';
-    os << "EDI=" << readCpuRegister(offsetof(CPUState, regs[R_EDI]), klee::Expr::Int32) << '\n';
-    os << "EBP=" << readCpuRegister(offsetof(CPUState, regs[R_EBP]), klee::Expr::Int32) << '\n';
-    os << "ESP=" << readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32) << '\n';
-    os << "EIP=" << readCpuState(offsetof(CPUState, eip), 32) << '\n';
-    os << "CR2=" << readCpuState(offsetof(CPUState, cr[2]), 32) << '\n';
+    os << "EAX=" << readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32) << '\n';
+    os << "EBX=" << readCpuRegister(offsetof(CPUX86State, regs[R_EBX]), klee::Expr::Int32) << '\n';
+    os << "ECX=" << readCpuRegister(offsetof(CPUX86State, regs[R_ECX]), klee::Expr::Int32) << '\n';
+    os << "EDX=" << readCpuRegister(offsetof(CPUX86State, regs[R_EDX]), klee::Expr::Int32) << '\n';
+    os << "ESI=" << readCpuRegister(offsetof(CPUX86State, regs[R_ESI]), klee::Expr::Int32) << '\n';
+    os << "EDI=" << readCpuRegister(offsetof(CPUX86State, regs[R_EDI]), klee::Expr::Int32) << '\n';
+    os << "EBP=" << readCpuRegister(offsetof(CPUX86State, regs[R_EBP]), klee::Expr::Int32) << '\n';
+    os << "ESP=" << readCpuRegister(offsetof(CPUX86State, regs[R_ESP]), klee::Expr::Int32) << '\n';
+    os << "EIP=" << readCpuState(offsetof(CPUX86State, eip), 32) << '\n';
+    os << "CR2=" << readCpuState(offsetof(CPUX86State, cr[2]), 32) << '\n';
 }
 
 bool S2EExecutionState::merge(const ExecutionState &_b)
@@ -1247,7 +1247,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
         s << "]" << '\n';
     }
 
-    /* Check CPUState */
+    /* Check CPUX86State */
     {
         uint8_t* cpuStateA = m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip);
         uint8_t* cpuStateB = b.m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip);
@@ -1400,7 +1400,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
 
     // Flush TLB
     {
-        CPUState* cpu = (CPUState*) (m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip));
+        CPUX86State * cpu = (CPUX86State *) (m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip));
         cpu->current_tb = NULL;
 
         for (int mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
@@ -1416,9 +1416,9 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
     return true;
 }
 
-CPUState *S2EExecutionState::getConcreteCpuState() const
+CPUX86State *S2EExecutionState::getConcreteCpuState() const
 {
-    return (CPUState*) (m_cpuSystemState->address - CPU_OFFSET(eip));
+    return (CPUX86State *) (m_cpuSystemState->address - CPU_OFFSET(eip));
 }
 
 
@@ -1686,14 +1686,14 @@ void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
 void s2e_read_register_concrete(S2E* s2e, S2EExecutionState* state,
         CPUX86State* cpuState, unsigned offset, uint8_t* buf, unsigned size)
 {
-    /** XXX: use cpuState */
+    /** XXX: use CPUX86State */
     state->readRegisterConcrete(cpuState, offset, buf, size);
 }
 
 void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
         CPUX86State* cpuState, unsigned offset, uint8_t* buf, unsigned size)
 {
-    /** XXX: use cpuState */
+    /** XXX: use CPUX86State */
     state->writeRegisterConcrete(cpuState, offset, buf, size);
 }
 

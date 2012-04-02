@@ -224,7 +224,7 @@ static NetClientInfo net_mipsnet_info = {
     .cleanup = mipsnet_cleanup,
 };
 
-static MemoryRegionOps mipsnet_ioport_ops = {
+static const MemoryRegionOps mipsnet_ioport_ops = {
     .read = mipsnet_ioport_read,
     .write = mipsnet_ioport_write,
     .impl.min_access_size = 1,
@@ -236,11 +236,11 @@ static int mipsnet_sysbus_init(SysBusDevice *dev)
     MIPSnetState *s = DO_UPCAST(MIPSnetState, busdev, dev);
 
     memory_region_init_io(&s->io, &mipsnet_ioport_ops, s, "mipsnet-io", 36);
-    sysbus_init_mmio_region(dev, &s->io);
+    sysbus_init_mmio(dev, &s->io);
     sysbus_init_irq(dev, &s->irq);
 
     s->nic = qemu_new_nic(&net_mipsnet_info, &s->conf,
-                          dev->qdev.info->name, dev->qdev.id, s);
+                          object_get_typename(OBJECT(dev)), dev->qdev.id, s);
     qemu_format_nic_info_str(&s->nic->nc, s->conf.macaddr.a);
 
     return 0;
@@ -252,22 +252,33 @@ static void mipsnet_sysbus_reset(DeviceState *dev)
     mipsnet_reset(s);
 }
 
-static SysBusDeviceInfo mipsnet_info = {
-    .init = mipsnet_sysbus_init,
-    .qdev.name = "mipsnet",
-    .qdev.desc = "MIPS Simulator network device",
-    .qdev.size = sizeof(MIPSnetState),
-    .qdev.vmsd = &vmstate_mipsnet,
-    .qdev.reset = mipsnet_sysbus_reset,
-    .qdev.props = (Property[]) {
-        DEFINE_NIC_PROPERTIES(MIPSnetState, conf),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property mipsnet_properties[] = {
+    DEFINE_NIC_PROPERTIES(MIPSnetState, conf),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void mipsnet_register_devices(void)
+static void mipsnet_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&mipsnet_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = mipsnet_sysbus_init;
+    dc->desc = "MIPS Simulator network device";
+    dc->reset = mipsnet_sysbus_reset;
+    dc->vmsd = &vmstate_mipsnet;
+    dc->props = mipsnet_properties;
 }
 
-device_init(mipsnet_register_devices)
+static TypeInfo mipsnet_info = {
+    .name          = "mipsnet",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(MIPSnetState),
+    .class_init    = mipsnet_class_init,
+};
+
+static void mipsnet_register_types(void)
+{
+    type_register_static(&mipsnet_info);
+}
+
+type_init(mipsnet_register_types)

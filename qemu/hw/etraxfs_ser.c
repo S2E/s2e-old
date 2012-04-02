@@ -78,7 +78,7 @@ static uint64_t
 ser_read(void *opaque, target_phys_addr_t addr, unsigned int size)
 {
     struct etrax_serial *s = opaque;
-    D(CPUState *env = s->env);
+    D(CPUCRISState *env = s->env);
     uint32_t r = 0;
 
     addr >>= 2;
@@ -116,7 +116,7 @@ ser_write(void *opaque, target_phys_addr_t addr,
     struct etrax_serial *s = opaque;
     uint32_t value = val64;
     unsigned char ch = val64;
-    D(CPUState *env = s->env);
+    D(CPUCRISState *env = s->env);
 
     D(qemu_log("%s " TARGET_FMT_plx "=%x\n",  __func__, addr, value));
     addr >>= 2;
@@ -214,9 +214,9 @@ static int etraxfs_ser_init(SysBusDevice *dev)
 
     sysbus_init_irq(dev, &s->irq);
     memory_region_init_io(&s->mmio, &ser_ops, s, "etraxfs-serial", R_MAX * 4);
-    sysbus_init_mmio_region(dev, &s->mmio);
+    sysbus_init_mmio(dev, &s->mmio);
 
-    s->chr = qdev_init_chardev(&dev->qdev);
+    s->chr = qemu_char_get_next_serial();
     if (s->chr)
         qemu_chr_add_handlers(s->chr,
                       serial_can_receive, serial_receive,
@@ -224,16 +224,25 @@ static int etraxfs_ser_init(SysBusDevice *dev)
     return 0;
 }
 
-static SysBusDeviceInfo etraxfs_ser_info = {
-    .init = etraxfs_ser_init,
-    .qdev.name  = "etraxfs,serial",
-    .qdev.size  = sizeof(struct etrax_serial),
-    .qdev.reset = etraxfs_ser_reset,
-};
-
-static void etraxfs_serial_register(void)
+static void etraxfs_ser_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&etraxfs_ser_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = etraxfs_ser_init;
+    dc->reset = etraxfs_ser_reset;
 }
 
-device_init(etraxfs_serial_register)
+static TypeInfo etraxfs_ser_info = {
+    .name          = "etraxfs,serial",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(struct etrax_serial),
+    .class_init    = etraxfs_ser_class_init,
+};
+
+static void etraxfs_serial_register_types(void)
+{
+    type_register_static(&etraxfs_ser_info);
+}
+
+type_init(etraxfs_serial_register_types)

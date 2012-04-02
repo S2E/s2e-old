@@ -28,6 +28,7 @@
 #include <sys/mman.h>
 
 #include "qemu.h"
+#include "qemu-common.h"
 
 #define DEBUG_LOGFILE "/tmp/qemu.log"
 
@@ -70,44 +71,44 @@ void gemu_log(const char *fmt, ...)
     va_end(ap);
 }
 
-int cpu_get_pic_interrupt(CPUState *env)
+int cpu_get_pic_interrupt(CPUArchState *env)
 {
     return -1;
 }
 #ifdef TARGET_PPC
 
-static inline uint64_t cpu_ppc_get_tb (CPUState *env)
+static inline uint64_t cpu_ppc_get_tb(CPUPPCState *env)
 {
     /* TO FIX */
     return 0;
 }
 
-uint64_t cpu_ppc_load_tbl (CPUState *env)
+uint64_t cpu_ppc_load_tbl(CPUPPCState *env)
 {
     return cpu_ppc_get_tb(env);
 }
 
-uint32_t cpu_ppc_load_tbu (CPUState *env)
+uint32_t cpu_ppc_load_tbu(CPUPPCState *env)
 {
     return cpu_ppc_get_tb(env) >> 32;
 }
 
-uint64_t cpu_ppc_load_atbl (CPUState *env)
+uint64_t cpu_ppc_load_atbl(CPUPPCState *env)
 {
     return cpu_ppc_get_tb(env);
 }
 
-uint32_t cpu_ppc_load_atbu (CPUState *env)
+uint32_t cpu_ppc_load_atbu(CPUPPCState *env)
 {
     return cpu_ppc_get_tb(env) >> 32;
 }
 
-uint32_t cpu_ppc601_load_rtcu (CPUState *env)
+uint32_t cpu_ppc601_load_rtcu(CPUPPCState *env)
 {
     cpu_ppc_load_tbu(env);
 }
 
-uint32_t cpu_ppc601_load_rtcl (CPUState *env)
+uint32_t cpu_ppc601_load_rtcl(CPUPPCState *env)
 {
     return cpu_ppc_load_tbl(env) & 0x3FFFFF80;
 }
@@ -394,7 +395,7 @@ void cpu_loop(CPUPPCState *env)
             queue_signal(info.si_signo, &info);
             break;
         case POWERPC_EXCP_PIT:      /* Programmable interval timer IRQ       */
-            cpu_abort(env, "Programable interval timer interrupt "
+            cpu_abort(env, "Programmable interval timer interrupt "
                       "while in user mode. Aborting\n");
             break;
         case POWERPC_EXCP_IO:       /* IO error exception                    */
@@ -728,7 +729,7 @@ static void usage(void)
 }
 
 /* XXX: currently only used for async signals (see signal.c) */
-CPUState *global_env;
+CPUArchState *global_env;
 
 /* used to free thread contexts */
 TaskState *first_task_state;
@@ -740,7 +741,7 @@ int main(int argc, char **argv)
     const char *log_mask = NULL;
     struct target_pt_regs regs1, *regs = &regs1;
     TaskState ts1, *ts = &ts1;
-    CPUState *env;
+    CPUArchState *env;
     int optind;
     short use_gdbstub = 0;
     const char *r;
@@ -748,6 +749,8 @@ int main(int argc, char **argv)
 
     if (argc <= 1)
         usage();
+
+    module_call_init(MODULE_INIT_QOM);
 
     optind = 1;
     for(;;) {
@@ -855,7 +858,7 @@ int main(int argc, char **argv)
     /* NOTE: we need to init the CPU at this stage to get
        qemu_host_page_size */
     env = cpu_init(cpu_model);
-    cpu_reset(env);
+    cpu_state_reset(env);
 
     printf("Starting %s with qemu\n----------------\n", filename);
 

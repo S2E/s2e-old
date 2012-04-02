@@ -81,8 +81,6 @@ struct PCII440FXState {
     PAMMemoryRegion pam_regions[13];
     MemoryRegion smram_region;
     uint8_t smm_enabled;
-    bool smram_enabled;
-    PIIX3State *piix3;
 };
 
 
@@ -141,6 +139,7 @@ static void i440fx_update_memory_mappings(PCII440FXState *d)
 {
     int i, r;
     uint32_t smram;
+    bool smram_enabled;
 
     memory_region_transaction_begin();
     update_pam(d, 0xf0000, 0x100000, (d->dev.config[I440FX_PAM] >> 4) & 3,
@@ -151,18 +150,8 @@ static void i440fx_update_memory_mappings(PCII440FXState *d)
                    &d->pam_regions[i+1]);
     }
     smram = d->dev.config[I440FX_SMRAM];
-    if ((d->smm_enabled && (smram & 0x08)) || (smram & 0x40)) {
-        if (!d->smram_enabled) {
-            memory_region_del_subregion(d->system_memory, &d->smram_region);
-            d->smram_enabled = true;
-        }
-    } else {
-        if (d->smram_enabled) {
-            memory_region_add_subregion_overlap(d->system_memory, 0xa0000,
-                                                &d->smram_region, 1);
-            d->smram_enabled = false;
-        }
-    }
+    smram_enabled = (d->smm_enabled && (smram & 0x08)) || (smram & 0x40);
+    memory_region_set_enabled(&d->smram_region, !smram_enabled);
     memory_region_transaction_commit();
 }
 
@@ -263,7 +252,7 @@ static int i440fx_initfn(PCIDevice *dev)
 static PCIBus *i440fx_common_init(const char *device_name,
                                   PCII440FXState **pi440fx_state,
                                   int *piix3_devfn,
-                                  qemu_irq *pic,
+                                  ISABus **isa_bus, qemu_irq *pic,
                                   MemoryRegion *address_space_mem,
                                   MemoryRegion *address_space_io,
                                   ram_addr_t ram_size,
@@ -288,6 +277,7 @@ static PCIBus *i440fx_common_init(const char *device_name,
                     address_space_io, 0);
     s->bus = b;
     qdev_init_nofail(dev);
+    object_property_add_child(object_get_root(), "i440fx", OBJECT(dev), NULL);
 
     d = pci_create_simple(b, 0, device_name);
     *pi440fx_state = DO_UPCAST(PCII440FXState, dev, d);
@@ -307,7 +297,9 @@ static PCIBus *i440fx_common_init(const char *device_name,
     }
     memory_region_init_alias(&f->smram_region, "smram-region",
                              f->pci_address_space, 0xa0000, 0x20000);
-    f->smram_enabled = true;
+    memory_region_add_subregion_overlap(f->system_memory, 0xa0000,
+                                        &f->smram_region, 1);
+    memory_region_set_enabled(&f->smram_region, false);
 
     /* Xen supports additional interrupt routes from the PCI devices to
      * the IOAPIC: the four pins of each PCI device on the bus are also
@@ -324,9 +316,10 @@ static PCIBus *i440fx_common_init(const char *device_name,
         pci_bus_irqs(b, piix3_set_irq, pci_slot_get_pirq, piix3,
                 PIIX_NUM_PIRQS);
     }
+    object_property_add_child(OBJECT(dev), "piix3", OBJECT(piix3), NULL);
     piix3->pic = pic;
-
-    (*pi440fx_state)->piix3 = piix3;
+    *isa_bus = DO_UPCAST(ISABus, qbus,
+                         qdev_get_child_bus(&piix3->dev.qdev, "isa.0"));
 
     *piix3_devfn = piix3->dev.devfn;
 
@@ -341,7 +334,7 @@ static PCIBus *i440fx_common_init(const char *device_name,
 }
 
 PCIBus *i440fx_init(PCII440FXState **pi440fx_state, int *piix3_devfn,
-                    qemu_irq *pic,
+                    ISABus **isa_bus, qemu_irq *pic,
                     MemoryRegion *address_space_mem,
                     MemoryRegion *address_space_io,
                     ram_addr_t ram_size,
@@ -354,7 +347,7 @@ PCIBus *i440fx_init(PCII440FXState **pi440fx_state, int *piix3_devfn,
 {
     PCIBus *b;
 
-    b = i440fx_common_init("i440FX", pi440fx_state, piix3_devfn, pic,
+    b = i440fx_common_init("i440FX", pi440fx_state, piix3_devfn, isa_bus, pic,
                            address_space_mem, address_space_io, ram_size,
                            pci_hole_start, pci_hole_size,
                            pci_hole64_size, pci_hole64_size,
@@ -509,60 +502,99 @@ static int piix3_initfn(PCIDevice *dev)
     return 0;
 }
 
-static PCIDeviceInfo i440fx_info[] = {
-    {
-        .qdev.name    = "i440FX",
-        .qdev.desc    = "Host bridge",
-        .qdev.size    = sizeof(PCII440FXState),
-        .qdev.vmsd    = &vmstate_i440fx,
-        .qdev.no_user = 1,
-        .no_hotplug   = 1,
-        .init         = i440fx_initfn,
-        .config_write = i440fx_write_config,
-        .vendor_id    = PCI_VENDOR_ID_INTEL,
-        .device_id    = PCI_DEVICE_ID_INTEL_82441,
-        .revision     = 0x02,
-        .class_id     = PCI_CLASS_BRIDGE_HOST,
-    },{
-        .qdev.name    = "PIIX3",
-        .qdev.desc    = "ISA bridge",
-        .qdev.size    = sizeof(PIIX3State),
-        .qdev.vmsd    = &vmstate_piix3,
-        .qdev.no_user = 1,
-        .no_hotplug   = 1,
-        .init         = piix3_initfn,
-        .config_write = piix3_write_config,
-        .vendor_id    = PCI_VENDOR_ID_INTEL,
-        .device_id    = PCI_DEVICE_ID_INTEL_82371SB_0, // 82371SB PIIX3 PCI-to-ISA bridge (Step A1)
-        .class_id     = PCI_CLASS_BRIDGE_ISA,
-    },{
-        .qdev.name    = "PIIX3-xen",
-        .qdev.desc    = "ISA bridge",
-        .qdev.size    = sizeof(PIIX3State),
-        .qdev.vmsd    = &vmstate_piix3,
-        .qdev.no_user = 1,
-        .no_hotplug   = 1,
-        .init         = piix3_initfn,
-        .config_write = piix3_write_config_xen,
-        .vendor_id    = PCI_VENDOR_ID_INTEL,
-        .device_id    = PCI_DEVICE_ID_INTEL_82371SB_0, // 82371SB PIIX3 PCI-to-ISA bridge (Step A1)
-        .class_id     = PCI_CLASS_BRIDGE_ISA,
-    },{
-        /* end of list */
-    }
-};
-
-static SysBusDeviceInfo i440fx_pcihost_info = {
-    .init         = i440fx_pcihost_initfn,
-    .qdev.name    = "i440FX-pcihost",
-    .qdev.fw_name = "pci",
-    .qdev.size    = sizeof(I440FXState),
-    .qdev.no_user = 1,
-};
-
-static void i440fx_register(void)
+static void piix3_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&i440fx_pcihost_info);
-    pci_qdev_register_many(i440fx_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    dc->desc        = "ISA bridge";
+    dc->vmsd        = &vmstate_piix3;
+    dc->no_user     = 1,
+    k->no_hotplug   = 1;
+    k->init         = piix3_initfn;
+    k->config_write = piix3_write_config;
+    k->vendor_id    = PCI_VENDOR_ID_INTEL;
+    k->device_id    = PCI_DEVICE_ID_INTEL_82371SB_0; // 82371SB PIIX3 PCI-to-ISA bridge (Step A1)
+    k->class_id     = PCI_CLASS_BRIDGE_ISA;
 }
-device_init(i440fx_register);
+
+static TypeInfo piix3_info = {
+    .name          = "PIIX3",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PIIX3State),
+    .class_init    = piix3_class_init,
+};
+
+static void piix3_xen_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    dc->desc        = "ISA bridge";
+    dc->vmsd        = &vmstate_piix3;
+    dc->no_user     = 1;
+    k->no_hotplug   = 1;
+    k->init         = piix3_initfn;
+    k->config_write = piix3_write_config_xen;
+    k->vendor_id    = PCI_VENDOR_ID_INTEL;
+    k->device_id    = PCI_DEVICE_ID_INTEL_82371SB_0; // 82371SB PIIX3 PCI-to-ISA bridge (Step A1)
+    k->class_id     = PCI_CLASS_BRIDGE_ISA;
+};
+
+static TypeInfo piix3_xen_info = {
+    .name          = "PIIX3-xen",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PIIX3State),
+    .class_init    = piix3_xen_class_init,
+};
+
+static void i440fx_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->no_hotplug = 1;
+    k->init = i440fx_initfn;
+    k->config_write = i440fx_write_config;
+    k->vendor_id = PCI_VENDOR_ID_INTEL;
+    k->device_id = PCI_DEVICE_ID_INTEL_82441;
+    k->revision = 0x02;
+    k->class_id = PCI_CLASS_BRIDGE_HOST;
+    dc->desc = "Host bridge";
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_i440fx;
+}
+
+static TypeInfo i440fx_info = {
+    .name          = "i440FX",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCII440FXState),
+    .class_init    = i440fx_class_init,
+};
+
+static void i440fx_pcihost_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = i440fx_pcihost_initfn;
+    dc->fw_name = "pci";
+    dc->no_user = 1;
+}
+
+static TypeInfo i440fx_pcihost_info = {
+    .name          = "i440FX-pcihost",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(I440FXState),
+    .class_init    = i440fx_pcihost_class_init,
+};
+
+static void i440fx_register_types(void)
+{
+    type_register_static(&i440fx_info);
+    type_register_static(&piix3_info);
+    type_register_static(&piix3_xen_info);
+    type_register_static(&i440fx_pcihost_info);
+}
+
+type_init(i440fx_register_types)

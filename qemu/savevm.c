@@ -97,6 +97,8 @@
 #include "qemu-queue.h"
 #include "qemu-timer.h"
 #include "cpus.h"
+#include "memory.h"
+#include "qmp-commands.h"
 
 #define SELF_ANNOUNCE_ROUNDS 5
 
@@ -296,6 +298,9 @@ static int stdio_pclose(void *opaque)
     QEMUFileStdio *s = opaque;
     int ret;
     ret = pclose(s->stdio_file);
+    if (ret == -1) {
+        ret = -errno;
+    }
     g_free(s);
     return ret;
 }
@@ -303,9 +308,12 @@ static int stdio_pclose(void *opaque)
 static int stdio_fclose(void *opaque)
 {
     QEMUFileStdio *s = opaque;
-    fclose(s->stdio_file);
+    int ret = 0;
+    if (fclose(s->stdio_file) == EOF) {
+        ret = -errno;
+    }
     g_free(s);
-    return 0;
+    return ret;
 }
 
 QEMUFile *qemu_popen(FILE *stdio_file, const char *mode)
@@ -497,6 +505,22 @@ void qemu_file_set_error(QEMUFile *f, int ret)
     f->last_error = ret;
 }
 
+/** Sets last_error conditionally
+ *
+ * Sets last_error only if ret is negative _and_ no error
+ * was set before.
+ */
+static void qemu_file_set_if_error(QEMUFile *f, int ret)
+{
+    if (ret < 0 && !f->last_error) {
+        qemu_file_set_error(f, ret);
+    }
+}
+
+/** Flushes QEMUFile buffer
+ *
+ * In case of error, last_error is set.
+ */
 void qemu_fflush(QEMUFile *f)
 {
     if (!f->put_buffer)
@@ -509,7 +533,7 @@ void qemu_fflush(QEMUFile *f)
         if (len > 0)
             f->buf_offset += f->buf_index;
         else
-            f->last_error = -EINVAL;
+            qemu_file_set_error(f, -EINVAL);
         f->buf_index = 0;
     }
 }
@@ -548,15 +572,44 @@ static void qemu_fill_buffer(QEMUFile *f)
     } else if (len == 0) {
         f->last_error = -EIO;
     } else if (len != -EAGAIN)
-        f->last_error = len;
+        qemu_file_set_error(f, len);
 }
 
-int qemu_fclose(QEMUFile *f)
+/** Calls close function and set last_error if needed
+ *
+ * Internal function. qemu_fflush() must be called before this.
+ *
+ * Returns f->close() return value, or 0 if close function is not set.
+ */
+static int qemu_close(QEMUFile *f)
 {
     int ret = 0;
-    qemu_fflush(f);
-    if (f->close)
+    if (f->close) {
         ret = f->close(f->opaque);
+        qemu_file_set_if_error(f, ret);
+    }
+    return ret;
+}
+
+/** Closes the file
+ *
+ * Returns negative error value if any error happened on previous operations or
+ * while closing the file. Returns 0 or positive number on success.
+ *
+ * The meaning of return value on success depends on the specific backend
+ * being used.
+ */
+int qemu_fclose(QEMUFile *f)
+{
+    int ret;
+    qemu_fflush(f);
+    ret = qemu_close(f);
+    /* If any error was spotted before closing, we should report it
+     * instead of the close() return value.
+     */
+    if (f->last_error) {
+        ret = f->last_error;
+    }
     g_free(f);
     return ret;
 }
@@ -1195,6 +1248,7 @@ typedef struct SaveStateEntry {
     void *opaque;
     CompatEntry *compat;
     int no_migrate;
+    int is_ram;
 } SaveStateEntry;
 
 
@@ -1259,6 +1313,10 @@ int register_savevm_live(DeviceState *dev,
     se->opaque = opaque;
     se->vmsd = NULL;
     se->no_migrate = 0;
+    /* if this is a live_savem then set is_ram */
+    if (save_live_state != NULL) {
+        se->is_ram = 1;
+    }
 
     if (dev && dev->parent_bus && dev->parent_bus->info->get_dev_path) {
         char *id = dev->parent_bus->info->get_dev_path(dev);
@@ -1504,6 +1562,8 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
                 n_elems = field->num;
             } else if (field->flags & VMS_VARRAY_INT32) {
                 n_elems = *(int32_t *)(opaque+field->num_offset);
+            } else if (field->flags & VMS_VARRAY_UINT32) {
+                n_elems = *(uint32_t *)(opaque+field->num_offset);
             } else if (field->flags & VMS_VARRAY_UINT16) {
                 n_elems = *(uint16_t *)(opaque+field->num_offset);
             } else if (field->flags & VMS_VARRAY_UINT8) {
@@ -1558,22 +1618,20 @@ static void vmstate_save(QEMUFile *f, SaveStateEntry *se)
 #define QEMU_VM_SECTION_FULL         0x04
 #define QEMU_VM_SUBSECTION           0x05
 
-bool qemu_savevm_state_blocked(Monitor *mon)
+bool qemu_savevm_state_blocked(Error **errp)
 {
     SaveStateEntry *se;
 
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
         if (se->no_migrate) {
-            monitor_printf(mon, "state blocked by non-migratable device '%s'\n",
-                           se->idstr);
+            error_set(errp, QERR_MIGRATION_NOT_SUPPORTED, se->idstr);
             return true;
         }
     }
     return false;
 }
 
-int qemu_savevm_state_begin(Monitor *mon, QEMUFile *f, int blk_enable,
-                            int shared)
+int qemu_savevm_state_begin(QEMUFile *f, int blk_enable, int shared)
 {
     SaveStateEntry *se;
     int ret;
@@ -1606,15 +1664,15 @@ int qemu_savevm_state_begin(Monitor *mon, QEMUFile *f, int blk_enable,
         qemu_put_be32(f, se->instance_id);
         qemu_put_be32(f, se->version_id);
 
-        ret = se->save_live_state(mon, f, QEMU_VM_SECTION_START, se->opaque);
+        ret = se->save_live_state(f, QEMU_VM_SECTION_START, se->opaque);
         if (ret < 0) {
-            qemu_savevm_state_cancel(mon, f);
+            qemu_savevm_state_cancel(f);
             return ret;
         }
     }
     ret = qemu_file_get_error(f);
     if (ret != 0) {
-        qemu_savevm_state_cancel(mon, f);
+        qemu_savevm_state_cancel(f);
     }
 
     return ret;
@@ -1622,12 +1680,12 @@ int qemu_savevm_state_begin(Monitor *mon, QEMUFile *f, int blk_enable,
 }
 
 /*
- * this funtion has three return values:
+ * this function has three return values:
  *   negative: there was one error, and we have -errno.
  *   0 : We haven't finished, caller have to go again
  *   1 : We have finished, we can go to complete phase
  */
-int qemu_savevm_state_iterate(Monitor *mon, QEMUFile *f)
+int qemu_savevm_state_iterate(QEMUFile *f)
 {
     SaveStateEntry *se;
     int ret = 1;
@@ -1640,7 +1698,7 @@ int qemu_savevm_state_iterate(Monitor *mon, QEMUFile *f)
         qemu_put_byte(f, QEMU_VM_SECTION_PART);
         qemu_put_be32(f, se->section_id);
 
-        ret = se->save_live_state(mon, f, QEMU_VM_SECTION_PART, se->opaque);
+        ret = se->save_live_state(f, QEMU_VM_SECTION_PART, se->opaque);
         if (ret <= 0) {
             /* Do not proceed to the next vmstate before this one reported
                completion of the current stage. This serializes the migration
@@ -1654,12 +1712,12 @@ int qemu_savevm_state_iterate(Monitor *mon, QEMUFile *f)
     }
     ret = qemu_file_get_error(f);
     if (ret != 0) {
-        qemu_savevm_state_cancel(mon, f);
+        qemu_savevm_state_cancel(f);
     }
     return ret;
 }
 
-int qemu_savevm_state_complete(Monitor *mon, QEMUFile *f)
+int qemu_savevm_state_complete(QEMUFile *f)
 {
     SaveStateEntry *se;
     int ret;
@@ -1674,7 +1732,7 @@ int qemu_savevm_state_complete(Monitor *mon, QEMUFile *f)
         qemu_put_byte(f, QEMU_VM_SECTION_END);
         qemu_put_be32(f, se->section_id);
 
-        ret = se->save_live_state(mon, f, QEMU_VM_SECTION_END, se->opaque);
+        ret = se->save_live_state(f, QEMU_VM_SECTION_END, se->opaque);
         if (ret < 0) {
             return ret;
         }
@@ -1706,37 +1764,37 @@ int qemu_savevm_state_complete(Monitor *mon, QEMUFile *f)
     return qemu_file_get_error(f);
 }
 
-void qemu_savevm_state_cancel(Monitor *mon, QEMUFile *f)
+void qemu_savevm_state_cancel(QEMUFile *f)
 {
     SaveStateEntry *se;
 
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
         if (se->save_live_state) {
-            se->save_live_state(mon, f, -1, se->opaque);
+            se->save_live_state(f, -1, se->opaque);
         }
     }
 }
 
-static int qemu_savevm_state(Monitor *mon, QEMUFile *f)
+static int qemu_savevm_state(QEMUFile *f)
 {
     int ret;
 
-    if (qemu_savevm_state_blocked(mon)) {
+    if (qemu_savevm_state_blocked(NULL)) {
         ret = -EINVAL;
         goto out;
     }
 
-    ret = qemu_savevm_state_begin(mon, f, 0, 0);
+    ret = qemu_savevm_state_begin(f, 0, 0);
     if (ret < 0)
         goto out;
 
     do {
-        ret = qemu_savevm_state_iterate(mon, f);
+        ret = qemu_savevm_state_iterate(f);
         if (ret < 0)
             goto out;
     } while (ret == 0);
 
-    ret = qemu_savevm_state_complete(mon, f);
+    ret = qemu_savevm_state_complete(f);
 
 out:
     if (ret == 0) {
@@ -1744,6 +1802,45 @@ out:
     }
 
     return ret;
+}
+
+static int qemu_save_device_state(QEMUFile *f)
+{
+    SaveStateEntry *se;
+
+    qemu_put_be32(f, QEMU_VM_FILE_MAGIC);
+    qemu_put_be32(f, QEMU_VM_FILE_VERSION);
+
+    cpu_synchronize_all_states();
+
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        int len;
+
+        if (se->is_ram) {
+            continue;
+        }
+        if (se->save_state == NULL && se->vmsd == NULL) {
+            continue;
+        }
+
+        /* Section type */
+        qemu_put_byte(f, QEMU_VM_SECTION_FULL);
+        qemu_put_be32(f, se->section_id);
+
+        /* ID string */
+        len = strlen(se->idstr);
+        qemu_put_byte(f, len);
+        qemu_put_buffer(f, (uint8_t *)se->idstr, len);
+
+        qemu_put_be32(f, se->instance_id);
+        qemu_put_be32(f, se->version_id);
+
+        vmstate_save(f, se);
+    }
+
+    qemu_put_byte(f, QEMU_VM_EOF);
+
+    return qemu_file_get_error(f);
 }
 
 static SaveStateEntry *find_se(const char *idstr, int instance_id)
@@ -1886,7 +1983,7 @@ int qemu_loadvm_state(QEMUFile *f)
     unsigned int v;
     int ret;
 
-    if (qemu_savevm_state_blocked(default_mon)) {
+    if (qemu_savevm_state_blocked(NULL)) {
         return -EINVAL;
     }
 
@@ -2052,7 +2149,7 @@ void do_savevm(Monitor *mon, const QDict *qdict)
     int ret;
     QEMUFile *f;
     int saved_vm_running;
-    uint32_t vm_state_size;
+    uint64_t vm_state_size;
 #ifdef _WIN32
     struct _timeb tb;
     struct tm *ptm;
@@ -2130,7 +2227,7 @@ void do_savevm(Monitor *mon, const QDict *qdict)
         monitor_printf(mon, "Could not open VM state file\n");
         goto the_end;
     }
-    ret = qemu_savevm_state(mon, f);
+    ret = qemu_savevm_state(f);
     vm_state_size = qemu_ftell(f);
     qemu_fclose(f);
     if (ret < 0) {
@@ -2156,6 +2253,32 @@ void do_savevm(Monitor *mon, const QDict *qdict)
  the_end:
     if (saved_vm_running)
         vm_start();
+}
+
+void qmp_xen_save_devices_state(const char *filename, Error **errp)
+{
+    QEMUFile *f;
+    int saved_vm_running;
+    int ret;
+
+    saved_vm_running = runstate_is_running();
+    vm_stop(RUN_STATE_SAVE_VM);
+
+    f = qemu_fopen(filename, "wb");
+    if (!f) {
+        error_set(errp, QERR_OPEN_FILE_FAILED, filename);
+        goto the_end;
+    }
+    ret = qemu_save_device_state(f);
+    qemu_fclose(f);
+    if (ret < 0) {
+        error_set(errp, QERR_IO_ERROR);
+    }
+
+ the_end:
+    if (saved_vm_running)
+        vm_start();
+    return;
 }
 
 int load_vmstate(const char *name)
@@ -2205,7 +2328,7 @@ int load_vmstate(const char *name)
     }
 
     /* Flush all IO requests so they don't interfere with the new state.  */
-    qemu_aio_flush();
+    bdrv_drain_all();
 
     bs = NULL;
     while ((bs = bdrv_next(bs))) {
@@ -2329,4 +2452,20 @@ void do_info_snapshots(Monitor *mon)
     g_free(sn_tab);
     g_free(available_snapshots);
 
+}
+
+void vmstate_register_ram(MemoryRegion *mr, DeviceState *dev)
+{
+    qemu_ram_set_idstr(memory_region_get_ram_addr(mr) & TARGET_PAGE_MASK,
+                       memory_region_name(mr), dev);
+}
+
+void vmstate_unregister_ram(MemoryRegion *mr, DeviceState *dev)
+{
+    /* Nothing do to while the implementation is in RAMBlock */
+}
+
+void vmstate_register_ram_global(MemoryRegion *mr)
+{
+    vmstate_register_ram(mr, NULL);
 }

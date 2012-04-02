@@ -42,7 +42,7 @@ enum ssd0303_cmd {
 };
 
 typedef struct {
-    i2c_slave i2c;
+    I2CSlave i2c;
     DisplayState *ds;
     int row;
     int col;
@@ -57,13 +57,13 @@ typedef struct {
     uint8_t framebuffer[132*8];
 } ssd0303_state;
 
-static int ssd0303_recv(i2c_slave *i2c)
+static int ssd0303_recv(I2CSlave *i2c)
 {
     BADF("Reads not implemented\n");
     return -1;
 }
 
-static int ssd0303_send(i2c_slave *i2c, uint8_t data)
+static int ssd0303_send(I2CSlave *i2c, uint8_t data)
 {
     ssd0303_state *s = (ssd0303_state *)i2c;
     enum ssd0303_cmd old_cmd_state;
@@ -123,7 +123,7 @@ static int ssd0303_send(i2c_slave *i2c, uint8_t data)
             case 0xa7: /* Inverse on.  */
                 s->inverse = 1;
                 break;
-            case 0xa8: /* Set multipled ratio (Ignored).  */
+            case 0xa8: /* Set multiplied ratio (Ignored).  */
                 s->cmd_state = SSD0303_CMD_SKIP1;
                 break;
             case 0xad: /* DC-DC power control.  */
@@ -173,7 +173,7 @@ static int ssd0303_send(i2c_slave *i2c, uint8_t data)
     return 0;
 }
 
-static void ssd0303_event(i2c_slave *i2c, enum i2c_event event)
+static void ssd0303_event(I2CSlave *i2c, enum i2c_event event)
 {
     ssd0303_state *s = (ssd0303_state *)i2c;
     switch (event) {
@@ -283,7 +283,7 @@ static const VMStateDescription vmstate_ssd0303 = {
     }
 };
 
-static int ssd0303_init(i2c_slave *i2c)
+static int ssd0303_init(I2CSlave *i2c)
 {
     ssd0303_state *s = FROM_I2C_SLAVE(ssd0303_state, i2c);
 
@@ -294,19 +294,28 @@ static int ssd0303_init(i2c_slave *i2c)
     return 0;
 }
 
-static I2CSlaveInfo ssd0303_info = {
-    .qdev.name = "ssd0303",
-    .qdev.size = sizeof(ssd0303_state),
-    .qdev.vmsd = &vmstate_ssd0303,
-    .init = ssd0303_init,
-    .event = ssd0303_event,
-    .recv = ssd0303_recv,
-    .send = ssd0303_send
-};
-
-static void ssd0303_register_devices(void)
+static void ssd0303_class_init(ObjectClass *klass, void *data)
 {
-    i2c_register_slave(&ssd0303_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    I2CSlaveClass *k = I2C_SLAVE_CLASS(klass);
+
+    k->init = ssd0303_init;
+    k->event = ssd0303_event;
+    k->recv = ssd0303_recv;
+    k->send = ssd0303_send;
+    dc->vmsd = &vmstate_ssd0303;
 }
 
-device_init(ssd0303_register_devices)
+static TypeInfo ssd0303_info = {
+    .name          = "ssd0303",
+    .parent        = TYPE_I2C_SLAVE,
+    .instance_size = sizeof(ssd0303_state),
+    .class_init    = ssd0303_class_init,
+};
+
+static void ssd0303_register_types(void)
+{
+    type_register_static(&ssd0303_info);
+}
+
+type_init(ssd0303_register_types)

@@ -9,10 +9,21 @@
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "hmp.h"
+#include "qemu-timer.h"
 #include "qmp-commands.h"
+
+static void hmp_handle_error(Monitor *mon, Error **errp)
+{
+    if (error_is_set(errp)) {
+        monitor_printf(mon, "%s\n", error_get_pretty(*errp));
+        error_free(*errp);
+    }
+}
 
 void hmp_info_name(Monitor *mon)
 {
@@ -216,6 +227,16 @@ void hmp_info_block(Monitor *mon)
                            info->value->inserted->ro,
                            info->value->inserted->drv,
                            info->value->inserted->encrypted);
+
+            monitor_printf(mon, " bps=%" PRId64 " bps_rd=%" PRId64
+                            " bps_wr=%" PRId64 " iops=%" PRId64
+                            " iops_rd=%" PRId64 " iops_wr=%" PRId64,
+                            info->value->inserted->bps,
+                            info->value->inserted->bps_rd,
+                            info->value->inserted->bps_wr,
+                            info->value->inserted->iops,
+                            info->value->inserted->iops_rd,
+                            info->value->inserted->iops_wr);
         } else {
             monitor_printf(mon, " [not inserted]");
         }
@@ -468,17 +489,17 @@ static void hmp_info_pci_device(Monitor *mon, const PciDeviceInfo *dev)
 
 void hmp_info_pci(Monitor *mon)
 {
-    PciInfoList *info;
+    PciInfoList *info_list, *info;
     Error *err = NULL;
 
-    info = qmp_query_pci(&err);
+    info_list = qmp_query_pci(&err);
     if (err) {
         monitor_printf(mon, "PCI devices not supported\n");
         error_free(err);
         return;
     }
 
-    for (; info; info = info->next) {
+    for (info = info_list; info; info = info->next) {
         PciDeviceInfoList *dev;
 
         for (dev = info->value->devices; dev; dev = dev->next) {
@@ -486,7 +507,43 @@ void hmp_info_pci(Monitor *mon)
         }
     }
 
-    qapi_free_PciInfoList(info);
+    qapi_free_PciInfoList(info_list);
+}
+
+void hmp_info_block_jobs(Monitor *mon)
+{
+    BlockJobInfoList *list;
+    Error *err = NULL;
+
+    list = qmp_query_block_jobs(&err);
+    assert(!err);
+
+    if (!list) {
+        monitor_printf(mon, "No active jobs\n");
+        return;
+    }
+
+    while (list) {
+        if (strcmp(list->value->type, "stream") == 0) {
+            monitor_printf(mon, "Streaming device %s: Completed %" PRId64
+                           " of %" PRId64 " bytes, speed limit %" PRId64
+                           " bytes/s\n",
+                           list->value->device,
+                           list->value->offset,
+                           list->value->len,
+                           list->value->speed);
+        } else {
+            monitor_printf(mon, "Type %s, device %s: Completed %" PRId64
+                           " of %" PRId64 " bytes, speed limit %" PRId64
+                           " bytes/s\n",
+                           list->value->type,
+                           list->value->device,
+                           list->value->offset,
+                           list->value->len,
+                           list->value->speed);
+        }
+        list = list->next;
+    }
 }
 
 void hmp_quit(Monitor *mon, const QDict *qdict)
@@ -519,5 +576,361 @@ void hmp_cpu(Monitor *mon, const QDict *qdict)
     cpu_index = qdict_get_int(qdict, "index");
     if (monitor_set_cpu(cpu_index) < 0) {
         monitor_printf(mon, "invalid CPU index\n");
+    }
+}
+
+void hmp_memsave(Monitor *mon, const QDict *qdict)
+{
+    uint32_t size = qdict_get_int(qdict, "size");
+    const char *filename = qdict_get_str(qdict, "filename");
+    uint64_t addr = qdict_get_int(qdict, "val");
+    Error *errp = NULL;
+
+    qmp_memsave(addr, size, filename, true, monitor_get_cpu_index(), &errp);
+    hmp_handle_error(mon, &errp);
+}
+
+void hmp_pmemsave(Monitor *mon, const QDict *qdict)
+{
+    uint32_t size = qdict_get_int(qdict, "size");
+    const char *filename = qdict_get_str(qdict, "filename");
+    uint64_t addr = qdict_get_int(qdict, "val");
+    Error *errp = NULL;
+
+    qmp_pmemsave(addr, size, filename, &errp);
+    hmp_handle_error(mon, &errp);
+}
+
+static void hmp_cont_cb(void *opaque, int err)
+{
+    Monitor *mon = opaque;
+
+    if (!err) {
+        hmp_cont(mon, NULL);
+    }
+}
+
+void hmp_cont(Monitor *mon, const QDict *qdict)
+{
+    Error *errp = NULL;
+
+    qmp_cont(&errp);
+    if (error_is_set(&errp)) {
+        if (error_is_type(errp, QERR_DEVICE_ENCRYPTED)) {
+            const char *device;
+
+            /* The device is encrypted. Ask the user for the password
+               and retry */
+
+            device = error_get_field(errp, "device");
+            assert(device != NULL);
+
+            monitor_read_block_device_key(mon, device, hmp_cont_cb, mon);
+            error_free(errp);
+            return;
+        }
+        hmp_handle_error(mon, &errp);
+    }
+}
+
+void hmp_system_wakeup(Monitor *mon, const QDict *qdict)
+{
+    qmp_system_wakeup(NULL);
+}
+
+void hmp_inject_nmi(Monitor *mon, const QDict *qdict)
+{
+    Error *errp = NULL;
+
+    qmp_inject_nmi(&errp);
+    hmp_handle_error(mon, &errp);
+}
+
+void hmp_set_link(Monitor *mon, const QDict *qdict)
+{
+    const char *name = qdict_get_str(qdict, "name");
+    int up = qdict_get_bool(qdict, "up");
+    Error *errp = NULL;
+
+    qmp_set_link(name, up, &errp);
+    hmp_handle_error(mon, &errp);
+}
+
+void hmp_block_passwd(Monitor *mon, const QDict *qdict)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    const char *password = qdict_get_str(qdict, "password");
+    Error *errp = NULL;
+
+    qmp_block_passwd(device, password, &errp);
+    hmp_handle_error(mon, &errp);
+}
+
+void hmp_balloon(Monitor *mon, const QDict *qdict)
+{
+    int64_t value = qdict_get_int(qdict, "value");
+    Error *errp = NULL;
+
+    qmp_balloon(value, &errp);
+    if (error_is_set(&errp)) {
+        monitor_printf(mon, "balloon: %s\n", error_get_pretty(errp));
+        error_free(errp);
+    }
+}
+
+void hmp_block_resize(Monitor *mon, const QDict *qdict)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    int64_t size = qdict_get_int(qdict, "size");
+    Error *errp = NULL;
+
+    qmp_block_resize(device, size, &errp);
+    hmp_handle_error(mon, &errp);
+}
+
+void hmp_snapshot_blkdev(Monitor *mon, const QDict *qdict)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    const char *filename = qdict_get_try_str(qdict, "snapshot-file");
+    const char *format = qdict_get_try_str(qdict, "format");
+    int reuse = qdict_get_try_bool(qdict, "reuse", 0);
+    enum NewImageMode mode;
+    Error *errp = NULL;
+
+    if (!filename) {
+        /* In the future, if 'snapshot-file' is not specified, the snapshot
+           will be taken internally. Today it's actually required. */
+        error_set(&errp, QERR_MISSING_PARAMETER, "snapshot-file");
+        hmp_handle_error(mon, &errp);
+        return;
+    }
+
+    mode = reuse ? NEW_IMAGE_MODE_EXISTING : NEW_IMAGE_MODE_ABSOLUTE_PATHS;
+    qmp_blockdev_snapshot_sync(device, filename, !!format, format,
+                               true, mode, &errp);
+    hmp_handle_error(mon, &errp);
+}
+
+void hmp_migrate_cancel(Monitor *mon, const QDict *qdict)
+{
+    qmp_migrate_cancel(NULL);
+}
+
+void hmp_migrate_set_downtime(Monitor *mon, const QDict *qdict)
+{
+    double value = qdict_get_double(qdict, "value");
+    qmp_migrate_set_downtime(value, NULL);
+}
+
+void hmp_migrate_set_speed(Monitor *mon, const QDict *qdict)
+{
+    int64_t value = qdict_get_int(qdict, "value");
+    qmp_migrate_set_speed(value, NULL);
+}
+
+void hmp_set_password(Monitor *mon, const QDict *qdict)
+{
+    const char *protocol  = qdict_get_str(qdict, "protocol");
+    const char *password  = qdict_get_str(qdict, "password");
+    const char *connected = qdict_get_try_str(qdict, "connected");
+    Error *err = NULL;
+
+    qmp_set_password(protocol, password, !!connected, connected, &err);
+    hmp_handle_error(mon, &err);
+}
+
+void hmp_expire_password(Monitor *mon, const QDict *qdict)
+{
+    const char *protocol  = qdict_get_str(qdict, "protocol");
+    const char *whenstr = qdict_get_str(qdict, "time");
+    Error *err = NULL;
+
+    qmp_expire_password(protocol, whenstr, &err);
+    hmp_handle_error(mon, &err);
+}
+
+void hmp_eject(Monitor *mon, const QDict *qdict)
+{
+    int force = qdict_get_try_bool(qdict, "force", 0);
+    const char *device = qdict_get_str(qdict, "device");
+    Error *err = NULL;
+
+    qmp_eject(device, true, force, &err);
+    hmp_handle_error(mon, &err);
+}
+
+static void hmp_change_read_arg(Monitor *mon, const char *password,
+                                void *opaque)
+{
+    qmp_change_vnc_password(password, NULL);
+    monitor_read_command(mon, 1);
+}
+
+static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password,
+                                   void *opaque)
+{
+    Error *encryption_err = opaque;
+    Error *err = NULL;
+    const char *device;
+
+    device = error_get_field(encryption_err, "device");
+
+    qmp_block_passwd(device, password, &err);
+    hmp_handle_error(mon, &err);
+    error_free(encryption_err);
+
+    monitor_read_command(mon, 1);
+}
+
+void hmp_change(Monitor *mon, const QDict *qdict)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    const char *target = qdict_get_str(qdict, "target");
+    const char *arg = qdict_get_try_str(qdict, "arg");
+    Error *err = NULL;
+
+    if (strcmp(device, "vnc") == 0 &&
+            (strcmp(target, "passwd") == 0 ||
+             strcmp(target, "password") == 0)) {
+        if (!arg) {
+            monitor_read_password(mon, hmp_change_read_arg, NULL);
+            return;
+        }
+    }
+
+    qmp_change(device, target, !!arg, arg, &err);
+    if (error_is_type(err, QERR_DEVICE_ENCRYPTED)) {
+        monitor_printf(mon, "%s (%s) is encrypted.\n",
+                       error_get_field(err, "device"),
+                       error_get_field(err, "filename"));
+        if (!monitor_get_rs(mon)) {
+            monitor_printf(mon,
+                    "terminal does not support password prompting\n");
+            error_free(err);
+            return;
+        }
+        readline_start(monitor_get_rs(mon), "Password: ", 1,
+                       cb_hmp_change_bdrv_pwd, err);
+        return;
+    }
+    hmp_handle_error(mon, &err);
+}
+
+void hmp_block_set_io_throttle(Monitor *mon, const QDict *qdict)
+{
+    Error *err = NULL;
+
+    qmp_block_set_io_throttle(qdict_get_str(qdict, "device"),
+                              qdict_get_int(qdict, "bps"),
+                              qdict_get_int(qdict, "bps_rd"),
+                              qdict_get_int(qdict, "bps_wr"),
+                              qdict_get_int(qdict, "iops"),
+                              qdict_get_int(qdict, "iops_rd"),
+                              qdict_get_int(qdict, "iops_wr"), &err);
+    hmp_handle_error(mon, &err);
+}
+
+void hmp_block_stream(Monitor *mon, const QDict *qdict)
+{
+    Error *error = NULL;
+    const char *device = qdict_get_str(qdict, "device");
+    const char *base = qdict_get_try_str(qdict, "base");
+
+    qmp_block_stream(device, base != NULL, base, &error);
+
+    hmp_handle_error(mon, &error);
+}
+
+void hmp_block_job_set_speed(Monitor *mon, const QDict *qdict)
+{
+    Error *error = NULL;
+    const char *device = qdict_get_str(qdict, "device");
+    int64_t value = qdict_get_int(qdict, "value");
+
+    qmp_block_job_set_speed(device, value, &error);
+
+    hmp_handle_error(mon, &error);
+}
+
+void hmp_block_job_cancel(Monitor *mon, const QDict *qdict)
+{
+    Error *error = NULL;
+    const char *device = qdict_get_str(qdict, "device");
+
+    qmp_block_job_cancel(device, &error);
+
+    hmp_handle_error(mon, &error);
+}
+
+typedef struct MigrationStatus
+{
+    QEMUTimer *timer;
+    Monitor *mon;
+    bool is_block_migration;
+} MigrationStatus;
+
+static void hmp_migrate_status_cb(void *opaque)
+{
+    MigrationStatus *status = opaque;
+    MigrationInfo *info;
+
+    info = qmp_query_migrate(NULL);
+    if (!info->has_status || strcmp(info->status, "active") == 0) {
+        if (info->has_disk) {
+            int progress;
+
+            if (info->disk->remaining) {
+                progress = info->disk->transferred * 100 / info->disk->total;
+            } else {
+                progress = 100;
+            }
+
+            monitor_printf(status->mon, "Completed %d %%\r", progress);
+            monitor_flush(status->mon);
+        }
+
+        qemu_mod_timer(status->timer, qemu_get_clock_ms(rt_clock) + 1000);
+    } else {
+        if (status->is_block_migration) {
+            monitor_printf(status->mon, "\n");
+        }
+        monitor_resume(status->mon);
+        qemu_del_timer(status->timer);
+        g_free(status);
+    }
+
+    qapi_free_MigrationInfo(info);
+}
+
+void hmp_migrate(Monitor *mon, const QDict *qdict)
+{
+    int detach = qdict_get_try_bool(qdict, "detach", 0);
+    int blk = qdict_get_try_bool(qdict, "blk", 0);
+    int inc = qdict_get_try_bool(qdict, "inc", 0);
+    const char *uri = qdict_get_str(qdict, "uri");
+    Error *err = NULL;
+
+    qmp_migrate(uri, !!blk, blk, !!inc, inc, false, false, &err);
+    if (err) {
+        monitor_printf(mon, "migrate: %s\n", error_get_pretty(err));
+        error_free(err);
+        return;
+    }
+
+    if (!detach) {
+        MigrationStatus *status;
+
+        if (monitor_suspend(mon) < 0) {
+            monitor_printf(mon, "terminal does not allow synchronous "
+                           "migration, continuing detached\n");
+            return;
+        }
+
+        status = g_malloc0(sizeof(*status));
+        status->mon = mon;
+        status->is_block_migration = blk || inc;
+        status->timer = qemu_new_timer_ms(rt_clock, hmp_migrate_status_cb,
+                                          status);
+        qemu_mod_timer(status->timer, qemu_get_clock_ms(rt_clock));
     }
 }

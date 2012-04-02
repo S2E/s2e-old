@@ -46,6 +46,30 @@ static VncDisplay *vnc_display; /* needed for info vnc */
 static DisplayChangeListener *dcl;
 
 static int vnc_cursor_define(VncState *vs);
+static void vnc_release_modifiers(VncState *vs);
+
+static void vnc_set_share_mode(VncState *vs, VncShareMode mode)
+{
+#ifdef _VNC_DEBUG
+    static const char *mn[] = {
+        [0]                           = "undefined",
+        [VNC_SHARE_MODE_CONNECTING]   = "connecting",
+        [VNC_SHARE_MODE_SHARED]       = "shared",
+        [VNC_SHARE_MODE_EXCLUSIVE]    = "exclusive",
+        [VNC_SHARE_MODE_DISCONNECTED] = "disconnected",
+    };
+    fprintf(stderr, "%s/%d: %s -> %s\n", __func__,
+            vs->csock, mn[vs->share_mode], mn[mode]);
+#endif
+
+    if (vs->share_mode == VNC_SHARE_MODE_EXCLUSIVE) {
+        vs->vd->num_exclusive--;
+    }
+    vs->share_mode = mode;
+    if (vs->share_mode == VNC_SHARE_MODE_EXCLUSIVE) {
+        vs->vd->num_exclusive++;
+    }
+}
 
 static char *addr_to_string(const char *format,
                             struct sockaddr_storage *sa,
@@ -997,6 +1021,7 @@ static void vnc_disconnect_start(VncState *vs)
 {
     if (vs->csock == -1)
         return;
+    vnc_set_share_mode(vs, VNC_SHARE_MODE_DISCONNECTED);
     qemu_set_fd_handler2(vs->csock, NULL, NULL, NULL, NULL);
     closesocket(vs->csock);
     vs->csock = -1;
@@ -1027,6 +1052,7 @@ static void vnc_disconnect_finish(VncState *vs)
     vnc_sasl_client_cleanup(vs);
 #endif /* CONFIG_VNC_SASL */
     audio_del(vs);
+    vnc_release_modifiers(vs);
 
     QTAILQ_REMOVE(&vs->vd->clients, vs, next);
 
@@ -1042,7 +1068,10 @@ static void vnc_disconnect_finish(VncState *vs)
 
 #ifdef CONFIG_VNC_THREAD
     qemu_mutex_destroy(&vs->output_mutex);
+    qemu_bh_delete(vs->bh);
+    buffer_free(&vs->jobs_buffer);
 #endif
+
     for (i = 0; i < VNC_STAT_ROWS; ++i) {
         g_free(vs->lossy_rect[i]);
     }
@@ -1257,6 +1286,14 @@ static long vnc_client_read_plain(VncState *vs)
     return ret;
 }
 
+#ifdef CONFIG_VNC_THREAD
+static void vnc_jobs_bh(void *opaque)
+{
+    VncState *vs = opaque;
+
+    vnc_jobs_consume_buffer(vs);
+}
+#endif
 
 /*
  * First function called whenever there is more data to be read from
@@ -1552,9 +1589,11 @@ static void do_key_event(VncState *vs, int down, int keycode, int sym)
         else
             kbd_put_keycode(keycode | SCANCODE_UP);
     } else {
+        bool numlock = vs->modifiers_state[0x45];
+        bool control = (vs->modifiers_state[0x1d] ||
+                        vs->modifiers_state[0x9d]);
         /* QEMU console emulation */
         if (down) {
-            int numlock = vs->modifiers_state[0x45];
             switch (keycode) {
             case 0x2a:                          /* Left Shift */
             case 0x36:                          /* Right Shift */
@@ -1642,10 +1681,37 @@ static void do_key_event(VncState *vs, int down, int keycode, int sym)
                 break;
 
             default:
-                kbd_put_keysym(sym);
+                if (control) {
+                    kbd_put_keysym(sym & 0x1f);
+                } else {
+                    kbd_put_keysym(sym);
+                }
                 break;
             }
         }
+    }
+}
+
+static void vnc_release_modifiers(VncState *vs)
+{
+    static const int keycodes[] = {
+        /* shift, control, alt keys, both left & right */
+        0x2a, 0x36, 0x1d, 0x9d, 0x38, 0xb8,
+    };
+    int i, keycode;
+
+    if (!is_graphic_console()) {
+        return;
+    }
+    for (i = 0; i < ARRAY_SIZE(keycodes); i++) {
+        keycode = keycodes[i];
+        if (!vs->modifiers_state[keycode]) {
+            continue;
+        }
+        if (keycode & SCANCODE_GREY) {
+            kbd_put_keycode(SCANCODE_EMUL0);
+        }
+        kbd_put_keycode(keycode | SCANCODE_UP);
     }
 }
 
@@ -1732,7 +1798,7 @@ static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
 
     /*
      * Start from the end because the encodings are sent in order of preference.
-     * This way the prefered encoding (first encoding defined in the array)
+     * This way the preferred encoding (first encoding defined in the array)
      * will be set at the end of the loop.
      */
     for (i = n_encodings - 1; i >= 0; i--) {
@@ -1881,7 +1947,10 @@ static void pixel_format_message (VncState *vs) {
 
 static void vnc_dpy_setdata(DisplayState *ds)
 {
-    /* We don't have to do anything */
+    VncDisplay *vd = ds->opaque;
+
+    *(vd->guest.ds) = *(ds->surface);
+    vnc_dpy_update(ds, 0, 0, ds_get_width(ds), ds_get_height(ds));
 }
 
 static void vnc_colordepth(VncState *vs)
@@ -2048,7 +2117,66 @@ static int protocol_client_msg(VncState *vs, uint8_t *data, size_t len)
 static int protocol_client_init(VncState *vs, uint8_t *data, size_t len)
 {
     char buf[1024];
+    VncShareMode mode;
     int size;
+
+    mode = data[0] ? VNC_SHARE_MODE_SHARED : VNC_SHARE_MODE_EXCLUSIVE;
+    switch (vs->vd->share_policy) {
+    case VNC_SHARE_POLICY_IGNORE:
+        /*
+         * Ignore the shared flag.  Nothing to do here.
+         *
+         * Doesn't conform to the rfb spec but is traditional qemu
+         * behavior, thus left here as option for compatibility
+         * reasons.
+         */
+        break;
+    case VNC_SHARE_POLICY_ALLOW_EXCLUSIVE:
+        /*
+         * Policy: Allow clients ask for exclusive access.
+         *
+         * Implementation: When a client asks for exclusive access,
+         * disconnect all others. Shared connects are allowed as long
+         * as no exclusive connection exists.
+         *
+         * This is how the rfb spec suggests to handle the shared flag.
+         */
+        if (mode == VNC_SHARE_MODE_EXCLUSIVE) {
+            VncState *client;
+            QTAILQ_FOREACH(client, &vs->vd->clients, next) {
+                if (vs == client) {
+                    continue;
+                }
+                if (client->share_mode != VNC_SHARE_MODE_EXCLUSIVE &&
+                    client->share_mode != VNC_SHARE_MODE_SHARED) {
+                    continue;
+                }
+                vnc_disconnect_start(client);
+            }
+        }
+        if (mode == VNC_SHARE_MODE_SHARED) {
+            if (vs->vd->num_exclusive > 0) {
+                vnc_disconnect_start(vs);
+                return 0;
+            }
+        }
+        break;
+    case VNC_SHARE_POLICY_FORCE_SHARED:
+        /*
+         * Policy: Shared connects only.
+         * Implementation: Disallow clients asking for exclusive access.
+         *
+         * Useful for shared desktop sessions where you don't want
+         * someone forgetting to say -shared when running the vnc
+         * client disconnect everybody else.
+         */
+        if (mode == VNC_SHARE_MODE_EXCLUSIVE) {
+            vnc_disconnect_start(vs);
+            return 0;
+        }
+        break;
+    }
+    vnc_set_share_mode(vs, mode);
 
     vs->client_width = ds_get_width(vs->ds);
     vs->client_height = ds_get_height(vs->ds);
@@ -2117,7 +2245,7 @@ static int protocol_client_auth_vnc(VncState *vs, uint8_t *data, size_t len)
 
     /* Compare expected vs actual challenge response */
     if (memcmp(response, data, VNC_AUTH_CHALLENGE_SIZE) != 0) {
-        VNC_DEBUG("Client challenge reponse did not match\n");
+        VNC_DEBUG("Client challenge response did not match\n");
         goto reject;
     } else {
         VNC_DEBUG("Accepting VNC challenge response\n");
@@ -2183,7 +2311,7 @@ static int protocol_client_auth(VncState *vs, uint8_t *data, size_t len)
 
 #ifdef CONFIG_VNC_TLS
        case VNC_AUTH_VENCRYPT:
-           VNC_DEBUG("Accept VeNCrypt auth\n");;
+           VNC_DEBUG("Accept VeNCrypt auth\n");
            start_auth_vencrypt(vs);
            break;
 #endif /* CONFIG_VNC_TLS */
@@ -2434,6 +2562,9 @@ static int vnc_refresh_server_surface(VncDisplay *vd)
      * Update server dirty map.
      */
     cmp_bytes = 16 * ds_get_bytes_per_pixel(vd->ds);
+    if (cmp_bytes > vd->ds->surface->linesize) {
+        cmp_bytes = vd->ds->surface->linesize;
+    }
     guest_row  = vd->guest.ds->data;
     server_row = vd->server->data;
     for (y = 0; y < vd->guest.ds->height; y++) {
@@ -2445,7 +2576,7 @@ static int vnc_refresh_server_surface(VncDisplay *vd)
             guest_ptr  = guest_row;
             server_ptr = server_row;
 
-            for (x = 0; x < vd->guest.ds->width;
+            for (x = 0; x + 15 < vd->guest.ds->width;
                     x += 16, guest_ptr += cmp_bytes, server_ptr += cmp_bytes) {
                 if (!test_and_clear_bit((x / 16), vd->guest.dirty[y]))
                     continue;
@@ -2556,6 +2687,7 @@ static void vnc_connect(VncDisplay *vd, int csock, int skipauth)
 
     vnc_client_cache_addr(vs);
     vnc_qmp_event(vs, QEVENT_VNC_CONNECTED);
+    vnc_set_share_mode(vs, VNC_SHARE_MODE_CONNECTING);
 
     vs->vd = vd;
     vs->ds = vd->ds;
@@ -2569,6 +2701,7 @@ static void vnc_connect(VncDisplay *vd, int csock, int skipauth)
 
 #ifdef CONFIG_VNC_THREAD
     qemu_mutex_init(&vs->output_mutex);
+    vs->bh = qemu_bh_new(vnc_jobs_bh, vs);
 #endif
 
     QTAILQ_INSERT_HEAD(&vd->clients, vs, next);
@@ -2679,26 +2812,25 @@ int vnc_display_disable_login(DisplayState *ds)
     }
 
     vs->password = NULL;
-    vs->auth = VNC_AUTH_VNC;
+    if (vs->auth == VNC_AUTH_NONE) {
+        vs->auth = VNC_AUTH_VNC;
+    }
 
     return 0;
 }
 
 int vnc_display_password(DisplayState *ds, const char *password)
 {
-    int ret = 0;
     VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
 
     if (!vs) {
-        ret = -EINVAL;
-        goto out;
+        return -EINVAL;
     }
 
     if (!password) {
         /* This is not the intention of this interface but err on the side
            of being safe */
-        ret = vnc_display_disable_login(ds);
-        goto out;
+        return vnc_display_disable_login(ds);
     }
 
     if (vs->password) {
@@ -2706,12 +2838,11 @@ int vnc_display_password(DisplayState *ds, const char *password)
         vs->password = NULL;
     }
     vs->password = g_strdup(password);
-    vs->auth = VNC_AUTH_VNC;
-out:
-    if (ret != 0) {
-        qerror_report(QERR_SET_PASSWD_FAILED);
+    if (vs->auth == VNC_AUTH_NONE) {
+        vs->auth = VNC_AUTH_VNC;
     }
-    return ret;
+
+    return 0;
 }
 
 int vnc_display_pw_expire(DisplayState *ds, time_t expires)
@@ -2755,6 +2886,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
 
     if (!(vs->display = strdup(display)))
         return -1;
+    vs->share_policy = VNC_SHARE_POLICY_ALLOW_EXCLUSIVE;
 
     options = display;
     while ((options = strchr(options, ','))) {
@@ -2763,7 +2895,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
             password = 1; /* Require password auth */
         } else if (strncmp(options, "reverse", 7) == 0) {
             reverse = 1;
-        } else if (strncmp(options, "no-lock-key-sync", 9) == 0) {
+        } else if (strncmp(options, "no-lock-key-sync", 16) == 0) {
             lock_key_sync = 0;
 #ifdef CONFIG_VNC_SASL
         } else if (strncmp(options, "sasl", 4) == 0) {
@@ -2810,6 +2942,19 @@ int vnc_display_open(DisplayState *ds, const char *display)
             vs->lossy = true;
         } else if (strncmp(options, "non-adapative", 13) == 0) {
             vs->non_adaptive = true;
+        } else if (strncmp(options, "share=", 6) == 0) {
+            if (strncmp(options+6, "ignore", 6) == 0) {
+                vs->share_policy = VNC_SHARE_POLICY_IGNORE;
+            } else if (strncmp(options+6, "allow-exclusive", 15) == 0) {
+                vs->share_policy = VNC_SHARE_POLICY_ALLOW_EXCLUSIVE;
+            } else if (strncmp(options+6, "force-shared", 12) == 0) {
+                vs->share_policy = VNC_SHARE_POLICY_FORCE_SHARED;
+            } else {
+                fprintf(stderr, "unknown vnc share= option\n");
+                g_free(vs->display);
+                vs->display = NULL;
+                return -1;
+            }
         }
     }
 

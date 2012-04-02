@@ -129,7 +129,7 @@ static int milkymist_hpdmc_init(SysBusDevice *dev)
 
     memory_region_init_io(&s->regs_region, &hpdmc_mmio_ops, s,
             "milkymist-hpdmc", R_MAX * 4);
-    sysbus_init_mmio_region(dev, &s->regs_region);
+    sysbus_init_mmio(dev, &s->regs_region);
 
     return 0;
 }
@@ -145,17 +145,26 @@ static const VMStateDescription vmstate_milkymist_hpdmc = {
     }
 };
 
-static SysBusDeviceInfo milkymist_hpdmc_info = {
-    .init = milkymist_hpdmc_init,
-    .qdev.name  = "milkymist-hpdmc",
-    .qdev.size  = sizeof(MilkymistHpdmcState),
-    .qdev.vmsd  = &vmstate_milkymist_hpdmc,
-    .qdev.reset = milkymist_hpdmc_reset,
-};
-
-static void milkymist_hpdmc_register(void)
+static void milkymist_hpdmc_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&milkymist_hpdmc_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = milkymist_hpdmc_init;
+    dc->reset = milkymist_hpdmc_reset;
+    dc->vmsd = &vmstate_milkymist_hpdmc;
 }
 
-device_init(milkymist_hpdmc_register)
+static TypeInfo milkymist_hpdmc_info = {
+    .name          = "milkymist-hpdmc",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(MilkymistHpdmcState),
+    .class_init    = milkymist_hpdmc_class_init,
+};
+
+static void milkymist_hpdmc_register_types(void)
+{
+    type_register_static(&milkymist_hpdmc_info);
+}
+
+type_init(milkymist_hpdmc_register_types)

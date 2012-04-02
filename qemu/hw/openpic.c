@@ -713,7 +713,7 @@ static void openpic_timer_write (void *opaque, uint32_t addr, uint32_t val)
     DPRINTF("%s: addr %08x <= %08x\n", __func__, addr, val);
     if (addr & 0xF)
         return;
-    addr -= 0x1100;
+    addr -= 0x10;
     addr &= 0xFFFF;
     idx = (addr & 0xFFF0) >> 6;
     addr = addr & 0x30;
@@ -746,7 +746,7 @@ static uint32_t openpic_timer_read (void *opaque, uint32_t addr)
     retval = 0xFFFFFFFF;
     if (addr & 0xF)
         return retval;
-    addr -= 0x1100;
+    addr -= 0x10;
     addr &= 0xFFFF;
     idx = (addr & 0xFFF0) >> 6;
     addr = addr & 0x30;
@@ -1181,41 +1181,17 @@ static void openpic_irq_raise(openpic_t *opp, int n_CPU, IRQ_src_t *src)
     qemu_irq_raise(opp->dst[n_CPU].irqs[OPENPIC_OUTPUT_INT]);
 }
 
-qemu_irq *openpic_init (PCIBus *bus, MemoryRegion **pmem, int nb_cpus,
+qemu_irq *openpic_init (MemoryRegion **pmem, int nb_cpus,
                         qemu_irq **irqs, qemu_irq irq_out)
 {
     openpic_t *opp;
-    uint8_t *pci_conf;
     int i, m;
 
     /* XXX: for now, only one CPU is supported */
     if (nb_cpus != 1)
         return NULL;
-    if (bus) {
-        opp = (openpic_t *)pci_register_device(bus, "OpenPIC", sizeof(openpic_t),
-                                               -1, NULL, NULL);
-        pci_conf = opp->pci_dev.config;
-        pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_IBM);
-        pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_IBM_OPENPIC2);
-        pci_config_set_class(pci_conf, PCI_CLASS_SYSTEM_OTHER); // FIXME?
-        pci_conf[0x3d] = 0x00; // no interrupt pin
-
-        memory_region_init_io(&opp->mem, &openpic_ops, opp, "openpic", 0x40000);
-#if 0 // Don't implement ISU for now
-        opp_io_memory = cpu_register_io_memory(openpic_src_read,
-                                               openpic_src_write, NULL
-                                               DEVICE_NATIVE_ENDIAN);
-        cpu_register_physical_memory(isu_base, 0x20 * (EXT_IRQ + 2),
-                                     opp_io_memory);
-#endif
-
-        /* Register I/O spaces */
-        pci_register_bar(&opp->pci_dev, 0,
-                         PCI_BASE_ADDRESS_SPACE_MEMORY, &opp->mem);
-    } else {
-        opp = g_malloc0(sizeof(openpic_t));
-        memory_region_init_io(&opp->mem, &openpic_ops, opp, "openpic", 0x40000);
-    }
+    opp = g_malloc0(sizeof(openpic_t));
+    memory_region_init_io(&opp->mem, &openpic_ops, opp, "openpic", 0x40000);
 
     //    isu_base &= 0xFFFC0000;
     opp->nb_cpus = nb_cpus;
@@ -1385,7 +1361,6 @@ static void mpic_src_ext_write (void *opaque, target_phys_addr_t addr,
     if (addr & 0xF)
         return;
 
-    addr -= MPIC_EXT_REG_START & (OPENPIC_PAGE_SIZE - 1);
     if (addr < MPIC_EXT_REG_SIZE) {
         idx += (addr & 0xFFF0) >> 5;
         if (addr & 0x10) {
@@ -1409,7 +1384,6 @@ static uint32_t mpic_src_ext_read (void *opaque, target_phys_addr_t addr)
     if (addr & 0xF)
         return retval;
 
-    addr -= MPIC_EXT_REG_START & (OPENPIC_PAGE_SIZE - 1);
     if (addr < MPIC_EXT_REG_SIZE) {
         idx += (addr & 0xFFF0) >> 5;
         if (addr & 0x10) {
@@ -1435,7 +1409,6 @@ static void mpic_src_int_write (void *opaque, target_phys_addr_t addr,
     if (addr & 0xF)
         return;
 
-    addr -= MPIC_INT_REG_START & (OPENPIC_PAGE_SIZE - 1);
     if (addr < MPIC_INT_REG_SIZE) {
         idx += (addr & 0xFFF0) >> 5;
         if (addr & 0x10) {
@@ -1459,7 +1432,6 @@ static uint32_t mpic_src_int_read (void *opaque, target_phys_addr_t addr)
     if (addr & 0xF)
         return retval;
 
-    addr -= MPIC_INT_REG_START & (OPENPIC_PAGE_SIZE - 1);
     if (addr < MPIC_INT_REG_SIZE) {
         idx += (addr & 0xFFF0) >> 5;
         if (addr & 0x10) {
@@ -1485,7 +1457,6 @@ static void mpic_src_msg_write (void *opaque, target_phys_addr_t addr,
     if (addr & 0xF)
         return;
 
-    addr -= MPIC_MSG_REG_START & (OPENPIC_PAGE_SIZE - 1);
     if (addr < MPIC_MSG_REG_SIZE) {
         idx += (addr & 0xFFF0) >> 5;
         if (addr & 0x10) {
@@ -1509,7 +1480,6 @@ static uint32_t mpic_src_msg_read (void *opaque, target_phys_addr_t addr)
     if (addr & 0xF)
         return retval;
 
-    addr -= MPIC_MSG_REG_START & (OPENPIC_PAGE_SIZE - 1);
     if (addr < MPIC_MSG_REG_SIZE) {
         idx += (addr & 0xFFF0) >> 5;
         if (addr & 0x10) {
@@ -1535,7 +1505,6 @@ static void mpic_src_msi_write (void *opaque, target_phys_addr_t addr,
     if (addr & 0xF)
         return;
 
-    addr -= MPIC_MSI_REG_START & (OPENPIC_PAGE_SIZE - 1);
     if (addr < MPIC_MSI_REG_SIZE) {
         idx += (addr & 0xFFF0) >> 5;
         if (addr & 0x10) {
@@ -1558,7 +1527,6 @@ static uint32_t mpic_src_msi_read (void *opaque, target_phys_addr_t addr)
     if (addr & 0xF)
         return retval;
 
-    addr -= MPIC_MSI_REG_START & (OPENPIC_PAGE_SIZE - 1);
     if (addr < MPIC_MSI_REG_SIZE) {
         idx += (addr & 0xFFF0) >> 5;
         if (addr & 0x10) {

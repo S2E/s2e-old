@@ -9,41 +9,42 @@
 #ifndef SOFTMMU_DEFS_H
 #define SOFTMMU_DEFS_H
 
-uint8_t REGPARM __ldb_mmu(target_ulong addr, int mmu_idx);
-void REGPARM __stb_mmu(target_ulong addr, uint8_t val, int mmu_idx);
-uint16_t REGPARM __ldw_mmu(target_ulong addr, int mmu_idx);
-void REGPARM __stw_mmu(target_ulong addr, uint16_t val, int mmu_idx);
-uint32_t REGPARM __ldl_mmu(target_ulong addr, int mmu_idx);
-void REGPARM __stl_mmu(target_ulong addr, uint32_t val, int mmu_idx);
-uint64_t REGPARM __ldq_mmu(target_ulong addr, int mmu_idx);
-void REGPARM __stq_mmu(target_ulong addr, uint64_t val, int mmu_idx);
+#ifndef CONFIG_TCG_PASS_AREG0
+uint8_t __ldb_mmu(target_ulong addr, int mmu_idx);
+void __stb_mmu(target_ulong addr, uint8_t val, int mmu_idx);
+uint16_t __ldw_mmu(target_ulong addr, int mmu_idx);
+void __stw_mmu(target_ulong addr, uint16_t val, int mmu_idx);
+uint32_t __ldl_mmu(target_ulong addr, int mmu_idx);
+void __stl_mmu(target_ulong addr, uint32_t val, int mmu_idx);
+uint64_t __ldq_mmu(target_ulong addr, int mmu_idx);
+void __stq_mmu(target_ulong addr, uint64_t val, int mmu_idx);
 
-uint8_t REGPARM __ldb_cmmu(target_ulong addr, int mmu_idx);
-void REGPARM __stb_cmmu(target_ulong addr, uint8_t val, int mmu_idx);
-uint16_t REGPARM __ldw_cmmu(target_ulong addr, int mmu_idx);
-void REGPARM __stw_cmmu(target_ulong addr, uint16_t val, int mmu_idx);
-uint32_t REGPARM __ldl_cmmu(target_ulong addr, int mmu_idx);
-void REGPARM __stl_cmmu(target_ulong addr, uint32_t val, int mmu_idx);
-uint64_t REGPARM __ldq_cmmu(target_ulong addr, int mmu_idx);
-void REGPARM __stq_cmmu(target_ulong addr, uint64_t val, int mmu_idx);
+uint8_t __ldb_cmmu(target_ulong addr, int mmu_idx);
+void __stb_cmmu(target_ulong addr, uint8_t val, int mmu_idx);
+uint16_t __ldw_cmmu(target_ulong addr, int mmu_idx);
+void __stw_cmmu(target_ulong addr, uint16_t val, int mmu_idx);
+uint32_t __ldl_cmmu(target_ulong addr, int mmu_idx);
+void __stl_cmmu(target_ulong addr, uint32_t val, int mmu_idx);
+uint64_t __ldq_cmmu(target_ulong addr, int mmu_idx);
+void __stq_cmmu(target_ulong addr, uint64_t val, int mmu_idx);
 
-uint8_t REGPARM io_readb_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writeb_mmu(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
-uint16_t REGPARM io_readw_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writew_mmu(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
-uint32_t REGPARM io_readl_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writel_mmu(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
-uint64_t REGPARM io_readq_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writeq_mmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
+uint8_t io_readb_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writeb_mmu(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
+uint16_t io_readw_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writew_mmu(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
+uint32_t io_readl_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writel_mmu(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
+uint64_t io_readq_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writeq_mmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
-uint8_t REGPARM io_readb_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writeb_cmmu(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
-uint16_t REGPARM io_readw_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writew_cmmu(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
-uint32_t REGPARM io_readl_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writel_cmmu(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
-uint64_t REGPARM io_readq_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writeq_cmmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
+uint8_t io_readb_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writeb_cmmu(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
+uint16_t io_readw_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writew_cmmu(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
+uint32_t io_readl_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writel_cmmu(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
+uint64_t io_readq_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writeq_cmmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
 void io_write_chkb_mmu_symb(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
 void io_write_chkw_mmu_symb(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
@@ -71,6 +72,48 @@ uint16_t  io_read_chkw_cmmu(target_phys_addr_t physaddr, target_ulong addr, void
 uint32_t  io_read_chkl_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 uint64_t  io_read_chkq_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 
+#ifdef CONFIG_S2E
+
+uint8_t __ldb_mmu_symb(target_ulong addr, int mmu_idx);
+void __stb_mmu_symb(target_ulong addr, uint8_t val, int mmu_idx);
+uint16_t __ldw_mmu_symb(target_ulong addr, int mmu_idx);
+void __stw_mmu_symb(target_ulong addr, uint16_t val, int mmu_idx);
+uint32_t __ldl_mmu_symb(target_ulong addr, int mmu_idx);
+void __stl_mmu_symb(target_ulong addr, uint32_t val, int mmu_idx);
+uint64_t __ldq_mmu_symb(target_ulong addr, int mmu_idx);
+void __stq_mmu_symb(target_ulong addr, uint64_t val, int mmu_idx);
+
+#endif
+
+#else
+uint8_t helper_ldb_mmu(CPUArchState *env, target_ulong addr, int mmu_idx);
+void helper_stb_mmu(CPUArchState *env, target_ulong addr, uint8_t val,
+                    int mmu_idx);
+uint16_t helper_ldw_mmu(CPUArchState *env, target_ulong addr, int mmu_idx);
+void helper_stw_mmu(CPUArchState *env, target_ulong addr, uint16_t val,
+                    int mmu_idx);
+uint32_t helper_ldl_mmu(CPUArchState *env, target_ulong addr, int mmu_idx);
+void helper_stl_mmu(CPUArchState *env, target_ulong addr, uint32_t val,
+                    int mmu_idx);
+uint64_t helper_ldq_mmu(CPUArchState *env, target_ulong addr, int mmu_idx);
+void helper_stq_mmu(CPUArchState *env, target_ulong addr, uint64_t val,
+                    int mmu_idx);
+
+uint8_t helper_ldb_cmmu(CPUArchState *env, target_ulong addr, int mmu_idx);
+void helper_stb_cmmu(CPUArchState *env, target_ulong addr, uint8_t val,
+int mmu_idx);
+uint16_t helper_ldw_cmmu(CPUArchState *env, target_ulong addr, int mmu_idx);
+void helper_stw_cmmu(CPUArchState *env, target_ulong addr, uint16_t val,
+                     int mmu_idx);
+uint32_t helper_ldl_cmmu(CPUArchState *env, target_ulong addr, int mmu_idx);
+void helper_stl_cmmu(CPUArchState *env, target_ulong addr, uint32_t val,
+                     int mmu_idx);
+uint64_t helper_ldq_cmmu(CPUArchState *env, target_ulong addr, int mmu_idx);
+void helper_stq_cmmu(CPUArchState *env, target_ulong addr, uint64_t val,
+                     int mmu_idx);
+#endif
+
+
 uint8_t io_make_symbolicb_mmu(const char *name);
 uint16_t io_make_symbolicw_mmu(const char *name);
 uint32_t io_make_symbolicl_mmu(const char *name);
@@ -84,26 +127,18 @@ uint64_t  io_read_chk_symb_q_mmu(const char *label, target_ulong physaddr, uintp
 
 #ifdef CONFIG_S2E
 
-uint8_t REGPARM io_readb_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writeb_mmu_symb(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
-uint16_t REGPARM io_readw_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writew_mmu_symb(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
-uint32_t REGPARM io_readl_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writel_mmu_symb(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
-uint64_t REGPARM io_readq_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-void REGPARM io_writeq_mmu_symb(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
+uint8_t io_readb_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writeb_mmu_symb(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
+uint16_t io_readw_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writew_mmu_symb(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
+uint32_t io_readl_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writel_mmu_symb(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
+uint64_t io_readq_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+void io_writeq_mmu_symb(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
 uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr);
 int s2e_ismemfunc(void *f);
 
-uint8_t REGPARM __ldb_mmu_symb(target_ulong addr, int mmu_idx);
-void REGPARM __stb_mmu_symb(target_ulong addr, uint8_t val, int mmu_idx);
-uint16_t REGPARM __ldw_mmu_symb(target_ulong addr, int mmu_idx);
-void REGPARM __stw_mmu_symb(target_ulong addr, uint16_t val, int mmu_idx);
-uint32_t REGPARM __ldl_mmu_symb(target_ulong addr, int mmu_idx);
-void REGPARM __stl_mmu_symb(target_ulong addr, uint32_t val, int mmu_idx);
-uint64_t REGPARM __ldq_mmu_symb(target_ulong addr, int mmu_idx);
-void REGPARM __stq_mmu_symb(target_ulong addr, uint64_t val, int mmu_idx);
 
 #endif
 

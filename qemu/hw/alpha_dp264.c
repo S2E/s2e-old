@@ -2,7 +2,7 @@
  * QEMU Alpha DP264/CLIPPER hardware system emulator.
  *
  * Choose CLIPPER IRQ mappings over, say, DP264, MONET, or WEBBRICK
- * variants because CLIPPER doesn't have an SMC669 SuperIO controler
+ * variants because CLIPPER doesn't have an SMC669 SuperIO controller
  * that we need to emulate as well.
  */
 
@@ -14,6 +14,7 @@
 #include "sysemu.h"
 #include "mc146818rtc.h"
 #include "ide.h"
+#include "i8254.h"
 
 #define MAX_IDE_BUS 2
 
@@ -48,8 +49,9 @@ static void clipper_init(ram_addr_t ram_size,
                          const char *initrd_filename,
                          const char *cpu_model)
 {
-    CPUState *cpus[4];
+    CPUAlphaState *cpus[4];
     PCIBus *pci_bus;
+    ISABus *isa_bus;
     qemu_irq rtc_irq;
     long size, i;
     const char *palcode_filename;
@@ -67,11 +69,12 @@ static void clipper_init(ram_addr_t ram_size,
     cpus[0]->trap_arg2 = smp_cpus;
 
     /* Init the chipset.  */
-    pci_bus = typhoon_init(ram_size, &rtc_irq, cpus, clipper_pci_map_irq);
+    pci_bus = typhoon_init(ram_size, &isa_bus, &rtc_irq, cpus,
+                           clipper_pci_map_irq);
 
-    rtc_init(1980, rtc_irq);
-    pit_init(0x40, 0);
-    isa_create_simple("i8042");
+    rtc_init(isa_bus, 1980, rtc_irq);
+    pit_init(isa_bus, 0x40, 0, NULL);
+    isa_create_simple(isa_bus, "i8042");
 
     /* VGA setup.  Don't bother loading the bios.  */
     alpha_pci_vga_setup(pci_bus);
@@ -79,7 +82,7 @@ static void clipper_init(ram_addr_t ram_size,
     /* Serial code setup.  */
     for (i = 0; i < MAX_SERIAL_PORTS; ++i) {
         if (serial_hds[i]) {
-            serial_isa_init(i, serial_hds[i]);
+            serial_isa_init(isa_bus, i, serial_hds[i]);
         }
     }
 

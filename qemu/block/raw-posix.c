@@ -1366,7 +1366,7 @@ static int floppy_media_changed(BlockDriverState *bs)
     return ret;
 }
 
-static void floppy_eject(BlockDriverState *bs, int eject_flag)
+static void floppy_eject(BlockDriverState *bs, bool eject_flag)
 {
     BDRVRawState *s = bs->opaque;
     int fd;
@@ -1457,7 +1457,7 @@ static int cdrom_is_inserted(BlockDriverState *bs)
     return 0;
 }
 
-static void cdrom_eject(BlockDriverState *bs, int eject_flag)
+static void cdrom_eject(BlockDriverState *bs, bool eject_flag)
 {
     BDRVRawState *s = bs->opaque;
 
@@ -1530,7 +1530,7 @@ static int cdrom_open(BlockDriverState *bs, const char *filename, int flags)
     if (ret)
         return ret;
 
-    /* make sure the door isnt locked at this time */
+    /* make sure the door isn't locked at this time */
     ioctl(s->fd, CDIOCALLOW);
     return 0;
 }
@@ -1561,7 +1561,7 @@ static int cdrom_reopen(BlockDriverState *bs)
     }
     s->fd = fd;
 
-    /* make sure the door isnt locked at this time */
+    /* make sure the door isn't locked at this time */
     ioctl(s->fd, CDIOCALLOW);
     return 0;
 }
@@ -1571,7 +1571,7 @@ static int cdrom_is_inserted(BlockDriverState *bs)
     return raw_getlength(bs) > 0;
 }
 
-static void cdrom_eject(BlockDriverState *bs, int eject_flag)
+static void cdrom_eject(BlockDriverState *bs, bool eject_flag)
 {
     BDRVRawState *s = bs->opaque;
 

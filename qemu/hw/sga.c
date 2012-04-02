@@ -35,22 +35,29 @@ typedef struct ISAGAState {
     ISADevice dev;
 } ISASGAState;
 
-static int isa_cirrus_vga_initfn(ISADevice *dev)
+static int sga_initfn(ISADevice *dev)
 {
     rom_add_vga(SGABIOS_FILENAME);
     return 0;
 }
-
-static ISADeviceInfo sga_info = {
-    .qdev.name    = "sga",
-    .qdev.desc    = "Serial Graphics Adapter",
-    .qdev.size    = sizeof(ISASGAState),
-    .init         = isa_cirrus_vga_initfn,
-};
-
-static void sga_register(void)
+static void sga_class_initfn(ObjectClass *klass, void *data)
 {
-      isa_qdev_register(&sga_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
+    ic->init = sga_initfn;
+    dc->desc = "Serial Graphics Adapter";
 }
 
-device_init(sga_register);
+static TypeInfo sga_info = {
+    .name          = "sga",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(ISASGAState),
+    .class_init    = sga_class_initfn,
+};
+
+static void sga_register_types(void)
+{
+    type_register_static(&sga_info);
+}
+
+type_init(sga_register_types)

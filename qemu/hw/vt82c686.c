@@ -5,6 +5,9 @@
  * Copyright (c) 2009 chenming (chenming@rdc.faw.com.cn)
  * Copyright (c) 2010 Huacai Chen (zltjiangshi@gmail.com)
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "hw.h"
@@ -156,10 +159,8 @@ static void vt82c686b_write_config(PCIDevice * d, uint32_t address,
 
 typedef struct VT686PMState {
     PCIDevice dev;
-    ACPIPM1EVT pm1a;
-    ACPIPM1CNT pm1_cnt;
+    ACPIREGS ar;
     APMState apm;
-    ACPIPMTimer tmr;
     PMSMBus smb;
     uint32_t smb_io_base;
 } VT686PMState;
@@ -176,21 +177,21 @@ static void pm_update_sci(VT686PMState *s)
 {
     int sci_level, pmsts;
 
-    pmsts = acpi_pm1_evt_get_sts(&s->pm1a, s->tmr.overflow_time);
-    sci_level = (((pmsts & s->pm1a.en) &
+    pmsts = acpi_pm1_evt_get_sts(&s->ar);
+    sci_level = (((pmsts & s->ar.pm1.evt.en) &
                   (ACPI_BITMASK_RT_CLOCK_ENABLE |
                    ACPI_BITMASK_POWER_BUTTON_ENABLE |
                    ACPI_BITMASK_GLOBAL_LOCK_ENABLE |
                    ACPI_BITMASK_TIMER_ENABLE)) != 0);
     qemu_set_irq(s->dev.irq[0], sci_level);
     /* schedule a timer interruption if needed */
-    acpi_pm_tmr_update(&s->tmr, (s->pm1a.en & ACPI_BITMASK_TIMER_ENABLE) &&
+    acpi_pm_tmr_update(&s->ar, (s->ar.pm1.evt.en & ACPI_BITMASK_TIMER_ENABLE) &&
                        !(pmsts & ACPI_BITMASK_TIMER_STATUS));
 }
 
-static void pm_tmr_timer(ACPIPMTimer *tmr)
+static void pm_tmr_timer(ACPIREGS *ar)
 {
-    VT686PMState *s = container_of(tmr, VT686PMState, tmr);
+    VT686PMState *s = container_of(ar, VT686PMState, ar);
     pm_update_sci(s);
 }
 
@@ -201,15 +202,15 @@ static void pm_ioport_writew(void *opaque, uint32_t addr, uint32_t val)
     addr &= 0x0f;
     switch (addr) {
     case 0x00:
-        acpi_pm1_evt_write_sts(&s->pm1a, &s->tmr, val);
+        acpi_pm1_evt_write_sts(&s->ar, val);
         pm_update_sci(s);
         break;
     case 0x02:
-        s->pm1a.en = val;
+        acpi_pm1_evt_write_en(&s->ar, val);
         pm_update_sci(s);
         break;
     case 0x04:
-        acpi_pm1_cnt_write(&s->pm1a, &s->pm1_cnt, val);
+        acpi_pm1_cnt_write(&s->ar, val);
         break;
     default:
         break;
@@ -225,13 +226,13 @@ static uint32_t pm_ioport_readw(void *opaque, uint32_t addr)
     addr &= 0x0f;
     switch (addr) {
     case 0x00:
-        val = acpi_pm1_evt_get_sts(&s->pm1a, s->tmr.overflow_time);
+        val = acpi_pm1_evt_get_sts(&s->ar);
         break;
     case 0x02:
-        val = s->pm1a.en;
+        val = s->ar.pm1.evt.en;
         break;
     case 0x04:
-        val = s->pm1_cnt.cnt;
+        val = s->ar.pm1.cnt.cnt;
         break;
     default:
         val = 0;
@@ -255,7 +256,7 @@ static uint32_t pm_ioport_readl(void *opaque, uint32_t addr)
     addr &= 0x0f;
     switch (addr) {
     case 0x08:
-        val = acpi_pm_tmr_get(&s->tmr);
+        val = acpi_pm_tmr_get(&s->ar);
         break;
     default:
         val = 0;
@@ -306,12 +307,12 @@ static const VMStateDescription vmstate_acpi = {
     .post_load = vmstate_acpi_post_load,
     .fields      = (VMStateField []) {
         VMSTATE_PCI_DEVICE(dev, VT686PMState),
-        VMSTATE_UINT16(pm1a.sts, VT686PMState),
-        VMSTATE_UINT16(pm1a.en, VT686PMState),
-        VMSTATE_UINT16(pm1_cnt.cnt, VT686PMState),
+        VMSTATE_UINT16(ar.pm1.evt.sts, VT686PMState),
+        VMSTATE_UINT16(ar.pm1.evt.en, VT686PMState),
+        VMSTATE_UINT16(ar.pm1.cnt.cnt, VT686PMState),
         VMSTATE_STRUCT(apm, VT686PMState, 0, vmstate_apm, APMState),
-        VMSTATE_TIMER(tmr.timer, VT686PMState),
-        VMSTATE_INT64(tmr.overflow_time, VT686PMState),
+        VMSTATE_TIMER(ar.tmr.timer, VT686PMState),
+        VMSTATE_INT64(ar.tmr.overflow_time, VT686PMState),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -343,23 +344,25 @@ void vt82c686b_ac97_init(PCIBus *bus, int devfn)
     qdev_init_nofail(&dev->qdev);
 }
 
-static PCIDeviceInfo via_ac97_info = {
-    .qdev.name          = "VT82C686B_AC97",
-    .qdev.desc          = "AC97",
-    .qdev.size          = sizeof(VT686AC97State),
-    .init               = vt82c686b_ac97_initfn,
-    .vendor_id          = PCI_VENDOR_ID_VIA,
-    .device_id          = PCI_DEVICE_ID_VIA_AC97,
-    .revision           = 0x50,
-    .class_id           = PCI_CLASS_MULTIMEDIA_AUDIO,
-};
-
-static void vt82c686b_ac97_register(void)
+static void via_ac97_class_init(ObjectClass *klass, void *data)
 {
-    pci_qdev_register(&via_ac97_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = vt82c686b_ac97_initfn;
+    k->vendor_id = PCI_VENDOR_ID_VIA;
+    k->device_id = PCI_DEVICE_ID_VIA_AC97;
+    k->revision = 0x50;
+    k->class_id = PCI_CLASS_MULTIMEDIA_AUDIO;
+    dc->desc = "AC97";
 }
 
-device_init(vt82c686b_ac97_register);
+static TypeInfo via_ac97_info = {
+    .name          = "VT82C686B_AC97",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VT686AC97State),
+    .class_init    = via_ac97_class_init,
+};
 
 static int vt82c686b_mc97_initfn(PCIDevice *dev)
 {
@@ -382,23 +385,25 @@ void vt82c686b_mc97_init(PCIBus *bus, int devfn)
     qdev_init_nofail(&dev->qdev);
 }
 
-static PCIDeviceInfo via_mc97_info = {
-    .qdev.name          = "VT82C686B_MC97",
-    .qdev.desc          = "MC97",
-    .qdev.size          = sizeof(VT686MC97State),
-    .init               = vt82c686b_mc97_initfn,
-    .vendor_id          = PCI_VENDOR_ID_VIA,
-    .device_id          = PCI_DEVICE_ID_VIA_MC97,
-    .class_id           = PCI_CLASS_COMMUNICATION_OTHER,
-    .revision           = 0x30,
-};
-
-static void vt82c686b_mc97_register(void)
+static void via_mc97_class_init(ObjectClass *klass, void *data)
 {
-    pci_qdev_register(&via_mc97_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = vt82c686b_mc97_initfn;
+    k->vendor_id = PCI_VENDOR_ID_VIA;
+    k->device_id = PCI_DEVICE_ID_VIA_MC97;
+    k->class_id = PCI_CLASS_COMMUNICATION_OTHER;
+    k->revision = 0x30;
+    dc->desc = "MC97";
 }
 
-device_init(vt82c686b_mc97_register);
+static TypeInfo via_mc97_info = {
+    .name          = "VT82C686B_MC97",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VT686MC97State),
+    .class_init    = via_mc97_class_init,
+};
 
 /* vt82c686 pm init */
 static int vt82c686b_pm_initfn(PCIDevice *dev)
@@ -424,8 +429,8 @@ static int vt82c686b_pm_initfn(PCIDevice *dev)
 
     apm_init(&s->apm, NULL, s);
 
-    acpi_pm_tmr_init(&s->tmr, pm_tmr_timer);
-    acpi_pm1_cnt_init(&s->pm1_cnt, NULL);
+    acpi_pm_tmr_init(&s->ar, pm_tmr_timer);
+    acpi_pm1_cnt_init(&s->ar);
 
     pm_smbus_init(&s->dev.qdev, &s->smb);
 
@@ -448,29 +453,33 @@ i2c_bus *vt82c686b_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
     return s->smb.smbus;
 }
 
-static PCIDeviceInfo via_pm_info = {
-    .qdev.name          = "VT82C686B_PM",
-    .qdev.desc          = "PM",
-    .qdev.size          = sizeof(VT686PMState),
-    .qdev.vmsd          = &vmstate_acpi,
-    .init               = vt82c686b_pm_initfn,
-    .config_write       = pm_write_config,
-    .vendor_id          = PCI_VENDOR_ID_VIA,
-    .device_id          = PCI_DEVICE_ID_VIA_ACPI,
-    .class_id           = PCI_CLASS_BRIDGE_OTHER,
-    .revision           = 0x40,
-    .qdev.props         = (Property[]) {
-        DEFINE_PROP_UINT32("smb_io_base", VT686PMState, smb_io_base, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property via_pm_properties[] = {
+    DEFINE_PROP_UINT32("smb_io_base", VT686PMState, smb_io_base, 0),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void vt82c686b_pm_register(void)
+static void via_pm_class_init(ObjectClass *klass, void *data)
 {
-    pci_qdev_register(&via_pm_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = vt82c686b_pm_initfn;
+    k->config_write = pm_write_config;
+    k->vendor_id = PCI_VENDOR_ID_VIA;
+    k->device_id = PCI_DEVICE_ID_VIA_ACPI;
+    k->class_id = PCI_CLASS_BRIDGE_OTHER;
+    k->revision = 0x40;
+    dc->desc = "PM";
+    dc->vmsd = &vmstate_acpi;
+    dc->props = via_pm_properties;
 }
 
-device_init(vt82c686b_pm_register);
+static TypeInfo via_pm_info = {
+    .name          = "VT82C686B_PM",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VT686PMState),
+    .class_init    = via_pm_class_init,
+};
 
 static const VMStateDescription vmstate_via = {
     .name = "vt82c686b",
@@ -507,31 +516,44 @@ static int vt82c686b_initfn(PCIDevice *d)
     return 0;
 }
 
-int vt82c686b_init(PCIBus *bus, int devfn)
+ISABus *vt82c686b_init(PCIBus *bus, int devfn)
 {
     PCIDevice *d;
 
     d = pci_create_simple_multifunction(bus, devfn, true, "VT82C686B");
 
-    return d->devfn;
+    return DO_UPCAST(ISABus, qbus, qdev_get_child_bus(&d->qdev, "isa.0"));
 }
 
-static PCIDeviceInfo via_info = {
-    .qdev.name    = "VT82C686B",
-    .qdev.desc    = "ISA bridge",
-    .qdev.size    = sizeof(VT82C686BState),
-    .qdev.vmsd    = &vmstate_via,
-    .qdev.no_user = 1,
-    .init         = vt82c686b_initfn,
-    .config_write = vt82c686b_write_config,
-    .vendor_id    = PCI_VENDOR_ID_VIA,
-    .device_id    = PCI_DEVICE_ID_VIA_ISA_BRIDGE,
-    .class_id     = PCI_CLASS_BRIDGE_ISA,
-    .revision     = 0x40,
+static void via_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = vt82c686b_initfn;
+    k->config_write = vt82c686b_write_config;
+    k->vendor_id = PCI_VENDOR_ID_VIA;
+    k->device_id = PCI_DEVICE_ID_VIA_ISA_BRIDGE;
+    k->class_id = PCI_CLASS_BRIDGE_ISA;
+    k->revision = 0x40;
+    dc->desc = "ISA bridge";
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_via;
+}
+
+static TypeInfo via_info = {
+    .name          = "VT82C686B",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VT82C686BState),
+    .class_init    = via_class_init,
 };
 
-static void vt82c686b_register(void)
+static void vt82c686b_register_types(void)
 {
-    pci_qdev_register(&via_info);
+    type_register_static(&via_ac97_info);
+    type_register_static(&via_mc97_info);
+    type_register_static(&via_pm_info);
+    type_register_static(&via_info);
 }
-device_init(vt82c686b_register);
+
+type_init(vt82c686b_register_types)

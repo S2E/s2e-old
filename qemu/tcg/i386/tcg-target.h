@@ -24,11 +24,6 @@
 
 #define TCG_TARGET_I386 1
 
-#if defined(__x86_64__)
-# define TCG_TARGET_REG_BITS 64
-#else
-# define TCG_TARGET_REG_BITS 32
-#endif
 //#define TCG_TARGET_WORDS_BIGENDIAN
 
 #if TCG_TARGET_REG_BITS == 64
@@ -129,7 +124,8 @@ typedef enum {
 # define TCG_AREG0 TCG_REG_EBP
 #endif
 
-static inline void flush_icache_range(unsigned long start, unsigned long stop)
+static inline void flush_icache_range(tcg_target_ulong start,
+                                      tcg_target_ulong stop)
 {
 }
 

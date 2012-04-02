@@ -100,6 +100,7 @@ typedef struct QemuOptDesc {
 struct QemuOptsList {
     const char *name;
     const char *implied_opt_name;
+    bool merge_lists;  /* Merge multiple uses of option into a single list? */
     QTAILQ_HEAD(, QemuOpts) head;
     QemuOptDesc desc[];
 };
@@ -125,6 +126,8 @@ void qemu_opts_del(QemuOpts *opts);
 int qemu_opts_validate(QemuOpts *opts, const QemuOptDesc *desc);
 int qemu_opts_do_parse(QemuOpts *opts, const char *params, const char *firstname);
 QemuOpts *qemu_opts_parse(QemuOptsList *list, const char *params, int permit_abbrev);
+void qemu_opts_set_defaults(QemuOptsList *list, const char *params,
+                            int permit_abbrev);
 QemuOpts *qemu_opts_from_qdict(QemuOptsList *list, const QDict *qdict);
 QDict *qemu_opts_to_qdict(QemuOpts *opts, QDict *qdict);
 

@@ -317,8 +317,8 @@ bool X86Parser::getIdt(S2EExecutionState *state, IDT &table)
     uint32_t idtBase;
     uint32_t idtLimit;
 
-    idtBase =  state->readCpuState(offsetof(CPUState, idt.base), 8 * sizeof(idtBase));
-    idtLimit =  state->readCpuState(offsetof(CPUState, idt.limit), 8 * sizeof(idtLimit));
+    idtBase =  state->readCpuState(offsetof(CPUX86State, idt.base), 8 * sizeof(idtBase));
+    idtLimit =  state->readCpuState(offsetof(CPUX86State, idt.limit), 8 * sizeof(idtLimit));
 
     unsigned maxHdlrs = (idtLimit+1) / 8;
 
@@ -343,8 +343,8 @@ bool X86Parser::getGdt(S2EExecutionState *state, GDT &table)
     target_ulong gdtBase;
     uint32_t gdtLimit;
 
-    gdtBase =  state->readCpuState(offsetof(CPUState, gdt.base), 8 * sizeof(gdtBase));
-    gdtLimit = state->readCpuState(offsetof(CPUState, gdt.limit), 8 * sizeof(gdtLimit));
+    gdtBase =  state->readCpuState(offsetof(CPUX86State, gdt.base), 8 * sizeof(gdtBase));
+    gdtLimit = state->readCpuState(offsetof(CPUX86State, gdt.limit), 8 * sizeof(gdtLimit));
 
     unsigned maxHdlrs = (gdtLimit+1) / 8;
 
@@ -369,8 +369,8 @@ bool X86Parser::getGdtEntry(S2EExecutionState *state, X86GDTEntry *gdtEntry, uin
   target_ulong gdtBase;
   uint32_t gdtLimit;
 
-  gdtBase =  state->readCpuState(offsetof(CPUState, gdt.base), 8 * sizeof(gdtBase));
-  gdtLimit = state->readCpuState(offsetof(CPUState, gdt.limit), 8 * sizeof(gdtLimit));
+  gdtBase =  state->readCpuState(offsetof(CPUX86State, gdt.base), 8 * sizeof(gdtBase));
+  gdtLimit = state->readCpuState(offsetof(CPUX86State, gdt.limit), 8 * sizeof(gdtLimit));
 
   unsigned maxHdlrs = (gdtLimit+1) / 8;
 
@@ -413,8 +413,8 @@ bool X86Parser::getCurrentTss(S2EExecutionState *state, X86TSS *tss)
   target_ulong base;
   unsigned limit;
 
-  base =  state->readCpuState(offsetof(CPUState, tr.base), 8 * sizeof(base));
-  limit = state->readCpuState(offsetof(CPUState, tr.limit), 8 * sizeof(limit));
+  base =  state->readCpuState(offsetof(CPUX86State, tr.base), 8 * sizeof(base));
+  limit = state->readCpuState(offsetof(CPUX86State, tr.limit), 8 * sizeof(limit));
 
   assert(sizeof(X86TSS) == 0x68);
   if (limit < sizeof(X86TSS)) {

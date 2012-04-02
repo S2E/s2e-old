@@ -66,6 +66,13 @@ void icmp_init(Slirp *slirp)
     slirp->icmp_last_so = &slirp->icmp;
 }
 
+void icmp_cleanup(Slirp *slirp)
+{
+    while (slirp->icmp.so_next != &slirp->icmp) {
+        icmp_detach(slirp->icmp.so_next);
+    }
+}
+
 static int icmp_send(struct socket *so, struct mbuf *m, int hlen)
 {
     struct ip *ip = mtod(m, struct ip *);
@@ -261,6 +268,11 @@ icmp_error(struct mbuf *msrc, u_char type, u_char code, int minsize,
   }
 #endif
   if(ip->ip_off & IP_OFFMASK) goto end_error;    /* Only reply to fragment 0 */
+
+  /* Do not reply to source-only IPs */
+  if ((ip->ip_src.s_addr & htonl(~(0xf << 28))) == 0) {
+      goto end_error;
+  }
 
   shlen=ip->ip_hl << 2;
   s_ip_len=ip->ip_len;

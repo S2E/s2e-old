@@ -25,6 +25,7 @@
 #include <hw/msi.h>
 #include <hw/pc.h>
 #include <hw/pci.h>
+#include <hw/sysbus.h>
 
 #include "monitor.h"
 #include "dma.h"
@@ -145,6 +146,7 @@ static void ahci_check_irq(AHCIState *s)
 
     DPRINTF(-1, "check irq %#x\n", s->control_regs.irqstatus);
 
+    s->control_regs.irqstatus = 0;
     for (i = 0; i < s->ports; i++) {
         AHCIPortRegs *pr = &s->dev[i].port_regs;
         if (pr->irq_stat & pr->irq_mask) {
@@ -215,6 +217,7 @@ static void  ahci_port_write(AHCIState *s, int port, int offset, uint32_t val)
             break;
         case PORT_IRQ_STAT:
             pr->irq_stat &= ~val;
+            ahci_check_irq(s);
             break;
         case PORT_IRQ_MASK:
             pr->irq_mask = val & 0xfdc000ff;
@@ -364,7 +367,7 @@ static void ahci_mem_write(void *opaque, target_phys_addr_t addr,
 
 }
 
-static MemoryRegionOps ahci_mem_ops = {
+static const MemoryRegionOps ahci_mem_ops = {
     .read = ahci_mem_read,
     .write = ahci_mem_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
@@ -400,7 +403,7 @@ static void ahci_idp_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static MemoryRegionOps ahci_idp_ops = {
+static const MemoryRegionOps ahci_idp_ops = {
     .read = ahci_idp_read,
     .write = ahci_idp_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
@@ -423,55 +426,6 @@ static void ahci_reg_init(AHCIState *s)
     for (i = 0; i < s->ports; i++) {
         s->dev[i].port_state = STATE_RUN;
     }
-}
-
-static uint32_t read_from_sglist(uint8_t *buffer, uint32_t len,
-                                 QEMUSGList *sglist)
-{
-    uint32_t i = 0;
-    uint32_t total = 0, once;
-    ScatterGatherEntry *cur_prd;
-    uint32_t sgcount;
-
-    cur_prd = sglist->sg;
-    sgcount = sglist->nsg;
-    for (i = 0; len && sgcount; i++) {
-        once = MIN(cur_prd->len, len);
-        cpu_physical_memory_read(cur_prd->base, buffer, once);
-        cur_prd++;
-        sgcount--;
-        len -= once;
-        buffer += once;
-        total += once;
-    }
-
-    return total;
-}
-
-static uint32_t write_to_sglist(uint8_t *buffer, uint32_t len,
-                                QEMUSGList *sglist)
-{
-    uint32_t i = 0;
-    uint32_t total = 0, once;
-    ScatterGatherEntry *cur_prd;
-    uint32_t sgcount;
-
-    DPRINTF(-1, "total: 0x%x bytes\n", len);
-
-    cur_prd = sglist->sg;
-    sgcount = sglist->nsg;
-    for (i = 0; len && sgcount; i++) {
-        once = MIN(cur_prd->len, len);
-        DPRINTF(-1, "write 0x%x bytes to 0x%lx\n", once, (long)cur_prd->base);
-        cpu_physical_memory_write(cur_prd->base, buffer, once);
-        cur_prd++;
-        sgcount--;
-        len -= once;
-        buffer += once;
-        total += once;
-    }
-
-    return total;
 }
 
 static void check_cmd(AHCIState *s, int port)
@@ -557,6 +511,11 @@ static void ahci_reset_port(AHCIState *s, int port)
         if (ncq_tfs->aiocb) {
             bdrv_aio_cancel(ncq_tfs->aiocb);
             ncq_tfs->aiocb = NULL;
+        }
+
+        /* Maybe we just finished the request thanks to bdrv_aio_cancel() */
+        if (!ncq_tfs->used) {
+            continue;
         }
 
         qemu_sglist_destroy(&ncq_tfs->sglist);
@@ -794,9 +753,8 @@ static void process_ncq_command(AHCIState *s, int port, uint8_t *cmd_fis,
             DPRINTF(port, "tag %d aio read %"PRId64"\n",
                     ncq_tfs->tag, ncq_tfs->lba);
 
-            bdrv_acct_start(ncq_tfs->drive->port.ifs[0].bs, &ncq_tfs->acct,
-                            (ncq_tfs->sector_count-1) * BDRV_SECTOR_SIZE,
-                            BDRV_ACCT_READ);
+            dma_acct_start(ncq_tfs->drive->port.ifs[0].bs, &ncq_tfs->acct,
+                           &ncq_tfs->sglist, BDRV_ACCT_READ);
             ncq_tfs->aiocb = dma_bdrv_read(ncq_tfs->drive->port.ifs[0].bs,
                                            &ncq_tfs->sglist, ncq_tfs->lba,
                                            ncq_cb, ncq_tfs);
@@ -808,9 +766,8 @@ static void process_ncq_command(AHCIState *s, int port, uint8_t *cmd_fis,
             DPRINTF(port, "tag %d aio write %"PRId64"\n",
                     ncq_tfs->tag, ncq_tfs->lba);
 
-            bdrv_acct_start(ncq_tfs->drive->port.ifs[0].bs, &ncq_tfs->acct,
-                            (ncq_tfs->sector_count-1) * BDRV_SECTOR_SIZE,
-                            BDRV_ACCT_WRITE);
+            dma_acct_start(ncq_tfs->drive->port.ifs[0].bs, &ncq_tfs->acct,
+                           &ncq_tfs->sglist, BDRV_ACCT_WRITE);
             ncq_tfs->aiocb = dma_bdrv_write(ncq_tfs->drive->port.ifs[0].bs,
                                             &ncq_tfs->sglist, ncq_tfs->lba,
                                             ncq_cb, ncq_tfs);
@@ -1015,12 +972,12 @@ static int ahci_start_transfer(IDEDMA *dma)
             is_write ? "writ" : "read", size, is_atapi ? "atapi" : "ata",
             has_sglist ? "" : "o");
 
-    if (is_write && has_sglist && (s->data_ptr < s->data_end)) {
-        read_from_sglist(s->data_ptr, size, &s->sg);
-    }
-
-    if (!is_write && has_sglist && (s->data_ptr < s->data_end)) {
-        write_to_sglist(s->data_ptr, size, &s->sg);
+    if (has_sglist && size) {
+        if (is_write) {
+            dma_buf_write(s->data_ptr, size, &s->sg);
+        } else {
+            dma_buf_read(s->data_ptr, size, &s->sg);
+        }
     }
 
     /* update number of transferred bytes */
@@ -1059,14 +1016,9 @@ static int ahci_dma_prepare_buf(IDEDMA *dma, int is_write)
 {
     AHCIDevice *ad = DO_UPCAST(AHCIDevice, dma, dma);
     IDEState *s = &ad->port.ifs[0];
-    int i;
 
     ahci_populate_sglist(ad, &s->sg);
-
-    s->io_buffer_size = 0;
-    for (i = 0; i < s->sg.nsg; i++) {
-        s->io_buffer_size += s->sg.sg[i].len;
-    }
+    s->io_buffer_size = s->sg.size;
 
     DPRINTF(ad->port_no, "len=%#x\n", s->io_buffer_size);
     return s->io_buffer_size != 0;
@@ -1084,9 +1036,9 @@ static int ahci_dma_rw_buf(IDEDMA *dma, int is_write)
     }
 
     if (is_write) {
-        write_to_sglist(p, l, &s->sg);
+        dma_buf_read(p, l, &s->sg);
     } else {
-        read_from_sglist(p, l, &s->sg);
+        dma_buf_write(p, l, &s->sg);
     }
 
     /* update number of transferred bytes */
@@ -1214,3 +1166,55 @@ void ahci_reset(void *opaque)
         ahci_reset_port(&d->ahci, i);
     }
 }
+
+typedef struct SysbusAHCIState {
+    SysBusDevice busdev;
+    AHCIState ahci;
+    uint32_t num_ports;
+} SysbusAHCIState;
+
+static const VMStateDescription vmstate_sysbus_ahci = {
+    .name = "sysbus-ahci",
+    .unmigratable = 1,
+};
+
+static int sysbus_ahci_init(SysBusDevice *dev)
+{
+    SysbusAHCIState *s = FROM_SYSBUS(SysbusAHCIState, dev);
+    ahci_init(&s->ahci, &dev->qdev, s->num_ports);
+
+    sysbus_init_mmio(dev, &s->ahci.mem);
+    sysbus_init_irq(dev, &s->ahci.irq);
+
+    qemu_register_reset(ahci_reset, &s->ahci);
+    return 0;
+}
+
+static Property sysbus_ahci_properties[] = {
+    DEFINE_PROP_UINT32("num-ports", SysbusAHCIState, num_ports, 1),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void sysbus_ahci_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sbc = SYS_BUS_DEVICE_CLASS(klass);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    sbc->init = sysbus_ahci_init;
+    dc->vmsd = &vmstate_sysbus_ahci;
+    dc->props = sysbus_ahci_properties;
+}
+
+static TypeInfo sysbus_ahci_info = {
+    .name          = "sysbus-ahci",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SysbusAHCIState),
+    .class_init    = sysbus_ahci_class_init,
+};
+
+static void sysbus_ahci_register_types(void)
+{
+    type_register_static(&sysbus_ahci_info);
+}
+
+type_init(sysbus_ahci_register_types)

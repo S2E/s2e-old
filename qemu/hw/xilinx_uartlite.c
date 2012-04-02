@@ -203,18 +203,31 @@ static int xilinx_uartlite_init(SysBusDevice *dev)
 
     uart_update_status(s);
     memory_region_init_io(&s->mmio, &uart_ops, s, "xilinx-uartlite", R_MAX * 4);
-    sysbus_init_mmio_region(dev, &s->mmio);
+    sysbus_init_mmio(dev, &s->mmio);
 
-    s->chr = qdev_init_chardev(&dev->qdev);
+    s->chr = qemu_char_get_next_serial();
     if (s->chr)
         qemu_chr_add_handlers(s->chr, uart_can_rx, uart_rx, uart_event, s);
     return 0;
 }
 
-static void xilinx_uart_register(void)
+static void xilinx_uartlite_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_dev("xilinx,uartlite", sizeof (struct xlx_uartlite),
-                        xilinx_uartlite_init);
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = xilinx_uartlite_init;
 }
 
-device_init(xilinx_uart_register)
+static TypeInfo xilinx_uartlite_info = {
+    .name          = "xilinx,uartlite",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof (struct xlx_uartlite),
+    .class_init    = xilinx_uartlite_class_init,
+};
+
+static void xilinx_uart_register_types(void)
+{
+    type_register_static(&xilinx_uartlite_info);
+}
+
+type_init(xilinx_uart_register_types)

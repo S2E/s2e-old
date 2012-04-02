@@ -35,7 +35,6 @@
 #include "dyngen-exec.h"
 #include "host-utils.h"
 #include "ioport.h"
-#include "qemu-common.h"
 #include "qemu-log.h"
 #include "cpu-defs.h"
 #include "helper.h"
@@ -95,11 +94,11 @@ static inline target_long lshift(target_long x, int n)
     }
 }
 
-#define RC_MASK         0xc00
-#define RC_NEAR         0x000
-#define RC_DOWN         0x400
-#define RC_UP           0x800
-#define RC_CHOP         0xc00
+#define FPU_RC_MASK         0xc00
+#define FPU_RC_NEAR         0x000
+#define FPU_RC_DOWN         0x400
+#define FPU_RC_UP           0x800
+#define FPU_RC_CHOP         0xc00
 
 #define MAXTAN 9223372036854775808.0
 
@@ -181,7 +180,7 @@ static inline void load_eflags(int eflags, int update_mask)
 
 /* load efer and update the corresponding hflags. XXX: do consistency
    checks with cpuid bits ? */
-static inline void cpu_load_efer(CPUState *env, uint64_t val)
+static inline void cpu_load_efer(CPUX86State *env, uint64_t val)
 {
     env->efer = val;
     env->hflags &= ~(HF_LMA_MASK | HF_SVME_MASK);
@@ -978,7 +977,6 @@ do {\
 }
 
 #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-#warning why did we need _s2e_trace in the first place???
 #define POPW_T(ssp, sp, sp_mask, val)\
 {\
     val = lduw_kernel((ssp) + (sp & (sp_mask)));\
@@ -1636,9 +1634,9 @@ static void do_interrupt_all(int intno, int is_int, int error_code,
 #endif
 }
 
-void do_interrupt(CPUState *env1)
+void do_interrupt(CPUX86State *env1)
 {
-    CPUState *saved_env;
+    CPUX86State *saved_env;
 
     saved_env = env;
     env = env1;
@@ -1666,9 +1664,9 @@ void do_interrupt(CPUState *env1)
     env = saved_env;
 }
 
-void do_interrupt_x86_hardirq(CPUState *env1, int intno, int is_hw)
+void do_interrupt_x86_hardirq(CPUX86State *env1, int intno, int is_hw)
 {
-    CPUState *saved_env;
+    CPUX86State *saved_env;
 
     saved_env = env;
     env = env1;
@@ -1752,7 +1750,7 @@ static void QEMU_NORETURN raise_exception_err(int exception_index,
     raise_interrupt(exception_index, 0, error_code, 0);
 }
 
-void raise_exception_err_env(CPUState *nenv, int exception_index,
+void raise_exception_err_env(CPUX86State *nenv, int exception_index,
                              int error_code)
 {
     env = nenv;
@@ -1764,7 +1762,7 @@ static void QEMU_NORETURN raise_exception(int exception_index)
     raise_interrupt(exception_index, 0, 0, 0);
 }
 
-void raise_exception_env(int exception_index, CPUState *nenv)
+void raise_exception_env(int exception_index, CPUX86State *nenv)
 {
     env = nenv;
     raise_exception(exception_index);
@@ -1773,7 +1771,7 @@ void raise_exception_env(int exception_index, CPUState *nenv)
 
 #if defined(CONFIG_USER_ONLY)
 
-void do_smm_enter(CPUState *env1)
+void do_smm_enter(CPUX86State *env1)
 {
 }
 
@@ -1789,12 +1787,12 @@ void helper_rsm(void)
 #define SMM_REVISION_ID 0x00020000
 #endif
 
-void do_smm_enter(CPUState *env1)
+void do_smm_enter(CPUX86State *env1)
 {
     target_ulong sm_state;
     SegmentCache *dt;
     int i, offset;
-    CPUState *saved_env;
+    CPUX86State *saved_env;
 
     saved_env = env;
     env = env1;
@@ -4296,18 +4294,18 @@ static void update_fp_status(void)
     int rnd_type;
 
     /* set rounding mode */
-    switch(env->fpuc & RC_MASK) {
+    switch(env->fpuc & FPU_RC_MASK) {
     default:
-    case RC_NEAR:
+    case FPU_RC_NEAR:
         rnd_type = float_round_nearest_even;
         break;
-    case RC_DOWN:
+    case FPU_RC_DOWN:
         rnd_type = float_round_down;
         break;
-    case RC_UP:
+    case FPU_RC_UP:
         rnd_type = float_round_up;
         break;
-    case RC_CHOP:
+    case FPU_RC_CHOP:
         rnd_type = float_round_to_zero;
         break;
     }
@@ -5296,7 +5294,7 @@ void helper_boundl(target_ulong a0, int v)
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
 /* XXX: fix it to restore all registers */
-void tlb_fill(CPUState *env1, target_ulong addr, target_ulong page_addr,
+void tlb_fill(CPUX86State *env1, target_ulong addr, target_ulong page_addr,
               int is_write, int mmu_idx,
               void *retaddr)
 {
@@ -5379,7 +5377,7 @@ void helper_svm_check_intercept_param(uint32_t type, uint64_t param)
 {
 }
 
-void svm_check_intercept(CPUState *env1, uint32_t type)
+void svm_check_intercept(CPUX86State *env1, uint32_t type)
 {
 }
 
@@ -5414,7 +5412,7 @@ static inline void svm_load_seg(target_phys_addr_t addr, SegmentCache *sc)
 }
 
 static inline void svm_load_seg_cache(target_phys_addr_t addr, 
-                                      CPUState *env, int seg_reg)
+                                      CPUX86State *env, int seg_reg)
 {
     SegmentCache sc1, *sc = &sc1;
     svm_load_seg(addr, sc);
@@ -5773,9 +5771,9 @@ void helper_svm_check_intercept_param(uint32_t type, uint64_t param)
     }
 }
 
-void svm_check_intercept(CPUState *env1, uint32_t type)
+void svm_check_intercept(CPUX86State *env1, uint32_t type)
 {
-    CPUState *saved_env;
+    CPUX86State *saved_env;
 
     saved_env = env;
     env = env1;
@@ -5941,6 +5939,50 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
 
 /* MMX/SSE */
 /* XXX: optimize by storing fptt and fptags in the static cpu state */
+
+#define SSE_DAZ             0x0040
+#define SSE_RC_MASK         0x6000
+#define SSE_RC_NEAR         0x0000
+#define SSE_RC_DOWN         0x2000
+#define SSE_RC_UP           0x4000
+#define SSE_RC_CHOP         0x6000
+#define SSE_FZ              0x8000
+
+static void update_sse_status(void)
+{
+    int rnd_type;
+
+    /* set rounding mode */
+    switch(env->mxcsr & SSE_RC_MASK) {
+    default:
+    case SSE_RC_NEAR:
+        rnd_type = float_round_nearest_even;
+        break;
+    case SSE_RC_DOWN:
+        rnd_type = float_round_down;
+        break;
+    case SSE_RC_UP:
+        rnd_type = float_round_up;
+        break;
+    case SSE_RC_CHOP:
+        rnd_type = float_round_to_zero;
+        break;
+    }
+    set_float_rounding_mode(rnd_type, &env->sse_status);
+
+    /* set denormals are zero */
+    set_flush_inputs_to_zero((env->mxcsr & SSE_DAZ) ? 1 : 0, &env->sse_status);
+
+    /* set flush to zero */
+    set_flush_to_zero((env->mxcsr & SSE_FZ) ? 1 : 0, &env->fp_status);
+}
+
+void helper_ldmxcsr(uint32_t val)
+{
+    env->mxcsr = val;
+    update_sse_status();
+}
+
 void helper_enter_mmx(void)
 {
     env->fpstt = 0;
@@ -6111,9 +6153,9 @@ uint32_t helper_cc_compute_all(int op)
     }
 }
 
-uint32_t cpu_cc_compute_all(CPUState *env1, int op)
+uint32_t cpu_cc_compute_all(CPUX86State *env1, int op)
 {
-    CPUState *saved_env;
+    CPUX86State *saved_env;
     uint32_t ret;
 
     saved_env = env;

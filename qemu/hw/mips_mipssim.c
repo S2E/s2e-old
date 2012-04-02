@@ -46,7 +46,7 @@ static struct _loaderparams {
 } loaderparams;
 
 typedef struct ResetData {
-    CPUState *env;
+    CPUMIPSState *env;
     uint64_t vector;
 } ResetData;
 
@@ -105,9 +105,9 @@ static int64_t load_kernel(void)
 static void main_cpu_reset(void *opaque)
 {
     ResetData *s = (ResetData *)opaque;
-    CPUState *env = s->env;
+    CPUMIPSState *env = s->env;
 
-    cpu_reset(env);
+    cpu_state_reset(env);
     env->active_tc.PC = s->vector & ~(target_ulong)1;
     if (s->vector & 1) {
         env->hflags |= MIPS_HFLAG_M16;
@@ -140,7 +140,7 @@ mips_mipssim_init (ram_addr_t ram_size,
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *ram = g_new(MemoryRegion, 1);
     MemoryRegion *bios = g_new(MemoryRegion, 1);
-    CPUState *env;
+    CPUMIPSState *env;
     ResetData *reset_info;
     int bios_size;
 
@@ -163,8 +163,10 @@ mips_mipssim_init (ram_addr_t ram_size,
     qemu_register_reset(main_cpu_reset, reset_info);
 
     /* Allocate RAM. */
-    memory_region_init_ram(ram, NULL, "mips_mipssim.ram", ram_size);
-    memory_region_init_ram(bios, NULL, "mips_mipssim.bios", BIOS_SIZE);
+    memory_region_init_ram(ram, "mips_mipssim.ram", ram_size);
+    vmstate_register_ram_global(ram);
+    memory_region_init_ram(bios, "mips_mipssim.bios", BIOS_SIZE);
+    vmstate_register_ram_global(bios);
     memory_region_set_readonly(bios, true);
 
     memory_region_add_subregion(address_space_mem, 0, ram);

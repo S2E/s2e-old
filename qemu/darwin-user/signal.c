@@ -270,8 +270,7 @@ int do_sigaction(int sig, const struct sigaction *act,
         host_sig = target_to_host_signal(sig);
         if (host_sig != SIGSEGV && host_sig != SIGBUS) {
 #if defined(DEBUG_SIGNAL)
-    fprintf(stderr, "sigaction handler going to call sigaction\n",
-            act->sa_handler, act->sa_flags, act->sa_mask);
+            fprintf(stderr, "sigaction handler going to call sigaction\n");
 #endif
 
             sigfillset(&act1.sa_mask);
@@ -316,7 +315,7 @@ get_sigframe(struct emulated_sigaction *ka, CPUX86State *env, size_t frame_size)
 }
 
 static void setup_frame(int sig, struct emulated_sigaction *ka,
-			void *set, CPUState *env)
+                        void *set, CPUX86State *env)
 {
 	void *frame;
 
@@ -337,7 +336,7 @@ give_sigsegv:
 	force_sig(SIGSEGV /* , current */);
 }
 
-long do_sigreturn(CPUState *env, int num)
+long do_sigreturn(CPUX86State *env, int num)
 {
     int i = 0;
     struct target_sigcontext *scp = get_int_arg(&i, env);
@@ -378,12 +377,12 @@ long do_sigreturn(CPUState *env, int num)
 #else
 
 static void setup_frame(int sig, struct emulated_sigaction *ka,
-			void *set, CPUState *env)
+			void *set, CPUArchState *env)
 {
     fprintf(stderr, "setup_frame: not implemented\n");
 }
 
-long do_sigreturn(CPUState *env, int num)
+long do_sigreturn(CPUArchState *env, int num)
 {
     int i = 0;
     struct target_sigcontext *scp = get_int_arg(&i, env);

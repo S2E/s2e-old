@@ -305,7 +305,7 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
     state->bypassFunction(7);
 
     klee::ref<klee::Expr> symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
-    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
     incrementFailures(state);
 
     //Register the return handler
@@ -380,7 +380,7 @@ void NtoskrnlHandlers::IoIsWdmVersionAvailableRet(S2EExecutionState* state)
     state->jumpToSymbolicCpp();
 
     uint32_t isAvailable;
-    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &isAvailable, sizeof(isAvailable))) {
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &isAvailable, sizeof(isAvailable))) {
         return;
     }
     if (!isAvailable) {
@@ -459,7 +459,7 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
     //disregarding the string.
     if (consistency == OVERAPPROX || consistency == LOCAL) {
         klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), eax);
         state->bypassFunction(3);
     }
 }
@@ -485,7 +485,7 @@ void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, Function
     state->bypassFunction(4);
     incrementFailures(state);
 
-    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
+    state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
                             createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
 }
 
@@ -516,7 +516,7 @@ void NtoskrnlHandlers::MmGetSystemRoutineAddress(S2EExecutionState* state, Funct
     vec.push_back(0);
     symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
 
-    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
 }
 
 
@@ -539,7 +539,7 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
     if (consistency == OVERAPPROX) {
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
         //Put bogus stuff in the structure
@@ -554,7 +554,7 @@ void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, Fun
         std::vector<uint32_t> vec;
         vec.push_back(STATUS_UNKNOWN_REVISION);
         klee::ref<klee::Expr> symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
 
         //Skip the call in the current state
         state->bypassFunction(2);
@@ -581,14 +581,14 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, Fu
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
     if (consistency == OVERAPPROX) {
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
         std::vector<uint32_t> vec;
         vec.push_back(STATUS_UNKNOWN_REVISION);
         vec.push_back(STATUS_INVALID_SECURITY_DESCR);
         klee::ref<klee::Expr> symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
     }
 
     //Skip the call in the current state
@@ -604,7 +604,7 @@ void NtoskrnlHandlers::RtlSetDaclSecurityDescriptorRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
     uint32_t res;
-    if (state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &res, sizeof(res))) {
+    if (state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &res, sizeof(res))) {
         if ((int)res < 0) {
             HANDLER_TRACE_FCNFAILED_VAL(res);
             incrementFailures(state);
@@ -632,14 +632,14 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, Fun
     forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
     if (consistency == OVERAPPROX) {
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
                                 createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
     }else {
         std::vector<uint32_t> vec;
         vec.push_back(STATUS_BAD_DESCRIPTOR_FORMAT);
         vec.push_back(STATUS_BUFFER_TOO_SMALL);
         klee::ref<klee::Expr> symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
     }
 
     //Skip the call in the current state
@@ -655,7 +655,7 @@ void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSDRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
     uint32_t res;
-    if (state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &res, sizeof(res))) {
+    if (state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &res, sizeof(res))) {
         if ((int)res < 0) {
             HANDLER_TRACE_FCNFAILED_VAL(res);
             incrementFailures(state);
@@ -696,7 +696,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
     //Skip the call in the current state
     state->bypassFunction(4);
     uint32_t failValue = 0;
-    state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
+    state->writeCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &failValue, sizeof(failValue));
     incrementFailures(state);
 
     //Register the return handler
@@ -709,7 +709,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32
     HANDLER_TRACE_RETURN();
 
     uint32_t address;
-    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &address, sizeof(address))) {
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &address, sizeof(address))) {
         return;
     }
     if (!address) {
@@ -942,7 +942,7 @@ void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpM
     HANDLER_TRACE_RETURN();
 
     //Get the return value
-    klee::ref<klee::Expr> result = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
+    klee::ref<klee::Expr> result = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
 
     if (isFake) {
         std::stringstream ss;
@@ -968,7 +968,7 @@ void NtoskrnlHandlers::IofCompleteRequest(S2EExecutionState* state, FunctionMoni
     if (m_memoryChecker) {
         uint32_t pIrp;
 
-        if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_ECX]), &pIrp, sizeof(pIrp))) {
+        if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_ECX]), &pIrp, sizeof(pIrp))) {
             HANDLER_TRACE_PARAM_FAILED("pIrp");
             return;
         }

@@ -59,6 +59,12 @@ static const char * const tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
 };
 #endif
 
+#ifdef CONFIG_TCG_PASS_AREG0
+#define ARG_OFFSET 1
+#else
+#define ARG_OFFSET 0
+#endif
+
 static const int tcg_target_reg_alloc_order[] = {
     TCG_REG_L0,
     TCG_REG_L1,
@@ -86,9 +92,9 @@ static const int tcg_target_call_iarg_regs[6] = {
 
 static const int tcg_target_call_oarg_regs[] = {
     TCG_REG_O0,
-#if TCG_TARGET_REG_BITS == 32
-    TCG_REG_O1
-#endif
+    TCG_REG_O1,
+    TCG_REG_O2,
+    TCG_REG_O3,
 };
 
 static inline int check_fit_tl(tcg_target_long val, unsigned int bits)
@@ -155,6 +161,9 @@ static int target_parse_constraint(TCGArgConstraint *ct, const char **pct_str)
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_O0);
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_O1);
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_O2);
+#ifdef CONFIG_TCG_PASS_AREG0
+        tcg_regset_reset_reg(ct->u.regs, TCG_REG_O3);
+#endif
         break;
     case 'I':
         ct->ct |= TCG_CT_CONST_S11;
@@ -582,7 +591,7 @@ static void tcg_out_brcond2_i32(TCGContext *s, TCGCond cond,
     }
     tcg_out_nop(s);
 
-    tcg_out_label(s, label_next, (tcg_target_long)s->code_ptr);
+    tcg_out_label(s, label_next, s->code_ptr);
 }
 #endif
 
@@ -628,7 +637,7 @@ static void tcg_out_setcond_i32(TCGContext *s, TCGCond cond, TCGArg ret,
         tcg_out_branch_i32(s, INSN_COND(tcg_cond_to_bcond[cond], 1), t);
         tcg_out_movi_imm13(s, ret, 1);
         tcg_out_movi_imm13(s, ret, 0);
-        tcg_out_label(s, t, (tcg_target_long)s->code_ptr);
+        tcg_out_label(s, t, s->code_ptr);
 #endif
         return;
     }
@@ -683,7 +692,7 @@ static void tcg_out_setcond2_i32(TCGContext *s, TCGCond cond, TCGArg ret,
 
         tcg_out_setcond_i32(s, tcg_unsigned_cond(cond), ret, al, bl, blconst);
 
-        tcg_out_label(s, lab, (tcg_target_long)s->code_ptr);
+        tcg_out_label(s, lab, s->code_ptr);
         break;
     }
 }
@@ -706,6 +715,27 @@ static void tcg_target_qemu_prologue(TCGContext *s)
 
 #include "../../softmmu_defs.h"
 
+#ifdef CONFIG_TCG_PASS_AREG0
+/* helper signature: helper_ld_mmu(CPUState *env, target_ulong addr,
+   int mmu_idx) */
+static const void * const qemu_ld_helpers[4] = {
+    helper_ldb_mmu,
+    helper_ldw_mmu,
+    helper_ldl_mmu,
+    helper_ldq_mmu,
+};
+
+/* helper signature: helper_st_mmu(CPUState *env, target_ulong addr,
+   uintxx_t val, int mmu_idx) */
+static const void * const qemu_st_helpers[4] = {
+    helper_stb_mmu,
+    helper_stw_mmu,
+    helper_stl_mmu,
+    helper_stq_mmu,
+};
+#else
+/* legacy helper signature: __ld_mmu(target_ulong addr, int
+   mmu_idx) */
 static const void * const qemu_ld_helpers[4] = {
     __ldb_mmu,
     __ldw_mmu,
@@ -713,12 +743,15 @@ static const void * const qemu_ld_helpers[4] = {
     __ldq_mmu,
 };
 
+/* legacy helper signature: __st_mmu(target_ulong addr, uintxx_t val,
+   int mmu_idx) */
 static const void * const qemu_st_helpers[4] = {
     __stb_mmu,
     __stw_mmu,
     __stl_mmu,
     __stq_mmu,
 };
+#endif
 #endif
 
 #if TARGET_LONG_BITS == 32
@@ -776,7 +809,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_andi(s, arg1, (CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS);
 
     /* add arg1, x, arg1 */
-    tcg_out_addi(s, arg1, offsetof(CPUState,
+    tcg_out_addi(s, arg1, offsetof(CPUArchState,
                                    tlb_table[mem_index][0].addr_read));
 
     /* add env, arg1, arg1 */
@@ -801,6 +834,17 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 
     /* mov */
     tcg_out_movi(s, TCG_TYPE_I32, arg1, mem_index);
+#ifdef CONFIG_TCG_PASS_AREG0
+    /* XXX/FIXME: suboptimal */
+    tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[3],
+                tcg_target_call_iarg_regs[2]);
+    tcg_out_mov(s, TCG_TYPE_I64, tcg_target_call_iarg_regs[2],
+                tcg_target_call_iarg_regs[1]);
+    tcg_out_mov(s, TCG_TYPE_TL, tcg_target_call_iarg_regs[1],
+                tcg_target_call_iarg_regs[0]);
+    tcg_out_mov(s, TCG_TYPE_PTR, tcg_target_call_iarg_regs[0],
+                TCG_AREG0);
+#endif
 
     /* XXX: move that code at the end of the TB */
     /* qemu_ld_helper[s_bits](arg0, arg1) */
@@ -988,7 +1032,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_andi(s, arg1, (CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS);
 
     /* add arg1, x, arg1 */
-    tcg_out_addi(s, arg1, offsetof(CPUState,
+    tcg_out_addi(s, arg1, offsetof(CPUArchState,
                                    tlb_table[mem_index][0].addr_write));
 
     /* add env, arg1, arg1 */
@@ -1017,6 +1061,17 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     /* mov */
     tcg_out_movi(s, TCG_TYPE_I32, arg2, mem_index);
 
+#ifdef CONFIG_TCG_PASS_AREG0
+    /* XXX/FIXME: suboptimal */
+    tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[3],
+                tcg_target_call_iarg_regs[2]);
+    tcg_out_mov(s, TCG_TYPE_I64, tcg_target_call_iarg_regs[2],
+                tcg_target_call_iarg_regs[1]);
+    tcg_out_mov(s, TCG_TYPE_TL, tcg_target_call_iarg_regs[1],
+                tcg_target_call_iarg_regs[0]);
+    tcg_out_mov(s, TCG_TYPE_PTR, tcg_target_call_iarg_regs[0],
+                TCG_AREG0);
+#endif
     /* XXX: move that code at the end of the TB */
     /* qemu_st_helper[s_bits](arg0, arg1, arg2) */
     tcg_out32(s, CALL | ((((tcg_target_ulong)qemu_st_helpers[s_bits]
@@ -1568,4 +1623,67 @@ static void tcg_target_init(TCGContext *s)
     tcg_regset_set_reg(s->reserved_regs, TCG_REG_O6);
     tcg_regset_set_reg(s->reserved_regs, TCG_REG_O7);
     tcg_add_target_add_op_defs(sparc_op_defs);
+}
+
+#if TCG_TARGET_REG_BITS == 64
+# define ELF_HOST_MACHINE  EM_SPARCV9
+#elif defined(__sparc_v8plus__)
+# define ELF_HOST_MACHINE  EM_SPARC32PLUS
+# define ELF_HOST_FLAGS    EF_SPARC_32PLUS
+#else
+# define ELF_HOST_MACHINE  EM_SPARC
+#endif
+
+typedef struct {
+    uint32_t len __attribute__((aligned((sizeof(void *)))));
+    uint32_t id;
+    uint8_t version;
+    char augmentation[1];
+    uint8_t code_align;
+    uint8_t data_align;
+    uint8_t return_column;
+} DebugFrameCIE;
+
+typedef struct {
+    uint32_t len __attribute__((aligned((sizeof(void *)))));
+    uint32_t cie_offset;
+    tcg_target_long func_start __attribute__((packed));
+    tcg_target_long func_len __attribute__((packed));
+    uint8_t def_cfa[TCG_TARGET_REG_BITS == 64 ? 4 : 2];
+    uint8_t win_save;
+    uint8_t ret_save[3];
+} DebugFrameFDE;
+
+typedef struct {
+    DebugFrameCIE cie;
+    DebugFrameFDE fde;
+} DebugFrame;
+
+static DebugFrame debug_frame = {
+    .cie.len = sizeof(DebugFrameCIE)-4, /* length after .len member */
+    .cie.id = -1,
+    .cie.version = 1,
+    .cie.code_align = 1,
+    .cie.data_align = -sizeof(void *) & 0x7f,
+    .cie.return_column = 15,            /* o7 */
+
+    .fde.len = sizeof(DebugFrameFDE)-4, /* length after .len member */
+    .fde.def_cfa = {
+#if TCG_TARGET_REG_BITS == 64
+        12, 30,                         /* DW_CFA_def_cfa i6, 2047 */
+        (2047 & 0x7f) | 0x80, (2047 >> 7)
+#else
+        13, 30                          /* DW_CFA_def_cfa_register i6 */
+#endif
+    },
+    .fde.win_save = 0x2d,               /* DW_CFA_GNU_window_save */
+    .fde.ret_save = { 9, 15, 31 },      /* DW_CFA_register o7, i7 */
+};
+
+void tcg_register_jit(void *buf, size_t buf_size)
+{
+    debug_frame.fde.func_start = (tcg_target_long) buf;
+    debug_frame.fde.func_len = buf_size;
+
+    tcg_register_jit_int(buf, buf_size, &debug_frame, sizeof(debug_frame));
 }

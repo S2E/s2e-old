@@ -3,11 +3,12 @@
 
 #include "isa.h"
 #include "pci.h"
+#include "memory.h"
 
 #define MAX_IDE_DEVS	2
 
 /* ide-isa.c */
-ISADevice *isa_ide_init(int iobase, int iobase2, int isairq,
+ISADevice *isa_ide_init(ISABus *bus, int iobase, int iobase2, int isairq,
                         DriveInfo *hd0, DriveInfo *hd1);
 
 /* ide-pci.c */
@@ -24,6 +25,7 @@ MemoryRegion *pmac_ide_init (DriveInfo **hd_table, qemu_irq irq,
 
 /* ide-mmio.c */
 void mmio_ide_init (target_phys_addr_t membase, target_phys_addr_t membase2,
+                    MemoryRegion *address_space,
                     qemu_irq irq, int shift,
                     DriveInfo *hd0, DriveInfo *hd1);
 

@@ -24,6 +24,7 @@
 
 #include "sysbus.h"
 #include "qemu-timer.h"
+#include "ptimer.h"
 
 #define D(x)
 
@@ -214,24 +215,35 @@ static int xilinx_timer_init(SysBusDevice *dev)
 
     memory_region_init_io(&t->mmio, &timer_ops, t, "xilinx-timer",
                           R_MAX * 4 * t->nr_timers);
-    sysbus_init_mmio_region(dev, &t->mmio);
+    sysbus_init_mmio(dev, &t->mmio);
     return 0;
 }
 
-static SysBusDeviceInfo xilinx_timer_info = {
-    .init = xilinx_timer_init,
-    .qdev.name  = "xilinx,timer",
-    .qdev.size  = sizeof(struct timerblock),
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("frequency", struct timerblock, freq_hz,   0),
-        DEFINE_PROP_UINT32("nr-timers", struct timerblock, nr_timers, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property xilinx_timer_properties[] = {
+    DEFINE_PROP_UINT32("frequency", struct timerblock, freq_hz,   0),
+    DEFINE_PROP_UINT32("nr-timers", struct timerblock, nr_timers, 0),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void xilinx_timer_register(void)
+static void xilinx_timer_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&xilinx_timer_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = xilinx_timer_init;
+    dc->props = xilinx_timer_properties;
 }
 
-device_init(xilinx_timer_register)
+static TypeInfo xilinx_timer_info = {
+    .name          = "xilinx,timer",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(struct timerblock),
+    .class_init    = xilinx_timer_class_init,
+};
+
+static void xilinx_timer_register_types(void)
+{
+    type_register_static(&xilinx_timer_info);
+}
+
+type_init(xilinx_timer_register_types)

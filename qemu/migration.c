@@ -9,6 +9,8 @@
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "qemu-common.h"
@@ -156,16 +158,6 @@ MigrationInfo *qmp_query_migrate(Error **errp)
 
 /* shared migration helpers */
 
-static void migrate_fd_monitor_suspend(MigrationState *s, Monitor *mon)
-{
-    if (monitor_suspend(mon) == 0) {
-        DPRINTF("suspending monitor\n");
-    } else {
-        monitor_printf(mon, "terminal does not allow synchronous "
-                       "migration, continuing detached\n");
-    }
-}
-
 static int migrate_fd_cleanup(MigrationState *s)
 {
     int ret = 0;
@@ -174,14 +166,8 @@ static int migrate_fd_cleanup(MigrationState *s)
 
     if (s->file) {
         DPRINTF("closing file\n");
-        if (qemu_fclose(s->file) != 0) {
-            ret = -1;
-        }
+        ret = qemu_fclose(s->file);
         s->file = NULL;
-    } else {
-        if (s->mon) {
-            monitor_resume(s->mon);
-        }
     }
 
     if (s->fd != -1) {
@@ -258,7 +244,7 @@ static void migrate_fd_put_ready(void *opaque)
     }
 
     DPRINTF("iterate\n");
-    ret = qemu_savevm_state_iterate(s->mon, s->file);
+    ret = qemu_savevm_state_iterate(s->file);
     if (ret < 0) {
         migrate_fd_error(s);
     } else if (ret == 1) {
@@ -267,7 +253,7 @@ static void migrate_fd_put_ready(void *opaque)
         DPRINTF("done iterating\n");
         vm_stop_force_state(RUN_STATE_FINISH_MIGRATE);
 
-        if (qemu_savevm_state_complete(s->mon, s->file) < 0) {
+        if (qemu_savevm_state_complete(s->file) < 0) {
             migrate_fd_error(s);
         } else {
             migrate_fd_completed(s);
@@ -289,7 +275,7 @@ static void migrate_fd_cancel(MigrationState *s)
 
     s->state = MIG_STATE_CANCELLED;
     notifier_list_notify(&migration_state_notifiers, s);
-    qemu_savevm_state_cancel(s->mon, s->file);
+    qemu_savevm_state_cancel(s->file);
 
     migrate_fd_cleanup(s);
 }
@@ -321,9 +307,6 @@ static int migrate_fd_close(void *opaque)
 {
     MigrationState *s = opaque;
 
-    if (s->mon) {
-        monitor_resume(s->mon);
-    }
     qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
     return s->close(s);
 }
@@ -335,7 +318,7 @@ void add_migration_state_change_notifier(Notifier *notify)
 
 void remove_migration_state_change_notifier(Notifier *notify)
 {
-    notifier_list_remove(&migration_state_notifiers, notify);
+    notifier_remove(notify);
 }
 
 bool migration_is_active(MigrationState *s)
@@ -367,7 +350,7 @@ void migrate_fd_connect(MigrationState *s)
                                       migrate_fd_close);
 
     DPRINTF("beginning savevm\n");
-    ret = qemu_savevm_state_begin(s->mon, s->file, s->blk, s->shared);
+    ret = qemu_savevm_state_begin(s->file, s->blk, s->shared);
     if (ret < 0) {
         DPRINTF("failed, %d\n", ret);
         migrate_fd_error(s);
@@ -376,7 +359,7 @@ void migrate_fd_connect(MigrationState *s)
     migrate_fd_put_ready(s);
 }
 
-static MigrationState *migrate_init(Monitor *mon, int detach, int blk, int inc)
+static MigrationState *migrate_init(int blk, int inc)
 {
     MigrationState *s = migrate_get_current();
     int64_t bandwidth_limit = s->bandwidth_limit;
@@ -386,17 +369,8 @@ static MigrationState *migrate_init(Monitor *mon, int detach, int blk, int inc)
     s->blk = blk;
     s->shared = inc;
 
-    /* s->mon is used for two things:
-       - pass fd in fd migration
-       - suspend/resume monitor for not detached migration
-    */
-    s->mon = mon;
     s->bandwidth_limit = bandwidth_limit;
     s->state = MIG_STATE_SETUP;
-
-    if (!detach) {
-        migrate_fd_monitor_suspend(s, mon);
-    }
 
     return s;
 }
@@ -413,32 +387,29 @@ void migrate_del_blocker(Error *reason)
     migration_blockers = g_slist_remove(migration_blockers, reason);
 }
 
-int do_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void qmp_migrate(const char *uri, bool has_blk, bool blk,
+                 bool has_inc, bool inc, bool has_detach, bool detach,
+                 Error **errp)
 {
     MigrationState *s = migrate_get_current();
     const char *p;
-    int detach = qdict_get_try_bool(qdict, "detach", 0);
-    int blk = qdict_get_try_bool(qdict, "blk", 0);
-    int inc = qdict_get_try_bool(qdict, "inc", 0);
-    const char *uri = qdict_get_str(qdict, "uri");
     int ret;
 
     if (s->state == MIG_STATE_ACTIVE) {
-        monitor_printf(mon, "migration already in progress\n");
-        return -1;
+        error_set(errp, QERR_MIGRATION_ACTIVE);
+        return;
     }
 
-    if (qemu_savevm_state_blocked(mon)) {
-        return -1;
+    if (qemu_savevm_state_blocked(errp)) {
+        return;
     }
 
     if (migration_blockers) {
-        Error *err = migration_blockers->data;
-        qerror_report_err(err);
-        return -1;
+        *errp = error_copy(migration_blockers->data);
+        return;
     }
 
-    s = migrate_init(mon, detach, blk, inc);
+    s = migrate_init(blk, inc);
 
     if (strstart(uri, "tcp:", &p)) {
         ret = tcp_start_outgoing_migration(s, p);
@@ -451,54 +422,41 @@ int do_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
         ret = fd_start_outgoing_migration(s, p);
 #endif
     } else {
-        monitor_printf(mon, "unknown migration protocol: %s\n", uri);
-        ret  = -EINVAL;
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "uri", "a valid migration protocol");
+        return;
     }
 
     if (ret < 0) {
-        monitor_printf(mon, "migration failed: %s\n", strerror(-ret));
-        return ret;
-    }
-
-    if (detach) {
-        s->mon = NULL;
+        DPRINTF("migration failed: %s\n", strerror(-ret));
+        /* FIXME: we should return meaningful errors */
+        error_set(errp, QERR_UNDEFINED_ERROR);
+        return;
     }
 
     notifier_list_notify(&migration_state_notifiers, s);
-    return 0;
 }
 
-int do_migrate_cancel(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void qmp_migrate_cancel(Error **errp)
 {
     migrate_fd_cancel(migrate_get_current());
-    return 0;
 }
 
-int do_migrate_set_speed(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void qmp_migrate_set_speed(int64_t value, Error **errp)
 {
-    int64_t d;
     MigrationState *s;
 
-    d = qdict_get_int(qdict, "value");
-    if (d < 0) {
-        d = 0;
+    if (value < 0) {
+        value = 0;
     }
 
     s = migrate_get_current();
-    s->bandwidth_limit = d;
+    s->bandwidth_limit = value;
     qemu_file_set_rate_limit(s->file, s->bandwidth_limit);
-
-    return 0;
 }
 
-int do_migrate_set_downtime(Monitor *mon, const QDict *qdict,
-                            QObject **ret_data)
+void qmp_migrate_set_downtime(double value, Error **errp)
 {
-    double d;
-
-    d = qdict_get_double(qdict, "value") * 1e9;
-    d = MAX(0, MIN(UINT64_MAX, d));
-    max_downtime = (uint64_t)d;
-
-    return 0;
+    value *= 1e9;
+    value = MAX(0, MIN(UINT64_MAX, value));
+    max_downtime = (uint64_t)value;
 }

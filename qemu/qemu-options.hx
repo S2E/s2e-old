@@ -75,7 +75,9 @@ DEF("machine", HAS_ARG, QEMU_OPTION_machine, \
     "-machine [type=]name[,prop[=value][,...]]\n"
     "                selects emulated machine (-machine ? for list)\n"
     "                property accel=accel1[:accel2[:...]] selects accelerator\n"
-    "                supported accelerators are kvm, xen, tcg (default: tcg)\n",
+    "                supported accelerators are kvm, xen, tcg (default: tcg)\n"
+    "                kernel_irqchip=on|off controls accelerated irqchip support\n"
+    "                kvm_shadow_mem=size of KVM shadow MMU\n",
     QEMU_ARCH_ALL)
 STEXI
 @item -machine [type=]@var{name}[,prop=@var{value}[,...]]
@@ -88,6 +90,10 @@ This is used to enable an accelerator. Depending on the target architecture,
 kvm, xen, or tcg can be available. By default, tcg is used. If there is more
 than one accelerator specified, the next one is used if the previous one fails
 to initialize.
+@item kernel_irqchip=on|off
+Enables in-kernel irqchip support for the chosen accelerator when available.
+@item kvm_shadow_mem=size
+Defines the size of the KVM shadow MMU.
 @end table
 ETEXI
 
@@ -179,7 +185,8 @@ DEF("drive", HAS_ARG, QEMU_OPTION_drive,
     "       [,cyls=c,heads=h,secs=s[,trans=t]][,snapshot=on|off]\n"
     "       [,cache=writethrough|writeback|none|directsync|unsafe][,format=f]\n"
     "       [,serial=s][,addr=A][,id=name][,aio=threads|native]\n"
-    "       [,readonly=on|off]\n"
+    "       [,readonly=on|off][,copy-on-read=on|off]\n"
+    "       [[,bps=b]|[[,bps_rd=r][,bps_wr=w]]][[,iops=i]|[[,iops_rd=r][,iops_wr=w]]\n"
     "                use 'file' as a drive image\n", QEMU_ARCH_ALL)
 STEXI
 @item -drive @var{option}[,@var{option}[,@var{option}[,...]]]
@@ -230,6 +237,9 @@ host disk is full; report the error to the guest otherwise).
 The default setting is @option{werror=enospc} and @option{rerror=report}.
 @item readonly
 Open drive @option{file} as read-only. Guest write attempts will fail.
+@item copy-on-read=@var{copy-on-read}
+@var{copy-on-read} is "on" or "off" and enables whether to copy read backing
+file sectors into the image file.
 @end table
 
 By default, writethrough caching is used for all block device.  This means that
@@ -257,9 +267,13 @@ qcow2.  If performance is more important than correctness,
 In case you don't care about data integrity over host failures, use
 cache=unsafe. This option tells qemu that it never needs to write any data
 to the disk but can instead keeps things in cache. If anything goes wrong,
-like your host losing power, the disk storage getting disconnected accidently,
+like your host losing power, the disk storage getting disconnected accidentally,
 etc. you're image will most probably be rendered unusable.   When using
 the @option{-snapshot} option, unsafe caching is always used.
+
+Copy-on-read avoids accessing the same backing file sectors repeatedly and is
+useful when the backing file is over a slow network.  By default copy-on-read
+is off.
 
 Instead of @option{-cdrom} you can use:
 @example
@@ -318,13 +332,21 @@ TODO
 ETEXI
 
 DEF("global", HAS_ARG, QEMU_OPTION_global,
-    "-global driver.property=value\n"
+    "-global driver.prop=value\n"
     "                set a global default for a driver property\n",
     QEMU_ARCH_ALL)
 STEXI
-@item -global
+@item -global @var{driver}.@var{prop}=@var{value}
 @findex -global
-TODO
+Set default value of @var{driver}'s property @var{prop} to @var{value}, e.g.:
+
+@example
+qemu -global ide-drive.physical_block_size=4096 -drive file=file,if=ide,index=0,media=disk
+@end example
+
+In particular, you can use this to set driver properties for devices which are 
+created automatically by the machine model. To create a device which is not 
+created automatically and set properties on it, use -@option{device}.
 ETEXI
 
 DEF("mtdblock", HAS_ARG, QEMU_OPTION_mtdblock,
@@ -492,6 +514,19 @@ modprobe i810_audio clocking=48000
 @end example
 ETEXI
 
+DEF("balloon", HAS_ARG, QEMU_OPTION_balloon,
+    "-balloon none   disable balloon device\n"
+    "-balloon virtio[,addr=str]\n"
+    "                enable virtio balloon device (default)\n", QEMU_ARCH_ALL)
+STEXI
+@item -balloon none
+@findex -balloon
+Disable balloon device.
+@item -balloon virtio[,addr=@var{addr}]
+Enable virtio balloon device (default), optionally with PCI address
+@var{addr}.
+ETEXI
+
 STEXI
 @end table
 ETEXI
@@ -574,19 +609,19 @@ DEFHEADING()
 DEFHEADING(File system options:)
 
 DEF("fsdev", HAS_ARG, QEMU_OPTION_fsdev,
-    "-fsdev fsdriver,id=id,path=path,[security_model={mapped|passthrough|none}]\n"
-    "       [,writeout=immediate][,readonly]\n",
+    "-fsdev fsdriver,id=id[,path=path,][security_model={mapped-xattr|mapped-file|passthrough|none}]\n"
+    " [,writeout=immediate][,readonly][,socket=socket|sock_fd=sock_fd]\n",
     QEMU_ARCH_ALL)
 
 STEXI
 
-@item -fsdev @var{fsdriver},id=@var{id},path=@var{path},[security_model=@var{security_model}][,writeout=@var{writeout}][,readonly]
+@item -fsdev @var{fsdriver},id=@var{id},path=@var{path},[security_model=@var{security_model}][,writeout=@var{writeout}][,readonly][,socket=@var{socket}|sock_fd=@var{sock_fd}]
 @findex -fsdev
 Define a new file system device. Valid options are:
 @table @option
 @item @var{fsdriver}
 This option specifies the fs driver backend to use.
-Currently "local" and "handle" file system drivers are supported.
+Currently "local", "handle" and "proxy" file system drivers are supported.
 @item id=@var{id}
 Specifies identifier for this device
 @item path=@var{path}
@@ -594,16 +629,17 @@ Specifies the export path for the file system device. Files under
 this path will be available to the 9p client on the guest.
 @item security_model=@var{security_model}
 Specifies the security model to be used for this export path.
-Supported security models are "passthrough", "mapped" and "none".
+Supported security models are "passthrough", "mapped-xattr", "mapped-file" and "none".
 In "passthrough" security model, files are stored using the same
 credentials as they are created on the guest. This requires qemu
-to run as root. In "mapped" security model, some of the file
+to run as root. In "mapped-xattr" security model, some of the file
 attributes like uid, gid, mode bits and link target are stored as
-file attributes. Directories exported by this security model cannot
+file attributes. For "mapped-file" these attributes are stored in the
+hidden .virtfs_metadata directory. Directories exported by this security model cannot
 interact with other unix tools. "none" security model is same as
 passthrough except the sever won't report failures if it fails to
 set file attributes like ownership. Security model is mandatory
-only for local fsdriver. Other fsdrivers (like handle) don't take
+only for local fsdriver. Other fsdrivers (like handle, proxy) don't take
 security model as a parameter.
 @item writeout=@var{writeout}
 This is an optional argument. The only supported value is "immediate".
@@ -613,6 +649,13 @@ reported as written by the storage subsystem.
 @item readonly
 Enables exporting 9p share as a readonly mount for guests. By default
 read-write access is given.
+@item socket=@var{socket}
+Enables proxy filesystem driver to use passed socket file for communicating
+with virtfs-proxy-helper
+@item sock_fd=@var{sock_fd}
+Enables proxy filesystem driver to use passed socket descriptor for
+communicating with virtfs-proxy-helper. Usually a helper like libvirt
+will create socketpair and pass one of the fds as sock_fd
 @end table
 
 -fsdev option is used along with -device driver "virtio-9p-pci".
@@ -632,20 +675,20 @@ DEFHEADING()
 DEFHEADING(Virtual File system pass-through options:)
 
 DEF("virtfs", HAS_ARG, QEMU_OPTION_virtfs,
-    "-virtfs local,path=path,mount_tag=tag,security_model=[mapped|passthrough|none]\n"
-    "        [,writeout=immediate][,readonly]\n",
+    "-virtfs local,path=path,mount_tag=tag,security_model=[mapped-xattr|mapped-file|passthrough|none]\n"
+    "        [,writeout=immediate][,readonly][,socket=socket|sock_fd=sock_fd]\n",
     QEMU_ARCH_ALL)
 
 STEXI
 
-@item -virtfs @var{fsdriver},path=@var{path},mount_tag=@var{mount_tag},security_model=@var{security_model}[,writeout=@var{writeout}][,readonly]
+@item -virtfs @var{fsdriver}[,path=@var{path}],mount_tag=@var{mount_tag}[,security_model=@var{security_model}][,writeout=@var{writeout}][,readonly][,socket=@var{socket}|sock_fd=@var{sock_fd}]
 @findex -virtfs
 
 The general form of a Virtual File system pass-through options are:
 @table @option
 @item @var{fsdriver}
 This option specifies the fs driver backend to use.
-Currently "local" and "handle" file system drivers are supported.
+Currently "local", "handle" and "proxy" file system drivers are supported.
 @item id=@var{id}
 Specifies identifier for this device
 @item path=@var{path}
@@ -653,16 +696,17 @@ Specifies the export path for the file system device. Files under
 this path will be available to the 9p client on the guest.
 @item security_model=@var{security_model}
 Specifies the security model to be used for this export path.
-Supported security models are "passthrough", "mapped" and "none".
+Supported security models are "passthrough", "mapped-xattr", "mapped-file" and "none".
 In "passthrough" security model, files are stored using the same
 credentials as they are created on the guest. This requires qemu
-to run as root. In "mapped" security model, some of the file
+to run as root. In "mapped-xattr" security model, some of the file
 attributes like uid, gid, mode bits and link target are stored as
-file attributes. Directories exported by this security model cannot
+file attributes. For "mapped-file" these attributes are stored in the
+hidden .virtfs_metadata directory. Directories exported by this security model cannot
 interact with other unix tools. "none" security model is same as
 passthrough except the sever won't report failures if it fails to
 set file attributes like ownership. Security model is mandatory only
-for local fsdriver. Other fsdrivers (like handle) don't take security
+for local fsdriver. Other fsdrivers (like handle, proxy) don't take security
 model as a parameter.
 @item writeout=@var{writeout}
 This is an optional argument. The only supported value is "immediate".
@@ -672,6 +716,13 @@ reported as written by the storage subsystem.
 @item readonly
 Enables exporting 9p share as a readonly mount for guests. By default
 read-write access is given.
+@item socket=@var{socket}
+Enables proxy filesystem driver to use passed socket file for
+communicating with virtfs-proxy-helper. Usually a helper like libvirt
+will create socketpair and pass one of the fds as sock_fd
+@item sock_fd
+Enables proxy filesystem driver to use passed 'sock_fd' as the socket
+descriptor for interfacing with virtfs-proxy-helper
 @end table
 ETEXI
 
@@ -880,8 +931,8 @@ The x509 file names can also be configured individually.
 @item tls-ciphers=<list>
 Specify which ciphers to use.
 
-@item tls-channel=[main|display|inputs|record|playback|tunnel]
-@item plaintext-channel=[main|display|inputs|record|playback|tunnel]
+@item tls-channel=[main|display|cursor|inputs|record|playback]
+@item plaintext-channel=[main|display|cursor|inputs|record|playback]
 Force specific channel to be used with or without TLS encryption.  The
 options can be specified multiple times to configure multiple
 channels.  The special name "default" can be used to set the default
@@ -1099,6 +1150,19 @@ This can be really helpful to save bandwidth when playing videos. Disabling
 adaptive encodings allows to restore the original static behavior of encodings
 like Tight.
 
+@item share=[allow-exclusive|force-shared|ignore]
+
+Set display sharing policy.  'allow-exclusive' allows clients to ask
+for exclusive access.  As suggested by the rfb spec this is
+implemented by dropping other connections.  Connecting multiple
+clients in parallel requires all clients asking for a shared session
+(vncviewer: -shared switch).  This is the default.  'force-shared'
+disables exclusive client access.  Useful for shared desktop sessions,
+where you don't want someone forgetting specify -shared disconnect
+everybody else.  'ignore' completely ignores the shared flag and
+allows everybody connect unconditionally.  Doesn't conform to the rfb
+spec but is traditional qemu behavior.
+
 @end table
 ETEXI
 
@@ -1106,9 +1170,9 @@ STEXI
 @end table
 ETEXI
 
-DEFHEADING()
+ARCHHEADING(, QEMU_ARCH_I386)
 
-DEFHEADING(i386 target only:)
+ARCHHEADING(i386 target only:, QEMU_ARCH_I386)
 STEXI
 @table @option
 ETEXI
@@ -1154,19 +1218,6 @@ STEXI
 @item -no-hpet
 @findex -no-hpet
 Disable HPET support.
-ETEXI
-
-DEF("balloon", HAS_ARG, QEMU_OPTION_balloon,
-    "-balloon none   disable balloon device\n"
-    "-balloon virtio[,addr=str]\n"
-    "                enable virtio balloon device (default)\n", QEMU_ARCH_ALL)
-STEXI
-@item -balloon none
-@findex -balloon
-Disable balloon device.
-@item -balloon virtio[,addr=@var{addr}]
-Enable virtio balloon device (default), optionally with PCI address
-@var{addr}.
 ETEXI
 
 DEF("acpitable", HAS_ARG, QEMU_OPTION_acpitable,
@@ -1241,11 +1292,14 @@ DEF("net", HAS_ARG, QEMU_OPTION_net,
     "-net tap[,vlan=n][,name=str],ifname=name\n"
     "                connect the host TAP network interface to VLAN 'n'\n"
 #else
-    "-net tap[,vlan=n][,name=str][,fd=h][,ifname=name][,script=file][,downscript=dfile][,sndbuf=nbytes][,vnet_hdr=on|off][,vhost=on|off][,vhostfd=h][,vhostforce=on|off]\n"
-    "                connect the host TAP network interface to VLAN 'n' and use the\n"
-    "                network scripts 'file' (default=" DEFAULT_NETWORK_SCRIPT ")\n"
-    "                and 'dfile' (default=" DEFAULT_NETWORK_DOWN_SCRIPT ")\n"
+    "-net tap[,vlan=n][,name=str][,fd=h][,ifname=name][,script=file][,downscript=dfile][,helper=helper][,sndbuf=nbytes][,vnet_hdr=on|off][,vhost=on|off][,vhostfd=h][,vhostforce=on|off]\n"
+    "                connect the host TAP network interface to VLAN 'n' \n"
+    "                use network scripts 'file' (default=" DEFAULT_NETWORK_SCRIPT ")\n"
+    "                to configure it and 'dfile' (default=" DEFAULT_NETWORK_DOWN_SCRIPT ")\n"
+    "                to deconfigure it\n"
     "                use '[down]script=no' to disable script execution\n"
+    "                use network helper 'helper' (default=" DEFAULT_BRIDGE_HELPER ") to\n"
+    "                configure it\n"
     "                use 'fd=h' to connect to an already opened TAP interface\n"
     "                use 'sndbuf=nbytes' to limit the size of the send buffer (the\n"
     "                default is disabled 'sndbuf=0' to enable flow control set 'sndbuf=1048576')\n"
@@ -1255,12 +1309,18 @@ DEF("net", HAS_ARG, QEMU_OPTION_net,
     "                    (only has effect for virtio guests which use MSIX)\n"
     "                use vhostforce=on to force vhost on for non-MSIX virtio guests\n"
     "                use 'vhostfd=h' to connect to an already opened vhost net device\n"
+    "-net bridge[,vlan=n][,name=str][,br=bridge][,helper=helper]\n"
+    "                connects a host TAP network interface to a host bridge device 'br'\n"
+    "                (default=" DEFAULT_BRIDGE_INTERFACE ") using the program 'helper'\n"
+    "                (default=" DEFAULT_BRIDGE_HELPER ")\n"
 #endif
     "-net socket[,vlan=n][,name=str][,fd=h][,listen=[host]:port][,connect=host:port]\n"
     "                connect the vlan 'n' to another VLAN using a socket connection\n"
     "-net socket[,vlan=n][,name=str][,fd=h][,mcast=maddr:port[,localaddr=addr]]\n"
     "                connect the vlan 'n' to multicast maddr and port\n"
     "                use 'localaddr=addr' to specify the host address to send packets from\n"
+    "-net socket[,vlan=n][,name=str][,fd=h][,udp=host:port][,localaddr=host:port]\n"
+    "                connect the vlan 'n' to another VLAN using an UDP tunnel\n"
 #ifdef CONFIG_VDE
     "-net vde[,vlan=n][,name=str][,sock=socketpath][,port=n][,group=groupname][,mode=octalmode]\n"
     "                connect the vlan 'n' to port 'n' of a vde switch running\n"
@@ -1278,6 +1338,7 @@ DEF("netdev", HAS_ARG, QEMU_OPTION_netdev,
     "user|"
 #endif
     "tap|"
+    "bridge|"
 #ifdef CONFIG_VDE
     "vde|"
 #endif
@@ -1414,24 +1475,63 @@ processed and applied to -net user. Mixing them with the new configuration
 syntax gives undefined results. Their use for new applications is discouraged
 as they will be removed from future versions.
 
-@item -net tap[,vlan=@var{n}][,name=@var{name}][,fd=@var{h}][,ifname=@var{name}] [,script=@var{file}][,downscript=@var{dfile}]
-Connect the host TAP network interface @var{name} to VLAN @var{n}, use
-the network script @var{file} to configure it and the network script
+@item -net tap[,vlan=@var{n}][,name=@var{name}][,fd=@var{h}][,ifname=@var{name}][,script=@var{file}][,downscript=@var{dfile}][,helper=@var{helper}]
+Connect the host TAP network interface @var{name} to VLAN @var{n}.
+
+Use the network script @var{file} to configure it and the network script
 @var{dfile} to deconfigure it. If @var{name} is not provided, the OS
-automatically provides one. @option{fd}=@var{h} can be used to specify
-the handle of an already opened host TAP interface. The default network
-configure script is @file{/etc/qemu-ifup} and the default network
-deconfigure script is @file{/etc/qemu-ifdown}. Use @option{script=no}
-or @option{downscript=no} to disable script execution. Example:
+automatically provides one. The default network configure script is
+@file{/etc/qemu-ifup} and the default network deconfigure script is
+@file{/etc/qemu-ifdown}. Use @option{script=no} or @option{downscript=no}
+to disable script execution.
+
+If running QEMU as an unprivileged user, use the network helper
+@var{helper} to configure the TAP interface. The default network
+helper executable is @file{/usr/local/libexec/qemu-bridge-helper}.
+
+@option{fd}=@var{h} can be used to specify the handle of an already
+opened host TAP interface.
+
+Examples:
 
 @example
+#launch a QEMU instance with the default network script
 qemu linux.img -net nic -net tap
 @end example
 
-More complicated example (two NICs, each one connected to a TAP device)
 @example
+#launch a QEMU instance with two NICs, each one connected
+#to a TAP device
 qemu linux.img -net nic,vlan=0 -net tap,vlan=0,ifname=tap0 \
                -net nic,vlan=1 -net tap,vlan=1,ifname=tap1
+@end example
+
+@example
+#launch a QEMU instance with the default network helper to
+#connect a TAP device to bridge br0
+qemu linux.img -net nic -net tap,"helper=/usr/local/libexec/qemu-bridge-helper"
+@end example
+
+@item -net bridge[,vlan=@var{n}][,name=@var{name}][,br=@var{bridge}][,helper=@var{helper}]
+Connect a host TAP network interface to a host bridge device.
+
+Use the network helper @var{helper} to configure the TAP interface and
+attach it to the bridge. The default network helper executable is
+@file{/usr/local/libexec/qemu-bridge-helper} and the default bridge
+device is @file{br0}.
+
+Examples:
+
+@example
+#launch a QEMU instance with the default network helper to
+#connect a TAP device to bridge br0
+qemu linux.img -net bridge -net nic,model=virtio
+@end example
+
+@example
+#launch a QEMU instance with the default network helper to
+#connect a TAP device to bridge qemubr0
+qemu linux.img -net bridge,br=qemubr0 -net nic,model=virtio
 @end example
 
 @item -net socket[,vlan=@var{n}][,name=@var{name}][,fd=@var{h}] [,listen=[@var{host}]:@var{port}][,connect=@var{host}:@var{port}]
@@ -1797,24 +1897,32 @@ Syntax for specifying iSCSI LUNs is
 
 Example (without authentication):
 @example
-qemu -cdrom iscsi://192.0.2.1/iqn.2001-04.com.example/2 \
---drive file=iscsi://192.0.2.1/iqn.2001-04.com.example/1
+qemu -iscsi initiator-name=iqn.2001-04.com.example:my-initiator \
+-cdrom iscsi://192.0.2.1/iqn.2001-04.com.example/2 \
+-drive file=iscsi://192.0.2.1/iqn.2001-04.com.example/1
 @end example
 
 Example (CHAP username/password via URL):
 @example
-qemu --drive file=iscsi://user%password@@192.0.2.1/iqn.2001-04.com.example/1
+qemu -drive file=iscsi://user%password@@192.0.2.1/iqn.2001-04.com.example/1
 @end example
 
 Example (CHAP username/password via environment variables):
 @example
 LIBISCSI_CHAP_USERNAME="user" \
 LIBISCSI_CHAP_PASSWORD="password" \
-qemu --drive file=iscsi://192.0.2.1/iqn.2001-04.com.example/1
+qemu -drive file=iscsi://192.0.2.1/iqn.2001-04.com.example/1
 @end example
 
 iSCSI support is an optional feature of QEMU and only available when
 compiled and linked against libiscsi.
+ETEXI
+DEF("iscsi", HAS_ARG, QEMU_OPTION_iscsi,
+    "-iscsi [user=user][,password=password]\n"
+    "       [,header-digest=CRC32C|CR32C-NONE|NONE-CRC32C|NONE\n"
+    "       [,initiator-name=iqn]\n"
+    "                iSCSI session parameters\n", QEMU_ARCH_ALL)
+STEXI
 
 @item NBD
 QEMU supports NBD (Network Block Devices) both using TCP protocol as well
@@ -1979,6 +2087,15 @@ This syntax is only available with multiboot.
 
 Use @var{file1} and @var{file2} as modules and pass arg=foo as parameter to the
 first module.
+ETEXI
+
+DEF("dtb", HAS_ARG, QEMU_OPTION_dtb, \
+    "-dtb    file    use 'file' as device tree image\n", QEMU_ARCH_ALL)
+STEXI
+@item -dtb @var{file}
+@findex -dtb
+Use @var{file} as a device tree binary (dtb) image and pass it to the kernel
+on boot.
 ETEXI
 
 STEXI
@@ -2380,7 +2497,7 @@ DEF("localtime", 0, QEMU_OPTION_localtime, "", QEMU_ARCH_ALL)
 DEF("startdate", HAS_ARG, QEMU_OPTION_startdate, "", QEMU_ARCH_ALL)
 
 DEF("rtc", HAS_ARG, QEMU_OPTION_rtc, \
-    "-rtc [base=utc|localtime|date][,clock=host|vm][,driftfix=none|slew]\n" \
+    "-rtc [base=utc|localtime|date][,clock=host|rt|vm][,driftfix=none|slew]\n" \
     "                set the RTC base and clock, enable drift fix for clock ticks (x86 only)\n",
     QEMU_ARCH_ALL)
 
@@ -2396,8 +2513,9 @@ format @code{2006-06-17T16:01:21} or @code{2006-06-17}. The default base is UTC.
 By default the RTC is driven by the host system time. This allows to use the
 RTC as accurate reference clock inside the guest, specifically if the host
 time is smoothly following an accurate external reference clock, e.g. via NTP.
-If you want to isolate the guest time from the host, even prevent it from
-progressing during suspension, you can set @option{clock} to @code{vm} instead.
+If you want to isolate the guest time from the host, you can set @option{clock}
+to @code{rt} instead.  To even prevent it from progressing during suspension,
+you can set it to @code{vm}.
 
 Enable @option{driftfix} (i386 targets only) if you experience time drift problems,
 specifically with Windows' ACPI HAL. This option will try to figure out how
@@ -2654,6 +2772,14 @@ DEF("llvm", 0, QEMU_OPTION_execute_llvm,
 DEF("generate-llvm", 0, QEMU_OPTION_generate_llvm,
     "-generate-llvm  translate code into LLVM but don't execute it\n", QEMU_ARCH_ALL)
 #endif
+
+DEF("qtest", HAS_ARG, QEMU_OPTION_qtest,
+    "-qtest CHR      specify tracing options\n",
+    QEMU_ARCH_ALL)
+
+DEF("qtest-log", HAS_ARG, QEMU_OPTION_qtest_log,
+    "-qtest-log LOG  specify tracing options\n",
+    QEMU_ARCH_ALL)
 
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI

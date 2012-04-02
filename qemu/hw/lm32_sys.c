@@ -47,6 +47,7 @@ enum {
 
 struct LM32SysState {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     uint32_t base;
     uint32_t regs[R_MAX];
     uint8_t testname[MAX_TESTNAME_LEN];
@@ -60,7 +61,8 @@ static void copy_testname(LM32SysState *s)
     s->testname[MAX_TESTNAME_LEN - 1] = '\0';
 }
 
-static void sys_write(void *opaque, target_phys_addr_t addr, uint32_t value)
+static void sys_write(void *opaque, target_phys_addr_t addr,
+                      uint64_t value, unsigned size)
 {
     LM32SysState *s = opaque;
     char *testname;
@@ -89,16 +91,16 @@ static void sys_write(void *opaque, target_phys_addr_t addr, uint32_t value)
     }
 }
 
-static CPUReadMemoryFunc * const sys_read_fn[] = {
-    NULL,
-    NULL,
-    NULL,
-};
+static bool sys_ops_accepts(void *opaque, target_phys_addr_t addr,
+                            unsigned size, bool is_write)
+{
+    return is_write && size == 4;
+}
 
-static CPUWriteMemoryFunc * const sys_write_fn[] = {
-    NULL,
-    NULL,
-    &sys_write,
+static const MemoryRegionOps sys_ops = {
+    .write = sys_write,
+    .valid.accepts = sys_ops_accepts,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static void sys_reset(DeviceState *d)
@@ -115,11 +117,9 @@ static void sys_reset(DeviceState *d)
 static int lm32_sys_init(SysBusDevice *dev)
 {
     LM32SysState *s = FROM_SYSBUS(typeof(*s), dev);
-    int sys_regs;
 
-    sys_regs = cpu_register_io_memory(sys_read_fn, sys_write_fn, s,
-            DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, R_MAX * 4, sys_regs);
+    memory_region_init_io(&s->iomem, &sys_ops , s, "sys", R_MAX * 4);
+    sysbus_init_mmio(dev, &s->iomem);
 
     /* Note: This device is not created in the board initialization,
      * instead it has to be added with the -device parameter. Therefore,
@@ -141,21 +141,32 @@ static const VMStateDescription vmstate_lm32_sys = {
     }
 };
 
-static SysBusDeviceInfo lm32_sys_info = {
-    .init = lm32_sys_init,
-    .qdev.name  = "lm32-sys",
-    .qdev.size  = sizeof(LM32SysState),
-    .qdev.vmsd  = &vmstate_lm32_sys,
-    .qdev.reset = sys_reset,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("base", LM32SysState, base, 0xffff0000),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property lm32_sys_properties[] = {
+    DEFINE_PROP_UINT32("base", LM32SysState, base, 0xffff0000),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void lm32_sys_register(void)
+static void lm32_sys_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&lm32_sys_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = lm32_sys_init;
+    dc->reset = sys_reset;
+    dc->vmsd = &vmstate_lm32_sys;
+    dc->props = lm32_sys_properties;
 }
 
-device_init(lm32_sys_register)
+static TypeInfo lm32_sys_info = {
+    .name          = "lm32-sys",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(LM32SysState),
+    .class_init    = lm32_sys_class_init,
+};
+
+static void lm32_sys_register_types(void)
+{
+    type_register_static(&lm32_sys_info);
+}
+
+type_init(lm32_sys_register_types)

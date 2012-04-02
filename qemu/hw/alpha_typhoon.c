@@ -21,7 +21,7 @@ typedef struct TyphoonCchip {
     uint64_t drir;
     uint64_t dim[4];
     uint32_t iic[4];
-    CPUState *cpu[4];
+    CPUAlphaState *cpu[4];
 } TyphoonCchip;
 
 typedef struct TyphoonWindow {
@@ -52,7 +52,7 @@ typedef struct TyphoonState {
 } TyphoonState;
 
 /* Called when one of DRIR or DIM changes.  */
-static void cpu_irq_change(CPUState *env, uint64_t req)
+static void cpu_irq_change(CPUAlphaState *env, uint64_t req)
 {
     /* If there are any non-masked interrupts, tell the cpu.  */
     if (env) {
@@ -66,7 +66,7 @@ static void cpu_irq_change(CPUState *env, uint64_t req)
 
 static uint64_t cchip_read(void *opaque, target_phys_addr_t addr, unsigned size)
 {
-    CPUState *env = cpu_single_env;
+    CPUAlphaState *env = cpu_single_env;
     TyphoonState *s = opaque;
     uint64_t ret = 0;
 
@@ -347,7 +347,7 @@ static void cchip_write(void *opaque, target_phys_addr_t addr,
         if ((newval ^ oldval) & 0xff0) {
             int i;
             for (i = 0; i < 4; ++i) {
-                CPUState *env = s->cchip.cpu[i];
+                CPUAlphaState *env = s->cchip.cpu[i];
                 if (env) {
                     /* IPI can be either cleared or set by the write.  */
                     if (newval & (1 << (i + 8))) {
@@ -655,7 +655,7 @@ static void typhoon_set_timer_irq(void *opaque, int irq, int level)
 
     /* Deliver the interrupt to each CPU, considering each CPU's IIC.  */
     for (i = 0; i < 4; ++i) {
-        CPUState *env = s->cchip.cpu[i];
+        CPUAlphaState *env = s->cchip.cpu[i];
         if (env) {
             uint32_t iic = s->cchip.iic[i];
 
@@ -691,8 +691,9 @@ static void typhoon_alarm_timer(void *opaque)
     cpu_interrupt(s->cchip.cpu[cpu], CPU_INTERRUPT_TIMER);
 }
 
-PCIBus *typhoon_init(ram_addr_t ram_size, qemu_irq *p_rtc_irq,
-                     CPUState *cpus[4], pci_map_irq_fn sys_map_irq)
+PCIBus *typhoon_init(ram_addr_t ram_size, ISABus **isa_bus,
+                     qemu_irq *p_rtc_irq,
+                     CPUAlphaState *cpus[4], pci_map_irq_fn sys_map_irq)
 {
     const uint64_t MB = 1024 * 1024;
     const uint64_t GB = 1024 * MB;
@@ -712,7 +713,7 @@ PCIBus *typhoon_init(ram_addr_t ram_size, qemu_irq *p_rtc_irq,
 
     /* Remember the CPUs so that we can deliver interrupts to them.  */
     for (i = 0; i < 4; i++) {
-        CPUState *env = cpus[i];
+        CPUAlphaState *env = cpus[i];
         s->cchip.cpu[i] = env;
         if (env) {
             env->alarm_timer = qemu_new_timer_ns(rtc_clock,
@@ -725,7 +726,8 @@ PCIBus *typhoon_init(ram_addr_t ram_size, qemu_irq *p_rtc_irq,
 
     /* Main memory region, 0x00.0000.0000.  Real hardware supports 32GB,
        but the address space hole reserved at this point is 8TB.  */
-    memory_region_init_ram(&s->ram_region, NULL, "ram", ram_size);
+    memory_region_init_ram(&s->ram_region, "ram", ram_size);
+    vmstate_register_ram_global(&s->ram_region);
     memory_region_add_subregion(addr_space, 0, &s->ram_region);
 
     /* TIGbus, 0x801.0000.0000, 1GB.  */
@@ -792,10 +794,10 @@ PCIBus *typhoon_init(ram_addr_t ram_size, qemu_irq *p_rtc_irq,
     {
         qemu_irq isa_pci_irq, *isa_irqs;
 
-        isa_bus_new(NULL, addr_space_io);
+        *isa_bus = isa_bus_new(NULL, addr_space_io);
         isa_pci_irq = *qemu_allocate_irqs(typhoon_set_isa_irq, s, 1);
-        isa_irqs = i8259_init(isa_pci_irq);
-        isa_bus_irqs(isa_irqs);
+        isa_irqs = i8259_init(*isa_bus, isa_pci_irq);
+        isa_bus_irqs(*isa_bus, isa_irqs);
     }
 
     return b;
@@ -806,15 +808,25 @@ static int typhoon_pcihost_init(SysBusDevice *dev)
     return 0;
 }
 
-static SysBusDeviceInfo typhoon_pcihost_info = {
-    .init = typhoon_pcihost_init,
-    .qdev.name = "typhoon-pcihost",
-    .qdev.size = sizeof(TyphoonState),
-    .qdev.no_user = 1
+static void typhoon_pcihost_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = typhoon_pcihost_init;
+    dc->no_user = 1;
+}
+
+static TypeInfo typhoon_pcihost_info = {
+    .name          = "typhoon-pcihost",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(TyphoonState),
+    .class_init    = typhoon_pcihost_class_init,
 };
 
-static void typhoon_register(void)
+static void typhoon_register_types(void)
 {
-    sysbus_register_withprop(&typhoon_pcihost_info);
+    type_register_static(&typhoon_pcihost_info);
 }
-device_init(typhoon_register);
+
+type_init(typhoon_register_types)

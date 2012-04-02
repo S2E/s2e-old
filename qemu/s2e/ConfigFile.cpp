@@ -583,7 +583,7 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
         lua_error(L);
     }
 
-    m_state->writeCpuRegisterConcrete(offsetof(CPUState, regs) + regIndex*4, &value, size);
+    m_state->writeCpuRegisterConcrete(offsetof(CPUX86State, regs) + regIndex*4, &value, size);
 
     return 0;                   /* number of results */
 }
@@ -606,7 +606,7 @@ int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
     }
 
     klee::ref<klee::Expr> val = m_state->createSymbolicValue(klee::Expr::Int32, namestr);
-    m_state->writeCpuRegister(offsetof(CPUState, regs) + regIndex*4, val);
+    m_state->writeCpuRegister(offsetof(CPUX86State, regs) + regIndex*4, val);
 
     return 0;                   /* number of results */
 }
@@ -628,7 +628,7 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
     }
 
     uint32_t value = 0;
-    m_state->readCpuRegisterConcrete(offsetof(CPUState, regs) + regIndex*4, &value, size);
+    m_state->readCpuRegisterConcrete(offsetof(CPUX86State, regs) + regIndex*4, &value, size);
 
     lua_pushnumber(L, value);        /* first result */
     return 1;

@@ -49,11 +49,14 @@ struct PCITargetMap {
 #define PPC4xx_PCI_NR_PTMS 2
 
 struct PPC4xxPCIState {
+    PCIHostState pci_state;
+
     struct PCIMasterMap pmm[PPC4xx_PCI_NR_PMMS];
     struct PCITargetMap ptm[PPC4xx_PCI_NR_PTMS];
+    qemu_irq irq[4];
 
-    PCIHostState pci_state;
-    PCIDevice *pci_dev;
+    MemoryRegion container;
+    MemoryRegion iomem;
 };
 typedef struct PPC4xxPCIState PPC4xxPCIState;
 
@@ -81,38 +84,35 @@ typedef struct PPC4xxPCIState PPC4xxPCIState;
 #define PCIL0_PTM1LA        0x34
 #define PCIL0_PTM2MS        0x38
 #define PCIL0_PTM2LA        0x3c
+#define PCI_REG_BASE        0x800000
 #define PCI_REG_SIZE        0x40
 
+#define PCI_ALL_SIZE        (PCI_REG_BASE + PCI_REG_SIZE)
 
-static uint32_t pci4xx_cfgaddr_readl(void *opaque, target_phys_addr_t addr)
+static uint64_t pci4xx_cfgaddr_read(void *opaque, target_phys_addr_t addr,
+                                    unsigned size)
 {
     PPC4xxPCIState *ppc4xx_pci = opaque;
 
     return ppc4xx_pci->pci_state.config_reg;
 }
 
-static CPUReadMemoryFunc * const pci4xx_cfgaddr_read[] = {
-    &pci4xx_cfgaddr_readl,
-    &pci4xx_cfgaddr_readl,
-    &pci4xx_cfgaddr_readl,
-};
-
-static void pci4xx_cfgaddr_writel(void *opaque, target_phys_addr_t addr,
-                                  uint32_t value)
+static void pci4xx_cfgaddr_write(void *opaque, target_phys_addr_t addr,
+                                  uint64_t value, unsigned size)
 {
     PPC4xxPCIState *ppc4xx_pci = opaque;
 
     ppc4xx_pci->pci_state.config_reg = value & ~0x3;
 }
 
-static CPUWriteMemoryFunc * const pci4xx_cfgaddr_write[] = {
-    &pci4xx_cfgaddr_writel,
-    &pci4xx_cfgaddr_writel,
-    &pci4xx_cfgaddr_writel,
+static const MemoryRegionOps pci4xx_cfgaddr_ops = {
+    .read = pci4xx_cfgaddr_read,
+    .write = pci4xx_cfgaddr_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
 static void ppc4xx_pci_reg_write4(void *opaque, target_phys_addr_t offset,
-                                  uint32_t value)
+                                  uint64_t value, unsigned size)
 {
     struct PPC4xxPCIState *pci = opaque;
 
@@ -179,7 +179,8 @@ static void ppc4xx_pci_reg_write4(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static uint32_t ppc4xx_pci_reg_read4(void *opaque, target_phys_addr_t offset)
+static uint64_t ppc4xx_pci_reg_read4(void *opaque, target_phys_addr_t offset,
+                                     unsigned size)
 {
     struct PPC4xxPCIState *pci = opaque;
     uint32_t value;
@@ -246,16 +247,10 @@ static uint32_t ppc4xx_pci_reg_read4(void *opaque, target_phys_addr_t offset)
     return value;
 }
 
-static CPUReadMemoryFunc * const pci_reg_read[] = {
-    &ppc4xx_pci_reg_read4,
-    &ppc4xx_pci_reg_read4,
-    &ppc4xx_pci_reg_read4,
-};
-
-static CPUWriteMemoryFunc * const pci_reg_write[] = {
-    &ppc4xx_pci_reg_write4,
-    &ppc4xx_pci_reg_write4,
-    &ppc4xx_pci_reg_write4,
+static const MemoryRegionOps pci_reg_ops = {
+    .read = ppc4xx_pci_reg_read4,
+    .write = ppc4xx_pci_reg_write4,
+    .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
 static void ppc4xx_pci_reset(void *opaque)
@@ -283,6 +278,10 @@ static void ppc4xx_pci_set_irq(void *opaque, int irq_num, int level)
     qemu_irq *pci_irqs = opaque;
 
     DPRINTF("%s: PCI irq %d\n", __func__, irq_num);
+    if (irq_num < 0) {
+        fprintf(stderr, "%s: PCI irq %d\n", __func__, irq_num);
+        return;
+    }
     qemu_set_irq(pci_irqs[irq_num], level);
 }
 
@@ -318,7 +317,6 @@ static const VMStateDescription vmstate_ppc4xx_pci = {
     .minimum_version_id = 1,
     .minimum_version_id_old = 1,
     .fields      = (VMStateField[]) {
-        VMSTATE_PCI_DEVICE_POINTER(pci_dev, PPC4xxPCIState),
         VMSTATE_STRUCT_ARRAY(pmm, PPC4xxPCIState, PPC4xx_PCI_NR_PMMS, 1,
                              vmstate_pci_master_map,
                              struct PCIMasterMap),
@@ -330,68 +328,82 @@ static const VMStateDescription vmstate_ppc4xx_pci = {
 };
 
 /* XXX Interrupt acknowledge cycles not supported. */
-PCIBus *ppc4xx_pci_init(CPUState *env, qemu_irq pci_irqs[4],
-                        target_phys_addr_t config_space,
-                        target_phys_addr_t int_ack,
-                        target_phys_addr_t special_cycle,
-                        target_phys_addr_t registers)
+static int ppc4xx_pcihost_initfn(SysBusDevice *dev)
 {
-    PPC4xxPCIState *controller;
-    int index;
-    static int ppc4xx_pci_id;
-    uint8_t *pci_conf;
+    PPC4xxPCIState *s;
+    PCIHostState *h;
+    PCIBus *b;
+    int i;
 
-    controller = g_malloc0(sizeof(PPC4xxPCIState));
+    h = FROM_SYSBUS(PCIHostState, sysbus_from_qdev(dev));
+    s = DO_UPCAST(PPC4xxPCIState, pci_state, h);
 
-    controller->pci_state.bus = pci_register_bus(NULL, "pci",
-                                                 ppc4xx_pci_set_irq,
-                                                 ppc4xx_pci_map_irq,
-                                                 pci_irqs,
-                                                 get_system_memory(),
-                                                 get_system_io(),
-                                                 0, 4);
+    for (i = 0; i < ARRAY_SIZE(s->irq); i++) {
+        sysbus_init_irq(dev, &s->irq[i]);
+    }
 
-    controller->pci_dev = pci_register_device(controller->pci_state.bus,
-                                              "host bridge", sizeof(PCIDevice),
-                                              0, NULL, NULL);
-    pci_conf = controller->pci_dev->config;
-    pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_IBM);
-    pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_IBM_440GX);
-    pci_config_set_class(pci_conf, PCI_CLASS_BRIDGE_OTHER);
+    b = pci_register_bus(&s->pci_state.busdev.qdev, NULL, ppc4xx_pci_set_irq,
+                         ppc4xx_pci_map_irq, s->irq, get_system_memory(),
+                         get_system_io(), 0, 4);
+    s->pci_state.bus = b;
 
-    /* CFGADDR */
-    index = cpu_register_io_memory(pci4xx_cfgaddr_read,
-                                   pci4xx_cfgaddr_write, controller,
-                                   DEVICE_LITTLE_ENDIAN);
-    if (index < 0)
-        goto free;
-    cpu_register_physical_memory(config_space + PCIC0_CFGADDR, 4, index);
+    pci_create_simple(b, 0, "ppc4xx-host-bridge");
 
-    /* CFGDATA */
-    memory_region_init_io(&controller->pci_state.data_mem,
-                          &pci_host_data_be_ops,
-                          &controller->pci_state, "pci-conf-data", 4);
-    memory_region_add_subregion(get_system_memory(),
-                                config_space + PCIC0_CFGDATA,
-                                &controller->pci_state.data_mem);
+    /* XXX split into 2 memory regions, one for config space, one for regs */
+    memory_region_init(&s->container, "pci-container", PCI_ALL_SIZE);
+    memory_region_init_io(&h->conf_mem, &pci_host_conf_le_ops, h,
+                          "pci-conf-idx", 4);
+    memory_region_init_io(&h->data_mem, &pci_host_data_le_ops, h,
+                          "pci-conf-data", 4);
+    memory_region_init_io(&s->iomem, &pci_reg_ops, s,
+                          "pci.reg", PCI_REG_SIZE);
+    memory_region_add_subregion(&s->container, PCIC0_CFGADDR, &h->conf_mem);
+    memory_region_add_subregion(&s->container, PCIC0_CFGDATA, &h->data_mem);
+    memory_region_add_subregion(&s->container, PCI_REG_BASE, &s->iomem);
+    sysbus_init_mmio(dev, &s->container);
+    qemu_register_reset(ppc4xx_pci_reset, s);
 
-    /* Internal registers */
-    index = cpu_register_io_memory(pci_reg_read, pci_reg_write, controller,
-                                   DEVICE_LITTLE_ENDIAN);
-    if (index < 0)
-        goto free;
-    cpu_register_physical_memory(registers, PCI_REG_SIZE, index);
-
-    qemu_register_reset(ppc4xx_pci_reset, controller);
-
-    /* XXX load/save code not tested. */
-    vmstate_register(&controller->pci_dev->qdev, ppc4xx_pci_id++,
-                     &vmstate_ppc4xx_pci, controller);
-
-    return controller->pci_state.bus;
-
-free:
-    printf("%s error\n", __func__);
-    g_free(controller);
-    return NULL;
+    return 0;
 }
+
+static void ppc4xx_host_bridge_class_init(ObjectClass *klass, void *data)
+{
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    dc->desc        = "Host bridge";
+    k->vendor_id    = PCI_VENDOR_ID_IBM;
+    k->device_id    = PCI_DEVICE_ID_IBM_440GX;
+    k->class_id     = PCI_CLASS_BRIDGE_OTHER;
+}
+
+static TypeInfo ppc4xx_host_bridge_info = {
+    .name          = "ppc4xx-host-bridge",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIDevice),
+    .class_init    = ppc4xx_host_bridge_class_init,
+};
+
+static void ppc4xx_pcihost_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    k->init = ppc4xx_pcihost_initfn;
+    dc->vmsd = &vmstate_ppc4xx_pci;
+}
+
+static TypeInfo ppc4xx_pcihost_info = {
+    .name          = "ppc4xx-pcihost",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PPC4xxPCIState),
+    .class_init    = ppc4xx_pcihost_class_init,
+};
+
+static void ppc4xx_pci_register_types(void)
+{
+    type_register_static(&ppc4xx_pcihost_info);
+    type_register_static(&ppc4xx_host_bridge_info);
+}
+
+type_init(ppc4xx_pci_register_types)

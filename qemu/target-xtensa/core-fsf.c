@@ -1,7 +1,6 @@
 #include "cpu.h"
 #include "exec-all.h"
 #include "gdbstub.h"
-#include "qemu-common.h"
 #include "host-utils.h"
 
 #include "core-fsf/core-isa.h"
@@ -16,6 +15,7 @@ static const XtensaConfig fsf = {
     EXCEPTIONS_SECTION,
     INTERRUPTS_SECTION,
     TLB_SECTION,
+    DEBUG_SECTION,
     .clock_freq_khz = 10000,
 };
 

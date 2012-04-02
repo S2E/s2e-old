@@ -6,6 +6,7 @@
 #include "qdict.h"
 #include "qemu-option.h"
 #include "net/queue.h"
+#include "vmstate.h"
 
 struct MACAddr {
     uint8_t a[6];
@@ -36,6 +37,7 @@ typedef enum {
     NET_CLIENT_TYPE_SOCKET,
     NET_CLIENT_TYPE_VDE,
     NET_CLIENT_TYPE_DUMP,
+    NET_CLIENT_TYPE_BRIDGE,
 
     NET_CLIENT_TYPE_MAX
 } net_client_type;
@@ -122,7 +124,6 @@ int qemu_find_nic_model(NICInfo *nd, const char * const *models,
                         const char *default_model);
 
 void do_info_network(Monitor *mon);
-int do_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 /* NIC info */
 
@@ -174,9 +175,23 @@ int do_netdev_del(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 #define DEFAULT_NETWORK_SCRIPT "/etc/qemu-ifup"
 #define DEFAULT_NETWORK_DOWN_SCRIPT "/etc/qemu-ifdown"
+#define DEFAULT_BRIDGE_HELPER CONFIG_QEMU_HELPERDIR "/qemu-bridge-helper"
+#define DEFAULT_BRIDGE_INTERFACE "br0"
 
 void qdev_set_nic_properties(DeviceState *dev, NICInfo *nd);
 
 int net_handle_fd_param(Monitor *mon, const char *param);
+
+#define vmstate_offset_macaddr(_state, _field)                       \
+    vmstate_offset_array(_state, _field.a, uint8_t,                \
+                         sizeof(typeof_field(_state, _field)))
+
+#define VMSTATE_MACADDR(_field, _state) {                            \
+    .name       = (stringify(_field)),                               \
+    .size       = sizeof(MACAddr),                                   \
+    .info       = &vmstate_info_buffer,                              \
+    .flags      = VMS_BUFFER,                                        \
+    .offset     = vmstate_offset_macaddr(_state, _field),            \
+}
 
 #endif

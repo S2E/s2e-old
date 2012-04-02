@@ -582,6 +582,34 @@ int64_t qcow2_alloc_clusters(BlockDriverState *bs, int64_t size)
     return offset;
 }
 
+int qcow2_alloc_clusters_at(BlockDriverState *bs, uint64_t offset,
+    int nb_clusters)
+{
+    BDRVQcowState *s = bs->opaque;
+    uint64_t cluster_index;
+    int i, refcount, ret;
+
+    /* Check how many clusters there are free */
+    cluster_index = offset >> s->cluster_bits;
+    for(i = 0; i < nb_clusters; i++) {
+        refcount = get_refcount(bs, cluster_index++);
+
+        if (refcount < 0) {
+            return refcount;
+        } else if (refcount != 0) {
+            break;
+        }
+    }
+
+    /* And then allocate them */
+    ret = update_refcount(bs, offset, i << s->cluster_bits, 1);
+    if (ret < 0) {
+        return ret;
+    }
+
+    return i;
+}
+
 /* only used to allocate compressed sectors. We try to allocate
    contiguous sectors. size must be <= cluster_size */
 int64_t qcow2_alloc_bytes(BlockDriverState *bs, int size)
@@ -700,6 +728,10 @@ int qcow2_update_snapshot_refcount(BlockDriverState *bs,
     l2_table = NULL;
     l1_table = NULL;
     l1_size2 = l1_size * sizeof(uint64_t);
+
+    /* WARNING: qcow2_snapshot_goto relies on this function not using the
+     * l1_table_offset when it is the current s->l1_table_offset! Be careful
+     * when changing this! */
     if (l1_table_offset != s->l1_table_offset) {
         if (l1_size2 != 0) {
             l1_table = g_malloc0(align_offset(l1_size2, 512));
@@ -819,7 +851,8 @@ fail:
     qcow2_cache_set_writethrough(bs, s->refcount_block_cache,
         old_refcount_writethrough);
 
-    if (l1_modified) {
+    /* Update L1 only if it isn't deleted anyway (addend = -1) */
+    if (addend >= 0 && l1_modified) {
         for(i = 0; i < l1_size; i++)
             cpu_to_be64s(&l1_table[i]);
         if (bdrv_pwrite_sync(bs->file, l1_table_offset, l1_table,

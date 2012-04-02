@@ -31,7 +31,7 @@
 #define TARGET_LONG_BITS 32
 #define ELF_MACHINE EM_XTENSA
 
-#define CPUState struct CPUXtensaState
+#define CPUArchState struct CPUXtensaState
 
 #include "config.h"
 #include "qemu-common.h"
@@ -126,6 +126,10 @@ enum {
     RASID = 90,
     ITLBCFG = 91,
     DTLBCFG = 92,
+    IBREAKENABLE = 96,
+    IBREAKA = 128,
+    DBREAKA = 144,
+    DBREAKC = 160,
     EPC1 = 177,
     DEPC = 192,
     EPS2 = 194,
@@ -137,8 +141,11 @@ enum {
     PS = 230,
     VECBASE = 231,
     EXCCAUSE = 232,
+    DEBUGCAUSE = 233,
     CCOUNT = 234,
     PRID = 235,
+    ICOUNT = 236,
+    ICOUNTLEVEL = 237,
     EXCVADDR = 238,
     CCOMPARE = 240,
 };
@@ -161,12 +168,27 @@ enum {
 
 #define PS_WOE 0x40000
 
+#define DEBUGCAUSE_IC 0x1
+#define DEBUGCAUSE_IB 0x2
+#define DEBUGCAUSE_DB 0x4
+#define DEBUGCAUSE_BI 0x8
+#define DEBUGCAUSE_BN 0x10
+#define DEBUGCAUSE_DI 0x20
+#define DEBUGCAUSE_DBNUM 0xf00
+#define DEBUGCAUSE_DBNUM_SHIFT 8
+
+#define DBREAKC_SB 0x80000000
+#define DBREAKC_LB 0x40000000
+#define DBREAKC_SB_LB (DBREAKC_SB | DBREAKC_LB)
+#define DBREAKC_MASK 0x3f
+
 #define MAX_NAREG 64
 #define MAX_NINTERRUPT 32
 #define MAX_NLEVEL 6
 #define MAX_NNMI 1
 #define MAX_NCCOMPARE 3
 #define MAX_TLB_WAY_SIZE 8
+#define MAX_NDBREAK 2
 
 #define REGION_PAGE_MASK 0xe0000000
 
@@ -186,6 +208,7 @@ enum {
     EXC_KERNEL,
     EXC_USER,
     EXC_DOUBLE,
+    EXC_DEBUG,
     EXC_MAX
 };
 
@@ -279,6 +302,11 @@ typedef struct XtensaConfig {
     uint32_t timerint[MAX_NCCOMPARE];
     unsigned nextint;
     unsigned extint[MAX_NINTERRUPT];
+
+    unsigned debug_level;
+    unsigned nibreak;
+    unsigned ndbreak;
+
     uint32_t clock_freq_khz;
 
     xtensa_tlb itlb;
@@ -310,6 +338,9 @@ typedef struct CPUXtensaState {
 
     int exception_taken;
 
+    /* Watchpoints for DBREAK registers */
+    CPUWatchpoint *cpu_watchpoint[MAX_NDBREAK];
+
     CPU_COMMON
 } CPUXtensaState;
 
@@ -325,25 +356,27 @@ int cpu_xtensa_exec(CPUXtensaState *s);
 void xtensa_register_core(XtensaConfigList *node);
 void do_interrupt(CPUXtensaState *s);
 void check_interrupts(CPUXtensaState *s);
-void xtensa_irq_init(CPUState *env);
-void *xtensa_get_extint(CPUState *env, unsigned extint);
-void xtensa_advance_ccount(CPUState *env, uint32_t d);
-void xtensa_timer_irq(CPUState *env, uint32_t id, uint32_t active);
-void xtensa_rearm_ccompare_timer(CPUState *env);
+void xtensa_irq_init(CPUXtensaState *env);
+void *xtensa_get_extint(CPUXtensaState *env, unsigned extint);
+void xtensa_advance_ccount(CPUXtensaState *env, uint32_t d);
+void xtensa_timer_irq(CPUXtensaState *env, uint32_t id, uint32_t active);
+void xtensa_rearm_ccompare_timer(CPUXtensaState *env);
 int cpu_xtensa_signal_handler(int host_signum, void *pinfo, void *puc);
 void xtensa_cpu_list(FILE *f, fprintf_function cpu_fprintf);
-void xtensa_sync_window_from_phys(CPUState *env);
-void xtensa_sync_phys_from_window(CPUState *env);
-uint32_t xtensa_tlb_get_addr_mask(const CPUState *env, bool dtlb, uint32_t way);
-void split_tlb_entry_spec_way(const CPUState *env, uint32_t v, bool dtlb,
+void xtensa_sync_window_from_phys(CPUXtensaState *env);
+void xtensa_sync_phys_from_window(CPUXtensaState *env);
+uint32_t xtensa_tlb_get_addr_mask(const CPUXtensaState *env, bool dtlb, uint32_t way);
+void split_tlb_entry_spec_way(const CPUXtensaState *env, uint32_t v, bool dtlb,
         uint32_t *vpn, uint32_t wi, uint32_t *ei);
-int xtensa_tlb_lookup(const CPUState *env, uint32_t addr, bool dtlb,
+int xtensa_tlb_lookup(const CPUXtensaState *env, uint32_t addr, bool dtlb,
         uint32_t *pwi, uint32_t *pei, uint8_t *pring);
-void xtensa_tlb_set_entry(CPUState *env, bool dtlb,
+void xtensa_tlb_set_entry(CPUXtensaState *env, bool dtlb,
         unsigned wi, unsigned ei, uint32_t vpn, uint32_t pte);
-int xtensa_get_physical_addr(CPUState *env,
+int xtensa_get_physical_addr(CPUXtensaState *env,
         uint32_t vaddr, int is_write, int mmu_idx,
         uint32_t *paddr, uint32_t *page_size, unsigned *access);
+void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUXtensaState *env);
+void debug_exception_env(CPUXtensaState *new_env, uint32_t cause);
 
 
 #define XTENSA_OPTION_BIT(opt) (((uint64_t)1) << (opt))
@@ -359,7 +392,7 @@ static inline bool xtensa_option_enabled(const XtensaConfig *config, int opt)
     return xtensa_option_bits_enabled(config, XTENSA_OPTION_BIT(opt));
 }
 
-static inline int xtensa_get_cintlevel(const CPUState *env)
+static inline int xtensa_get_cintlevel(const CPUXtensaState *env)
 {
     int level = (env->sregs[PS] & PS_INTLEVEL) >> PS_INTLEVEL_SHIFT;
     if ((env->sregs[PS] & PS_EXCM) && env->config->excm_level > level) {
@@ -368,7 +401,7 @@ static inline int xtensa_get_cintlevel(const CPUState *env)
     return level;
 }
 
-static inline int xtensa_get_ring(const CPUState *env)
+static inline int xtensa_get_ring(const CPUXtensaState *env)
 {
     if (xtensa_option_enabled(env->config, XTENSA_OPTION_MMU)) {
         return (env->sregs[PS] & PS_RING) >> PS_RING_SHIFT;
@@ -377,7 +410,7 @@ static inline int xtensa_get_ring(const CPUState *env)
     }
 }
 
-static inline int xtensa_get_cring(const CPUState *env)
+static inline int xtensa_get_cring(const CPUXtensaState *env)
 {
     if (xtensa_option_enabled(env->config, XTENSA_OPTION_MMU) &&
             (env->sregs[PS] & PS_EXCM) == 0) {
@@ -387,7 +420,7 @@ static inline int xtensa_get_cring(const CPUState *env)
     }
 }
 
-static inline xtensa_tlb_entry *xtensa_tlb_get_entry(CPUState *env,
+static inline xtensa_tlb_entry *xtensa_tlb_get_entry(CPUXtensaState *env,
         bool dtlb, unsigned wi, unsigned ei)
 {
     return dtlb ?
@@ -401,7 +434,7 @@ static inline xtensa_tlb_entry *xtensa_tlb_get_entry(CPUState *env,
 #define MMU_MODE2_SUFFIX _ring2
 #define MMU_MODE3_SUFFIX _ring3
 
-static inline int cpu_mmu_index(CPUState *env)
+static inline int cpu_mmu_index(CPUXtensaState *env)
 {
     return xtensa_get_cring(env);
 }
@@ -409,8 +442,10 @@ static inline int cpu_mmu_index(CPUState *env)
 #define XTENSA_TBFLAG_RING_MASK 0x3
 #define XTENSA_TBFLAG_EXCM 0x4
 #define XTENSA_TBFLAG_LITBASE 0x8
+#define XTENSA_TBFLAG_DEBUG 0x10
+#define XTENSA_TBFLAG_ICOUNT 0x20
 
-static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
+static inline void cpu_get_tb_cpu_state(CPUXtensaState *env, target_ulong *pc,
         target_ulong *cs_base, int *flags)
 {
     *pc = env->pc;
@@ -424,17 +459,25 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
             (env->sregs[LITBASE] & 1)) {
         *flags |= XTENSA_TBFLAG_LITBASE;
     }
+    if (xtensa_option_enabled(env->config, XTENSA_OPTION_DEBUG)) {
+        if (xtensa_get_cintlevel(env) < env->config->debug_level) {
+            *flags |= XTENSA_TBFLAG_DEBUG;
+        }
+        if (xtensa_get_cintlevel(env) < env->sregs[ICOUNTLEVEL]) {
+            *flags |= XTENSA_TBFLAG_ICOUNT;
+        }
+    }
 }
 
 #include "cpu-all.h"
 #include "exec-all.h"
 
-static inline int cpu_has_work(CPUState *env)
+static inline int cpu_has_work(CPUXtensaState *env)
 {
     return env->pending_irq_level;
 }
 
-static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
+static inline void cpu_pc_from_tb(CPUXtensaState *env, TranslationBlock *tb)
 {
     env->pc = tb->pc;
 }

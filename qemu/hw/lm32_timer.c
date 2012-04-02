@@ -25,6 +25,7 @@
 #include "sysbus.h"
 #include "trace.h"
 #include "qemu-timer.h"
+#include "ptimer.h"
 #include "qemu-error.h"
 
 #define DEFAULT_FREQUENCY (50*1000000)
@@ -51,6 +52,7 @@ enum {
 
 struct LM32TimerState {
     SysBusDevice busdev;
+    MemoryRegion iomem;
 
     QEMUBH *bh;
     ptimer_state *ptimer;
@@ -70,7 +72,7 @@ static void timer_update_irq(LM32TimerState *s)
     qemu_set_irq(s->irq, state);
 }
 
-static uint32_t timer_read(void *opaque, target_phys_addr_t addr)
+static uint64_t timer_read(void *opaque, target_phys_addr_t addr, unsigned size)
 {
     LM32TimerState *s = opaque;
     uint32_t r = 0;
@@ -95,7 +97,8 @@ static uint32_t timer_read(void *opaque, target_phys_addr_t addr)
     return r;
 }
 
-static void timer_write(void *opaque, target_phys_addr_t addr, uint32_t value)
+static void timer_write(void *opaque, target_phys_addr_t addr,
+                        uint64_t value, unsigned size)
 {
     LM32TimerState *s = opaque;
 
@@ -131,16 +134,14 @@ static void timer_write(void *opaque, target_phys_addr_t addr, uint32_t value)
     timer_update_irq(s);
 }
 
-static CPUReadMemoryFunc * const timer_read_fn[] = {
-    NULL,
-    NULL,
-    &timer_read,
-};
-
-static CPUWriteMemoryFunc * const timer_write_fn[] = {
-    NULL,
-    NULL,
-    &timer_write,
+static const MemoryRegionOps timer_ops = {
+    .read = timer_read,
+    .write = timer_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
 };
 
 static void timer_hit(void *opaque)
@@ -172,7 +173,6 @@ static void timer_reset(DeviceState *d)
 static int lm32_timer_init(SysBusDevice *dev)
 {
     LM32TimerState *s = FROM_SYSBUS(typeof(*s), dev);
-    int timer_regs;
 
     sysbus_init_irq(dev, &s->irq);
 
@@ -180,9 +180,8 @@ static int lm32_timer_init(SysBusDevice *dev)
     s->ptimer = ptimer_init(s->bh);
     ptimer_set_freq(s->ptimer, s->freq_hz);
 
-    timer_regs = cpu_register_io_memory(timer_read_fn, timer_write_fn, s,
-            DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, R_MAX * 4, timer_regs);
+    memory_region_init_io(&s->iomem, &timer_ops, s, "timer", R_MAX * 4);
+    sysbus_init_mmio(dev, &s->iomem);
 
     return 0;
 }
@@ -200,23 +199,32 @@ static const VMStateDescription vmstate_lm32_timer = {
     }
 };
 
-static SysBusDeviceInfo lm32_timer_info = {
-    .init = lm32_timer_init,
-    .qdev.name  = "lm32-timer",
-    .qdev.size  = sizeof(LM32TimerState),
-    .qdev.vmsd  = &vmstate_lm32_timer,
-    .qdev.reset = timer_reset,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32(
-                "frequency", LM32TimerState, freq_hz, DEFAULT_FREQUENCY
-        ),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property lm32_timer_properties[] = {
+    DEFINE_PROP_UINT32("frequency", LM32TimerState, freq_hz, DEFAULT_FREQUENCY),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void lm32_timer_register(void)
+static void lm32_timer_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&lm32_timer_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = lm32_timer_init;
+    dc->reset = timer_reset;
+    dc->vmsd = &vmstate_lm32_timer;
+    dc->props = lm32_timer_properties;
 }
 
-device_init(lm32_timer_register)
+static TypeInfo lm32_timer_info = {
+    .name          = "lm32-timer",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(LM32TimerState),
+    .class_init    = lm32_timer_class_init,
+};
+
+static void lm32_timer_register_types(void)
+{
+    type_register_static(&lm32_timer_info);
+}
+
+type_init(lm32_timer_register_types)

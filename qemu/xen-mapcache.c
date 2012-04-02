@@ -4,6 +4,8 @@
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "config.h"
@@ -76,6 +78,9 @@ typedef struct MapCache {
     uint8_t *last_address_vaddr;
     unsigned long max_mcache_size;
     unsigned int mcache_bucket_shift;
+
+    phys_offset_to_gaddr_t phys_offset_to_gaddr;
+    void *opaque;
 } MapCache;
 
 static MapCache *mapcache;
@@ -89,12 +94,15 @@ static inline int test_bits(int nr, int size, const unsigned long *addr)
         return 0;
 }
 
-void xen_map_cache_init(void)
+void xen_map_cache_init(phys_offset_to_gaddr_t f, void *opaque)
 {
     unsigned long size;
     struct rlimit rlimit_as;
 
     mapcache = g_malloc0(sizeof (MapCache));
+
+    mapcache->phys_offset_to_gaddr = f;
+    mapcache->opaque = opaque;
 
     QTAILQ_INIT(&mapcache->locked_entries);
     mapcache->last_address_index = -1;
@@ -191,9 +199,14 @@ uint8_t *xen_map_cache(target_phys_addr_t phys_addr, target_phys_addr_t size,
                        uint8_t lock)
 {
     MapCacheEntry *entry, *pentry = NULL;
-    target_phys_addr_t address_index  = phys_addr >> MCACHE_BUCKET_SHIFT;
-    target_phys_addr_t address_offset = phys_addr & (MCACHE_BUCKET_SIZE - 1);
+    target_phys_addr_t address_index;
+    target_phys_addr_t address_offset;
     target_phys_addr_t __size = size;
+    bool translated = false;
+
+tryagain:
+    address_index  = phys_addr >> MCACHE_BUCKET_SHIFT;
+    address_offset = phys_addr & (MCACHE_BUCKET_SIZE - 1);
 
     trace_xen_map_cache(phys_addr);
 
@@ -235,6 +248,11 @@ uint8_t *xen_map_cache(target_phys_addr_t phys_addr, target_phys_addr_t size,
     if(!test_bits(address_offset >> XC_PAGE_SHIFT, size >> XC_PAGE_SHIFT,
                 entry->valid_mapping)) {
         mapcache->last_address_index = -1;
+        if (!translated && mapcache->phys_offset_to_gaddr) {
+            phys_addr = mapcache->phys_offset_to_gaddr(phys_addr, size, mapcache->opaque);
+            translated = true;
+            goto tryagain;
+        }
         trace_xen_map_cache_return(NULL);
         return NULL;
     }
@@ -351,7 +369,7 @@ void xen_invalidate_map_cache(void)
     MapCacheRev *reventry;
 
     /* Flush pending AIO before destroying the mapcache */
-    qemu_aio_flush();
+    bdrv_drain_all();
 
     QTAILQ_FOREACH(reventry, &mapcache->locked_entries, next) {
         DPRINTF("There should be no locked mappings at this time, "

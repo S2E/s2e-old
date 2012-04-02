@@ -12,7 +12,6 @@
 #include "primecell.h"
 #include "devices.h"
 #include "pci.h"
-#include "usb-ohci.h"
 #include "net.h"
 #include "sysemu.h"
 #include "boards.h"
@@ -21,6 +20,7 @@
 #include "exec-memory.h"
 
 #define SMP_BOOT_ADDR 0xe0000000
+#define SMP_BOOTREG_ADDR 0x10000030
 
 typedef struct {
     SysBusDevice busdev;
@@ -77,25 +77,34 @@ static int realview_i2c_init(SysBusDevice *dev)
     s->bitbang = bitbang_i2c_init(bus);
     memory_region_init_io(&s->iomem, &realview_i2c_ops, s,
                           "realview-i2c", 0x1000);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
     return 0;
 }
 
-static SysBusDeviceInfo realview_i2c_info = {
-    .init = realview_i2c_init,
-    .qdev.name  = "realview_i2c",
-    .qdev.size  = sizeof(RealViewI2CState),
+static void realview_i2c_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = realview_i2c_init;
+}
+
+static TypeInfo realview_i2c_info = {
+    .name          = "realview_i2c",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(RealViewI2CState),
+    .class_init    = realview_i2c_class_init,
 };
 
-static void realview_register_devices(void)
+static void realview_register_types(void)
 {
-    sysbus_register_withprop(&realview_i2c_info);
+    type_register_static(&realview_i2c_info);
 }
 
 /* Board init.  */
 
 static struct arm_boot_info realview_binfo = {
     .smp_loader_start = SMP_BOOT_ADDR,
+    .smp_bootreg_addr = SMP_BOOTREG_ADDR,
 };
 
 /* The following two lists must be consistent.  */
@@ -119,7 +128,7 @@ static void realview_init(ram_addr_t ram_size,
                      const char *initrd_filename, const char *cpu_model,
                      enum realview_board_type board_type)
 {
-    CPUState *env = NULL;
+    CPUARMState *env = NULL;
     MemoryRegion *sysmem = get_system_memory();
     MemoryRegion *ram_lo = g_new(MemoryRegion, 1);
     MemoryRegion *ram_hi = g_new(MemoryRegion, 1);
@@ -183,11 +192,13 @@ static void realview_init(ram_addr_t ram_size,
         /* Core tile RAM.  */
         low_ram_size = ram_size - 0x20000000;
         ram_size = 0x20000000;
-        memory_region_init_ram(ram_lo, NULL, "realview.lowmem", low_ram_size);
+        memory_region_init_ram(ram_lo, "realview.lowmem", low_ram_size);
+        vmstate_register_ram_global(ram_lo);
         memory_region_add_subregion(sysmem, 0x20000000, ram_lo);
     }
 
-    memory_region_init_ram(ram_hi, NULL, "realview.highmem", ram_size);
+    memory_region_init_ram(ram_hi, "realview.highmem", ram_size);
+    vmstate_register_ram_global(ram_hi);
     low_ram_size = ram_size;
     if (low_ram_size > 0x10000000)
       low_ram_size = 0x10000000;
@@ -205,24 +216,28 @@ static void realview_init(ram_addr_t ram_size,
     sys_id = is_pb ? 0x01780500 : 0xc1400400;
     sysctl = qdev_create(NULL, "realview_sysctl");
     qdev_prop_set_uint32(sysctl, "sys_id", sys_id);
-    qdev_init_nofail(sysctl);
     qdev_prop_set_uint32(sysctl, "proc_id", proc_id);
+    qdev_init_nofail(sysctl);
     sysbus_mmio_map(sysbus_from_qdev(sysctl), 0, 0x10000000);
 
     if (is_mpcore) {
+        target_phys_addr_t periphbase;
         dev = qdev_create(NULL, is_pb ? "a9mpcore_priv": "realview_mpcore");
         qdev_prop_set_uint32(dev, "num-cpu", smp_cpus);
         qdev_init_nofail(dev);
         busdev = sysbus_from_qdev(dev);
         if (is_pb) {
-            realview_binfo.smp_priv_base = 0x1f000000;
+            periphbase = 0x1f000000;
         } else {
-            realview_binfo.smp_priv_base = 0x10100000;
+            periphbase = 0x10100000;
         }
-        sysbus_mmio_map(busdev, 0, realview_binfo.smp_priv_base);
+        sysbus_mmio_map(busdev, 0, periphbase);
         for (n = 0; n < smp_cpus; n++) {
             sysbus_connect_irq(busdev, n, cpu_irq[n]);
         }
+        sysbus_create_varargs("l2x0", periphbase + 0x2000, NULL);
+        /* Both A9 and 11MPCore put the GIC CPU i/f at base + 0x100 */
+        realview_binfo.gic_cpu_if_addr = periphbase + 0x100;
     } else {
         uint32_t gic_addr = is_pb ? 0x1e000000 : 0x10040000;
         /* For now just create the nIRQ GIC, and ignore the others.  */
@@ -289,7 +304,7 @@ static void realview_init(ram_addr_t ram_size,
         sysbus_connect_irq(busdev, 3, pic[51]);
         pci_bus = (PCIBus *)qdev_get_child_bus(dev, "pci");
         if (usb_enabled) {
-            usb_ohci_init_pci(pci_bus, -1);
+            pci_create_simple(pci_bus, -1, "pci-ohci");
         }
         n = drive_get_max_bus(IF_SCSI);
         while (n >= 0) {
@@ -377,7 +392,8 @@ static void realview_init(ram_addr_t ram_size,
        startup code.  I guess this works on real hardware because the
        BootROM happens to be in ROM/flash or in memory that isn't clobbered
        until after Linux boots the secondary CPUs.  */
-    memory_region_init_ram(ram_hack, NULL, "realview.hack", 0x1000);
+    memory_region_init_ram(ram_hack, "realview.hack", 0x1000);
+    vmstate_register_ram_global(ram_hack);
     memory_region_add_subregion(sysmem, SMP_BOOT_ADDR, ram_hack);
 
     realview_binfo.ram_size = ram_size;
@@ -476,4 +492,4 @@ static void realview_machine_init(void)
 }
 
 machine_init(realview_machine_init);
-device_init(realview_register_devices)
+type_init(realview_register_types)

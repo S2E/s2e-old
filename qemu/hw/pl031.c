@@ -7,10 +7,13 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "sysbus.h"
 #include "qemu-timer.h"
+#include "sysemu.h"
 
 //#define DEBUG_PL031
 
@@ -32,9 +35,15 @@ do { printf("pl031: " fmt , ## __VA_ARGS__); } while (0)
 
 typedef struct {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     QEMUTimer *timer;
     qemu_irq irq;
 
+    /* Needed to preserve the tick_count across migration, even if the
+     * absolute value of the rtc_clock is different on the source and
+     * destination.
+     */
+    uint32_t tick_offset_vmstate;
     uint32_t tick_offset;
 
     uint32_t mr;
@@ -43,21 +52,6 @@ typedef struct {
     uint32_t im;
     uint32_t is;
 } pl031_state;
-
-static const VMStateDescription vmstate_pl031 = {
-    .name = "pl031",
-    .version_id = 1,
-    .minimum_version_id = 1,
-    .fields = (VMStateField[]) {
-        VMSTATE_UINT32(tick_offset, pl031_state),
-        VMSTATE_UINT32(mr, pl031_state),
-        VMSTATE_UINT32(lr, pl031_state),
-        VMSTATE_UINT32(cr, pl031_state),
-        VMSTATE_UINT32(im, pl031_state),
-        VMSTATE_UINT32(is, pl031_state),
-        VMSTATE_END_OF_LIST()
-    }
-};
 
 static const unsigned char pl031_id[] = {
     0x31, 0x10, 0x14, 0x00,         /* Device ID        */
@@ -73,39 +67,36 @@ static void pl031_interrupt(void * opaque)
 {
     pl031_state *s = (pl031_state *)opaque;
 
-    s->im = 1;
+    s->is = 1;
     DPRINTF("Alarm raised\n");
     pl031_update(s);
 }
 
 static uint32_t pl031_get_count(pl031_state *s)
 {
-    /* This assumes qemu_get_clock_ns returns the time since the machine was
-       created.  */
-    return s->tick_offset + qemu_get_clock_ns(vm_clock) / get_ticks_per_sec();
+    int64_t now = qemu_get_clock_ns(rtc_clock);
+    return s->tick_offset + now / get_ticks_per_sec();
 }
 
 static void pl031_set_alarm(pl031_state *s)
 {
-    int64_t now;
     uint32_t ticks;
-
-    now = qemu_get_clock_ns(vm_clock);
-    ticks = s->tick_offset + now / get_ticks_per_sec();
 
     /* The timer wraps around.  This subtraction also wraps in the same way,
        and gives correct results when alarm < now_ticks.  */
-    ticks = s->mr - ticks;
+    ticks = s->mr - pl031_get_count(s);
     DPRINTF("Alarm set in %ud ticks\n", ticks);
     if (ticks == 0) {
         qemu_del_timer(s->timer);
         pl031_interrupt(s);
     } else {
+        int64_t now = qemu_get_clock_ns(rtc_clock);
         qemu_mod_timer(s->timer, now + (int64_t)ticks * get_ticks_per_sec());
     }
 }
 
-static uint32_t pl031_read(void *opaque, target_phys_addr_t offset)
+static uint64_t pl031_read(void *opaque, target_phys_addr_t offset,
+                           unsigned size)
 {
     pl031_state *s = (pl031_state *)opaque;
 
@@ -141,7 +132,7 @@ static uint32_t pl031_read(void *opaque, target_phys_addr_t offset)
 }
 
 static void pl031_write(void * opaque, target_phys_addr_t offset,
-                        uint32_t value)
+                        uint64_t value, unsigned size)
 {
     pl031_state *s = (pl031_state *)opaque;
 
@@ -186,52 +177,85 @@ static void pl031_write(void * opaque, target_phys_addr_t offset,
     }
 }
 
-static CPUWriteMemoryFunc * const  pl031_writefn[] = {
-    pl031_write,
-    pl031_write,
-    pl031_write
-};
-
-static CPUReadMemoryFunc * const  pl031_readfn[] = {
-    pl031_read,
-    pl031_read,
-    pl031_read
+static const MemoryRegionOps pl031_ops = {
+    .read = pl031_read,
+    .write = pl031_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static int pl031_init(SysBusDevice *dev)
 {
-    int iomemtype;
     pl031_state *s = FROM_SYSBUS(pl031_state, dev);
     struct tm tm;
 
-    iomemtype = cpu_register_io_memory(pl031_readfn, pl031_writefn, s,
-                                       DEVICE_NATIVE_ENDIAN);
-    if (iomemtype == -1) {
-        hw_error("pl031_init: Can't register I/O memory\n");
-    }
-
-    sysbus_init_mmio(dev, 0x1000, iomemtype);
+    memory_region_init_io(&s->iomem, &pl031_ops, s, "pl031", 0x1000);
+    sysbus_init_mmio(dev, &s->iomem);
 
     sysbus_init_irq(dev, &s->irq);
-    /* ??? We assume vm_clock is zero at this point.  */
     qemu_get_timedate(&tm, 0);
-    s->tick_offset = mktimegm(&tm);
+    s->tick_offset = mktimegm(&tm) - qemu_get_clock_ns(rtc_clock) / get_ticks_per_sec();
 
-    s->timer = qemu_new_timer_ns(vm_clock, pl031_interrupt, s);
+    s->timer = qemu_new_timer_ns(rtc_clock, pl031_interrupt, s);
     return 0;
 }
 
-static SysBusDeviceInfo pl031_info = {
-    .init = pl031_init,
-    .qdev.name = "pl031",
-    .qdev.size = sizeof(pl031_state),
-    .qdev.vmsd = &vmstate_pl031,
-    .qdev.no_user = 1,
-};
-
-static void pl031_register_devices(void)
+static void pl031_pre_save(void *opaque)
 {
-    sysbus_register_withprop(&pl031_info);
+    pl031_state *s = opaque;
+
+    /* tick_offset is base_time - rtc_clock base time.  Instead, we want to
+     * store the base time relative to the vm_clock for backwards-compatibility.  */
+    int64_t delta = qemu_get_clock_ns(rtc_clock) - qemu_get_clock_ns(vm_clock);
+    s->tick_offset_vmstate = s->tick_offset + delta / get_ticks_per_sec();
 }
 
-device_init(pl031_register_devices)
+static int pl031_post_load(void *opaque, int version_id)
+{
+    pl031_state *s = opaque;
+
+    int64_t delta = qemu_get_clock_ns(rtc_clock) - qemu_get_clock_ns(vm_clock);
+    s->tick_offset = s->tick_offset_vmstate - delta / get_ticks_per_sec();
+    pl031_set_alarm(s);
+    return 0;
+}
+
+static const VMStateDescription vmstate_pl031 = {
+    .name = "pl031",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .pre_save = pl031_pre_save,
+    .post_load = pl031_post_load,
+    .fields = (VMStateField[]) {
+        VMSTATE_UINT32(tick_offset_vmstate, pl031_state),
+        VMSTATE_UINT32(mr, pl031_state),
+        VMSTATE_UINT32(lr, pl031_state),
+        VMSTATE_UINT32(cr, pl031_state),
+        VMSTATE_UINT32(im, pl031_state),
+        VMSTATE_UINT32(is, pl031_state),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static void pl031_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = pl031_init;
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_pl031;
+}
+
+static TypeInfo pl031_info = {
+    .name          = "pl031",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl031_state),
+    .class_init    = pl031_class_init,
+};
+
+static void pl031_register_types(void)
+{
+    type_register_static(&pl031_info);
+}
+
+type_init(pl031_register_types)

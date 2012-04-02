@@ -70,10 +70,10 @@ static void do_unaligned_access(target_ulong addr, int is_write, int is_user,
     }
 }
 
-void tlb_fill(CPUState *env1, target_ulong vaddr, int is_write, int mmu_idx,
+void tlb_fill(CPUXtensaState *env1, target_ulong vaddr, int is_write, int mmu_idx,
               void *retaddr)
 {
-    CPUState *saved_env = env;
+    CPUXtensaState *saved_env = env;
 
     env = env1;
     {
@@ -134,6 +134,27 @@ void HELPER(exception_cause_vaddr)(uint32_t pc, uint32_t cause, uint32_t vaddr)
     HELPER(exception_cause)(pc, cause);
 }
 
+void debug_exception_env(CPUXtensaState *new_env, uint32_t cause)
+{
+    if (xtensa_get_cintlevel(new_env) < new_env->config->debug_level) {
+        env = new_env;
+        HELPER(debug_exception)(env->pc, cause);
+    }
+}
+
+void HELPER(debug_exception)(uint32_t pc, uint32_t cause)
+{
+    unsigned level = env->config->debug_level;
+
+    env->pc = pc;
+    env->sregs[DEBUGCAUSE] = cause;
+    env->sregs[EPC1 + level - 1] = pc;
+    env->sregs[EPS2 + level - 2] = env->sregs[PS];
+    env->sregs[PS] = (env->sregs[PS] & ~PS_INTLEVEL) | PS_EXCM |
+        (level << PS_INTLEVEL_SHIFT);
+    HELPER(exception)(EXC_DEBUG);
+}
+
 uint32_t HELPER(nsa)(uint32_t v)
 {
     if (v & 0x80000000) {
@@ -147,7 +168,7 @@ uint32_t HELPER(nsau)(uint32_t v)
     return v ? clz32(v) : 32;
 }
 
-static void copy_window_from_phys(CPUState *env,
+static void copy_window_from_phys(CPUXtensaState *env,
         uint32_t window, uint32_t phys, uint32_t n)
 {
     assert(phys < env->config->nareg);
@@ -163,7 +184,7 @@ static void copy_window_from_phys(CPUState *env,
     }
 }
 
-static void copy_phys_from_window(CPUState *env,
+static void copy_phys_from_window(CPUXtensaState *env,
         uint32_t phys, uint32_t window, uint32_t n)
 {
     assert(phys < env->config->nareg);
@@ -180,22 +201,22 @@ static void copy_phys_from_window(CPUState *env,
 }
 
 
-static inline unsigned windowbase_bound(unsigned a, const CPUState *env)
+static inline unsigned windowbase_bound(unsigned a, const CPUXtensaState *env)
 {
     return a & (env->config->nareg / 4 - 1);
 }
 
-static inline unsigned windowstart_bit(unsigned a, const CPUState *env)
+static inline unsigned windowstart_bit(unsigned a, const CPUXtensaState *env)
 {
     return 1 << windowbase_bound(a, env);
 }
 
-void xtensa_sync_window_from_phys(CPUState *env)
+void xtensa_sync_window_from_phys(CPUXtensaState *env)
 {
     copy_window_from_phys(env, 0, env->sregs[WINDOW_BASE] * 4, 16);
 }
 
-void xtensa_sync_phys_from_window(CPUState *env)
+void xtensa_sync_phys_from_window(CPUXtensaState *env)
 {
     copy_phys_from_window(env, env->sregs[WINDOW_BASE] * 4, 0, 16);
 }
@@ -388,7 +409,7 @@ void HELPER(advance_ccount)(uint32_t d)
     xtensa_advance_ccount(env, d);
 }
 
-void HELPER(check_interrupts)(CPUState *env)
+void HELPER(check_interrupts)(CPUXtensaState *env)
 {
     check_interrupts(env);
 }
@@ -402,7 +423,7 @@ void HELPER(wsr_rasid)(uint32_t v)
     }
 }
 
-static uint32_t get_page_size(const CPUState *env, bool dtlb, uint32_t way)
+static uint32_t get_page_size(const CPUXtensaState *env, bool dtlb, uint32_t way)
 {
     uint32_t tlbcfg = env->sregs[dtlb ? DTLBCFG : ITLBCFG];
 
@@ -424,7 +445,7 @@ static uint32_t get_page_size(const CPUState *env, bool dtlb, uint32_t way)
 /*!
  * Get bit mask for the virtual address bits translated by the TLB way
  */
-uint32_t xtensa_tlb_get_addr_mask(const CPUState *env, bool dtlb, uint32_t way)
+uint32_t xtensa_tlb_get_addr_mask(const CPUXtensaState *env, bool dtlb, uint32_t way)
 {
     if (xtensa_option_enabled(env->config, XTENSA_OPTION_MMU)) {
         bool varway56 = dtlb ?
@@ -461,7 +482,7 @@ uint32_t xtensa_tlb_get_addr_mask(const CPUState *env, bool dtlb, uint32_t way)
  * Get bit mask for the 'VPN without index' field.
  * See ISA, 4.6.5.6, data format for RxTLB0
  */
-static uint32_t get_vpn_mask(const CPUState *env, bool dtlb, uint32_t way)
+static uint32_t get_vpn_mask(const CPUXtensaState *env, bool dtlb, uint32_t way)
 {
     if (way < 4) {
         bool is32 = (dtlb ?
@@ -490,7 +511,7 @@ static uint32_t get_vpn_mask(const CPUState *env, bool dtlb, uint32_t way)
  * Split virtual address into VPN (with index) and entry index
  * for the given TLB way
  */
-void split_tlb_entry_spec_way(const CPUState *env, uint32_t v, bool dtlb,
+void split_tlb_entry_spec_way(const CPUXtensaState *env, uint32_t v, bool dtlb,
         uint32_t *vpn, uint32_t wi, uint32_t *ei)
 {
     bool varway56 = dtlb ?
@@ -626,7 +647,7 @@ uint32_t HELPER(ptlb)(uint32_t v, uint32_t dtlb)
     }
 }
 
-void xtensa_tlb_set_entry(CPUState *env, bool dtlb,
+void xtensa_tlb_set_entry(CPUXtensaState *env, bool dtlb,
         unsigned wi, unsigned ei, uint32_t vpn, uint32_t pte)
 {
     xtensa_tlb_entry *entry = xtensa_tlb_get_entry(env, dtlb, wi, ei);
@@ -661,4 +682,83 @@ void HELPER(wtlb)(uint32_t p, uint32_t v, uint32_t dtlb)
     uint32_t ei;
     split_tlb_entry_spec(v, dtlb, &vpn, &wi, &ei);
     xtensa_tlb_set_entry(env, dtlb, wi, ei, vpn, p);
+}
+
+
+void HELPER(wsr_ibreakenable)(uint32_t v)
+{
+    uint32_t change = v ^ env->sregs[IBREAKENABLE];
+    unsigned i;
+
+    for (i = 0; i < env->config->nibreak; ++i) {
+        if (change & (1 << i)) {
+            tb_invalidate_phys_page_range(
+                    env->sregs[IBREAKA + i], env->sregs[IBREAKA + i] + 1, 0);
+        }
+    }
+    env->sregs[IBREAKENABLE] = v & ((1 << env->config->nibreak) - 1);
+}
+
+void HELPER(wsr_ibreaka)(uint32_t i, uint32_t v)
+{
+    if (env->sregs[IBREAKENABLE] & (1 << i) && env->sregs[IBREAKA + i] != v) {
+        tb_invalidate_phys_page_range(
+                env->sregs[IBREAKA + i], env->sregs[IBREAKA + i] + 1, 0);
+        tb_invalidate_phys_page_range(v, v + 1, 0);
+    }
+    env->sregs[IBREAKA + i] = v;
+}
+
+static void set_dbreak(unsigned i, uint32_t dbreaka, uint32_t dbreakc)
+{
+    int flags = BP_CPU | BP_STOP_BEFORE_ACCESS;
+    uint32_t mask = dbreakc | ~DBREAKC_MASK;
+
+    if (env->cpu_watchpoint[i]) {
+        cpu_watchpoint_remove_by_ref(env, env->cpu_watchpoint[i]);
+    }
+    if (dbreakc & DBREAKC_SB) {
+        flags |= BP_MEM_WRITE;
+    }
+    if (dbreakc & DBREAKC_LB) {
+        flags |= BP_MEM_READ;
+    }
+    /* contiguous mask after inversion is one less than some power of 2 */
+    if ((~mask + 1) & ~mask) {
+        qemu_log("DBREAKC mask is not contiguous: 0x%08x\n", dbreakc);
+        /* cut mask after the first zero bit */
+        mask = 0xffffffff << (32 - clo32(mask));
+    }
+    if (cpu_watchpoint_insert(env, dbreaka & mask, ~mask + 1,
+            flags, &env->cpu_watchpoint[i])) {
+        env->cpu_watchpoint[i] = NULL;
+        qemu_log("Failed to set data breakpoint at 0x%08x/%d\n",
+                dbreaka & mask, ~mask + 1);
+    }
+}
+
+void HELPER(wsr_dbreaka)(uint32_t i, uint32_t v)
+{
+    uint32_t dbreakc = env->sregs[DBREAKC + i];
+
+    if ((dbreakc & DBREAKC_SB_LB) &&
+            env->sregs[DBREAKA + i] != v) {
+        set_dbreak(i, v, dbreakc);
+    }
+    env->sregs[DBREAKA + i] = v;
+}
+
+void HELPER(wsr_dbreakc)(uint32_t i, uint32_t v)
+{
+    if ((env->sregs[DBREAKC + i] ^ v) & (DBREAKC_SB_LB | DBREAKC_MASK)) {
+        if (v & DBREAKC_SB_LB) {
+            set_dbreak(i, env->sregs[DBREAKA + i], v);
+        } else {
+            if (env->cpu_watchpoint[i]) {
+                cpu_watchpoint_remove_by_ref(env, env->cpu_watchpoint[i]);
+                env->cpu_watchpoint[i] = NULL;
+            }
+        }
+    }
+    env->sregs[DBREAKC + i] = v;
 }

@@ -1289,55 +1289,55 @@ static const VMStateDescription vmstate_sb16 = {
     .minimum_version_id_old = 1,
     .post_load = sb16_post_load,
     .fields      = (VMStateField []) {
-        VMSTATE_UINT32(irq, SB16State),
-        VMSTATE_UINT32(dma, SB16State),
-        VMSTATE_UINT32(hdma, SB16State),
-        VMSTATE_UINT32(port, SB16State),
-        VMSTATE_UINT32(ver, SB16State),
-        VMSTATE_INT32(in_index, SB16State),
-        VMSTATE_INT32(out_data_len, SB16State),
-        VMSTATE_INT32(fmt_stereo, SB16State),
-        VMSTATE_INT32(fmt_signed, SB16State),
-        VMSTATE_INT32(fmt_bits, SB16State),
-        VMSTATE_UINT32(fmt, SB16State),
-        VMSTATE_INT32(dma_auto, SB16State),
-        VMSTATE_INT32(block_size, SB16State),
-        VMSTATE_INT32(fifo, SB16State),
-        VMSTATE_INT32(freq, SB16State),
-        VMSTATE_INT32(time_const, SB16State),
-        VMSTATE_INT32(speaker, SB16State),
-        VMSTATE_INT32(needed_bytes, SB16State),
-        VMSTATE_INT32(cmd, SB16State),
-        VMSTATE_INT32(use_hdma, SB16State),
-        VMSTATE_INT32(highspeed, SB16State),
-        VMSTATE_INT32(can_write, SB16State),
-        VMSTATE_INT32(v2x6, SB16State),
+        VMSTATE_UINT32 (irq, SB16State),
+        VMSTATE_UINT32 (dma, SB16State),
+        VMSTATE_UINT32 (hdma, SB16State),
+        VMSTATE_UINT32 (port, SB16State),
+        VMSTATE_UINT32 (ver, SB16State),
+        VMSTATE_INT32 (in_index, SB16State),
+        VMSTATE_INT32 (out_data_len, SB16State),
+        VMSTATE_INT32 (fmt_stereo, SB16State),
+        VMSTATE_INT32 (fmt_signed, SB16State),
+        VMSTATE_INT32 (fmt_bits, SB16State),
+        VMSTATE_UINT32 (fmt, SB16State),
+        VMSTATE_INT32 (dma_auto, SB16State),
+        VMSTATE_INT32 (block_size, SB16State),
+        VMSTATE_INT32 (fifo, SB16State),
+        VMSTATE_INT32 (freq, SB16State),
+        VMSTATE_INT32 (time_const, SB16State),
+        VMSTATE_INT32 (speaker, SB16State),
+        VMSTATE_INT32 (needed_bytes, SB16State),
+        VMSTATE_INT32 (cmd, SB16State),
+        VMSTATE_INT32 (use_hdma, SB16State),
+        VMSTATE_INT32 (highspeed, SB16State),
+        VMSTATE_INT32 (can_write, SB16State),
+        VMSTATE_INT32 (v2x6, SB16State),
 
-        VMSTATE_UINT8(csp_param, SB16State),
-        VMSTATE_UINT8(csp_value, SB16State),
-        VMSTATE_UINT8(csp_mode, SB16State),
-        VMSTATE_UINT8(csp_param, SB16State),
-        VMSTATE_BUFFER(csp_regs, SB16State),
-        VMSTATE_UINT8(csp_index, SB16State),
-        VMSTATE_BUFFER(csp_reg83, SB16State),
-        VMSTATE_INT32(csp_reg83r, SB16State),
-        VMSTATE_INT32(csp_reg83w, SB16State),
+        VMSTATE_UINT8 (csp_param, SB16State),
+        VMSTATE_UINT8 (csp_value, SB16State),
+        VMSTATE_UINT8 (csp_mode, SB16State),
+        VMSTATE_UINT8 (csp_param, SB16State),
+        VMSTATE_BUFFER (csp_regs, SB16State),
+        VMSTATE_UINT8 (csp_index, SB16State),
+        VMSTATE_BUFFER (csp_reg83, SB16State),
+        VMSTATE_INT32 (csp_reg83r, SB16State),
+        VMSTATE_INT32 (csp_reg83w, SB16State),
 
-        VMSTATE_BUFFER(in2_data, SB16State),
-        VMSTATE_BUFFER(out_data, SB16State),
-        VMSTATE_UINT8(test_reg, SB16State),
-        VMSTATE_UINT8(last_read_byte, SB16State),
+        VMSTATE_BUFFER (in2_data, SB16State),
+        VMSTATE_BUFFER (out_data, SB16State),
+        VMSTATE_UINT8 (test_reg, SB16State),
+        VMSTATE_UINT8 (last_read_byte, SB16State),
 
-        VMSTATE_INT32(nzero, SB16State),
-        VMSTATE_INT32(left_till_irq, SB16State),
-        VMSTATE_INT32(dma_running, SB16State),
-        VMSTATE_INT32(bytes_per_second, SB16State),
-        VMSTATE_INT32(align, SB16State),
+        VMSTATE_INT32 (nzero, SB16State),
+        VMSTATE_INT32 (left_till_irq, SB16State),
+        VMSTATE_INT32 (dma_running, SB16State),
+        VMSTATE_INT32 (bytes_per_second, SB16State),
+        VMSTATE_INT32 (align, SB16State),
 
-        VMSTATE_INT32(mixer_nreg, SB16State),
-        VMSTATE_BUFFER(mixer_regs, SB16State),
+        VMSTATE_INT32 (mixer_nreg, SB16State),
+        VMSTATE_BUFFER (mixer_regs, SB16State),
 
-        VMSTATE_END_OF_LIST()
+        VMSTATE_END_OF_LIST ()
     }
 };
 
@@ -1349,7 +1349,7 @@ static const MemoryRegionPortio sb16_ioport_list[] = {
     { 10, 1, 1, .read = dsp_read },
     { 12, 1, 1, .write = dsp_write },
     { 12, 4, 1, .read = dsp_read },
-    PORTIO_END_OF_LIST(),
+    PORTIO_END_OF_LIST (),
 };
 
 
@@ -1385,30 +1385,41 @@ static int sb16_initfn (ISADevice *dev)
     return 0;
 }
 
-int SB16_init (qemu_irq *pic)
+int SB16_init (ISABus *bus)
 {
-    isa_create_simple ("sb16");
+    isa_create_simple (bus, "sb16");
     return 0;
 }
 
-static ISADeviceInfo sb16_info = {
-    .qdev.name     = "sb16",
-    .qdev.desc     = "Creative Sound Blaster 16",
-    .qdev.size     = sizeof (SB16State),
-    .qdev.vmsd     = &vmstate_sb16,
-    .init          = sb16_initfn,
-    .qdev.props    = (Property[]) {
-        DEFINE_PROP_HEX32  ("version", SB16State, ver,  0x0405), /* 4.5 */
-        DEFINE_PROP_HEX32  ("iobase",  SB16State, port, 0x220),
-        DEFINE_PROP_UINT32 ("irq",     SB16State, irq,  5),
-        DEFINE_PROP_UINT32 ("dma",     SB16State, dma,  1),
-        DEFINE_PROP_UINT32 ("dma16",   SB16State, hdma, 5),
-        DEFINE_PROP_END_OF_LIST (),
-    },
+static Property sb16_properties[] = {
+    DEFINE_PROP_HEX32  ("version", SB16State, ver,  0x0405), /* 4.5 */
+    DEFINE_PROP_HEX32  ("iobase",  SB16State, port, 0x220),
+    DEFINE_PROP_UINT32 ("irq",     SB16State, irq,  5),
+    DEFINE_PROP_UINT32 ("dma",     SB16State, dma,  1),
+    DEFINE_PROP_UINT32 ("dma16",   SB16State, hdma, 5),
+    DEFINE_PROP_END_OF_LIST (),
 };
 
-static void sb16_register (void)
+static void sb16_class_initfn (ObjectClass *klass, void *data)
 {
-    isa_qdev_register (&sb16_info);
+    DeviceClass *dc = DEVICE_CLASS (klass);
+    ISADeviceClass *ic = ISA_DEVICE_CLASS (klass);
+    ic->init = sb16_initfn;
+    dc->desc = "Creative Sound Blaster 16";
+    dc->vmsd = &vmstate_sb16;
+    dc->props = sb16_properties;
 }
-device_init (sb16_register)
+
+static TypeInfo sb16_info = {
+    .name          = "sb16",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof (SB16State),
+    .class_init    = sb16_class_initfn,
+};
+
+static void sb16_register_types (void)
+{
+    type_register_static (&sb16_info);
+}
+
+type_init (sb16_register_types)

@@ -114,7 +114,7 @@ static int lm32_juart_init(SysBusDevice *dev)
 {
     LM32JuartState *s = FROM_SYSBUS(typeof(*s), dev);
 
-    s->chr = qdev_init_chardev(&dev->qdev);
+    s->chr = qemu_char_get_next_serial();
     if (s->chr) {
         qemu_chr_add_handlers(s->chr, juart_can_rx, juart_rx, juart_event, s);
     }
@@ -134,17 +134,26 @@ static const VMStateDescription vmstate_lm32_juart = {
     }
 };
 
-static SysBusDeviceInfo lm32_juart_info = {
-    .init = lm32_juart_init,
-    .qdev.name  = "lm32-juart",
-    .qdev.size  = sizeof(LM32JuartState),
-    .qdev.vmsd  = &vmstate_lm32_juart,
-    .qdev.reset = juart_reset,
-};
-
-static void lm32_juart_register(void)
+static void lm32_juart_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&lm32_juart_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = lm32_juart_init;
+    dc->reset = juart_reset;
+    dc->vmsd = &vmstate_lm32_juart;
 }
 
-device_init(lm32_juart_register)
+static TypeInfo lm32_juart_info = {
+    .name          = "lm32-juart",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(LM32JuartState),
+    .class_init    = lm32_juart_class_init,
+};
+
+static void lm32_juart_register_types(void)
+{
+    type_register_static(&lm32_juart_info);
+}
+
+type_init(lm32_juart_register_types)

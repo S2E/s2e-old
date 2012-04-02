@@ -85,6 +85,60 @@ static QemuOptsList qemu_drive_opts = {
             .name = "readonly",
             .type = QEMU_OPT_BOOL,
             .help = "open drive file as read-only",
+        },{
+            .name = "iops",
+            .type = QEMU_OPT_NUMBER,
+            .help = "limit total I/O operations per second",
+        },{
+            .name = "iops_rd",
+            .type = QEMU_OPT_NUMBER,
+            .help = "limit read operations per second",
+        },{
+            .name = "iops_wr",
+            .type = QEMU_OPT_NUMBER,
+            .help = "limit write operations per second",
+        },{
+            .name = "bps",
+            .type = QEMU_OPT_NUMBER,
+            .help = "limit total bytes per second",
+        },{
+            .name = "bps_rd",
+            .type = QEMU_OPT_NUMBER,
+            .help = "limit read bytes per second",
+        },{
+            .name = "bps_wr",
+            .type = QEMU_OPT_NUMBER,
+            .help = "limit write bytes per second",
+        },{
+            .name = "copy-on-read",
+            .type = QEMU_OPT_BOOL,
+            .help = "copy read data from backing file into image file",
+        },
+        { /* end of list */ }
+    },
+};
+
+static QemuOptsList qemu_iscsi_opts = {
+    .name = "iscsi",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_iscsi_opts.head),
+    .desc = {
+        {
+            .name = "user",
+            .type = QEMU_OPT_STRING,
+            .help = "username for CHAP authentication to target",
+        },{
+            .name = "password",
+            .type = QEMU_OPT_STRING,
+            .help = "password for CHAP authentication to target",
+        },{
+            .name = "header-digest",
+            .type = QEMU_OPT_STRING,
+            .help = "HeaderDigest setting. "
+                    "{CRC32C|CRC32C-NONE|NONE-CRC32C|NONE}",
+        },{
+            .name = "initiator-name",
+            .type = QEMU_OPT_STRING,
+            .help = "Initiator iqn name to use when connecting",
         },
         { /* end of list */ }
     },
@@ -183,6 +237,13 @@ QemuOptsList qemu_fsdev_opts = {
         }, {
             .name = "readonly",
             .type = QEMU_OPT_BOOL,
+
+        }, {
+            .name = "socket",
+            .type = QEMU_OPT_STRING,
+        }, {
+            .name = "sock_fd",
+            .type = QEMU_OPT_NUMBER,
         },
 
         { /*End of list */ }
@@ -212,6 +273,12 @@ QemuOptsList qemu_virtfs_opts = {
         }, {
             .name = "readonly",
             .type = QEMU_OPT_BOOL,
+        }, {
+            .name = "socket",
+            .type = QEMU_OPT_STRING,
+        }, {
+            .name = "sock_fd",
+            .type = QEMU_OPT_NUMBER,
         },
 
         { /*End of list */ }
@@ -480,6 +547,7 @@ QemuOptsList qemu_option_rom_opts = {
 static QemuOptsList qemu_machine_opts = {
     .name = "machine",
     .implied_opt_name = "type",
+    .merge_lists = true,
     .head = QTAILQ_HEAD_INITIALIZER(qemu_machine_opts.head),
     .desc = {
         {
@@ -490,6 +558,30 @@ static QemuOptsList qemu_machine_opts = {
             .name = "accel",
             .type = QEMU_OPT_STRING,
             .help = "accelerator list",
+        }, {
+            .name = "kernel_irqchip",
+            .type = QEMU_OPT_BOOL,
+            .help = "use KVM in-kernel irqchip",
+        }, {
+            .name = "kvm_shadow_mem",
+            .type = QEMU_OPT_SIZE,
+            .help = "KVM shadow MMU size",
+        }, {
+            .name = "kernel",
+            .type = QEMU_OPT_STRING,
+            .help = "Linux kernel image file",
+        }, {
+            .name = "initrd",
+            .type = QEMU_OPT_STRING,
+            .help = "Linux initial ramdisk file",
+        }, {
+            .name = "append",
+            .type = QEMU_OPT_STRING,
+            .help = "Linux kernel command line",
+        }, {
+            .name = "dtb",
+            .type = QEMU_OPT_STRING,
+            .help = "Linux kernel device tree file",
         },
         { /* End of list */ }
     },
@@ -535,6 +627,7 @@ static QemuOptsList *vm_config_groups[32] = {
     &qemu_option_rom_opts,
     &qemu_machine_opts,
     &qemu_boot_opts,
+    &qemu_iscsi_opts,
     NULL,
 };
 

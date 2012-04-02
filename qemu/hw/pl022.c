@@ -9,7 +9,6 @@
 
 #include "sysbus.h"
 #include "ssi.h"
-#include "primecell.h"
 
 //#define DEBUG_PL022 1
 
@@ -42,6 +41,7 @@ do { fprintf(stderr, "pl022: error: " fmt , ## __VA_ARGS__);} while (0)
 
 typedef struct {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     uint32_t cr0;
     uint32_t cr1;
     uint32_t bitmask;
@@ -130,7 +130,8 @@ static void pl022_xfer(pl022_state *s)
     pl022_update(s);
 }
 
-static uint32_t pl022_read(void *opaque, target_phys_addr_t offset)
+static uint64_t pl022_read(void *opaque, target_phys_addr_t offset,
+                           unsigned size)
 {
     pl022_state *s = (pl022_state *)opaque;
     int val;
@@ -173,7 +174,7 @@ static uint32_t pl022_read(void *opaque, target_phys_addr_t offset)
 }
 
 static void pl022_write(void *opaque, target_phys_addr_t offset,
-                        uint32_t value)
+                        uint64_t value, unsigned size)
 {
     pl022_state *s = (pl022_state *)opaque;
 
@@ -193,7 +194,7 @@ static void pl022_write(void *opaque, target_phys_addr_t offset,
         break;
     case 0x08: /* DR */
         if (s->tx_fifo_len < 8) {
-            DPRINTF("TX %02x\n", value);
+            DPRINTF("TX %02x\n", (unsigned)value);
             s->tx_fifo[s->tx_fifo_head] = value & s->bitmask;
             s->tx_fifo_head = (s->tx_fifo_head + 1) & 7;
             s->tx_fifo_len++;
@@ -227,16 +228,10 @@ static void pl022_reset(pl022_state *s)
     s->sr = PL022_SR_TFE | PL022_SR_TNF;
 }
 
-static CPUReadMemoryFunc * const pl022_readfn[] = {
-   pl022_read,
-   pl022_read,
-   pl022_read
-};
-
-static CPUWriteMemoryFunc * const pl022_writefn[] = {
-   pl022_write,
-   pl022_write,
-   pl022_write
+static const MemoryRegionOps pl022_ops = {
+    .read = pl022_read,
+    .write = pl022_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static const VMStateDescription vmstate_pl022 = {
@@ -279,12 +274,9 @@ static const VMStateDescription vmstate_pl022 = {
 static int pl022_init(SysBusDevice *dev)
 {
     pl022_state *s = FROM_SYSBUS(pl022_state, dev);
-    int iomemtype;
 
-    iomemtype = cpu_register_io_memory(pl022_readfn,
-                                       pl022_writefn, s,
-                                       DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, 0x1000, iomemtype);
+    memory_region_init_io(&s->iomem, &pl022_ops, s, "pl022", 0x1000);
+    sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
     s->ssi = ssi_create_bus(&dev->qdev, "ssi");
     pl022_reset(s);
@@ -292,9 +284,23 @@ static int pl022_init(SysBusDevice *dev)
     return 0;
 }
 
-static void pl022_register_devices(void)
+static void pl022_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_dev("pl022", sizeof(pl022_state), pl022_init);
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = pl022_init;
 }
 
-device_init(pl022_register_devices)
+static TypeInfo pl022_info = {
+    .name          = "pl022",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl022_state),
+    .class_init    = pl022_class_init,
+};
+
+static void pl022_register_types(void)
+{
+    type_register_static(&pl022_info);
+}
+
+type_init(pl022_register_types)

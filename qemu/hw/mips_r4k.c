@@ -22,6 +22,7 @@
 #include "loader.h"
 #include "elf.h"
 #include "mc146818rtc.h"
+#include "i8254.h"
 #include "blockdev.h"
 #include "exec-memory.h"
 
@@ -64,7 +65,7 @@ static const MemoryRegionOps mips_qemu_ops = {
 };
 
 typedef struct ResetData {
-    CPUState *env;
+    CPUMIPSState *env;
     uint64_t vector;
 } ResetData;
 
@@ -142,9 +143,9 @@ static int64_t load_kernel(void)
 static void main_cpu_reset(void *opaque)
 {
     ResetData *s = (ResetData *)opaque;
-    CPUState *env = s->env;
+    CPUMIPSState *env = s->env;
 
-    cpu_reset(env);
+    cpu_state_reset(env);
     env->active_tc.PC = s->vector;
 }
 
@@ -161,10 +162,11 @@ void mips_r4k_init (ram_addr_t ram_size,
     MemoryRegion *bios;
     MemoryRegion *iomem = g_new(MemoryRegion, 1);
     int bios_size;
-    CPUState *env;
+    CPUMIPSState *env;
     ResetData *reset_info;
     int i;
     qemu_irq *i8259;
+    ISABus *isa_bus;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *dinfo;
     int be;
@@ -194,7 +196,8 @@ void mips_r4k_init (ram_addr_t ram_size,
                 ((unsigned int)ram_size / (1 << 20)));
         exit(1);
     }
-    memory_region_init_ram(ram, NULL, "mips_r4k.ram", ram_size);
+    memory_region_init_ram(ram, "mips_r4k.ram", ram_size);
+    vmstate_register_ram_global(ram);
 
     memory_region_add_subregion(address_space_mem, 0, ram);
 
@@ -220,7 +223,8 @@ void mips_r4k_init (ram_addr_t ram_size,
 #endif
     if ((bios_size > 0) && (bios_size <= BIOS_SIZE)) {
         bios = g_new(MemoryRegion, 1);
-        memory_region_init_ram(bios, NULL, "mips_r4k.bios", BIOS_SIZE);
+        memory_region_init_ram(bios, "mips_r4k.bios", BIOS_SIZE);
+        vmstate_register_ram_global(bios);
         memory_region_set_readonly(bios, true);
         memory_region_add_subregion(get_system_memory(), 0x1fc00000, bios);
 
@@ -256,36 +260,36 @@ void mips_r4k_init (ram_addr_t ram_size,
     cpu_mips_clock_init(env);
 
     /* The PIC is attached to the MIPS CPU INT0 pin */
-    isa_bus_new(NULL, get_system_io());
-    i8259 = i8259_init(env->irq[2]);
-    isa_bus_irqs(i8259);
+    isa_bus = isa_bus_new(NULL, get_system_io());
+    i8259 = i8259_init(isa_bus, env->irq[2]);
+    isa_bus_irqs(isa_bus, i8259);
 
-    rtc_init(2000, NULL);
+    rtc_init(isa_bus, 2000, NULL);
 
     /* Register 64 KB of ISA IO space at 0x14000000 */
     isa_mmio_init(0x14000000, 0x00010000);
     isa_mem_base = 0x10000000;
 
-    pit = pit_init(0x40, 0);
+    pit = pit_init(isa_bus, 0x40, 0, NULL);
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
         if (serial_hds[i]) {
-            serial_isa_init(i, serial_hds[i]);
+            serial_isa_init(isa_bus, i, serial_hds[i]);
         }
     }
 
-    isa_vga_init();
+    isa_vga_init(isa_bus);
 
     if (nd_table[0].vlan)
-        isa_ne2000_init(0x300, 9, &nd_table[0]);
+        isa_ne2000_init(isa_bus, 0x300, 9, &nd_table[0]);
 
     ide_drive_get(hd, MAX_IDE_BUS);
     for(i = 0; i < MAX_IDE_BUS; i++)
-        isa_ide_init(ide_iobase[i], ide_iobase2[i], ide_irq[i],
+        isa_ide_init(isa_bus, ide_iobase[i], ide_iobase2[i], ide_irq[i],
                      hd[MAX_IDE_DEVS * i],
 		     hd[MAX_IDE_DEVS * i + 1]);
 
-    isa_create_simple("i8042");
+    isa_create_simple(isa_bus, "i8042");
 }
 
 static QEMUMachine mips_machine = {

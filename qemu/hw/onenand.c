@@ -781,7 +781,8 @@ static int onenand_initfn(SysBusDevice *dev)
     }
     s->otp = memset(g_malloc((64 + 2) << PAGE_SHIFT),
                     0xff, (64 + 2) << PAGE_SHIFT);
-    memory_region_init_ram(&s->ram, NULL, "onenand.ram", 0xc000 << s->shift);
+    memory_region_init_ram(&s->ram, "onenand.ram", 0xc000 << s->shift);
+    vmstate_register_ram_global(&s->ram);
     ram = memory_region_get_ram_ptr(&s->ram);
     s->boot[0] = ram + (0x0000 << s->shift);
     s->boot[1] = ram + (0x8000 << s->shift);
@@ -791,7 +792,7 @@ static int onenand_initfn(SysBusDevice *dev)
     s->data[1][1] = ram + ((0x8010 + (1 << (PAGE_SHIFT - 6))) << s->shift);
     onenand_mem_setup(s);
     sysbus_init_irq(dev, &s->intr);
-    sysbus_init_mmio_region(dev, &s->container);
+    sysbus_init_mmio(dev, &s->container);
     vmstate_register(&dev->qdev,
                      ((s->shift & 0x7f) << 24)
                      | ((s->id.man & 0xff) << 16)
@@ -801,24 +802,35 @@ static int onenand_initfn(SysBusDevice *dev)
     return 0;
 }
 
-static SysBusDeviceInfo onenand_info = {
-    .init = onenand_initfn,
-    .qdev.name = "onenand",
-    .qdev.size = sizeof(OneNANDState),
-    .qdev.reset = onenand_system_reset,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT16("manufacturer_id", OneNANDState, id.man, 0),
-        DEFINE_PROP_UINT16("device_id", OneNANDState, id.dev, 0),
-        DEFINE_PROP_UINT16("version_id", OneNANDState, id.ver, 0),
-        DEFINE_PROP_INT32("shift", OneNANDState, shift, 0),
-        DEFINE_PROP_DRIVE("drive", OneNANDState, bdrv),
-        DEFINE_PROP_END_OF_LIST()
-    }
+static Property onenand_properties[] = {
+    DEFINE_PROP_UINT16("manufacturer_id", OneNANDState, id.man, 0),
+    DEFINE_PROP_UINT16("device_id", OneNANDState, id.dev, 0),
+    DEFINE_PROP_UINT16("version_id", OneNANDState, id.ver, 0),
+    DEFINE_PROP_INT32("shift", OneNANDState, shift, 0),
+    DEFINE_PROP_DRIVE("drive", OneNANDState, bdrv),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void onenand_register_device(void)
+static void onenand_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&onenand_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = onenand_initfn;
+    dc->reset = onenand_system_reset;
+    dc->props = onenand_properties;
+}
+
+static TypeInfo onenand_info = {
+    .name          = "onenand",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(OneNANDState),
+    .class_init    = onenand_class_init,
+};
+
+static void onenand_register_types(void)
+{
+    type_register_static(&onenand_info);
 }
 
 void *onenand_raw_otp(DeviceState *onenand_device)
@@ -826,4 +838,4 @@ void *onenand_raw_otp(DeviceState *onenand_device)
     return FROM_SYSBUS(OneNANDState, sysbus_from_qdev(onenand_device))->otp;
 }
 
-device_init(onenand_register_device)
+type_init(onenand_register_types)

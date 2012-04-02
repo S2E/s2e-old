@@ -1,5 +1,5 @@
 /*
- *  i386 emulator main execution loop
+ *  emulator main execution loop
  *
  *  Copyright (c) 2003-2005 Fabrice Bellard
  *
@@ -35,6 +35,7 @@
 #include "disas.h"
 #include "tcg.h"
 #include "qemu-barrier.h"
+#include "qtest.h"
 
 #ifdef CONFIG_S2E
 #include "s2e/s2e_qemu.h"
@@ -52,12 +53,12 @@ int tb_invalidated_flag;
 
 //#define CONFIG_DEBUG_EXEC
 
-bool qemu_cpu_has_work(CPUState *env)
+bool qemu_cpu_has_work(CPUArchState *env)
 {
     return cpu_has_work(env);
 }
 
-void cpu_loop_exit(CPUState *env)
+void cpu_loop_exit(CPUArchState *env)
 {
     env->current_tb = NULL;
     s2e_longjmp(env->jmp_env, 1);
@@ -67,7 +68,7 @@ void cpu_loop_exit(CPUState *env)
    restored in a state compatible with the CPU emulator
  */
 #if defined(CONFIG_SOFTMMU)
-void cpu_resume_from_signal(CPUState *env, void *puc)
+void cpu_resume_from_signal(CPUArchState *env, void *puc)
 {
     /* XXX: restore cpu registers saved in host registers */
 
@@ -78,7 +79,7 @@ void cpu_resume_from_signal(CPUState *env, void *puc)
 
 /* Execute the code without caching the generated code. An interpreter
    could be used if available. */
-static void cpu_exec_nocache(CPUState *env, int max_cycles,
+static void cpu_exec_nocache(CPUArchState *env, int max_cycles,
                              TranslationBlock *orig_tb)
 {
     uintptr_t next_tb;
@@ -117,7 +118,7 @@ static void cpu_exec_nocache(CPUState *env, int max_cycles,
     tb_free(tb);
 }
 
-static TranslationBlock *tb_find_slow(CPUState *env,
+static TranslationBlock *tb_find_slow(CPUArchState *env,
                                       target_ulong pc,
                                       target_ulong cs_base,
                                       uint64_t flags)
@@ -173,7 +174,7 @@ static TranslationBlock *tb_find_slow(CPUState *env,
     return tb;
 }
 
-static inline TranslationBlock *tb_find_fast(CPUState *env)
+static inline TranslationBlock *tb_find_fast(CPUArchState *env)
 {
     TranslationBlock *tb;
     target_ulong cs_base, pc;
@@ -201,7 +202,7 @@ CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler)
     return old_handler;
 }
 
-static void cpu_handle_debug_exception(CPUState *env)
+static void cpu_handle_debug_exception(CPUArchState *env)
 {
     CPUWatchpoint *wp;
 
@@ -219,7 +220,7 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 volatile sig_atomic_t exit_request;
 
-int cpu_exec(CPUState *env)
+int cpu_exec(CPUArchState *env)
 {
     int ret, interrupt_request;
     TranslationBlock *tb;
@@ -352,7 +353,7 @@ int cpu_exec(CPUState *env)
                             env->hflags2 |= HF2_NMI_MASK;
                             do_interrupt_x86_hardirq(env, EXCP02_NMI, 1);
                             next_tb = 0;
-			} else if (interrupt_request & CPU_INTERRUPT_MCE) {
+                        } else if (interrupt_request & CPU_INTERRUPT_MCE) {
                             env->interrupt_request &= ~CPU_INTERRUPT_MCE;
                             do_interrupt_x86_hardirq(env, EXCP12_MCHK, 0);
                             next_tb = 0;
@@ -387,11 +388,9 @@ int cpu_exec(CPUState *env)
                         }
                     }
 #elif defined(TARGET_PPC)
-#if 0
                     if ((interrupt_request & CPU_INTERRUPT_RESET)) {
-                        cpu_reset(env);
+                        cpu_state_reset(env);
                     }
-#endif
                     if (interrupt_request & CPU_INTERRUPT_HARD) {
                         ppc_hw_interrupt(env);
                         if (env->pending_interrupts == 0)
@@ -438,7 +437,7 @@ int cpu_exec(CPUState *env)
                                 next_tb = 0;
                             }
                         }
-		    }
+                    }
 #elif defined(TARGET_ARM)
                     if (interrupt_request & CPU_INTERRUPT_FIQ
                         && !(env->uncached_cpsr & CPSR_F)) {
@@ -477,7 +476,7 @@ int cpu_exec(CPUState *env)
                     {
                         int idx = -1;
                         /* ??? This hard-codes the OSF/1 interrupt levels.  */
-		        switch (env->pal_mode ? 7 : env->ps & PS_INT_MASK) {
+                        switch (env->pal_mode ? 7 : env->ps & PS_INT_MASK) {
                         case 0 ... 3:
                             if (interrupt_request & CPU_INTERRUPT_HARD) {
                                 idx = EXCP_DEV_INTERRUPT;
@@ -628,7 +627,7 @@ int cpu_exec(CPUState *env)
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
                         int insns_left;
-                        tb = (TranslationBlock *)(long)(next_tb & ~3);
+                        tb = (TranslationBlock *)(next_tb & ~3);
                         /* Restore PC.  */
                         cpu_pc_from_tb(env, tb);
                         insns_left = env->icount_decr.u32;

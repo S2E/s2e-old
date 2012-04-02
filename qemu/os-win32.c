@@ -44,6 +44,13 @@ int setenv(const char *name, const char *value, int overwrite)
         char *string = g_malloc(length);
         snprintf(string, length, "%s=%s", name, value);
         result = putenv(string);
+
+        /* Windows takes a copy and does not continue to use our string.
+         * Therefore it can be safely freed on this platform.  POSIX code
+         * typically has to leak the string because according to the spec it
+         * becomes part of the environment.
+         */
+        g_free(string);
     }
     return result;
 }
@@ -143,9 +150,4 @@ int qemu_create_pidfile(const char *filename)
         return -1;
     }
     return 0;
-}
-
-int qemu_get_thread_id(void)
-{
-    return GetCurrentThreadId();
 }

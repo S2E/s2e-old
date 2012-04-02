@@ -750,6 +750,27 @@ static void tcg_out_setcond2(TCGContext *s, TCGCond cond, int ret,
 
 #include "../../softmmu_defs.h"
 
+#ifdef CONFIG_TCG_PASS_AREG0
+/* helper signature: helper_ld_mmu(CPUState *env, target_ulong addr,
+   int mmu_idx) */
+static const void * const qemu_ld_helpers[4] = {
+    helper_ldb_mmu,
+    helper_ldw_mmu,
+    helper_ldl_mmu,
+    helper_ldq_mmu,
+};
+
+/* helper signature: helper_st_mmu(CPUState *env, target_ulong addr,
+   uintxx_t val, int mmu_idx) */
+static const void * const qemu_st_helpers[4] = {
+    helper_stb_mmu,
+    helper_stw_mmu,
+    helper_stl_mmu,
+    helper_stq_mmu,
+};
+#else
+/* legacy helper signature: __ld_mmu(target_ulong addr, int
+   mmu_idx) */
 static void *qemu_ld_helpers[4] = {
     __ldb_mmu,
     __ldw_mmu,
@@ -757,12 +778,15 @@ static void *qemu_ld_helpers[4] = {
     __ldq_mmu,
 };
 
+/* legacy helper signature: __st_mmu(target_ulong addr, uintxx_t val,
+   int mmu_idx) */
 static void *qemu_st_helpers[4] = {
     __stb_mmu,
     __stw_mmu,
     __stl_mmu,
     __stq_mmu,
 };
+#endif
 #endif
 
 static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
@@ -827,7 +851,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_opc_imm(s, OPC_ANDI, TCG_REG_A0, TCG_REG_A0, (CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS);
     tcg_out_opc_reg(s, OPC_ADDU, TCG_REG_A0, TCG_REG_A0, TCG_AREG0);
     tcg_out_opc_imm(s, OPC_LW, TCG_REG_AT, TCG_REG_A0,
-                    offsetof(CPUState, tlb_table[mem_index][0].addr_read) + addr_meml);
+                    offsetof(CPUArchState, tlb_table[mem_index][0].addr_read) + addr_meml);
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_T0, TARGET_PAGE_MASK | ((1 << s_bits) - 1));
     tcg_out_opc_reg(s, OPC_AND, TCG_REG_T0, TCG_REG_T0, addr_regl);
 
@@ -837,7 +861,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_nop(s);
 
     tcg_out_opc_imm(s, OPC_LW, TCG_REG_AT, TCG_REG_A0,
-                    offsetof(CPUState, tlb_table[mem_index][0].addr_read) + addr_memh);
+                    offsetof(CPUArchState, tlb_table[mem_index][0].addr_read) + addr_memh);
 
     label1_ptr = s->code_ptr;
     tcg_out_opc_br(s, OPC_BEQ, addr_regh, TCG_REG_AT);
@@ -858,6 +882,15 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 # endif
     tcg_out_movi(s, TCG_TYPE_I32, sp_args++, mem_index);
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_T9, (tcg_target_long)qemu_ld_helpers[s_bits]);
+#ifdef CONFIG_TCG_PASS_AREG0
+    /* XXX/FIXME: suboptimal and incorrect for 64 on 32 bit */
+    tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[2],
+                tcg_target_call_iarg_regs[1]);
+    tcg_out_mov(s, TCG_TYPE_TL, tcg_target_call_iarg_regs[1],
+                tcg_target_call_iarg_regs[0]);
+    tcg_out_mov(s, TCG_TYPE_PTR, tcg_target_call_iarg_regs[0],
+                TCG_AREG0);
+#endif
     tcg_out_opc_reg(s, OPC_JALR, TCG_REG_RA, TCG_REG_T9, 0);
     tcg_out_nop(s);
 
@@ -893,7 +926,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     reloc_pc16(label1_ptr, (tcg_target_long) s->code_ptr);
 
     tcg_out_opc_imm(s, OPC_LW, TCG_REG_A0, TCG_REG_A0,
-                    offsetof(CPUState, tlb_table[mem_index][0].addend));
+                    offsetof(CPUArchState, tlb_table[mem_index][0].addend));
     tcg_out_opc_reg(s, OPC_ADDU, TCG_REG_V0, TCG_REG_A0, addr_regl);
 #else
     if (GUEST_BASE == (int16_t)GUEST_BASE) {
@@ -1013,7 +1046,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_opc_imm(s, OPC_ANDI, TCG_REG_A0, TCG_REG_A0, (CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS);
     tcg_out_opc_reg(s, OPC_ADDU, TCG_REG_A0, TCG_REG_A0, TCG_AREG0);
     tcg_out_opc_imm(s, OPC_LW, TCG_REG_AT, TCG_REG_A0,
-                    offsetof(CPUState, tlb_table[mem_index][0].addr_write) + addr_meml);
+                    offsetof(CPUArchState, tlb_table[mem_index][0].addr_write) + addr_meml);
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_T0, TARGET_PAGE_MASK | ((1 << s_bits) - 1));
     tcg_out_opc_reg(s, OPC_AND, TCG_REG_T0, TCG_REG_T0, addr_regl);
 
@@ -1023,7 +1056,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_nop(s);
 
     tcg_out_opc_imm(s, OPC_LW, TCG_REG_AT, TCG_REG_A0,
-                    offsetof(CPUState, tlb_table[mem_index][0].addr_write) + addr_memh);
+                    offsetof(CPUArchState, tlb_table[mem_index][0].addr_write) + addr_memh);
 
     label1_ptr = s->code_ptr;
     tcg_out_opc_br(s, OPC_BEQ, addr_regh, TCG_REG_AT);
@@ -1069,6 +1102,17 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     }
 
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_T9, (tcg_target_long)qemu_st_helpers[s_bits]);
+#ifdef CONFIG_TCG_PASS_AREG0
+    /* XXX/FIXME: suboptimal and incorrect for 64 on 32 bit */
+    tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[3],
+                tcg_target_call_iarg_regs[2]);
+    tcg_out_mov(s, TCG_TYPE_I64, tcg_target_call_iarg_regs[2],
+                tcg_target_call_iarg_regs[1]);
+    tcg_out_mov(s, TCG_TYPE_TL, tcg_target_call_iarg_regs[1],
+                tcg_target_call_iarg_regs[0]);
+    tcg_out_mov(s, TCG_TYPE_PTR, tcg_target_call_iarg_regs[0],
+                TCG_AREG0);
+#endif
     tcg_out_opc_reg(s, OPC_JALR, TCG_REG_RA, TCG_REG_T9, 0);
     tcg_out_nop(s);
 
@@ -1080,7 +1124,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     reloc_pc16(label1_ptr, (tcg_target_long) s->code_ptr);
 
     tcg_out_opc_imm(s, OPC_LW, TCG_REG_A0, TCG_REG_A0,
-                    offsetof(CPUState, tlb_table[mem_index][0].addend));
+                    offsetof(CPUArchState, tlb_table[mem_index][0].addend));
     tcg_out_opc_reg(s, OPC_ADDU, TCG_REG_A0, TCG_REG_A0, addr_regl);
 #else
     if (GUEST_BASE == (int16_t)GUEST_BASE) {
@@ -1529,6 +1573,6 @@ static void tcg_target_init(TCGContext *s)
     tcg_regset_set_reg(s->reserved_regs, TCG_REG_SP);   /* stack pointer */
 
     tcg_add_target_add_op_defs(mips_op_defs);
-    tcg_set_frame(s, TCG_AREG0, offsetof(CPUState, temp_buf),
+    tcg_set_frame(s, TCG_AREG0, offsetof(CPUArchState, temp_buf),
                   CPU_TEMP_BUF_NLONGS * sizeof(long));
 }

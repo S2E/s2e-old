@@ -494,7 +494,7 @@ static void vscsi_transfer_data(SCSIRequest *sreq, uint32_t len)
 }
 
 /* Callback to indicate that the SCSI layer has completed a transfer.  */
-static void vscsi_command_complete(SCSIRequest *sreq, uint32_t status)
+static void vscsi_command_complete(SCSIRequest *sreq, uint32_t status, size_t resid)
 {
     VSCSIState *s = DO_UPCAST(VSCSIState, vdev.qdev, sreq->bus->qbus.parent);
     vscsi_req *req = sreq->hba_private;
@@ -947,23 +947,35 @@ static int spapr_vscsi_devnode(VIOsPAPRDevice *dev, void *fdt, int node_off)
     return 0;
 }
 
-static VIOsPAPRDeviceInfo spapr_vscsi = {
-    .init = spapr_vscsi_init,
-    .devnode = spapr_vscsi_devnode,
-    .dt_name = "v-scsi",
-    .dt_type = "vscsi",
-    .dt_compatible = "IBM,v-scsi",
-    .signal_mask = 0x00000001,
-    .qdev.name = "spapr-vscsi",
-    .qdev.size = sizeof(VSCSIState),
-    .qdev.props = (Property[]) {
-        DEFINE_SPAPR_PROPERTIES(VSCSIState, vdev, 0x2000, 0x10000000),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static Property spapr_vscsi_properties[] = {
+    DEFINE_SPAPR_PROPERTIES(VSCSIState, vdev, 0x2000, 0x10000000),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void spapr_vscsi_register(void)
+static void spapr_vscsi_class_init(ObjectClass *klass, void *data)
 {
-    spapr_vio_bus_register_withprop(&spapr_vscsi);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    VIOsPAPRDeviceClass *k = VIO_SPAPR_DEVICE_CLASS(klass);
+
+    k->init = spapr_vscsi_init;
+    k->devnode = spapr_vscsi_devnode;
+    k->dt_name = "v-scsi";
+    k->dt_type = "vscsi";
+    k->dt_compatible = "IBM,v-scsi";
+    k->signal_mask = 0x00000001;
+    dc->props = spapr_vscsi_properties;
 }
-device_init(spapr_vscsi_register);
+
+static TypeInfo spapr_vscsi_info = {
+    .name          = "spapr-vscsi",
+    .parent        = TYPE_VIO_SPAPR_DEVICE,
+    .instance_size = sizeof(VSCSIState),
+    .class_init    = spapr_vscsi_class_init,
+};
+
+static void spapr_vscsi_register_types(void)
+{
+    type_register_static(&spapr_vscsi_info);
+}
+
+type_init(spapr_vscsi_register_types)

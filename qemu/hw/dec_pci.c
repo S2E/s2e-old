@@ -50,18 +50,27 @@ static int dec_map_irq(PCIDevice *pci_dev, int irq_num)
     return irq_num;
 }
 
-static PCIDeviceInfo dec_21154_pci_bridge_info = {
-    .qdev.name = "dec-21154-p2p-bridge",
-    .qdev.desc = "DEC 21154 PCI-PCI bridge",
-    .qdev.size = sizeof(PCIBridge),
-    .qdev.vmsd = &vmstate_pci_device,
-    .qdev.reset = pci_bridge_reset,
-    .init = pci_bridge_initfn,
-    .exit = pci_bridge_exitfn,
-    .vendor_id = PCI_VENDOR_ID_DEC,
-    .device_id = PCI_DEVICE_ID_DEC_21154,
-    .config_write = pci_bridge_write_config,
-    .is_bridge = 1,
+static void dec_21154_pci_bridge_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = pci_bridge_initfn;
+    k->exit = pci_bridge_exitfn;
+    k->vendor_id = PCI_VENDOR_ID_DEC;
+    k->device_id = PCI_DEVICE_ID_DEC_21154;
+    k->config_write = pci_bridge_write_config;
+    k->is_bridge = 1;
+    dc->desc = "DEC 21154 PCI-PCI bridge";
+    dc->reset = pci_bridge_reset;
+    dc->vmsd = &vmstate_pci_device;
+}
+
+static TypeInfo dec_21154_pci_bridge_info = {
+    .name          = "dec-21154-p2p-bridge",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIBridge),
+    .class_init    = dec_21154_pci_bridge_class_init,
 };
 
 PCIBus *pci_dec_21154_init(PCIBus *parent_bus, int devfn)
@@ -77,7 +86,7 @@ PCIBus *pci_dec_21154_init(PCIBus *parent_bus, int devfn)
     return pci_bridge_get_sec_bus(br);
 }
 
-static int pci_dec_21154_init_device(SysBusDevice *dev)
+static int pci_dec_21154_device_init(SysBusDevice *dev)
 {
     DECState *s;
 
@@ -87,8 +96,8 @@ static int pci_dec_21154_init_device(SysBusDevice *dev)
                           &s->host_state, "pci-conf-idx", 0x1000);
     memory_region_init_io(&s->host_state.data_mem, &pci_host_data_le_ops,
                           &s->host_state, "pci-data-idx", 0x1000);
-    sysbus_init_mmio_region(dev, &s->host_state.conf_mem);
-    sysbus_init_mmio_region(dev, &s->host_state.data_mem);
+    sysbus_init_mmio(dev, &s->host_state.conf_mem);
+    sysbus_init_mmio(dev, &s->host_state.data_mem);
     return 0;
 }
 
@@ -98,23 +107,44 @@ static int dec_21154_pci_host_init(PCIDevice *d)
     return 0;
 }
 
-static PCIDeviceInfo dec_21154_pci_host_info = {
-    .qdev.name = "dec-21154",
-    .qdev.size = sizeof(PCIDevice),
-    .init      = dec_21154_pci_host_init,
-    .vendor_id = PCI_VENDOR_ID_DEC,
-    .device_id = PCI_DEVICE_ID_DEC_21154,
-    .revision = 0x02,
-    .class_id = PCI_CLASS_BRIDGE_PCI,
-    .is_bridge  = 1,
-};
-
-static void dec_register_devices(void)
+static void dec_21154_pci_host_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_dev("dec-21154", sizeof(DECState),
-                        pci_dec_21154_init_device);
-    pci_qdev_register(&dec_21154_pci_host_info);
-    pci_qdev_register(&dec_21154_pci_bridge_info);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = dec_21154_pci_host_init;
+    k->vendor_id = PCI_VENDOR_ID_DEC;
+    k->device_id = PCI_DEVICE_ID_DEC_21154;
+    k->revision = 0x02;
+    k->class_id = PCI_CLASS_BRIDGE_PCI;
+    k->is_bridge = 1;
 }
 
-device_init(dec_register_devices)
+static TypeInfo dec_21154_pci_host_info = {
+    .name          = "dec-21154",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIDevice),
+    .class_init    = dec_21154_pci_host_class_init,
+};
+
+static void pci_dec_21154_device_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = pci_dec_21154_device_init;
+}
+
+static TypeInfo pci_dec_21154_device_info = {
+    .name          = "dec-21154-sysbus",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(DECState),
+    .class_init    = pci_dec_21154_device_class_init,
+};
+
+static void dec_register_types(void)
+{
+    type_register_static(&pci_dec_21154_device_info);
+    type_register_static(&dec_21154_pci_host_info);
+    type_register_static(&dec_21154_pci_bridge_info);
+}
+
+type_init(dec_register_types)

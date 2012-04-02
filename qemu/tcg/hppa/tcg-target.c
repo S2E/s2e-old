@@ -336,7 +336,7 @@ static int tcg_target_const_match(tcg_target_long val,
 #define INSN_COMIBF     (INSN_OP(0x23))
 
 /* supplied by libgcc */
-extern void *__canonicalize_funcptr_for_compare(void *);
+extern void *__canonicalize_funcptr_for_compare(const void *);
 
 static void tcg_out_mov(TCGContext *s, TCGType type, TCGReg ret, TCGReg arg)
 {
@@ -628,7 +628,7 @@ static void tcg_out_bswap32(TCGContext *s, int ret, int arg, int temp)
     tcg_out_shd(s, ret, arg, temp, 8);    /* ret =  DCBA */
 }
 
-static void tcg_out_call(TCGContext *s, void *func)
+static void tcg_out_call(TCGContext *s, const void *func)
 {
     tcg_target_long val, hi, lo, disp;
 
@@ -882,6 +882,27 @@ static void tcg_out_setcond2(TCGContext *s, int cond, TCGArg ret,
 #if defined(CONFIG_SOFTMMU)
 #include "../../softmmu_defs.h"
 
+#ifdef CONFIG_TCG_PASS_AREG0
+/* helper signature: helper_ld_mmu(CPUState *env, target_ulong addr,
+   int mmu_idx) */
+static const void * const qemu_ld_helpers[4] = {
+    helper_ldb_mmu,
+    helper_ldw_mmu,
+    helper_ldl_mmu,
+    helper_ldq_mmu,
+};
+
+/* helper signature: helper_st_mmu(CPUState *env, target_ulong addr,
+   uintxx_t val, int mmu_idx) */
+static const void * const qemu_st_helpers[4] = {
+    helper_stb_mmu,
+    helper_stw_mmu,
+    helper_stl_mmu,
+    helper_stq_mmu,
+};
+#else
+/* legacy helper signature: __ld_mmu(target_ulong addr, int
+   mmu_idx) */
 static void *qemu_ld_helpers[4] = {
     __ldb_mmu,
     __ldw_mmu,
@@ -889,12 +910,15 @@ static void *qemu_ld_helpers[4] = {
     __ldq_mmu,
 };
 
+/* legacy helper signature: __st_mmu(target_ulong addr, uintxx_t val,
+   int mmu_idx) */
 static void *qemu_st_helpers[4] = {
     __stb_mmu,
     __stw_mmu,
     __stl_mmu,
     __stq_mmu,
 };
+#endif
 
 /* Load and compare a TLB entry, and branch if TLB miss.  OFFSET is set to
    the offset of the first ADDR_READ or ADDR_WRITE member of the appropriate
@@ -1040,19 +1064,19 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args, int opc)
     lab1 = gen_new_label();
     lab2 = gen_new_label();
 
-    offset = offsetof(CPUState, tlb_table[mem_index][0].addr_read);
+    offset = offsetof(CPUArchState, tlb_table[mem_index][0].addr_read);
     offset = tcg_out_tlb_read(s, TCG_REG_R26, TCG_REG_R25, addrlo_reg, addrhi_reg,
                               opc & 3, lab1, offset);
 
     /* TLB Hit.  */
     tcg_out_ld(s, TCG_TYPE_PTR, TCG_REG_R20, (offset ? TCG_REG_R1 : TCG_REG_R25),
-               offsetof(CPUState, tlb_table[mem_index][0].addend) - offset);
+               offsetof(CPUArchState, tlb_table[mem_index][0].addend) - offset);
     tcg_out_qemu_ld_direct(s, datalo_reg, datahi_reg, addrlo_reg, TCG_REG_R20, opc);
     tcg_out_branch(s, lab2, 1);
 
     /* TLB Miss.  */
     /* label1: */
-    tcg_out_label(s, lab1, (tcg_target_long)s->code_ptr);
+    tcg_out_label(s, lab1, s->code_ptr);
 
     argreg = TCG_REG_R26;
     tcg_out_mov(s, TCG_TYPE_I32, argreg--, addrlo_reg);
@@ -1061,6 +1085,15 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args, int opc)
     }
     tcg_out_movi(s, TCG_TYPE_I32, argreg, mem_index);
 
+#ifdef CONFIG_TCG_PASS_AREG0
+    /* XXX/FIXME: suboptimal */
+    tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[2],
+                tcg_target_call_iarg_regs[1]);
+    tcg_out_mov(s, TCG_TYPE_TL, tcg_target_call_iarg_regs[1],
+                tcg_target_call_iarg_regs[0]);
+    tcg_out_mov(s, TCG_TYPE_PTR, tcg_target_call_iarg_regs[0],
+                TCG_AREG0);
+#endif
     tcg_out_call(s, qemu_ld_helpers[opc & 3]);
 
     switch (opc) {
@@ -1089,7 +1122,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args, int opc)
     }
 
     /* label2: */
-    tcg_out_label(s, lab2, (tcg_target_long)s->code_ptr);
+    tcg_out_label(s, lab2, s->code_ptr);
 #else
     tcg_out_qemu_ld_direct(s, datalo_reg, datahi_reg, addrlo_reg,
                            (GUEST_BASE ? TCG_GUEST_BASE_REG : TCG_REG_R0), opc);
@@ -1155,13 +1188,13 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
     lab1 = gen_new_label();
     lab2 = gen_new_label();
 
-    offset = offsetof(CPUState, tlb_table[mem_index][0].addr_write);
+    offset = offsetof(CPUArchState, tlb_table[mem_index][0].addr_write);
     offset = tcg_out_tlb_read(s, TCG_REG_R26, TCG_REG_R25, addrlo_reg, addrhi_reg,
                               opc, lab1, offset);
 
     /* TLB Hit.  */
     tcg_out_ld(s, TCG_TYPE_PTR, TCG_REG_R20, (offset ? TCG_REG_R1 : TCG_REG_R25),
-               offsetof(CPUState, tlb_table[mem_index][0].addend) - offset);
+               offsetof(CPUArchState, tlb_table[mem_index][0].addend) - offset);
 
     /* There are no indexed stores, so we must do this addition explitly.
        Careful to avoid R20, which is used for the bswaps to follow.  */
@@ -1171,7 +1204,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
 
     /* TLB Miss.  */
     /* label1: */
-    tcg_out_label(s, lab1, (tcg_target_long)s->code_ptr);
+    tcg_out_label(s, lab1, s->code_ptr);
 
     argreg = TCG_REG_R26;
     tcg_out_mov(s, TCG_TYPE_I32, argreg--, addrlo_reg);
@@ -1212,10 +1245,21 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
         tcg_abort();
     }
 
+#ifdef CONFIG_TCG_PASS_AREG0
+    /* XXX/FIXME: suboptimal */
+    tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[3],
+                tcg_target_call_iarg_regs[2]);
+    tcg_out_mov(s, TCG_TYPE_I64, tcg_target_call_iarg_regs[2],
+                tcg_target_call_iarg_regs[1]);
+    tcg_out_mov(s, TCG_TYPE_TL, tcg_target_call_iarg_regs[1],
+                tcg_target_call_iarg_regs[0]);
+    tcg_out_mov(s, TCG_TYPE_PTR, tcg_target_call_iarg_regs[0],
+                TCG_AREG0);
+#endif
     tcg_out_call(s, qemu_st_helpers[opc]);
 
     /* label2: */
-    tcg_out_label(s, lab2, (tcg_target_long)s->code_ptr);
+    tcg_out_label(s, lab2, s->code_ptr);
 #else
     /* There are no indexed stores, so if GUEST_BASE is set we must do the add
        explicitly.  Careful to avoid R20, which is used for the bswaps to follow.  */
@@ -1617,23 +1661,18 @@ static int tcg_target_callee_save_regs[] = {
     TCG_REG_R18
 };
 
+#define FRAME_SIZE ((-TCG_TARGET_CALL_STACK_OFFSET \
+                     + TCG_TARGET_STATIC_CALL_ARGS_SIZE \
+                     + ARRAY_SIZE(tcg_target_callee_save_regs) * 4 \
+                     + CPU_TEMP_BUF_NLONGS * sizeof(long) \
+                     + TCG_TARGET_STACK_ALIGN - 1) \
+                    & -TCG_TARGET_STACK_ALIGN)
+
 static void tcg_target_qemu_prologue(TCGContext *s)
 {
     int frame_size, i;
 
-    /* Allocate space for the fixed frame marker.  */
-    frame_size = -TCG_TARGET_CALL_STACK_OFFSET;
-    frame_size += TCG_TARGET_STATIC_CALL_ARGS_SIZE;
-
-    /* Allocate space for the saved registers.  */
-    frame_size += ARRAY_SIZE(tcg_target_callee_save_regs) * 4;
-
-    /* Allocate space for the TCG temps. */
-    frame_size += CPU_TEMP_BUF_NLONGS * sizeof(long);
-
-    /* Align the allocated space.  */
-    frame_size = ((frame_size + TCG_TARGET_STACK_ALIGN - 1)
-                  & -TCG_TARGET_STACK_ALIGN);
+    frame_size = FRAME_SIZE;
 
     /* The return address is stored in the caller's frame.  */
     tcg_out_st(s, TCG_TYPE_PTR, TCG_REG_RP, TCG_REG_CALL_STACK, -20);
@@ -1707,4 +1746,82 @@ static void tcg_target_init(TCGContext *s)
     tcg_regset_set_reg(s->reserved_regs, TCG_REG_R31); /* ble link reg */
 
     tcg_add_target_add_op_defs(hppa_op_defs);
+}
+
+typedef struct {
+    uint32_t len __attribute__((aligned((sizeof(void *)))));
+    uint32_t id;
+    uint8_t version;
+    char augmentation[1];
+    uint8_t code_align;
+    uint8_t data_align;
+    uint8_t return_column;
+} DebugFrameCIE;
+
+typedef struct {
+    uint32_t len __attribute__((aligned((sizeof(void *)))));
+    uint32_t cie_offset;
+    tcg_target_long func_start __attribute__((packed));
+    tcg_target_long func_len __attribute__((packed));
+    uint8_t def_cfa[4];
+    uint8_t ret_ofs[3];
+    uint8_t reg_ofs[ARRAY_SIZE(tcg_target_callee_save_regs) * 2];
+} DebugFrameFDE;
+
+typedef struct {
+    DebugFrameCIE cie;
+    DebugFrameFDE fde;
+} DebugFrame;
+
+#define ELF_HOST_MACHINE  EM_PARISC
+#define ELF_HOST_FLAGS    EFA_PARISC_1_1
+
+/* ??? BFD (and thus GDB) wants very much to distinguish between HPUX
+   and other extensions.  We don't really care, but if we don't set this
+   to *something* then the object file won't be properly matched.  */
+#define ELF_OSABI         ELFOSABI_LINUX
+
+static DebugFrame debug_frame = {
+    .cie.len = sizeof(DebugFrameCIE)-4, /* length after .len member */
+    .cie.id = -1,
+    .cie.version = 1,
+    .cie.code_align = 1,
+    .cie.data_align = 1,
+    .cie.return_column = 2,
+
+    .fde.len = sizeof(DebugFrameFDE)-4, /* length after .len member */
+    .fde.def_cfa = {
+        0x12, 30,                       /* DW_CFA_def_cfa_sf sp, ... */
+        (-FRAME_SIZE & 0x7f) | 0x80,     /* ... sleb128 -FRAME_SIZE */
+        (-FRAME_SIZE >> 7) & 0x7f
+    },
+    .fde.ret_ofs = {
+        0x11, 2, (-20 / 4) & 0x7f       /* DW_CFA_offset_extended_sf r2, 20 */
+    },
+    .fde.reg_ofs = {
+        /* This must match the ordering in tcg_target_callee_save_regs.  */
+        0x80 + 4, 0,                    /* DW_CFA_offset r4, 0 */
+        0x80 + 5, 4,                    /* DW_CFA_offset r5, 4 */
+        0x80 + 6, 8,                    /* DW_CFA_offset r6, 8 */
+        0x80 + 7, 12,                    /* ... */
+        0x80 + 8, 16,
+        0x80 + 9, 20,
+        0x80 + 10, 24,
+        0x80 + 11, 28,
+        0x80 + 12, 32,
+        0x80 + 13, 36,
+        0x80 + 14, 40,
+        0x80 + 15, 44,
+        0x80 + 16, 48,
+        0x80 + 17, 52,
+        0x80 + 18, 56,
+    }
+};
+
+void tcg_register_jit(void *buf, size_t buf_size)
+{
+    debug_frame.fde.func_start = (tcg_target_long) buf;
+    debug_frame.fde.func_len = buf_size;
+
+    tcg_register_jit_int(buf, buf_size, &debug_frame, sizeof(debug_frame));
 }

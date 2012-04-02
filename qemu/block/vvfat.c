@@ -2218,6 +2218,7 @@ static int commit_one_file(BDRVVVFATState* s,
     }
     if (offset > 0) {
         if (lseek(fd, offset, SEEK_SET) != offset) {
+            close(fd);
             g_free(cluster);
             return -3;
         }
@@ -2238,11 +2239,13 @@ static int commit_one_file(BDRVVVFATState* s,
 	    (uint8_t*)cluster, (rest_size + 0x1ff) / 0x200);
 
         if (ret < 0) {
+            close(fd);
             g_free(cluster);
             return ret;
         }
 
         if (write(fd, cluster, rest_size) < 0) {
+            close(fd);
             g_free(cluster);
             return -2;
         }
@@ -2758,7 +2761,7 @@ static coroutine_fn int vvfat_co_write(BlockDriverState *bs, int64_t sector_num,
     return ret;
 }
 
-static int vvfat_is_allocated(BlockDriverState *bs,
+static int coroutine_fn vvfat_co_is_allocated(BlockDriverState *bs,
 	int64_t sector_num, int nb_sectors, int* n)
 {
     BDRVVVFATState* s = bs->opaque;
@@ -2855,7 +2858,7 @@ static BlockDriver bdrv_vvfat = {
     .bdrv_read          = vvfat_co_read,
     .bdrv_write         = vvfat_co_write,
     .bdrv_close		= vvfat_close,
-    .bdrv_is_allocated	= vvfat_is_allocated,
+    .bdrv_co_is_allocated = vvfat_co_is_allocated,
     .protocol_name	= "fat",
 };
 

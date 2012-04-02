@@ -453,7 +453,7 @@ static int vmdk_open_vmdk4(BlockDriverState *bs,
     }
     l1_entry_sectors = le32_to_cpu(header.num_gtes_per_gte)
                         * le64_to_cpu(header.granularity);
-    if (l1_entry_sectors <= 0) {
+    if (l1_entry_sectors == 0) {
         return -EINVAL;
     }
     l1_size = (le64_to_cpu(header.capacity) + l1_entry_sectors - 1)
@@ -861,8 +861,8 @@ static VmdkExtent *find_extent(BDRVVmdkState *s,
     return NULL;
 }
 
-static int vmdk_is_allocated(BlockDriverState *bs, int64_t sector_num,
-                             int nb_sectors, int *pnum)
+static int coroutine_fn vmdk_co_is_allocated(BlockDriverState *bs,
+        int64_t sector_num, int nb_sectors, int *pnum)
 {
     BDRVVmdkState *s = bs->opaque;
     int64_t index_in_cluster, n, ret;
@@ -873,8 +873,10 @@ static int vmdk_is_allocated(BlockDriverState *bs, int64_t sector_num,
     if (!extent) {
         return 0;
     }
+    qemu_co_mutex_lock(&s->lock);
     ret = get_cluster_offset(bs, extent, NULL,
                             sector_num * 512, 0, &offset);
+    qemu_co_mutex_unlock(&s->lock);
     /* get_cluster_offset returning 0 means success */
     ret = !ret;
 
@@ -1596,7 +1598,7 @@ static BlockDriver bdrv_vmdk = {
     .bdrv_close     = vmdk_close,
     .bdrv_create    = vmdk_create,
     .bdrv_co_flush_to_disk  = vmdk_co_flush,
-    .bdrv_is_allocated      = vmdk_is_allocated,
+    .bdrv_co_is_allocated   = vmdk_co_is_allocated,
     .bdrv_get_allocated_file_size  = vmdk_get_allocated_file_size,
 
     .create_options = vmdk_create_options,

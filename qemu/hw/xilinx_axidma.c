@@ -25,6 +25,7 @@
 #include "sysbus.h"
 #include "qemu-char.h"
 #include "qemu-timer.h"
+#include "ptimer.h"
 #include "qemu-log.h"
 #include "qdev-addr.h"
 
@@ -91,6 +92,7 @@ struct AXIStream {
 
 struct XilinxAXIDMA {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     uint32_t freqhz;
     void *dmach;
 
@@ -362,7 +364,8 @@ void axidma_push(void *opaque, unsigned char *buf, size_t len, uint32_t *app)
     stream_update_irq(s);
 }
 
-static uint32_t axidma_readl(void *opaque, target_phys_addr_t addr)
+static uint64_t axidma_read(void *opaque, target_phys_addr_t addr,
+                            unsigned size)
 {
     struct XilinxAXIDMA *d = opaque;
     struct AXIStream *s;
@@ -396,8 +399,8 @@ static uint32_t axidma_readl(void *opaque, target_phys_addr_t addr)
 
 }
 
-static void
-axidma_writel(void *opaque, target_phys_addr_t addr, uint32_t value)
+static void axidma_write(void *opaque, target_phys_addr_t addr,
+                         uint64_t value, unsigned size)
 {
     struct XilinxAXIDMA *d = opaque;
     struct AXIStream *s;
@@ -449,22 +452,15 @@ axidma_writel(void *opaque, target_phys_addr_t addr, uint32_t value)
     stream_update_irq(s);
 }
 
-static CPUReadMemoryFunc * const axidma_read[] = {
-    &axidma_readl,
-    &axidma_readl,
-    &axidma_readl,
-};
-
-static CPUWriteMemoryFunc * const axidma_write[] = {
-    &axidma_writel,
-    &axidma_writel,
-    &axidma_writel,
+static const MemoryRegionOps axidma_ops = {
+    .read = axidma_read,
+    .write = axidma_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static int xilinx_axidma_init(SysBusDevice *dev)
 {
     struct XilinxAXIDMA *s = FROM_SYSBUS(typeof(*s), dev);
-    int axidma_regs;
     int i;
 
     sysbus_init_irq(dev, &s->streams[1].irq);
@@ -476,9 +472,9 @@ static int xilinx_axidma_init(SysBusDevice *dev)
 
     xlx_dma_connect_dma(s->dmach, s, axidma_push);
 
-    axidma_regs = cpu_register_io_memory(axidma_read, axidma_write, s,
-                                       DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, R_MAX * 4 * 2, axidma_regs);
+    memory_region_init_io(&s->iomem, &axidma_ops, s,
+                          "axidma", R_MAX * 4 * 2);
+    sysbus_init_mmio(dev, &s->iomem);
 
     for (i = 0; i < 2; i++) {
         stream_reset(&s->streams[i]);
@@ -490,20 +486,31 @@ static int xilinx_axidma_init(SysBusDevice *dev)
     return 0;
 }
 
-static SysBusDeviceInfo axidma_info = {
-    .init = xilinx_axidma_init,
-    .qdev.name  = "xilinx,axidma",
-    .qdev.size  = sizeof(struct XilinxAXIDMA),
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("freqhz", struct XilinxAXIDMA, freqhz, 50000000),
-        DEFINE_PROP_PTR("dmach", struct XilinxAXIDMA, dmach),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property axidma_properties[] = {
+    DEFINE_PROP_UINT32("freqhz", struct XilinxAXIDMA, freqhz, 50000000),
+    DEFINE_PROP_PTR("dmach", struct XilinxAXIDMA, dmach),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void xilinx_axidma_register(void)
+static void axidma_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&axidma_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = xilinx_axidma_init;
+    dc->props = axidma_properties;
 }
 
-device_init(xilinx_axidma_register)
+static TypeInfo axidma_info = {
+    .name          = "xilinx,axidma",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(struct XilinxAXIDMA),
+    .class_init    = axidma_class_init,
+};
+
+static void xilinx_axidma_register_types(void)
+{
+    type_register_static(&axidma_info);
+}
+
+type_init(xilinx_axidma_register_types)

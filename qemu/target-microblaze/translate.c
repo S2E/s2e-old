@@ -17,19 +17,11 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdarg.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <inttypes.h>
-#include <assert.h>
-
 #include "cpu.h"
 #include "disas.h"
 #include "tcg-op.h"
 #include "helper.h"
 #include "microblaze-decode.h"
-#include "qemu-common.h"
 
 #define GEN_HELPER 1
 #include "helper.h"
@@ -61,7 +53,7 @@ static TCGv env_iflags;
 
 /* This is the state at translation time.  */
 typedef struct DisasContext {
-    CPUState *env;
+    CPUMBState *env;
     target_ulong pc;
 
     /* Decoder.  */
@@ -120,7 +112,7 @@ static inline int sign_extend(unsigned int val, unsigned int width)
 
 static inline void t_sync_flags(DisasContext *dc)
 {
-    /* Synch the tb dependant flags between translator and runtime.  */
+    /* Synch the tb dependent flags between translator and runtime.  */
     if (dc->tb_flags != dc->synced_flags) {
         tcg_gen_movi_tl(env_iflags, dc->tb_flags);
         dc->synced_flags = dc->tb_flags;
@@ -526,6 +518,12 @@ static void dec_msr(DisasContext *dc)
             case 0x7:
                 tcg_gen_andi_tl(cpu_SR[SR_FSR], cpu_R[dc->ra], 31);
                 break;
+            case 0x800:
+                tcg_gen_st_tl(cpu_R[dc->ra], cpu_env, offsetof(CPUMBState, slr));
+                break;
+            case 0x802:
+                tcg_gen_st_tl(cpu_R[dc->ra], cpu_env, offsetof(CPUMBState, shr));
+                break;
             default:
                 cpu_abort(dc->env, "unknown mts reg %x\n", sr);
                 break;
@@ -552,6 +550,12 @@ static void dec_msr(DisasContext *dc)
             case 0xb:
                 tcg_gen_mov_tl(cpu_R[dc->rd], cpu_SR[SR_BTR]);
                 break;
+            case 0x800:
+                tcg_gen_ld_tl(cpu_R[dc->rd], cpu_env, offsetof(CPUMBState, slr));
+                break;
+            case 0x802:
+                tcg_gen_ld_tl(cpu_R[dc->rd], cpu_env, offsetof(CPUMBState, shr));
+                break;
             case 0x2000:
             case 0x2001:
             case 0x2002:
@@ -567,7 +571,7 @@ static void dec_msr(DisasContext *dc)
             case 0x200c:
                 rn = sr & 0xf;
                 tcg_gen_ld_tl(cpu_R[dc->rd],
-                              cpu_env, offsetof(CPUState, pvr.regs[rn]));
+                              cpu_env, offsetof(CPUMBState, pvr.regs[rn]));
                 break;
             default:
                 cpu_abort(dc->env, "unknown mfs reg %x\n", sr);
@@ -809,6 +813,17 @@ static void dec_bit(DisasContext *dc)
                 return;
             }
             break;
+        case 0xe0:
+            if ((dc->tb_flags & MSR_EE_FLAG)
+                && (dc->env->pvr.regs[2] & PVR2_ILL_OPCODE_EXC_MASK)
+                && !((dc->env->pvr.regs[2] & PVR2_USE_PCMP_INSTR))) {
+                tcg_gen_movi_tl(cpu_SR[SR_ESR], ESR_EC_ILLEGAL_OP);
+                t_gen_raise_exception(dc, EXCP_HW_EXCP);
+            }
+            if (dc->env->pvr.regs[2] & PVR2_USE_PCMP_INSTR) {
+                gen_helper_clz(cpu_R[dc->rd], cpu_R[dc->ra]);
+            }
+            break;
         default:
             cpu_abort(dc->env, "unknown bit oc=%x op=%x rd=%d ra=%d rb=%d\n",
                      dc->pc, op, dc->rd, dc->ra, dc->rb);
@@ -853,6 +868,13 @@ static inline void gen_load(DisasContext *dc, TCGv dst, TCGv addr,
 static inline TCGv *compute_ldst_addr(DisasContext *dc, TCGv *t)
 {
     unsigned int extimm = dc->tb_flags & IMM_FLAG;
+    /* Should be set to one if r1 is used by loadstores.  */
+    int stackprot = 0;
+
+    /* All load/stores use ra.  */
+    if (dc->ra == 1) {
+        stackprot = 1;
+    }
 
     /* Treat the common cases first.  */
     if (!dc->type_b) {
@@ -863,8 +885,16 @@ static inline TCGv *compute_ldst_addr(DisasContext *dc, TCGv *t)
             return &cpu_R[dc->ra];
         }
 
+        if (dc->rb == 1) {
+            stackprot = 1;
+        }
+
         *t = tcg_temp_new();
         tcg_gen_add_tl(*t, cpu_R[dc->ra], cpu_R[dc->rb]);
+
+        if (stackprot) {
+            gen_helper_stackprot(*t);
+        }
         return t;
     }
     /* Immediate.  */
@@ -880,6 +910,9 @@ static inline TCGv *compute_ldst_addr(DisasContext *dc, TCGv *t)
         tcg_gen_add_tl(*t, cpu_R[dc->ra], *(dec_alu_op_b(dc)));
     }
 
+    if (stackprot) {
+        gen_helper_stackprot(*t);
+    }
     return t;
 }
 
@@ -1122,7 +1155,7 @@ static void dec_store(DisasContext *dc)
     if ((dc->env->pvr.regs[2] & PVR2_UNALIGNED_EXC_MASK) && size > 1) {
         tcg_gen_movi_tl(cpu_SR[SR_PC], dc->pc);
         /* FIXME: if the alignment is wrong, we should restore the value
-         *        in memory. One possible way to acheive this is to probe
+         *        in memory. One possible way to achieve this is to probe
          *        the MMU prior to the memaccess, thay way we could put
          *        the alignment checks in between the probe and the mem
          *        access.
@@ -1189,7 +1222,7 @@ static void dec_bcc(DisasContext *dc)
         dc->delayed_branch = 2;
         dc->tb_flags |= D_FLAG;
         tcg_gen_st_tl(tcg_const_tl(dc->type_b && (dc->tb_flags & IMM_FLAG)),
-                      cpu_env, offsetof(CPUState, bimm));
+                      cpu_env, offsetof(CPUMBState, bimm));
     }
 
     if (dec_alu_op_b_is_small_imm(dc)) {
@@ -1208,12 +1241,22 @@ static void dec_bcc(DisasContext *dc)
 
 static void dec_br(DisasContext *dc)
 {
-    unsigned int dslot, link, abs;
+    unsigned int dslot, link, abs, mbar;
     int mem_index = cpu_mmu_index(dc->env);
 
     dslot = dc->ir & (1 << 20);
     abs = dc->ir & (1 << 19);
     link = dc->ir & (1 << 18);
+
+    /* Memory barrier.  */
+    mbar = (dc->ir >> 16) & 31;
+    if (mbar == 2 && dc->imm == 4) {
+        LOG_DIS("mbar %d\n", dc->rd);
+        /* Break the TB.  */
+        dc->cpustate_changed = 1;
+        return;
+    }
+
     LOG_DIS("br%s%s%s%s imm=%x\n",
              abs ? "a" : "", link ? "l" : "",
              dc->type_b ? "i" : "", dslot ? "d" : "",
@@ -1224,7 +1267,7 @@ static void dec_br(DisasContext *dc)
         dc->delayed_branch = 2;
         dc->tb_flags |= D_FLAG;
         tcg_gen_st_tl(tcg_const_tl(dc->type_b && (dc->tb_flags & IMM_FLAG)),
-                      cpu_env, offsetof(CPUState, bimm));
+                      cpu_env, offsetof(CPUMBState, bimm));
     }
     if (link && dc->rd)
         tcg_gen_movi_tl(cpu_R[dc->rd], dc->pc);
@@ -1323,7 +1366,7 @@ static void dec_rts(DisasContext *dc)
     dc->delayed_branch = 2;
     dc->tb_flags |= D_FLAG;
     tcg_gen_st_tl(tcg_const_tl(dc->type_b && (dc->tb_flags & IMM_FLAG)),
-                  cpu_env, offsetof(CPUState, bimm));
+                  cpu_env, offsetof(CPUMBState, bimm));
 
     if (i_bit) {
         LOG_DIS("rtid ir=%x\n", dc->ir);
@@ -1589,7 +1632,7 @@ static inline void decode(DisasContext *dc)
     }
 }
 
-static void check_breakpoint(CPUState *env, DisasContext *dc)
+static void check_breakpoint(CPUMBState *env, DisasContext *dc)
 {
     CPUBreakpoint *bp;
 
@@ -1605,7 +1648,7 @@ static void check_breakpoint(CPUState *env, DisasContext *dc)
 
 /* generate intermediate code for basic block 'tb'.  */
 static void
-gen_intermediate_code_internal(CPUState *env, TranslationBlock *tb,
+gen_intermediate_code_internal(CPUMBState *env, TranslationBlock *tb,
                                int search_pc)
 {
     uint16_t *gen_opc_end;
@@ -1807,17 +1850,17 @@ gen_intermediate_code_internal(CPUState *env, TranslationBlock *tb,
     assert(!dc->abort_at_next_insn);
 }
 
-void gen_intermediate_code (CPUState *env, struct TranslationBlock *tb)
+void gen_intermediate_code (CPUMBState *env, struct TranslationBlock *tb)
 {
     gen_intermediate_code_internal(env, tb, 0);
 }
 
-void gen_intermediate_code_pc (CPUState *env, struct TranslationBlock *tb)
+void gen_intermediate_code_pc (CPUMBState *env, struct TranslationBlock *tb)
 {
     gen_intermediate_code_internal(env, tb, 1);
 }
 
-void cpu_dump_state (CPUState *env, FILE *f, fprintf_function cpu_fprintf,
+void cpu_dump_state (CPUMBState *env, FILE *f, fprintf_function cpu_fprintf,
                      int flags)
 {
     int i;
@@ -1845,16 +1888,16 @@ void cpu_dump_state (CPUState *env, FILE *f, fprintf_function cpu_fprintf,
     cpu_fprintf(f, "\n\n");
 }
 
-CPUState *cpu_mb_init (const char *cpu_model)
+CPUMBState *cpu_mb_init (const char *cpu_model)
 {
-    CPUState *env;
+    CPUMBState *env;
     static int tcg_initialized = 0;
     int i;
 
-    env = g_malloc0(sizeof(CPUState));
+    env = g_malloc0(sizeof(CPUMBState));
 
     cpu_exec_init(env);
-    cpu_reset(env);
+    cpu_state_reset(env);
     qemu_init_vcpu(env);
     set_float_rounding_mode(float_round_nearest_even, &env->fp_status);
 
@@ -1866,28 +1909,28 @@ CPUState *cpu_mb_init (const char *cpu_model)
     cpu_env = tcg_global_reg_new_ptr(TCG_AREG0, "env");
 
     env_debug = tcg_global_mem_new(TCG_AREG0, 
-                    offsetof(CPUState, debug),
+                    offsetof(CPUMBState, debug),
                     "debug0");
     env_iflags = tcg_global_mem_new(TCG_AREG0, 
-                    offsetof(CPUState, iflags),
+                    offsetof(CPUMBState, iflags),
                     "iflags");
     env_imm = tcg_global_mem_new(TCG_AREG0, 
-                    offsetof(CPUState, imm),
+                    offsetof(CPUMBState, imm),
                     "imm");
     env_btarget = tcg_global_mem_new(TCG_AREG0,
-                     offsetof(CPUState, btarget),
+                     offsetof(CPUMBState, btarget),
                      "btarget");
     env_btaken = tcg_global_mem_new(TCG_AREG0,
-                     offsetof(CPUState, btaken),
+                     offsetof(CPUMBState, btaken),
                      "btaken");
     for (i = 0; i < ARRAY_SIZE(cpu_R); i++) {
         cpu_R[i] = tcg_global_mem_new(TCG_AREG0,
-                          offsetof(CPUState, regs[i]),
+                          offsetof(CPUMBState, regs[i]),
                           regnames[i]);
     }
     for (i = 0; i < ARRAY_SIZE(cpu_SR); i++) {
         cpu_SR[i] = tcg_global_mem_new(TCG_AREG0,
-                          offsetof(CPUState, sregs[i]),
+                          offsetof(CPUMBState, sregs[i]),
                           special_regnames[i]);
     }
 #define GEN_HELPER 2
@@ -1896,7 +1939,7 @@ CPUState *cpu_mb_init (const char *cpu_model)
     return env;
 }
 
-void cpu_reset (CPUState *env)
+void cpu_state_reset(CPUMBState *env)
 {
     if (qemu_loglevel_mask(CPU_LOG_RESET)) {
         qemu_log("CPU Reset (CPU %d)\n", env->cpu_index);
@@ -1905,6 +1948,9 @@ void cpu_reset (CPUState *env)
 
     memset(env, 0, offsetof(CPUMBState, breakpoints));
     tlb_flush(env, 1);
+
+    /* Disable stack protector.  */
+    env->shr = ~0;
 
     env->pvr.regs[0] = PVR0_PVR_FULL_MASK \
                        | PVR0_USE_BARREL_MASK \
@@ -1945,7 +1991,7 @@ void cpu_reset (CPUState *env)
 #endif
 }
 
-void restore_state_to_opc(CPUState *env, TranslationBlock *tb, int pc_pos)
+void restore_state_to_opc(CPUMBState *env, TranslationBlock *tb, int pc_pos)
 {
     env->sregs[SR_PC] = gen_opc_pc[pc_pos];
 }

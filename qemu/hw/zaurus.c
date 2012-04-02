@@ -28,6 +28,7 @@ typedef struct ScoopInfo ScoopInfo;
 struct ScoopInfo {
     SysBusDevice busdev;
     qemu_irq handler[16];
+    MemoryRegion iomem;
     uint16_t status;
     uint16_t power;
     uint32_t gpio_level;
@@ -67,7 +68,8 @@ static inline void scoop_gpio_handler_update(ScoopInfo *s) {
     s->prev_level = level;
 }
 
-static uint32_t scoop_readb(void *opaque, target_phys_addr_t addr)
+static uint64_t scoop_read(void *opaque, target_phys_addr_t addr,
+                           unsigned size)
 {
     ScoopInfo *s = (ScoopInfo *) opaque;
 
@@ -100,7 +102,8 @@ static uint32_t scoop_readb(void *opaque, target_phys_addr_t addr)
     return 0;
 }
 
-static void scoop_writeb(void *opaque, target_phys_addr_t addr, uint32_t value)
+static void scoop_write(void *opaque, target_phys_addr_t addr,
+                        uint64_t value, unsigned size)
 {
     ScoopInfo *s = (ScoopInfo *) opaque;
     value &= 0xffff;
@@ -143,15 +146,10 @@ static void scoop_writeb(void *opaque, target_phys_addr_t addr, uint32_t value)
     }
 }
 
-static CPUReadMemoryFunc * const scoop_readfn[] = {
-    scoop_readb,
-    scoop_readb,
-    scoop_readb,
-};
-static CPUWriteMemoryFunc * const scoop_writefn[] = {
-    scoop_writeb,
-    scoop_writeb,
-    scoop_writeb,
+static const MemoryRegionOps scoop_ops = {
+    .read = scoop_read,
+    .write = scoop_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static void scoop_gpio_set(void *opaque, int line, int level)
@@ -167,15 +165,13 @@ static void scoop_gpio_set(void *opaque, int line, int level)
 static int scoop_init(SysBusDevice *dev)
 {
     ScoopInfo *s = FROM_SYSBUS(ScoopInfo, dev);
-    int iomemtype;
 
     s->status = 0x02;
     qdev_init_gpio_out(&s->busdev.qdev, s->handler, 16);
     qdev_init_gpio_in(&s->busdev.qdev, scoop_gpio_set, 16);
-    iomemtype = cpu_register_io_memory(scoop_readfn,
-                    scoop_writefn, s, DEVICE_NATIVE_ENDIAN);
+    memory_region_init_io(&s->iomem, &scoop_ops, s, "scoop", 0x1000);
 
-    sysbus_init_mmio(dev, 0x1000, iomemtype);
+    sysbus_init_mmio(dev, &s->iomem);
 
     return 0;
 }
@@ -225,22 +221,34 @@ static const VMStateDescription vmstate_scoop_regs = {
     },
 };
 
-static SysBusDeviceInfo scoop_sysbus_info = {
-    .init           = scoop_init,
-    .qdev.name      = "scoop",
-    .qdev.desc      = "Scoop2 Sharp custom ASIC",
-    .qdev.size      = sizeof(ScoopInfo),
-    .qdev.vmsd      = &vmstate_scoop_regs,
-    .qdev.props     = (Property[]) {
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property scoop_sysbus_properties[] = {
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void scoop_register(void)
+static void scoop_sysbus_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&scoop_sysbus_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = scoop_init;
+    dc->desc = "Scoop2 Sharp custom ASIC";
+    dc->vmsd = &vmstate_scoop_regs;
+    dc->props = scoop_sysbus_properties;
 }
-device_init(scoop_register);
+
+static TypeInfo scoop_sysbus_info = {
+    .name          = "scoop",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(ScoopInfo),
+    .class_init    = scoop_sysbus_class_init,
+};
+
+static void scoop_register_types(void)
+{
+    type_register_static(&scoop_sysbus_info);
+}
+
+type_init(scoop_register_types)
 
 /* Write the bootloader parameters memory area.  */
 

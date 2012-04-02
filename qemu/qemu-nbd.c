@@ -35,13 +35,14 @@
 
 #define SOCKET_PATH    "/var/lock/qemu-nbd-%s"
 
-#define NBD_BUFFER_SIZE (1024*1024)
-
-static int sigterm_wfd;
+static NBDExport *exp;
 static int verbose;
-static char *device;
 static char *srcpath;
 static char *sockpath;
+static bool sigterm_reported;
+static bool nbd_started;
+static int shared = 1;
+static int nb_fds;
 
 static void usage(const char *name)
 {
@@ -170,14 +171,13 @@ static int find_partition(BlockDriverState *bs, int partition,
 
 static void termsig_handler(int signum)
 {
-    static int sigterm_reported;
-    if (!sigterm_reported) {
-        sigterm_reported = (write(sigterm_wfd, "", 1) == 1);
-    }
+    sigterm_reported = true;
+    qemu_notify_event();
 }
 
 static void *show_parts(void *arg)
 {
+    char *device = arg;
     int nbd;
 
     /* linux just needs an open() to trigger
@@ -194,24 +194,29 @@ static void *show_parts(void *arg)
 
 static void *nbd_client_thread(void *arg)
 {
-    int fd = *(int *)arg;
+    char *device = arg;
     off_t size;
     size_t blocksize;
     uint32_t nbdflags;
-    int sock;
+    int fd, sock;
     int ret;
     pthread_t show_parts_thread;
 
-    do {
-        sock = unix_socket_outgoing(sockpath);
-        if (sock == -1) {
-            goto out;
-        }
-    } while (sock == -1);
+    sock = unix_socket_outgoing(sockpath);
+    if (sock == -1) {
+        goto out;
+    }
 
     ret = nbd_receive_negotiate(sock, NULL, &nbdflags,
                                 &size, &blocksize);
     if (ret == -1) {
+        goto out;
+    }
+
+    fd = open(device, O_RDWR);
+    if (fd == -1) {
+        /* Linux-only, we can use %m in printf.  */
+        fprintf(stderr, "Failed to open %s: %m", device);
         goto out;
     }
 
@@ -221,7 +226,7 @@ static void *nbd_client_thread(void *arg)
     }
 
     /* update partition table */
-    pthread_create(&show_parts_thread, NULL, show_parts, NULL);
+    pthread_create(&show_parts_thread, NULL, show_parts, device);
 
     if (verbose) {
         fprintf(stderr, "NBD device %s is now connected to %s\n",
@@ -244,17 +249,39 @@ out:
     return (void *) EXIT_FAILURE;
 }
 
+static int nbd_can_accept(void *opaque)
+{
+    return nb_fds < shared;
+}
+
+static void nbd_client_closed(NBDClient *client)
+{
+    nb_fds--;
+    qemu_notify_event();
+}
+
+static void nbd_accept(void *opaque)
+{
+    int server_fd = (uintptr_t) opaque;
+    struct sockaddr_in addr;
+    socklen_t addr_len = sizeof(addr);
+
+    int fd = accept(server_fd, (struct sockaddr *)&addr, &addr_len);
+    nbd_started = true;
+    if (fd != -1 && nbd_client_new(exp, fd, nbd_client_closed)) {
+        nb_fds++;
+    }
+}
+
 int main(int argc, char **argv)
 {
     BlockDriverState *bs;
     off_t dev_offset = 0;
-    off_t offset = 0;
     uint32_t nbdflags = 0;
     bool disconnect = false;
     const char *bindto = "0.0.0.0";
+    char *device = NULL;
     int port = NBD_DEFAULT_PORT;
-    struct sockaddr_in addr;
-    socklen_t addr_len = sizeof(addr);
     off_t fd_size;
     const char *sopt = "hVb:o:p:rsnP:c:dvk:e:t";
     struct option lopt[] = {
@@ -282,14 +309,7 @@ int main(int argc, char **argv)
     int flags = BDRV_O_RDWR;
     int partition = -1;
     int ret;
-    int shared = 1;
-    uint8_t *data;
-    fd_set fds;
-    int *sharing_fds;
     int fd;
-    int i;
-    int nb_fds = 0;
-    int max_fd;
     int persistent = 0;
     pthread_t client_thread;
 
@@ -297,12 +317,6 @@ int main(int argc, char **argv)
      * handler ensures that "qemu-nbd -v -c" exits with a nice status code.
      */
     struct sigaction sa_sigterm;
-    int sigterm_fd[2];
-    if (qemu_pipe(sigterm_fd) == -1) {
-        err(EXIT_FAILURE, "Error setting up communication pipe");
-    }
-
-    sigterm_wfd = sigterm_fd[1];
     memset(&sa_sigterm, 0, sizeof(sa_sigterm));
     sa_sigterm.sa_handler = termsig_handler;
     sigaction(SIGTERM, &sa_sigterm, NULL);
@@ -423,7 +437,7 @@ int main(int argc, char **argv)
         pid = fork();
         if (pid == 0) {
             close(stderr_fd[0]);
-            ret = qemu_daemon(0, 0);
+            ret = qemu_daemon(1, 0);
 
             /* Temporarily redirect stderr to the parent's pipe...  */
             dup2(stderr_fd[1], STDERR_FILENO);
@@ -460,19 +474,9 @@ int main(int argc, char **argv)
         }
     }
 
-    if (device) {
-        /* Open before spawning new threads.  In the future, we may
-         * drop privileges after opening.
-         */
-        fd = open(device, O_RDWR);
-        if (fd == -1) {
-            err(EXIT_FAILURE, "Failed to open %s", device);
-        }
-
-        if (sockpath == NULL) {
-            sockpath = g_malloc(128);
-            snprintf(sockpath, 128, SOCKET_PATH, basename(device));
-        }
+    if (device != NULL && sockpath == NULL) {
+        sockpath = g_malloc(128);
+        snprintf(sockpath, 128, SOCKET_PATH, basename(device));
     }
 
     bdrv_init();
@@ -492,21 +496,22 @@ int main(int argc, char **argv)
         err(EXIT_FAILURE, "Could not find partition %d", partition);
     }
 
-    sharing_fds = g_malloc((shared + 1) * sizeof(int));
+    exp = nbd_export_new(bs, dev_offset, fd_size, nbdflags);
 
     if (sockpath) {
-        sharing_fds[0] = unix_socket_incoming(sockpath);
+        fd = unix_socket_incoming(sockpath);
     } else {
-        sharing_fds[0] = tcp_socket_incoming(bindto, port);
+        fd = tcp_socket_incoming(bindto, port);
     }
 
-    if (sharing_fds[0] == -1)
+    if (fd == -1) {
         return 1;
+    }
 
     if (device) {
         int ret;
 
-        ret = pthread_create(&client_thread, NULL, nbd_client_thread, &fd);
+        ret = pthread_create(&client_thread, NULL, nbd_client_thread, device);
         if (ret != 0) {
             errx(EXIT_FAILURE, "Failed to create client thread: %s",
                  strerror(ret));
@@ -516,60 +521,21 @@ int main(int argc, char **argv)
         memset(&client_thread, 0, sizeof(client_thread));
     }
 
-    max_fd = sharing_fds[0];
-    nb_fds++;
+    qemu_init_main_loop();
+    qemu_set_fd_handler2(fd, nbd_can_accept, nbd_accept, NULL,
+                         (void *)(uintptr_t)fd);
 
-    data = qemu_blockalign(bs, NBD_BUFFER_SIZE);
-    if (data == NULL) {
-        errx(EXIT_FAILURE, "Cannot allocate data buffer");
+    /* now when the initialization is (almost) complete, chdir("/")
+     * to free any busy filesystems */
+    if (chdir("/") < 0) {
+        err(EXIT_FAILURE, "Could not chdir to root directory");
     }
 
     do {
-        FD_ZERO(&fds);
-        FD_SET(sigterm_fd[0], &fds);
-        for (i = 0; i < nb_fds; i++)
-            FD_SET(sharing_fds[i], &fds);
+        main_loop_wait(false);
+    } while (!sigterm_reported && (persistent || !nbd_started || nb_fds > 0));
 
-        do {
-            ret = select(max_fd + 1, &fds, NULL, NULL, NULL);
-        } while (ret == -1 && errno == EINTR);
-        if (ret == -1 || FD_ISSET(sigterm_fd[0], &fds)) {
-            break;
-        }
-
-        if (FD_ISSET(sharing_fds[0], &fds))
-            ret--;
-        for (i = 1; i < nb_fds && ret; i++) {
-            if (FD_ISSET(sharing_fds[i], &fds)) {
-                if (nbd_trip(bs, sharing_fds[i], fd_size, dev_offset,
-                    &offset, nbdflags, data, NBD_BUFFER_SIZE) != 0) {
-                    close(sharing_fds[i]);
-                    nb_fds--;
-                    sharing_fds[i] = sharing_fds[nb_fds];
-                    i--;
-                }
-                ret--;
-            }
-        }
-        /* new connection ? */
-        if (FD_ISSET(sharing_fds[0], &fds)) {
-            if (nb_fds < shared + 1) {
-                sharing_fds[nb_fds] = accept(sharing_fds[0],
-                                             (struct sockaddr *)&addr,
-                                             &addr_len);
-                if (sharing_fds[nb_fds] != -1 &&
-                    nbd_negotiate(sharing_fds[nb_fds], fd_size, nbdflags) != -1) {
-                        if (sharing_fds[nb_fds] > max_fd)
-                            max_fd = sharing_fds[nb_fds];
-                        nb_fds++;
-                }
-            }
-        }
-    } while (persistent || nb_fds > 1);
-    qemu_vfree(data);
-
-    close(sharing_fds[0]);
-    g_free(sharing_fds);
+    nbd_export_close(exp);
     if (sockpath) {
         unlink(sockpath);
     }

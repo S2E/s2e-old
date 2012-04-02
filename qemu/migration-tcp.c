@@ -9,6 +9,8 @@
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "qemu-common.h"
@@ -40,12 +42,15 @@ static int socket_write(MigrationState *s, const void * buf, size_t size)
 
 static int tcp_close(MigrationState *s)
 {
+    int r = 0;
     DPRINTF("tcp_close\n");
     if (s->fd != -1) {
-        close(s->fd);
+        if (close(s->fd) < 0) {
+            r = -errno;
+        }
         s->fd = -1;
     }
-    return 0;
+    return r;
 }
 
 static void tcp_wait_for_connect(void *opaque)

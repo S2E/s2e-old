@@ -49,7 +49,7 @@ typedef struct spin_state {
 } SpinState;
 
 typedef struct spin_kick {
-    CPUState *env;
+    CPUPPCState *env;
     SpinInfo *spin;
 } SpinKick;
 
@@ -73,7 +73,7 @@ static inline target_phys_addr_t booke206_page_size_to_tlb(uint64_t size)
     return (ffs(size >> 10) - 1) >> 1;
 }
 
-static void mmubooke_create_initial_mapping(CPUState *env,
+static void mmubooke_create_initial_mapping(CPUPPCState *env,
                                      target_ulong va,
                                      target_phys_addr_t pa,
                                      target_phys_addr_t len)
@@ -91,7 +91,7 @@ static void mmubooke_create_initial_mapping(CPUState *env,
 static void spin_kick(void *data)
 {
     SpinKick *kick = data;
-    CPUState *env = kick->env;
+    CPUPPCState *env = kick->env;
     SpinInfo *curspin = kick->spin;
     target_phys_addr_t map_size = 64 * 1024 * 1024;
     target_phys_addr_t map_start;
@@ -112,6 +112,7 @@ static void spin_kick(void *data)
 
     env->halted = 0;
     env->exception_index = -1;
+    env->stopped = 0;
     qemu_cpu_kick(env);
 }
 
@@ -120,7 +121,7 @@ static void spin_write(void *opaque, target_phys_addr_t addr, uint64_t value,
 {
     SpinState *s = opaque;
     int env_idx = addr / sizeof(SpinInfo);
-    CPUState *env;
+    CPUPPCState *env;
     SpinInfo *curspin = &s->spin[env_idx];
     uint8_t *curspin_p = (uint8_t*)curspin;
 
@@ -181,7 +182,7 @@ static uint64_t spin_read(void *opaque, target_phys_addr_t addr, unsigned len)
     }
 }
 
-const MemoryRegionOps spin_rw_ops = {
+static const MemoryRegionOps spin_rw_ops = {
     .read = spin_read,
     .write = spin_write,
     .endianness = DEVICE_BIG_ENDIAN,
@@ -195,21 +196,30 @@ static int ppce500_spin_initfn(SysBusDevice *dev)
 
     memory_region_init_io(&s->iomem, &spin_rw_ops, s, "e500 spin pv device",
                           sizeof(SpinInfo) * MAX_CPUS);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
 
     qemu_register_reset(spin_reset, s);
 
     return 0;
 }
 
-static SysBusDeviceInfo ppce500_spin_info = {
-    .init         = ppce500_spin_initfn,
-    .qdev.name    = "e500-spin",
-    .qdev.size    = sizeof(SpinState),
+static void ppce500_spin_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = ppce500_spin_initfn;
+}
+
+static TypeInfo ppce500_spin_info = {
+    .name          = "e500-spin",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SpinState),
+    .class_init    = ppce500_spin_class_init,
 };
 
-static void ppce500_spin_register(void)
+static void ppce500_spin_register_types(void)
 {
-    sysbus_register_withprop(&ppce500_spin_info);
+    type_register_static(&ppce500_spin_info);
 }
-device_init(ppce500_spin_register);
+
+type_init(ppce500_spin_register_types)

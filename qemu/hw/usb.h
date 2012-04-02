@@ -1,3 +1,6 @@
+#ifndef QEMU_USB_H
+#define QEMU_USB_H
+
 /*
  * QEMU USB API
  *
@@ -36,16 +39,12 @@
 #define USB_TOKEN_IN    0x69 /* device -> host */
 #define USB_TOKEN_OUT   0xe1 /* host -> device */
 
-/* specific usb messages, also sent in the 'pid' parameter */
-#define USB_MSG_ATTACH   0x100
-#define USB_MSG_DETACH   0x101
-#define USB_MSG_RESET    0x102
-
-#define USB_RET_NODEV  (-1)
-#define USB_RET_NAK    (-2)
-#define USB_RET_STALL  (-3)
-#define USB_RET_BABBLE (-4)
-#define USB_RET_ASYNC  (-5)
+#define USB_RET_NODEV   (-1)
+#define USB_RET_NAK     (-2)
+#define USB_RET_STALL   (-3)
+#define USB_RET_BABBLE  (-4)
+#define USB_RET_IOERROR (-5)
+#define USB_RET_ASYNC   (-6)
 
 #define USB_SPEED_LOW   0
 #define USB_SPEED_FULL  1
@@ -78,6 +77,11 @@
 #define USB_CLASS_CONTENT_SEC		0x0d
 #define USB_CLASS_APP_SPEC		0xfe
 #define USB_CLASS_VENDOR_SPEC		0xff
+
+#define USB_SUBCLASS_UNDEFINED          0
+#define USB_SUBCLASS_AUDIO_CONTROL      1
+#define USB_SUBCLASS_AUDIO_STREAMING    2
+#define USB_SUBCLASS_AUDIO_MIDISTREAMING 3
 
 #define USB_DIR_OUT			0
 #define USB_DIR_IN			0x80
@@ -132,18 +136,21 @@
 #define USB_DT_OTHER_SPEED_CONFIG       0x07
 #define USB_DT_DEBUG                    0x0A
 #define USB_DT_INTERFACE_ASSOC          0x0B
+#define USB_DT_CS_INTERFACE             0x24
+#define USB_DT_CS_ENDPOINT              0x25
 
 #define USB_ENDPOINT_XFER_CONTROL	0
 #define USB_ENDPOINT_XFER_ISOC		1
 #define USB_ENDPOINT_XFER_BULK		2
 #define USB_ENDPOINT_XFER_INT		3
+#define USB_ENDPOINT_XFER_INVALID     255
 
 typedef struct USBBus USBBus;
 typedef struct USBBusOps USBBusOps;
 typedef struct USBPort USBPort;
 typedef struct USBDevice USBDevice;
-typedef struct USBDeviceInfo USBDeviceInfo;
 typedef struct USBPacket USBPacket;
+typedef struct USBEndpoint USBEndpoint;
 
 typedef struct USBDesc USBDesc;
 typedef struct USBDescID USBDescID;
@@ -161,10 +168,23 @@ struct USBDescString {
     QLIST_ENTRY(USBDescString) next;
 };
 
+#define USB_MAX_ENDPOINTS  15
+#define USB_MAX_INTERFACES 16
+
+struct USBEndpoint {
+    uint8_t nr;
+    uint8_t pid;
+    uint8_t type;
+    uint8_t ifnum;
+    int max_packet_size;
+    bool pipeline;
+    USBDevice *dev;
+    QTAILQ_HEAD(, USBPacket) queue;
+};
+
 /* definition of a USB device */
 struct USBDevice {
     DeviceState qdev;
-    USBDeviceInfo *info;
     USBPort *port;
     char *port_path;
     void *opaque;
@@ -186,23 +206,38 @@ struct USBDevice {
     int32_t setup_len;
     int32_t setup_index;
 
+    USBEndpoint ep_ctl;
+    USBEndpoint ep_in[USB_MAX_ENDPOINTS];
+    USBEndpoint ep_out[USB_MAX_ENDPOINTS];
+
     QLIST_HEAD(, USBDescString) strings;
     const USBDescDevice *device;
+
+    int configuration;
+    int ninterfaces;
+    int altsetting[USB_MAX_INTERFACES];
     const USBDescConfig *config;
+    const USBDescIface  *ifaces[USB_MAX_INTERFACES];
 };
 
-struct USBDeviceInfo {
-    DeviceInfo qdev;
+#define TYPE_USB_DEVICE "usb-device"
+#define USB_DEVICE(obj) \
+     OBJECT_CHECK(USBDevice, (obj), TYPE_USB_DEVICE)
+#define USB_DEVICE_CLASS(klass) \
+     OBJECT_CLASS_CHECK(USBDeviceClass, (klass), TYPE_USB_DEVICE)
+#define USB_DEVICE_GET_CLASS(obj) \
+     OBJECT_GET_CLASS(USBDeviceClass, (obj), TYPE_USB_DEVICE)
+
+typedef struct USBDeviceClass {
+    DeviceClass parent_class;
+
     int (*init)(USBDevice *dev);
 
     /*
-     * Process USB packet.
-     * Called by the HC (Host Controller).
-     *
-     * Returns length of the transaction
-     * or one of the USB_RET_XXX codes.
+     * Walk (enabled) downstream ports, check for a matching device.
+     * Only hubs implement this.
      */
-    int (*handle_packet)(USBDevice *dev, USBPacket *p);
+    USBDevice *(*find_device)(USBDevice *dev, uint8_t addr);
 
     /*
      * Called when a packet is canceled.
@@ -241,13 +276,12 @@ struct USBDeviceInfo {
      */
     int (*handle_data)(USBDevice *dev, USBPacket *p);
 
+    void (*set_interface)(USBDevice *dev, int interface,
+                          int alt_old, int alt_new);
+
     const char *product_desc;
     const USBDesc *usb_desc;
-
-    /* handle legacy -usbdevice command line options */
-    const char *usbdevice_name;
-    USBDevice *(*usbdevice_init)(const char *params);
-};
+} USBDeviceClass;
 
 typedef struct USBPortOps {
     void (*attach)(USBPort *port);
@@ -260,8 +294,7 @@ typedef struct USBPortOps {
     void (*wakeup)(USBPort *port);
     /*
      * Note that port->dev will be different then the device from which
-     * the packet originated when a hub is involved, if you want the orginating
-     * device use p->owner
+     * the packet originated when a hub is involved.
      */
     void (*complete)(USBPort *port, USBPacket *p);
 } USBPortOps;
@@ -279,20 +312,32 @@ struct USBPort {
 
 typedef void USBCallback(USBPacket * packet, void *opaque);
 
+typedef enum USBPacketState {
+    USB_PACKET_UNDEFINED = 0,
+    USB_PACKET_SETUP,
+    USB_PACKET_QUEUED,
+    USB_PACKET_ASYNC,
+    USB_PACKET_COMPLETE,
+    USB_PACKET_CANCELED,
+} USBPacketState;
+
 /* Structure used to hold information about an active USB packet.  */
 struct USBPacket {
     /* Data fields for use by the driver.  */
     int pid;
-    uint8_t devaddr;
-    uint8_t devep;
+    USBEndpoint *ep;
     QEMUIOVector iov;
+    uint64_t parameter; /* control transfers */
     int result; /* transfer length or USB_RET_* status code */
     /* Internal use by the USB layer.  */
-    USBDevice *owner;
+    USBPacketState state;
+    QTAILQ_ENTRY(USBPacket) queue;
 };
 
 void usb_packet_init(USBPacket *p);
-void usb_packet_setup(USBPacket *p, int pid, uint8_t addr, uint8_t ep);
+void usb_packet_set_state(USBPacket *p, USBPacketState state);
+void usb_packet_check_state(USBPacket *p, USBPacketState expected);
+void usb_packet_setup(USBPacket *p, int pid, USBEndpoint *ep);
 void usb_packet_addbuf(USBPacket *p, void *ptr, size_t len);
 int usb_packet_map(USBPacket *p, QEMUSGList *sgl);
 void usb_packet_unmap(USBPacket *p);
@@ -300,26 +345,45 @@ void usb_packet_copy(USBPacket *p, void *ptr, size_t bytes);
 void usb_packet_skip(USBPacket *p, size_t bytes);
 void usb_packet_cleanup(USBPacket *p);
 
+static inline bool usb_packet_is_inflight(USBPacket *p)
+{
+    return (p->state == USB_PACKET_QUEUED ||
+            p->state == USB_PACKET_ASYNC);
+}
+
+USBDevice *usb_find_device(USBPort *port, uint8_t addr);
+
 int usb_handle_packet(USBDevice *dev, USBPacket *p);
 void usb_packet_complete(USBDevice *dev, USBPacket *p);
 void usb_cancel_packet(USBPacket * p);
 
+void usb_ep_init(USBDevice *dev);
+void usb_ep_dump(USBDevice *dev);
+struct USBEndpoint *usb_ep_get(USBDevice *dev, int pid, int ep);
+uint8_t usb_ep_get_type(USBDevice *dev, int pid, int ep);
+uint8_t usb_ep_get_ifnum(USBDevice *dev, int pid, int ep);
+void usb_ep_set_type(USBDevice *dev, int pid, int ep, uint8_t type);
+void usb_ep_set_ifnum(USBDevice *dev, int pid, int ep, uint8_t ifnum);
+void usb_ep_set_max_packet_size(USBDevice *dev, int pid, int ep,
+                                uint16_t raw);
+int usb_ep_get_max_packet_size(USBDevice *dev, int pid, int ep);
+void usb_ep_set_pipeline(USBDevice *dev, int pid, int ep, bool enabled);
+
 void usb_attach(USBPort *port);
 void usb_detach(USBPort *port);
-void usb_reset(USBPort *port);
-void usb_wakeup(USBDevice *dev);
-int usb_generic_handle_packet(USBDevice *s, USBPacket *p);
+void usb_port_reset(USBPort *port);
+void usb_device_reset(USBDevice *dev);
+void usb_wakeup(USBEndpoint *ep);
 void usb_generic_async_ctrl_complete(USBDevice *s, USBPacket *p);
 int set_usb_string(uint8_t *buf, const char *str);
-void usb_send_msg(USBDevice *dev, int msg);
 
 /* usb-linux.c */
-USBDevice *usb_host_device_open(const char *devname);
+USBDevice *usb_host_device_open(USBBus *bus, const char *devname);
 int usb_host_device_close(const char *devname);
 void usb_host_info(Monitor *mon);
 
 /* usb-bt.c */
-USBDevice *usb_bt_init(HCIInfo *hci);
+USBDevice *usb_bt_init(USBBus *bus, HCIInfo *hci);
 
 /* usb ports of the VM */
 
@@ -366,12 +430,14 @@ struct USBBus {
 struct USBBusOps {
     int (*register_companion)(USBBus *bus, USBPort *ports[],
                               uint32_t portcount, uint32_t firstport);
+    void (*wakeup_endpoint)(USBBus *bus, USBEndpoint *ep);
 };
 
 void usb_bus_new(USBBus *bus, USBBusOps *ops, DeviceState *host);
 USBBus *usb_bus_find(int busnr);
-void usb_qdev_register(USBDeviceInfo *info);
-void usb_qdev_register_many(USBDeviceInfo *info);
+void usb_legacy_register(const char *typename, const char *usbdevice_name,
+                         USBDevice *(*usbdevice_init)(USBBus *bus,
+                                                      const char *params));
 USBDevice *usb_create(USBBus *bus, const char *name);
 USBDevice *usb_create_simple(USBBus *bus, const char *name);
 USBDevice *usbdevice_create(const char *cmdline);
@@ -392,3 +458,36 @@ static inline USBBus *usb_bus_from_device(USBDevice *d)
 {
     return DO_UPCAST(USBBus, qbus, d->qdev.parent_bus);
 }
+
+extern const VMStateDescription vmstate_usb_device;
+
+#define VMSTATE_USB_DEVICE(_field, _state) {                         \
+    .name       = (stringify(_field)),                               \
+    .size       = sizeof(USBDevice),                                 \
+    .vmsd       = &vmstate_usb_device,                               \
+    .flags      = VMS_STRUCT,                                        \
+    .offset     = vmstate_offset_value(_state, _field, USBDevice),   \
+}
+
+USBDevice *usb_device_find_device(USBDevice *dev, uint8_t addr);
+
+void usb_device_cancel_packet(USBDevice *dev, USBPacket *p);
+
+void usb_device_handle_attach(USBDevice *dev);
+
+void usb_device_handle_reset(USBDevice *dev);
+
+int usb_device_handle_control(USBDevice *dev, USBPacket *p, int request, int value,
+                              int index, int length, uint8_t *data);
+
+int usb_device_handle_data(USBDevice *dev, USBPacket *p);
+
+void usb_device_set_interface(USBDevice *dev, int interface,
+                              int alt_old, int alt_new);
+
+const char *usb_device_get_product_desc(USBDevice *dev);
+
+const USBDesc *usb_device_get_usb_desc(USBDevice *dev);
+
+#endif
+

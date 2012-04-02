@@ -251,10 +251,11 @@ DEF_HELPER_1_M(bsr, tl, tl, 0, 0, 0)
 DEF_HELPER_2_M(lzcnt, tl, tl, int, 0, 0, 0)
 
 /* MMX/SSE */
-
+DEF_HELPER_1_M(ldmxcsr, void, i32, 0, 0, 0)
 DEF_HELPER_0_M(enter_mmx, void, 0, 0, 0)
 DEF_HELPER_0_M(emms, void, 0, 0, 0)
 DEF_HELPER_2_M(movq, void, ptr, ptr, 0, 0, 0)
+
 
 #define SHIFT 0
 #include "ops_sse_header.h"

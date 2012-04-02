@@ -205,7 +205,7 @@ typedef struct CirrusVGAState {
     bool linear_vram;  /* vga.vram mapped over cirrus_linear_io */
     MemoryRegion low_mem_container; /* container for 0xa0000-0xc0000 */
     MemoryRegion low_mem;           /* always mapped, overridden by: */
-    MemoryRegion *cirrus_bank[2];   /*   aliases at 0xa0000-0xb0000  */
+    MemoryRegion cirrus_bank[2];    /*   aliases at 0xa0000-0xb0000  */
     uint32_t cirrus_addr_mask;
     uint32_t linear_mmio_mask;
     uint8_t cirrus_shadow_gr0;
@@ -249,6 +249,11 @@ typedef struct PCICirrusVGAState {
     PCIDevice dev;
     CirrusVGAState cirrus_vga;
 } PCICirrusVGAState;
+
+typedef struct ISACirrusVGAState {
+    ISADevice dev;
+    CirrusVGAState cirrus_vga;
+} ISACirrusVGAState;
 
 static uint8_t rop_to_index[256];
 
@@ -613,11 +618,7 @@ static void cirrus_invalidate_region(CirrusVGAState * s, int off_begin,
     for (y = 0; y < lines; y++) {
 	off_cur = off_begin;
 	off_cur_end = (off_cur + bytesperline) & s->cirrus_addr_mask;
-	off_cur &= TARGET_PAGE_MASK;
-	while (off_cur < off_cur_end) {
-	    memory_region_set_dirty(&s->vga.vram, off_cur);
-	    off_cur += TARGET_PAGE_SIZE;
-	}
+        memory_region_set_dirty(&s->vga.vram, off_cur, off_cur_end - off_cur);
 	off_begin += off_pitch;
     }
 }
@@ -783,7 +784,7 @@ static void cirrus_bitblt_cputovideo_next(CirrusVGAState * s)
                 s->cirrus_srccounter -= s->cirrus_blt_srcpitch;
                 if (s->cirrus_srccounter <= 0)
                     goto the_end;
-                /* more bytes than needed can be transfered because of
+                /* more bytes than needed can be transferred because of
                    word alignment, so we keep them for the next line */
                 /* XXX: keep alignment to speed up transfer */
                 end_ptr = s->cirrus_bltbuf + s->cirrus_blt_srcpitch;
@@ -1895,8 +1896,6 @@ static void cirrus_mmio_blt_write(CirrusVGAState * s, unsigned address,
  *
  *  write mode 4/5
  *
- * assume TARGET_PAGE_SIZE >= 16
- *
  ***************************************/
 
 static void cirrus_mem_writeb_mode4and5_8bpp(CirrusVGAState * s,
@@ -1918,8 +1917,7 @@ static void cirrus_mem_writeb_mode4and5_8bpp(CirrusVGAState * s,
 	val <<= 1;
 	dst++;
     }
-    memory_region_set_dirty(&s->vga.vram, offset);
-    memory_region_set_dirty(&s->vga.vram, offset + 7);
+    memory_region_set_dirty(&s->vga.vram, offset, 8);
 }
 
 static void cirrus_mem_writeb_mode4and5_16bpp(CirrusVGAState * s,
@@ -1943,8 +1941,7 @@ static void cirrus_mem_writeb_mode4and5_16bpp(CirrusVGAState * s,
 	val <<= 1;
 	dst += 2;
     }
-    memory_region_set_dirty(&s->vga.vram, offset);
-    memory_region_set_dirty(&s->vga.vram, offset + 15);
+    memory_region_set_dirty(&s->vga.vram, offset, 16);
 }
 
 /***************************************
@@ -2034,7 +2031,8 @@ static void cirrus_vga_mem_write(void *opaque,
 		mode = s->vga.gr[0x05] & 0x7;
 		if (mode < 4 || mode > 5 || ((s->vga.gr[0x0B] & 0x4) == 0)) {
 		    *(s->vga.vram_ptr + bank_offset) = mem_value;
-		    memory_region_set_dirty(&s->vga.vram, bank_offset);
+                    memory_region_set_dirty(&s->vga.vram, bank_offset,
+                                            sizeof(mem_value));
 		} else {
 		    if ((s->vga.gr[0x0B] & 0x14) != 0x14) {
 			cirrus_mem_writeb_mode4and5_8bpp(s, mode,
@@ -2165,6 +2163,15 @@ static void cirrus_cursor_invalidate(VGACommonState *s1)
         invalidate_cursor1(s);
     }
 }
+
+#define DEPTH 8
+#include "cirrus_vga_template.h"
+
+#define DEPTH 16
+#include "cirrus_vga_template.h"
+
+#define DEPTH 32
+#include "cirrus_vga_template.h"
 
 static void cirrus_cursor_draw_line(VGACommonState *s1, uint8_t *d1, int scr_y)
 {
@@ -2306,7 +2313,7 @@ static void cirrus_linear_write(void *opaque, target_phys_addr_t addr,
 	mode = s->vga.gr[0x05] & 0x7;
 	if (mode < 4 || mode > 5 || ((s->vga.gr[0x0B] & 0x4) == 0)) {
 	    *(s->vga.vram_ptr + addr) = (uint8_t) val;
-	    memory_region_set_dirty(&s->vga.vram, addr);
+            memory_region_set_dirty(&s->vga.vram, addr, 1);
 	} else {
 	    if ((s->vga.gr[0x0B] & 0x14) != 0x14) {
 		cirrus_mem_writeb_mode4and5_8bpp(s, mode, addr, val);
@@ -2363,40 +2370,16 @@ static const MemoryRegionOps cirrus_linear_bitblt_io_ops = {
     },
 };
 
-static void unmap_bank(CirrusVGAState *s, unsigned bank)
-{
-    if (s->cirrus_bank[bank]) {
-        memory_region_del_subregion(&s->low_mem_container,
-                                    s->cirrus_bank[bank]);
-        memory_region_destroy(s->cirrus_bank[bank]);
-        g_free(s->cirrus_bank[bank]);
-        s->cirrus_bank[bank] = NULL;
-    }
-}
-
 static void map_linear_vram_bank(CirrusVGAState *s, unsigned bank)
 {
-    MemoryRegion *mr;
-    static const char *names[] = { "vga.bank0", "vga.bank1" };
-
-    if (!(s->cirrus_srcptr != s->cirrus_srcptr_end)
+    MemoryRegion *mr = &s->cirrus_bank[bank];
+    bool enabled = !(s->cirrus_srcptr != s->cirrus_srcptr_end)
         && !((s->vga.sr[0x07] & 0x01) == 0)
         && !((s->vga.gr[0x0B] & 0x14) == 0x14)
-        && !(s->vga.gr[0x0B] & 0x02)) {
+        && !(s->vga.gr[0x0B] & 0x02);
 
-        mr = g_malloc(sizeof(*mr));
-        memory_region_init_alias(mr, names[bank], &s->vga.vram,
-                                 s->cirrus_bank_base[bank], 0x8000);
-        memory_region_add_subregion_overlap(
-            &s->low_mem_container,
-            0x8000 * bank,
-            mr,
-            1);
-        unmap_bank(s, bank);
-        s->cirrus_bank[bank] = mr;
-    } else {
-        unmap_bank(s, bank);
-    }
+    memory_region_set_enabled(mr, enabled);
+    memory_region_set_alias_offset(mr, s->cirrus_bank_base[bank]);
 }
 
 static void map_linear_vram(CirrusVGAState *s)
@@ -2415,8 +2398,8 @@ static void unmap_linear_vram(CirrusVGAState *s)
         s->linear_vram = false;
         memory_region_del_subregion(&s->pci_bar, &s->vga.vram);
     }
-    unmap_bank(s, 0);
-    unmap_bank(s, 1);
+    memory_region_set_enabled(&s->cirrus_bank[0], false);
+    memory_region_set_enabled(&s->cirrus_bank[1], false);
 }
 
 /* Compute the memory access functions */
@@ -2784,10 +2767,6 @@ static void cirrus_reset(void *opaque)
     }
     s->vga.cr[0x27] = s->device_id;
 
-    /* Win2K seems to assume that the pattern buffer is at 0xff
-       initially ! */
-    memset(s->vga.vram_ptr, 0xff, s->real_vram_size);
-
     s->cirrus_hidden_dac_lockindex = 5;
     s->cirrus_hidden_dac_data = 0;
 }
@@ -2856,6 +2835,14 @@ static void cirrus_init_common(CirrusVGAState * s, int device_id, int is_pci,
     memory_region_init_io(&s->low_mem, &cirrus_vga_mem_ops, s,
                           "cirrus-low-memory", 0x20000);
     memory_region_add_subregion(&s->low_mem_container, 0, &s->low_mem);
+    for (i = 0; i < 2; ++i) {
+        static const char *names[] = { "vga.bank0", "vga.bank1" };
+        MemoryRegion *bank = &s->cirrus_bank[i];
+        memory_region_init_alias(bank, names[i], &s->vga.vram, 0, 0x8000);
+        memory_region_set_enabled(bank, false);
+        memory_region_add_subregion_overlap(&s->low_mem_container, i * 0x8000,
+                                            bank, 1);
+    }
     memory_region_add_subregion_overlap(system_memory,
                                         isa_mem_base + 0x000a0000,
                                         &s->low_mem_container,
@@ -2899,21 +2886,38 @@ static void cirrus_init_common(CirrusVGAState * s, int device_id, int is_pci,
  *
  ***************************************/
 
-void isa_cirrus_vga_init(MemoryRegion *system_memory)
+static int vga_initfn(ISADevice *dev)
 {
-    CirrusVGAState *s;
+    ISACirrusVGAState *d = DO_UPCAST(ISACirrusVGAState, dev, dev);
+    VGACommonState *s = &d->cirrus_vga.vga;
 
-    s = g_malloc0(sizeof(CirrusVGAState));
-
-    vga_common_init(&s->vga, VGA_RAM_SIZE);
-    cirrus_init_common(s, CIRRUS_ID_CLGD5430, 0, system_memory);
-    s->vga.ds = graphic_console_init(s->vga.update, s->vga.invalidate,
-                                     s->vga.screen_dump, s->vga.text_update,
-                                     &s->vga);
-    vmstate_register(NULL, 0, &vmstate_cirrus_vga, s);
+    vga_common_init(s, VGA_RAM_SIZE);
+    cirrus_init_common(&d->cirrus_vga, CIRRUS_ID_CLGD5430, 0,
+                       isa_address_space(dev));
+    s->ds = graphic_console_init(s->update, s->invalidate,
+                                 s->screen_dump, s->text_update,
+                                 s);
     rom_add_vga(VGABIOS_CIRRUS_FILENAME);
     /* XXX ISA-LFB support */
+    /* FIXME not qdev yet */
+    return 0;
 }
+
+static void isa_cirrus_vga_class_init(ObjectClass *klass, void *data)
+{
+    ISADeviceClass *k = ISA_DEVICE_CLASS(klass);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    dc->vmsd  = &vmstate_cirrus_vga;
+    k->init   = vga_initfn;
+}
+
+static TypeInfo isa_cirrus_vga_info = {
+    .name          = "isa-cirrus-vga",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(ISACirrusVGAState),
+    .class_init = isa_cirrus_vga_class_init,
+};
 
 /***************************************
  *
@@ -2925,8 +2929,8 @@ static int pci_cirrus_vga_initfn(PCIDevice *dev)
 {
      PCICirrusVGAState *d = DO_UPCAST(PCICirrusVGAState, dev, dev);
      CirrusVGAState *s = &d->cirrus_vga;
-     PCIDeviceInfo *info = DO_UPCAST(PCIDeviceInfo, qdev, dev->qdev.info);
-     int16_t device_id = info->device_id;
+     PCIDeviceClass *pc = PCI_DEVICE_GET_CLASS(dev);
+     int16_t device_id = pc->device_id;
 
      /* setup VGA */
      vga_common_init(&s->vga, VGA_RAM_SIZE);
@@ -2955,26 +2959,37 @@ static int pci_cirrus_vga_initfn(PCIDevice *dev)
      return 0;
 }
 
-void pci_cirrus_vga_init(PCIBus *bus)
+DeviceState *pci_cirrus_vga_init(PCIBus *bus)
 {
-    pci_create_simple(bus, -1, "cirrus-vga");
+    return &pci_create_simple(bus, -1, "cirrus-vga")->qdev;
 }
 
-static PCIDeviceInfo cirrus_vga_info = {
-    .qdev.name    = "cirrus-vga",
-    .qdev.desc    = "Cirrus CLGD 54xx VGA",
-    .qdev.size    = sizeof(PCICirrusVGAState),
-    .qdev.vmsd    = &vmstate_pci_cirrus_vga,
-    .no_hotplug   = 1,
-    .init         = pci_cirrus_vga_initfn,
-    .romfile      = VGABIOS_CIRRUS_FILENAME,
-    .vendor_id    = PCI_VENDOR_ID_CIRRUS,
-    .device_id    = CIRRUS_ID_CLGD5446,
-    .class_id     = PCI_CLASS_DISPLAY_VGA,
+static void cirrus_vga_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->no_hotplug = 1;
+    k->init = pci_cirrus_vga_initfn;
+    k->romfile = VGABIOS_CIRRUS_FILENAME;
+    k->vendor_id = PCI_VENDOR_ID_CIRRUS;
+    k->device_id = CIRRUS_ID_CLGD5446;
+    k->class_id = PCI_CLASS_DISPLAY_VGA;
+    dc->desc = "Cirrus CLGD 54xx VGA";
+    dc->vmsd = &vmstate_pci_cirrus_vga;
+}
+
+static TypeInfo cirrus_vga_info = {
+    .name          = "cirrus-vga",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCICirrusVGAState),
+    .class_init    = cirrus_vga_class_init,
 };
 
-static void cirrus_vga_register(void)
+static void cirrus_vga_register_types(void)
 {
-    pci_qdev_register(&cirrus_vga_info);
+    type_register_static(&isa_cirrus_vga_info);
+    type_register_static(&cirrus_vga_info);
 }
-device_init(cirrus_vga_register);
+
+type_init(cirrus_vga_register_types)

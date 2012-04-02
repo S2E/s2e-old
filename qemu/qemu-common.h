@@ -65,6 +65,15 @@ typedef struct Monitor Monitor;
 #define TIME_MAX LONG_MAX
 #endif
 
+/* HOST_LONG_BITS is the size of a native pointer in bits. */
+#if UINTPTR_MAX == UINT32_MAX
+# define HOST_LONG_BITS 32
+#elif UINTPTR_MAX == UINT64_MAX
+# define HOST_LONG_BITS 64
+#else
+# error Unknown pointer size
+#endif
+
 #ifndef CONFIG_IOVEC
 #define CONFIG_IOVEC
 struct iovec {
@@ -84,9 +93,13 @@ typedef int (*fprintf_function)(FILE *f, const char *fmt, ...)
 
 #ifdef _WIN32
 #define fsync _commit
-#define lseek _lseeki64
+#if !defined(lseek)
+# define lseek _lseeki64
+#endif
 int qemu_ftruncate64(int, int64_t);
-#define ftruncate qemu_ftruncate64
+#if !defined(ftruncate)
+# define ftruncate qemu_ftruncate64
+#endif
 
 static inline char *realpath(const char *path, char *resolved_path)
 {
@@ -173,7 +186,10 @@ void *qemu_oom_check(void *ptr);
 int qemu_open(const char *name, int flags, ...);
 ssize_t qemu_write_full(int fd, const void *buf, size_t count)
     QEMU_WARN_UNUSED_RESULT;
-void qemu_set_cloexec(int fd);
+ssize_t qemu_send_full(int fd, const void *buf, size_t count, int flags)
+    QEMU_WARN_UNUSED_RESULT;
+ssize_t qemu_recv_full(int fd, void *buf, size_t count, int flags)
+    QEMU_WARN_UNUSED_RESULT;
 
 #ifndef _WIN32
 int qemu_eventfd(int pipefd[2]);
@@ -185,6 +201,9 @@ int qemu_pipe(int pipefd[2]);
 #else
 #define qemu_recv(sockfd, buf, len, flags) recv(sockfd, buf, len, flags)
 #endif
+
+int qemu_recvv(int sockfd, struct iovec *iov, int len, int iov_offset);
+int qemu_sendv(int sockfd, struct iovec *iov, int len, int iov_offset);
 
 /* Error handling.  */
 
@@ -216,7 +235,7 @@ typedef struct MACAddr MACAddr;
 typedef struct VLANState VLANState;
 typedef struct VLANClientState VLANClientState;
 typedef struct i2c_bus i2c_bus;
-typedef struct i2c_slave i2c_slave;
+typedef struct ISABus ISABus;
 typedef struct SMBusDevice SMBusDevice;
 typedef struct PCIHostState PCIHostState;
 typedef struct PCIExpressHost PCIExpressHost;
@@ -241,6 +260,14 @@ typedef struct VirtIODevice VirtIODevice;
 typedef struct QEMUSGList QEMUSGList;
 
 typedef uint64_t pcibus_t;
+
+typedef enum LostTickPolicy {
+    LOST_TICK_DISCARD,
+    LOST_TICK_DELAY,
+    LOST_TICK_MERGE,
+    LOST_TICK_SLEW,
+    LOST_TICK_MAX
+} LostTickPolicy;
 
 void tcg_exec_init(unsigned long tb_size);
 bool tcg_enabled(void);
@@ -271,6 +298,33 @@ struct qemu_work_item {
 void qemu_init_vcpu(void *env);
 #endif
 
+/**
+ * Sends an iovec (or optionally a part of it) down a socket, yielding
+ * when the socket is full.
+ */
+int qemu_co_sendv(int sockfd, struct iovec *iov,
+                  int len, int iov_offset);
+
+/**
+ * Receives data into an iovec (or optionally into a part of it) from
+ * a socket, yielding when there is no data in the socket.
+ */
+int qemu_co_recvv(int sockfd, struct iovec *iov,
+                  int len, int iov_offset);
+
+
+/**
+ * Sends a buffer down a socket, yielding when the socket is full.
+ */
+int qemu_co_send(int sockfd, void *buf, int len);
+
+/**
+ * Receives data into a buffer from a socket, yielding when there
+ * is no data in the socket.
+ */
+int qemu_co_recv(int sockfd, void *buf, int len);
+
+
 typedef struct QEMUIOVector {
     struct iovec *iov;
     int niov;
@@ -291,6 +345,8 @@ void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count);
 void qemu_iovec_memset(QEMUIOVector *qiov, int c, size_t count);
 void qemu_iovec_memset_skip(QEMUIOVector *qiov, int c, size_t count,
                             size_t skip);
+
+bool buffer_is_zero(const void *buf, size_t len);
 
 void qemu_progress_init(int enabled, float min_skip);
 void qemu_progress_end(void);
@@ -341,6 +397,12 @@ static inline uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
     res.l.low = (((rh % c) << 32) + (rl & 0xffffffff)) / c;
     return res.ll;
 }
+
+/* Round number down to multiple */
+#define QEMU_ALIGN_DOWN(n, m) ((n) / (m) * (m))
+
+/* Round number up to multiple */
+#define QEMU_ALIGN_UP(n, m) QEMU_ALIGN_DOWN((n) + (m) - 1, (m))
 
 #include "module.h"
 

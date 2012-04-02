@@ -762,8 +762,8 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
             int nb_iargs = args[0] & 0xffff;
             nb_args = nb_oargs + nb_iargs + def.nb_cargs + 1;
 
-            int flags = args[nb_oargs + nb_iargs + 1];
-            assert((flags & TCG_CALL_TYPE_MASK) == TCG_CALL_TYPE_STD);
+            //int flags = args[nb_oargs + nb_iargs + 1];
+            //assert((flags & TCG_CALL_TYPE_MASK) == TCG_CALL_TYPE_STD);
 
             std::vector<Value*> argValues;
             std::vector<Type*> argTypes;
@@ -1453,8 +1453,8 @@ uintptr_t tcg_llvm_qemu_tb_exec(void *env1, TranslationBlock *tb)
 #ifndef CONFIG_S2E
     tcg_llvm_runtime.last_tb = tb;
 #endif
-    extern CPUState *env;
-    env = (CPUState*)env1;
+    extern CPUArchState *env;
+    env = (CPUArchState*)env1;
     uintptr_t next_tb;
 
     next_tb = ((uintptr_t (*)(void*)) tb->llvm_tc_ptr)(&env);

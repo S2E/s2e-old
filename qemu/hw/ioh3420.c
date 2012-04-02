@@ -80,7 +80,7 @@ static void ioh3420_write_config(PCIDevice *d,
 
 static void ioh3420_reset(DeviceState *qdev)
 {
-    PCIDevice *d = DO_UPCAST(PCIDevice, qdev, qdev);
+    PCIDevice *d = PCI_DEVICE(qdev);
     msi_reset(d);
     ioh3420_aer_vector_update(d);
     pcie_cap_root_reset(d);
@@ -201,39 +201,48 @@ static const VMStateDescription vmstate_ioh3420 = {
     }
 };
 
-static PCIDeviceInfo ioh3420_info = {
-    .qdev.name = "ioh3420",
-    .qdev.desc = "Intel IOH device id 3420 PCIE Root Port",
-    .qdev.size = sizeof(PCIESlot),
-    .qdev.reset = ioh3420_reset,
-    .qdev.vmsd = &vmstate_ioh3420,
-
-    .is_express = 1,
-    .is_bridge = 1,
-    .config_write = ioh3420_write_config,
-    .init = ioh3420_initfn,
-    .exit = ioh3420_exitfn,
-    .vendor_id = PCI_VENDOR_ID_INTEL,
-    .device_id = PCI_DEVICE_ID_IOH_EPORT,
-    .revision = PCI_DEVICE_ID_IOH_REV,
-
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT8("port", PCIESlot, port.port, 0),
-        DEFINE_PROP_UINT8("chassis", PCIESlot, chassis, 0),
-        DEFINE_PROP_UINT16("slot", PCIESlot, slot, 0),
-        DEFINE_PROP_UINT16("aer_log_max", PCIESlot,
-                           port.br.dev.exp.aer_log.log_max,
-                           PCIE_AER_LOG_MAX_DEFAULT),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property ioh3420_properties[] = {
+    DEFINE_PROP_UINT8("port", PCIESlot, port.port, 0),
+    DEFINE_PROP_UINT8("chassis", PCIESlot, chassis, 0),
+    DEFINE_PROP_UINT16("slot", PCIESlot, slot, 0),
+    DEFINE_PROP_UINT16("aer_log_max", PCIESlot,
+    port.br.dev.exp.aer_log.log_max,
+    PCIE_AER_LOG_MAX_DEFAULT),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void ioh3420_register(void)
+static void ioh3420_class_init(ObjectClass *klass, void *data)
 {
-    pci_qdev_register(&ioh3420_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->is_express = 1;
+    k->is_bridge = 1;
+    k->config_write = ioh3420_write_config;
+    k->init = ioh3420_initfn;
+    k->exit = ioh3420_exitfn;
+    k->vendor_id = PCI_VENDOR_ID_INTEL;
+    k->device_id = PCI_DEVICE_ID_IOH_EPORT;
+    k->revision = PCI_DEVICE_ID_IOH_REV;
+    dc->desc = "Intel IOH device id 3420 PCIE Root Port";
+    dc->reset = ioh3420_reset;
+    dc->vmsd = &vmstate_ioh3420;
+    dc->props = ioh3420_properties;
 }
 
-device_init(ioh3420_register);
+static TypeInfo ioh3420_info = {
+    .name          = "ioh3420",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIESlot),
+    .class_init    = ioh3420_class_init,
+};
+
+static void ioh3420_register_types(void)
+{
+    type_register_static(&ioh3420_info);
+}
+
+type_init(ioh3420_register_types)
 
 /*
  * Local variables:

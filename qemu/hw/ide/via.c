@@ -82,7 +82,7 @@ static void bmdma_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static MemoryRegionOps via_bmdma_ops = {
+static const MemoryRegionOps via_bmdma_ops = {
     .read = bmdma_read,
     .write = bmdma_write,
 };
@@ -160,7 +160,7 @@ static void vt82c686b_init_ports(PCIIDEState *d) {
         ide_bus_new(&d->bus[i], &d->dev.qdev, i);
         ide_init_ioport(&d->bus[i], NULL, port_info[i].iobase,
                         port_info[i].iobase2);
-        ide_init2(&d->bus[i], isa_get_irq(port_info[i].isairq));
+        ide_init2(&d->bus[i], isa_get_irq(NULL, port_info[i].isairq));
 
         bmdma_init(&d->bus[i], &d->bmdma[i], d);
         d->bmdma[i].bus = &d->bus[i];
@@ -172,7 +172,7 @@ static void vt82c686b_init_ports(PCIIDEState *d) {
 /* via ide func */
 static int vt82c686b_ide_initfn(PCIDevice *dev)
 {
-    PCIIDEState *d = DO_UPCAST(PCIIDEState, dev, dev);;
+    PCIIDEState *d = DO_UPCAST(PCIIDEState, dev, dev);
     uint8_t *pci_conf = d->dev.config;
 
     pci_config_set_prog_interface(pci_conf, 0x8a); /* legacy ATA mode */
@@ -213,20 +213,30 @@ void vt82c686b_ide_init(PCIBus *bus, DriveInfo **hd_table, int devfn)
     pci_ide_create_devs(dev, hd_table);
 }
 
-static PCIDeviceInfo via_ide_info = {
-    .qdev.name    = "via-ide",
-    .qdev.size    = sizeof(PCIIDEState),
-    .qdev.no_user = 1,
-    .init         = vt82c686b_ide_initfn,
-    .exit         = vt82c686b_ide_exitfn,
-    .vendor_id    = PCI_VENDOR_ID_VIA,
-    .device_id    = PCI_DEVICE_ID_VIA_IDE,
-    .revision     = 0x06,
-    .class_id     = PCI_CLASS_STORAGE_IDE,
+static void via_ide_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = vt82c686b_ide_initfn;
+    k->exit = vt82c686b_ide_exitfn;
+    k->vendor_id = PCI_VENDOR_ID_VIA;
+    k->device_id = PCI_DEVICE_ID_VIA_IDE;
+    k->revision = 0x06;
+    k->class_id = PCI_CLASS_STORAGE_IDE;
+    dc->no_user = 1;
+}
+
+static TypeInfo via_ide_info = {
+    .name          = "via-ide",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIIDEState),
+    .class_init    = via_ide_class_init,
 };
 
-static void via_ide_register(void)
+static void via_ide_register_types(void)
 {
-    pci_qdev_register(&via_ide_info);
+    type_register_static(&via_ide_info);
 }
-device_init(via_ide_register);
+
+type_init(via_ide_register_types)

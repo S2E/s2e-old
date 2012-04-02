@@ -19,12 +19,13 @@
 
 #include "cpu.h"
 #include "trace.h"
+#include "exec-memory.h"
 
 /* Sparc MMU emulation */
 
 #if defined(CONFIG_USER_ONLY)
 
-int cpu_sparc_handle_mmu_fault(CPUState *env1, target_ulong address, int rw,
+int cpu_sparc_handle_mmu_fault(CPUSPARCState *env1, target_ulong address, int rw,
                                int mmu_idx)
 {
     if (rw & 2) {
@@ -75,7 +76,7 @@ static const int perm_table[2][8] = {
     }
 };
 
-static int get_physical_address(CPUState *env, target_phys_addr_t *physical,
+static int get_physical_address(CPUSPARCState *env, target_phys_addr_t *physical,
                                 int *prot, int *access_index,
                                 target_ulong address, int rw, int mmu_idx,
                                 target_ulong *page_size)
@@ -149,18 +150,17 @@ static int get_physical_address(CPUState *env, target_phys_addr_t *physical,
                 case 3: /* Reserved */
                     return (3 << 8) | (4 << 2);
                 case 2: /* L3 PTE */
-                    page_offset = (address & TARGET_PAGE_MASK) &
-                        (TARGET_PAGE_SIZE - 1);
+                    page_offset = 0;
                 }
                 *page_size = TARGET_PAGE_SIZE;
                 break;
             case 2: /* L2 PTE */
-                page_offset = address & 0x3ffff;
+                page_offset = address & 0x3f000;
                 *page_size = 0x40000;
             }
             break;
         case 2: /* L1 PTE */
-            page_offset = address & 0xffffff;
+            page_offset = address & 0xfff000;
             *page_size = 0x1000000;
         }
     }
@@ -197,7 +197,7 @@ static int get_physical_address(CPUState *env, target_phys_addr_t *physical,
 }
 
 /* Perform address translation */
-int cpu_sparc_handle_mmu_fault(CPUState *env, target_ulong address, int rw,
+int cpu_sparc_handle_mmu_fault(CPUSPARCState *env, target_ulong address, int rw,
                                int mmu_idx)
 {
     target_phys_addr_t paddr;
@@ -205,11 +205,11 @@ int cpu_sparc_handle_mmu_fault(CPUState *env, target_ulong address, int rw,
     target_ulong page_size;
     int error_code = 0, prot, access_index;
 
+    address &= TARGET_PAGE_MASK;
     error_code = get_physical_address(env, &paddr, &prot, &access_index,
                                       address, rw, mmu_idx, &page_size);
+    vaddr = address;
     if (error_code == 0) {
-        vaddr = address & TARGET_PAGE_MASK;
-        paddr &= TARGET_PAGE_MASK;
 #ifdef DEBUG_MMU
         printf("Translate at " TARGET_FMT_lx " -> " TARGET_FMT_plx ", vaddr "
                TARGET_FMT_lx "\n", address, paddr, vaddr);
@@ -229,7 +229,6 @@ int cpu_sparc_handle_mmu_fault(CPUState *env, target_ulong address, int rw,
            permissions. If no mapping is available, redirect accesses to
            neverland. Fake/overridden mappings will be flushed when
            switching to normal mode. */
-        vaddr = address & TARGET_PAGE_MASK;
         prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
         tlb_set_page(env, vaddr, paddr, prot, mmu_idx, TARGET_PAGE_SIZE);
         return 0;
@@ -243,7 +242,7 @@ int cpu_sparc_handle_mmu_fault(CPUState *env, target_ulong address, int rw,
     }
 }
 
-target_ulong mmu_probe(CPUState *env, target_ulong address, int mmulev)
+target_ulong mmu_probe(CPUSPARCState *env, target_ulong address, int mmulev)
 {
     target_phys_addr_t pde_ptr;
     uint32_t pde;
@@ -309,7 +308,7 @@ target_ulong mmu_probe(CPUState *env, target_ulong address, int mmulev)
     return 0;
 }
 
-void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUState *env)
+void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUSPARCState *env)
 {
     target_ulong va, va1, va2;
     unsigned int n, m, o;
@@ -353,7 +352,7 @@ void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUState *env)
  * reads (and only reads) in stack frames as if windows were flushed. We assume
  * that the sparc ABI is followed.
  */
-int target_memory_rw_debug(CPUState *env, target_ulong addr,
+int target_memory_rw_debug(CPUSPARCState *env, target_ulong addr,
                            uint8_t *buf, int len, int is_write)
 {
     int i;
@@ -478,7 +477,7 @@ static inline int ultrasparc_tag_match(SparcTLBEntry *tlb,
     return 0;
 }
 
-static int get_physical_address_data(CPUState *env,
+static int get_physical_address_data(CPUSPARCState *env,
                                      target_phys_addr_t *physical, int *prot,
                                      target_ulong address, int rw, int mmu_idx)
 {
@@ -597,7 +596,7 @@ static int get_physical_address_data(CPUState *env,
     return 1;
 }
 
-static int get_physical_address_code(CPUState *env,
+static int get_physical_address_code(CPUSPARCState *env,
                                      target_phys_addr_t *physical, int *prot,
                                      target_ulong address, int mmu_idx)
 {
@@ -666,7 +665,7 @@ static int get_physical_address_code(CPUState *env,
     return 1;
 }
 
-static int get_physical_address(CPUState *env, target_phys_addr_t *physical,
+static int get_physical_address(CPUSPARCState *env, target_phys_addr_t *physical,
                                 int *prot, int *access_index,
                                 target_ulong address, int rw, int mmu_idx,
                                 target_ulong *page_size)
@@ -700,20 +699,19 @@ static int get_physical_address(CPUState *env, target_phys_addr_t *physical,
 }
 
 /* Perform address translation */
-int cpu_sparc_handle_mmu_fault(CPUState *env, target_ulong address, int rw,
+int cpu_sparc_handle_mmu_fault(CPUSPARCState *env, target_ulong address, int rw,
                                int mmu_idx)
 {
-    target_ulong virt_addr, vaddr;
+    target_ulong vaddr;
     target_phys_addr_t paddr;
     target_ulong page_size;
     int error_code = 0, prot, access_index;
 
+    address &= TARGET_PAGE_MASK;
     error_code = get_physical_address(env, &paddr, &prot, &access_index,
                                       address, rw, mmu_idx, &page_size);
     if (error_code == 0) {
-        virt_addr = address & TARGET_PAGE_MASK;
-        vaddr = virt_addr + ((address & TARGET_PAGE_MASK) &
-                             (TARGET_PAGE_SIZE - 1));
+        vaddr = address;
 
         trace_mmu_helper_mmu_fault(address, paddr, mmu_idx, env->tl,
                                    env->dmmu.mmu_primary_context,
@@ -726,7 +724,7 @@ int cpu_sparc_handle_mmu_fault(CPUState *env, target_ulong address, int rw,
     return 1;
 }
 
-void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUState *env)
+void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUSPARCState *env)
 {
     unsigned int i;
     const char *mask;
@@ -812,7 +810,7 @@ void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUState *env)
 
 #endif /* TARGET_SPARC64 */
 
-static int cpu_sparc_get_phys_page(CPUState *env, target_phys_addr_t *phys,
+static int cpu_sparc_get_phys_page(CPUSPARCState *env, target_phys_addr_t *phys,
                                    target_ulong addr, int rw, int mmu_idx)
 {
     target_ulong page_size;
@@ -823,7 +821,7 @@ static int cpu_sparc_get_phys_page(CPUState *env, target_phys_addr_t *phys,
 }
 
 #if defined(TARGET_SPARC64)
-target_phys_addr_t cpu_get_phys_page_nofault(CPUState *env, target_ulong addr,
+target_phys_addr_t cpu_get_phys_page_nofault(CPUSPARCState *env, target_ulong addr,
                                            int mmu_idx)
 {
     target_phys_addr_t phys_addr;
@@ -835,17 +833,19 @@ target_phys_addr_t cpu_get_phys_page_nofault(CPUState *env, target_ulong addr,
 }
 #endif
 
-target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
+target_phys_addr_t cpu_get_phys_page_debug(CPUSPARCState *env, target_ulong addr)
 {
     target_phys_addr_t phys_addr;
     int mmu_idx = cpu_mmu_index(env);
+    MemoryRegionSection section;
 
     if (cpu_sparc_get_phys_page(env, &phys_addr, addr, 2, mmu_idx) != 0) {
         if (cpu_sparc_get_phys_page(env, &phys_addr, addr, 0, mmu_idx) != 0) {
             return -1;
         }
     }
-    if (cpu_get_physical_page_desc(phys_addr) == IO_MEM_UNASSIGNED) {
+    section = memory_region_find(get_system_memory(), phys_addr, 1);
+    if (!section.size) {
         return -1;
     }
     return phys_addr;

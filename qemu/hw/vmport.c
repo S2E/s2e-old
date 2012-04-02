@@ -1,7 +1,7 @@
 /*
  * QEMU VMPort emulation
  *
- * Copyright (C) 2007 Hervé Poussineau
+ * Copyright (C) 2007 HervÃ© Poussineau
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,7 +57,7 @@ void vmport_register(unsigned char command, IOPortReadFunc *func, void *opaque)
 static uint32_t vmport_ioport_read(void *opaque, uint32_t addr)
 {
     VMPortState *s = opaque;
-    CPUState *env = cpu_single_env;
+    CPUX86State *env = cpu_single_env;
     unsigned char command;
     uint32_t eax;
 
@@ -83,21 +83,21 @@ static uint32_t vmport_ioport_read(void *opaque, uint32_t addr)
 
 static void vmport_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 {
-    CPUState *env = cpu_single_env;
+    CPUX86State *env = cpu_single_env;
 
     env->regs[R_EAX] = vmport_ioport_read(opaque, addr);
 }
 
 static uint32_t vmport_cmd_get_version(void *opaque, uint32_t addr)
 {
-    CPUState *env = cpu_single_env;
+    CPUX86State *env = cpu_single_env;
     env->regs[R_EBX] = VMPORT_MAGIC;
     return 6;
 }
 
 static uint32_t vmport_cmd_ram_size(void *opaque, uint32_t addr)
 {
-    CPUState *env = cpu_single_env;
+    CPUX86State *env = cpu_single_env;
     env->regs[R_EBX] = 0x1177;
     return ram_size;
 }
@@ -105,7 +105,7 @@ static uint32_t vmport_cmd_ram_size(void *opaque, uint32_t addr)
 /* vmmouse helpers */
 void vmmouse_get_data(uint32_t *data)
 {
-    CPUState *env = cpu_single_env;
+    CPUX86State *env = cpu_single_env;
 
     data[0] = env->regs[R_EAX]; data[1] = env->regs[R_EBX];
     data[2] = env->regs[R_ECX]; data[3] = env->regs[R_EDX];
@@ -114,7 +114,7 @@ void vmmouse_get_data(uint32_t *data)
 
 void vmmouse_set_data(const uint32_t *data)
 {
-    CPUState *env = cpu_single_env;
+    CPUX86State *env = cpu_single_env;
 
     env->regs[R_EAX] = data[0]; env->regs[R_EBX] = data[1];
     env->regs[R_ECX] = data[2]; env->regs[R_EDX] = data[3];
@@ -144,15 +144,24 @@ static int vmport_initfn(ISADevice *dev)
     return 0;
 }
 
-static ISADeviceInfo vmport_info = {
-    .qdev.name     = "vmport",
-    .qdev.size     = sizeof(VMPortState),
-    .qdev.no_user  = 1,
-    .init          = vmport_initfn,
+static void vmport_class_initfn(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
+    ic->init = vmport_initfn;
+    dc->no_user = 1;
+}
+
+static TypeInfo vmport_info = {
+    .name          = "vmport",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(VMPortState),
+    .class_init    = vmport_class_initfn,
 };
 
-static void vmport_dev_register(void)
+static void vmport_register_types(void)
 {
-    isa_qdev_register(&vmport_info);
+    type_register_static(&vmport_info);
 }
-device_init(vmport_dev_register)
+
+type_init(vmport_register_types)

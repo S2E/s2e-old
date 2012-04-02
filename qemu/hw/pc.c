@@ -50,9 +50,12 @@
 #include "elf.h"
 #include "multiboot.h"
 #include "mc146818rtc.h"
-#include "msix.h"
+#include "i8254.h"
+#include "pcspk.h"
+#include "msi.h"
 #include "sysbus.h"
 #include "sysemu.h"
+#include "kvm.h"
 #include "blockdev.h"
 #include "ui/qemu-spice.h"
 #include "memory.h"
@@ -75,10 +78,6 @@
 #else
 #define DPRINTF(fmt, ...)
 #endif
-
-#define BIOS_FILENAME "bios.bin"
-
-#define PC_MAX_BIOS_SIZE (4 * 1024 * 1024)
 
 /* Leave a chunk of memory at the top of RAM for the BIOS ACPI tables.  */
 #define ACPI_DATA_SIZE       0x10000
@@ -160,7 +159,7 @@ void cpu_smm_register(cpu_set_smm_t callback, void *arg)
     smm_arg = arg;
 }
 
-void cpu_smm_update(CPUState *env)
+void cpu_smm_update(CPUX86State *env)
 {
     if (smm_set && smm_arg && env == first_cpu)
         smm_set(!!(env->hflags & HF_SMM_MASK), smm_arg);
@@ -168,7 +167,7 @@ void cpu_smm_update(CPUState *env)
 
 
 /* IRQ handling */
-int cpu_get_pic_interrupt(CPUState *env)
+int cpu_get_pic_interrupt(CPUX86State *env)
 {
     int intno;
 
@@ -187,7 +186,7 @@ int cpu_get_pic_interrupt(CPUState *env)
 
 static void pic_irq_request(void *opaque, int irq, int level)
 {
-    CPUState *env = first_cpu;
+    CPUX86State *env = first_cpu;
 
     DPRINTF("pic_irqs: %s irq %d\n", level? "raise" : "lower", irq);
     if (env->apic_state) {
@@ -355,6 +354,7 @@ void pc_cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
 {
     int val, nb, nb_heads, max_track, last_sect, i;
     FDriveType fd_type[2] = { FDRIVE_DRV_NONE, FDRIVE_DRV_NONE };
+    FDriveRate rate;
     BlockDriverState *fd[MAX_FD];
     static pc_cmos_init_late_arg arg;
 
@@ -403,7 +403,7 @@ void pc_cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
             if (fd[i] && bdrv_is_inserted(fd[i])) {
                 bdrv_get_floppy_geometry_hint(fd[i], &nb_heads, &max_track,
                                               &last_sect, FDRIVE_DRV_NONE,
-                                              &fd_type[i]);
+                                              &fd_type[i], &rate);
             }
         }
     }
@@ -515,24 +515,33 @@ static int port92_initfn(ISADevice *dev)
     return 0;
 }
 
-static ISADeviceInfo port92_info = {
-    .qdev.name     = "port92",
-    .qdev.size     = sizeof(Port92State),
-    .qdev.vmsd     = &vmstate_port92_isa,
-    .qdev.no_user  = 1,
-    .qdev.reset    = port92_reset,
-    .init          = port92_initfn,
+static void port92_class_initfn(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
+    ic->init = port92_initfn;
+    dc->no_user = 1;
+    dc->reset = port92_reset;
+    dc->vmsd = &vmstate_port92_isa;
+}
+
+static TypeInfo port92_info = {
+    .name          = "port92",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(Port92State),
+    .class_init    = port92_class_initfn,
 };
 
-static void port92_register(void)
+static void port92_register_types(void)
 {
-    isa_qdev_register(&port92_info);
+    type_register_static(&port92_info);
 }
-device_init(port92_register)
+
+type_init(port92_register_types)
 
 static void handle_a20_line_change(void *opaque, int irq, int level)
 {
-    CPUState *cpu = opaque;
+    CPUX86State *cpu = opaque;
 
     /* XXX: send to all CPUs ? */
     /* XXX: add logic to handle multiple A20 line sources */
@@ -628,7 +637,7 @@ static void *bochs_bios_init(void)
     fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
     fw_cfg_add_bytes(fw_cfg, FW_CFG_ACPI_TABLES, (uint8_t *)acpi_tables,
                      acpi_tables_len);
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_IRQ0_OVERRIDE, &irq0override, 1);
+    fw_cfg_add_i32(fw_cfg, FW_CFG_IRQ0_OVERRIDE, kvm_allows_irq0_override());
 
     smbios_table = smbios_get_table(&smbios_len);
     if (smbios_table)
@@ -643,9 +652,9 @@ static void *bochs_bios_init(void)
      * of nodes, one word for each VCPU->node and one word for each node to
      * hold the amount of memory.
      */
-    numa_fw_cfg = g_malloc0((1 + smp_cpus + nb_numa_nodes) * 8);
+    numa_fw_cfg = g_malloc0((1 + max_cpus + nb_numa_nodes) * 8);
     numa_fw_cfg[0] = cpu_to_le64(nb_numa_nodes);
-    for (i = 0; i < smp_cpus; i++) {
+    for (i = 0; i < max_cpus; i++) {
         for (j = 0; j < nb_numa_nodes; j++) {
             if (node_cpumask[j] & (1 << i)) {
                 numa_fw_cfg[i + 1] = cpu_to_le64(j);
@@ -654,10 +663,10 @@ static void *bochs_bios_init(void)
         }
     }
     for (i = 0; i < nb_numa_nodes; i++) {
-        numa_fw_cfg[smp_cpus + 1 + i] = cpu_to_le64(node_mem[i]);
+        numa_fw_cfg[max_cpus + 1 + i] = cpu_to_le64(node_mem[i]);
     }
     fw_cfg_add_bytes(fw_cfg, FW_CFG_NUMA, (uint8_t *)numa_fw_cfg,
-                     (1 + smp_cpus + nb_numa_nodes) * 8);
+                     (1 + max_cpus + nb_numa_nodes) * 8);
 
     return fw_cfg;
 }
@@ -868,18 +877,18 @@ static const int ne2000_irq[NE2000_NB_MAX] = { 9, 10, 11, 3, 4, 5 };
 static const int parallel_io[MAX_PARALLEL_PORTS] = { 0x378, 0x278, 0x3bc };
 static const int parallel_irq[MAX_PARALLEL_PORTS] = { 7, 7, 7 };
 
-void pc_init_ne2k_isa(NICInfo *nd)
+void pc_init_ne2k_isa(ISABus *bus, NICInfo *nd)
 {
     static int nb_ne2k = 0;
 
     if (nb_ne2k == NE2000_NB_MAX)
         return;
-    isa_ne2000_init(ne2000_io[nb_ne2k],
+    isa_ne2000_init(bus, ne2000_io[nb_ne2k],
                     ne2000_irq[nb_ne2k], nd);
     nb_ne2k++;
 }
 
-int cpu_is_bsp(CPUState *env)
+int cpu_is_bsp(CPUX86State *env)
 {
     /* We hard-wire the BSP to the first CPU. */
     return env->cpu_index == 0;
@@ -897,43 +906,37 @@ DeviceState *cpu_get_current_apic(void)
 static DeviceState *apic_init(void *env, uint8_t apic_id)
 {
     DeviceState *dev;
-    SysBusDevice *d;
     static int apic_mapped;
 
-    dev = qdev_create(NULL, "apic");
+    if (kvm_irqchip_in_kernel()) {
+        dev = qdev_create(NULL, "kvm-apic");
+    } else {
+        dev = qdev_create(NULL, "apic");
+    }
     qdev_prop_set_uint8(dev, "id", apic_id);
     qdev_prop_set_ptr(dev, "cpu_env", env);
     qdev_init_nofail(dev);
-    d = sysbus_from_qdev(dev);
 
     /* XXX: mapping more APICs at the same memory location */
     if (apic_mapped == 0) {
         /* NOTE: the APIC is directly connected to the CPU - it is not
            on the global memory bus. */
         /* XXX: what if the base changes? */
-        sysbus_mmio_map(d, 0, MSI_ADDR_BASE);
+        sysbus_mmio_map(sysbus_from_qdev(dev), 0, MSI_ADDR_BASE);
         apic_mapped = 1;
     }
 
-    msix_supported = 1;
+    /* KVM does not support MSI yet. */
+    if (!kvm_irqchip_in_kernel()) {
+        msi_supported = true;
+    }
 
     return dev;
 }
 
-/* set CMOS shutdown status register (index 0xF) as S3_resume(0xFE)
-   BIOS will read it and start S3 resume at POST Entry */
-void pc_cmos_set_s3_resume(void *opaque, int irq, int level)
-{
-    ISADevice *s = opaque;
-
-    if (level) {
-        rtc_set_memory(s, 0xF, 0xFE);
-    }
-}
-
 void pc_acpi_smi_interrupt(void *opaque, int irq, int level)
 {
-    CPUState *s = opaque;
+    CPUX86State *s = opaque;
 
     if (level) {
         cpu_interrupt(s, CPU_INTERRUPT_SMI);
@@ -942,17 +945,17 @@ void pc_acpi_smi_interrupt(void *opaque, int irq, int level)
 
 static void pc_cpu_reset(void *opaque)
 {
-    CPUState *env1 = opaque;
-    extern CPUState *env;
+    CPUX86State *env1 = opaque;
+    extern CPUX86State *env;
     env = env1;
 
-    cpu_reset(env);
+    cpu_state_reset(env);
     env->halted = !cpu_is_bsp(env);
 }
 
-static CPUState *pc_new_cpu(const char *cpu_model)
+static CPUX86State *pc_new_cpu(const char *cpu_model)
 {
-    CPUState *env;
+    CPUX86State *env;
 
     env = cpu_init(cpu_model);
     if (!env) {
@@ -999,26 +1002,26 @@ void pc_memory_init(MemoryRegion *system_memory,
                     MemoryRegion *rom_memory,
                     MemoryRegion **ram_memory)
 {
-    char *filename;
-    int ret, linux_boot, i;
-    MemoryRegion *ram, *bios, *isa_bios, *option_rom_mr;
+    int linux_boot, i;
+    MemoryRegion *ram, *option_rom_mr;
     MemoryRegion *ram_below_4g, *ram_above_4g;
-    int bios_size, isa_bios_size;
     void *fw_cfg;
 
     linux_boot = (kernel_filename != NULL);
 
     /* Allocate RAM.  We allocate it as a single memory region and use
-     * aliases to address portions of it, mostly for backwards compatiblity
+     * aliases to address portions of it, mostly for backwards compatibility
      * with older qemus that used qemu_ram_alloc().
      */
     ram = g_malloc(sizeof(*ram));
-    memory_region_init_ram(ram, NULL, "pc.ram",
+    memory_region_init_ram(ram, "pc.ram",
                            below_4g_mem_size + above_4g_mem_size);
 #ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state, -1, below_4g_mem_size + above_4g_mem_size,
                      (uint64_t)memory_region_get_ram_ptr(ram), 0, 0, "pc.ram");
 #endif
+
+    vmstate_register_ram_global(ram);
 
     *ram_memory = ram;
     ram_below_4g = g_malloc(sizeof(*ram_below_4g));
@@ -1033,52 +1036,12 @@ void pc_memory_init(MemoryRegion *system_memory,
                                     ram_above_4g);
     }
 
-    /* BIOS load */
-    if (bios_name == NULL)
-        bios_name = BIOS_FILENAME;
-    filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
-    if (filename) {
-        bios_size = get_image_size(filename);
-    } else {
-        bios_size = -1;
-    }
-    if (bios_size <= 0 ||
-        (bios_size % 65536) != 0) {
-        goto bios_error;
-    }
-    bios = g_malloc(sizeof(*bios));
-    memory_region_init_ram(bios, NULL, "pc.bios", bios_size);
-
-#ifdef CONFIG_S2E
-    s2e_register_ram(g_s2e, g_s2e_state, -1, bios_size,
-                     (uint64_t) memory_region_get_ram_ptr(bios), 1, 0, "pc.bios");
-#endif
-
-    memory_region_set_readonly(bios, true);
-    ret = rom_add_file_fixed(bios_name, (uint32_t)(-bios_size), -1);
-    if (ret != 0) {
-    bios_error:
-        fprintf(stderr, "qemu: could not load PC BIOS '%s'\n", bios_name);
-        exit(1);
-    }
-    if (filename) {
-        g_free(filename);
-    }
-    /* map the last 128KB of the BIOS in ISA space */
-    isa_bios_size = bios_size;
-    if (isa_bios_size > (128 * 1024))
-        isa_bios_size = 128 * 1024;
-    isa_bios = g_malloc(sizeof(*isa_bios));
-    memory_region_init_alias(isa_bios, "isa-bios", bios,
-                             bios_size - isa_bios_size, isa_bios_size);
-    memory_region_add_subregion_overlap(rom_memory,
-                                        0x100000 - isa_bios_size,
-                                        isa_bios,
-                                        1);
-    memory_region_set_readonly(isa_bios, true);
+    /* Initialize PC system firmware */
+    pc_system_firmware_init(rom_memory);
 
     option_rom_mr = g_malloc(sizeof(*option_rom_mr));
-    memory_region_init_ram(option_rom_mr, NULL, "pc.rom", PC_ROM_SIZE);
+    memory_region_init_ram(option_rom_mr, "pc.rom", PC_ROM_SIZE);
+    vmstate_register_ram_global(option_rom_mr);
 
 #ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state, -1, PC_ROM_SIZE,
@@ -1089,11 +1052,6 @@ void pc_memory_init(MemoryRegion *system_memory,
                                         PC_ROM_MIN_VGA,
                                         option_rom_mr,
                                         1);
-
-    /* map all the bios at the top of memory */
-    memory_region_add_subregion(rom_memory,
-                                (uint32_t)(-bios_size),
-                                bios);
 
     fw_cfg = bochs_bios_init();
     rom_set_fw(fw_cfg);
@@ -1112,56 +1070,60 @@ qemu_irq *pc_allocate_cpu_irq(void)
     return qemu_allocate_irqs(pic_irq_request, NULL, 1);
 }
 
-void pc_vga_init(PCIBus *pci_bus)
+DeviceState *pc_vga_init(ISABus *isa_bus, PCIBus *pci_bus)
 {
+    DeviceState *dev = NULL;
+
     if (cirrus_vga_enabled) {
         if (pci_bus) {
-            pci_cirrus_vga_init(pci_bus);
+            dev = pci_cirrus_vga_init(pci_bus);
         } else {
-            isa_cirrus_vga_init(get_system_memory());
+            dev = &isa_create_simple(isa_bus, "isa-cirrus-vga")->qdev;
         }
     } else if (vmsvga_enabled) {
         if (pci_bus) {
-            if (!pci_vmsvga_init(pci_bus)) {
-                fprintf(stderr, "Warning: vmware_vga not available,"
-                        " using standard VGA instead\n");
-                pci_vga_init(pci_bus);
-            }
+            dev = pci_vmsvga_init(pci_bus);
         } else {
             fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __FUNCTION__);
         }
 #ifdef CONFIG_SPICE
     } else if (qxl_enabled) {
-        if (pci_bus)
-            pci_create_simple(pci_bus, -1, "qxl-vga");
-        else
+        if (pci_bus) {
+            dev = &pci_create_simple(pci_bus, -1, "qxl-vga")->qdev;
+        } else {
             fprintf(stderr, "%s: qxl: no PCI bus\n", __FUNCTION__);
+        }
 #endif
     } else if (std_vga_enabled) {
         if (pci_bus) {
-            pci_vga_init(pci_bus);
+            dev = pci_vga_init(pci_bus);
         } else {
-            isa_vga_init();
+            dev = isa_vga_init(isa_bus);
         }
     }
+
+    return dev;
 }
 
 static void cpu_request_exit(void *opaque, int irq, int level)
 {
-    CPUState *env = cpu_single_env;
+    CPUX86State *env = cpu_single_env;
 
     if (env && level) {
         cpu_exit(env);
     }
 }
 
-void pc_basic_device_init(qemu_irq *gsi,
+void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
                           ISADevice **rtc_state,
                           ISADevice **floppy,
                           bool no_vmport)
 {
     int i;
     DriveInfo *fd[MAX_FD];
+    DeviceState *hpet = NULL;
+    int pit_isa_irq = 0;
+    qemu_irq pit_alt_irq = NULL;
     qemu_irq rtc_irq = NULL;
     qemu_irq *a20_line;
     ISADevice *i8042, *port92, *vmmouse, *pit;
@@ -1171,41 +1133,57 @@ void pc_basic_device_init(qemu_irq *gsi,
 
     register_ioport_write(0xf0, 1, 1, ioportF0_write, NULL);
 
-    if (!no_hpet) {
-        DeviceState *hpet = sysbus_try_create_simple("hpet", HPET_BASE, NULL);
+    /*
+     * Check if an HPET shall be created.
+     *
+     * Without KVM_CAP_PIT_STATE2, we cannot switch off the in-kernel PIT
+     * when the HPET wants to take over. Thus we have to disable the latter.
+     */
+    if (!no_hpet && (!kvm_irqchip_in_kernel() || kvm_has_pit_state2())) {
+        hpet = sysbus_try_create_simple("hpet", HPET_BASE, NULL);
 
         if (hpet) {
             for (i = 0; i < GSI_NUM_PINS; i++) {
                 sysbus_connect_irq(sysbus_from_qdev(hpet), i, gsi[i]);
             }
-            rtc_irq = qdev_get_gpio_in(hpet, 0);
+            pit_isa_irq = -1;
+            pit_alt_irq = qdev_get_gpio_in(hpet, HPET_LEGACY_PIT_INT);
+            rtc_irq = qdev_get_gpio_in(hpet, HPET_LEGACY_RTC_INT);
         }
     }
-    *rtc_state = rtc_init(2000, rtc_irq);
+    *rtc_state = rtc_init(isa_bus, 2000, rtc_irq);
 
     qemu_register_boot_set(pc_boot_set, *rtc_state);
 
-    pit = pit_init(0x40, 0);
-    pcspk_init(pit);
+    if (kvm_irqchip_in_kernel()) {
+        pit = kvm_pit_init(isa_bus, 0x40);
+    } else {
+        pit = pit_init(isa_bus, 0x40, pit_isa_irq, pit_alt_irq);
+    }
+    if (hpet) {
+        /* connect PIT to output control line of the HPET */
+        qdev_connect_gpio_out(hpet, 0, qdev_get_gpio_in(&pit->qdev, 0));
+    }
+    pcspk_init(isa_bus, pit);
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
         if (serial_hds[i]) {
-            serial_isa_init(i, serial_hds[i]);
+            serial_isa_init(isa_bus, i, serial_hds[i]);
         }
     }
 
     for(i = 0; i < MAX_PARALLEL_PORTS; i++) {
         if (parallel_hds[i]) {
-            parallel_init(i, parallel_hds[i]);
+            parallel_init(isa_bus, i, parallel_hds[i]);
         }
     }
 
     a20_line = qemu_allocate_irqs(handle_a20_line_change, first_cpu, 2);
-    i8042 = isa_create_simple("i8042");
+    i8042 = isa_create_simple(isa_bus, "i8042");
     i8042_setup_a20_line(i8042, &a20_line[0]);
     if (!no_vmport) {
-        vmport_init();
-        vmmouse = isa_try_create("vmmouse");
+        vmport_init(isa_bus);
+        vmmouse = isa_try_create(isa_bus, "vmmouse");
     } else {
         vmmouse = NULL;
     }
@@ -1213,7 +1191,7 @@ void pc_basic_device_init(qemu_irq *gsi,
         qdev_prop_set_ptr(&vmmouse->qdev, "ps2_mouse", i8042);
         qdev_init_nofail(&vmmouse->qdev);
     }
-    port92 = isa_create_simple("port92");
+    port92 = isa_create_simple(isa_bus, "port92");
     port92_init(port92, &a20_line[1]);
 
     cpu_exit_irq = qemu_allocate_irqs(cpu_request_exit, NULL, 1);
@@ -1222,7 +1200,7 @@ void pc_basic_device_init(qemu_irq *gsi,
     for(i = 0; i < MAX_FD; i++) {
         fd[i] = drive_get(IF_FLOPPY, 0, i);
     }
-    *floppy = fdctrl_init_isa(fd);
+    *floppy = fdctrl_init_isa(isa_bus, fd);
 }
 
 void pc_pci_device_init(PCIBus *pci_bus)

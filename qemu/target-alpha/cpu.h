@@ -21,10 +21,11 @@
 #define __CPU_ALPHA_H__
 
 #include "config.h"
+#include "qemu-common.h"
 
 #define TARGET_LONG_BITS 64
 
-#define CPUState struct CPUAlphaState
+#define CPUArchState struct CPUAlphaState
 
 #include "cpu-defs.h"
 
@@ -233,7 +234,6 @@ struct CPUAlphaState {
     uint8_t fpcr_exc_mask;
     uint8_t fpcr_dyn_round;
     uint8_t fpcr_flush_to_zero;
-    uint8_t fpcr_dnz;
     uint8_t fpcr_dnod;
     uint8_t fpcr_undz;
 
@@ -374,7 +374,7 @@ enum {
     PS_USER_MODE = 8
 };
 
-static inline int cpu_mmu_index(CPUState *env)
+static inline int cpu_mmu_index(CPUAlphaState *env)
 {
     if (env->pal_mode) {
         return MMU_KERNEL_IDX;
@@ -429,16 +429,19 @@ int cpu_alpha_exec(CPUAlphaState *s);
    is returned if the signal was handled by the virtual CPU.  */
 int cpu_alpha_signal_handler(int host_signum, void *pinfo,
                              void *puc);
-int cpu_alpha_handle_mmu_fault (CPUState *env, uint64_t address, int rw,
+int cpu_alpha_handle_mmu_fault (CPUAlphaState *env, uint64_t address, int rw,
                                 int mmu_idx);
 #define cpu_handle_mmu_fault cpu_alpha_handle_mmu_fault
-void do_interrupt (CPUState *env);
+void do_interrupt (CPUAlphaState *env);
+void do_restore_state(CPUAlphaState *, void *retaddr);
+void QEMU_NORETURN dynamic_excp(CPUAlphaState *, void *, int, int);
+void QEMU_NORETURN arith_excp(CPUAlphaState *, void *, int, uint64_t);
 
-uint64_t cpu_alpha_load_fpcr (CPUState *env);
-void cpu_alpha_store_fpcr (CPUState *env, uint64_t val);
+uint64_t cpu_alpha_load_fpcr (CPUAlphaState *env);
+void cpu_alpha_store_fpcr (CPUAlphaState *env, uint64_t val);
 #ifndef CONFIG_USER_ONLY
-void swap_shadow_regs(CPUState *env);
-QEMU_NORETURN void cpu_unassigned_access(CPUState *env1,
+void swap_shadow_regs(CPUAlphaState *env);
+QEMU_NORETURN void cpu_unassigned_access(CPUAlphaState *env1,
                                          target_phys_addr_t addr, int is_write,
                                          int is_exec, int unused, int size);
 #endif
@@ -458,7 +461,7 @@ enum {
     TB_FLAGS_AMASK_PREFETCH = AMASK_PREFETCH << TB_FLAGS_AMASK_SHIFT,
 };
 
-static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
+static inline void cpu_get_tb_cpu_state(CPUAlphaState *env, target_ulong *pc,
                                         target_ulong *cs_base, int *pflags)
 {
     int flags = 0;
@@ -480,7 +483,7 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
 }
 
 #if defined(CONFIG_USER_ONLY)
-static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
+static inline void cpu_clone_regs(CPUAlphaState *env, target_ulong newsp)
 {
     if (newsp) {
         env->ir[IR_SP] = newsp;
@@ -489,13 +492,13 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
     env->ir[IR_A3] = 0;
 }
 
-static inline void cpu_set_tls(CPUState *env, target_ulong newtls)
+static inline void cpu_set_tls(CPUAlphaState *env, target_ulong newtls)
 {
     env->unique = newtls;
 }
 #endif
 
-static inline bool cpu_has_work(CPUState *env)
+static inline bool cpu_has_work(CPUAlphaState *env)
 {
     /* Here we are checking to see if the CPU should wake up from HALT.
        We will have gotten into this state only for WTINT from PALmode.  */
@@ -512,7 +515,7 @@ static inline bool cpu_has_work(CPUState *env)
 
 #include "exec-all.h"
 
-static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
+static inline void cpu_pc_from_tb(CPUAlphaState *env, TranslationBlock *tb)
 {
     env->pc = tb->pc;
 }

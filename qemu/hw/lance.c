@@ -121,7 +121,7 @@ static int lance_init(SysBusDevice *dev)
 
     qdev_init_gpio_in(&dev->qdev, parent_lance_reset, 1);
 
-    sysbus_init_mmio_region(dev, &s->mmio);
+    sysbus_init_mmio(dev, &s->mmio);
 
     sysbus_init_irq(dev, &s->irq);
 
@@ -137,22 +137,34 @@ static void lance_reset(DeviceState *dev)
     pcnet_h_reset(&d->state);
 }
 
-static SysBusDeviceInfo lance_info = {
-    .init       = lance_init,
-    .qdev.name  = "lance",
-    .qdev.fw_name  = "ethernet",
-    .qdev.size  = sizeof(SysBusPCNetState),
-    .qdev.reset = lance_reset,
-    .qdev.vmsd  = &vmstate_lance,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_PTR("dma", SysBusPCNetState, state.dma_opaque),
-        DEFINE_NIC_PROPERTIES(SysBusPCNetState, state.conf),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property lance_properties[] = {
+    DEFINE_PROP_PTR("dma", SysBusPCNetState, state.dma_opaque),
+    DEFINE_NIC_PROPERTIES(SysBusPCNetState, state.conf),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void lance_register_devices(void)
+static void lance_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&lance_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = lance_init;
+    dc->fw_name = "ethernet";
+    dc->reset = lance_reset;
+    dc->vmsd = &vmstate_lance;
+    dc->props = lance_properties;
 }
-device_init(lance_register_devices)
+
+static TypeInfo lance_info = {
+    .name          = "lance",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SysBusPCNetState),
+    .class_init    = lance_class_init,
+};
+
+static void lance_register_types(void)
+{
+    type_register_static(&lance_info);
+}
+
+type_init(lance_register_types)

@@ -5,7 +5,8 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * published by the Free Software Foundation, or (at your option) any
+ * later version. See the COPYING file in the top-level directory.
  */
 #include "cpu.h"
 #include "dyngen-exec.h"
@@ -28,9 +29,9 @@ static target_ulong asr_read(void)
         (env->CF << 29) | ((env->VF & 0x80000000) >> 3);
 }
 
-target_ulong cpu_asr_read(CPUState *env1)
+target_ulong cpu_asr_read(CPUUniCore32State *env1)
 {
-    CPUState *saved_env;
+    CPUUniCore32State *saved_env;
     target_ulong ret;
 
     saved_env = env;
@@ -61,9 +62,9 @@ static void asr_write(target_ulong val, target_ulong mask)
     env->uncached_asr = (env->uncached_asr & ~mask) | (val & mask);
 }
 
-void cpu_asr_write(CPUState *env1, target_ulong val, target_ulong mask)
+void cpu_asr_write(CPUUniCore32State *env1, target_ulong val, target_ulong mask)
 {
-    CPUState *saved_env;
+    CPUUniCore32State *saved_env;
 
     saved_env = env;
     env = env1;

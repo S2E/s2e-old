@@ -290,7 +290,7 @@ void NdisHandlers::NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMoni
     assert(suc);
 
     uint32_t failValue = 0xC0000001;
-    state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
+    state->writeCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &failValue, sizeof(failValue));
 
     incrementFailures(state);
 
@@ -306,7 +306,7 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Addr
 
     //Get the return value
     uint32_t eax;
-    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
@@ -354,7 +354,7 @@ void NdisHandlers::NdisAllocateMemoryWithTagPriorityRet(S2EExecutionState* state
     if(m_memoryChecker) {
         //Get the return value
         uint32_t eax;
-        if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+        if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
             s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
             return;
         }
@@ -775,7 +775,7 @@ void NdisHandlers::NdisAllocatePacketPoolEx(S2EExecutionState* state, FunctionMo
         std::vector<uint32_t> vec;
         vec.push_back(NDIS_STATUS_RESOURCES);
         symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
     }
     state->writeMemory(pStatus, symb);
 
@@ -932,7 +932,7 @@ void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uin
     }
 
     uint32_t eax;
-    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
@@ -1343,7 +1343,7 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
         curState->writeMemory(physAddr, privExpr, S2EExecutionState::PhysicalAddress);
 
         //Overwrite the program counter with the new handler
-        curState->writeCpuState(offsetof(CPUState, eip), pc, sizeof(uint32_t)*8);
+        curState->writeCpuState(offsetof(CPUX86State, eip), pc, sizeof(uint32_t)*8);
 
         //Mark wheter this state will explore a fake call or a real one.
         DECLARE_PLUGINSTATE(NdisHandlersState, curState);
@@ -1472,7 +1472,7 @@ void NdisHandlers::NdisMMapIoSpaceRet(S2EExecutionState* state)
         forkRange(state, __FUNCTION__, values);
     }else  {
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
     }
 }
 
@@ -1514,7 +1514,7 @@ void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
         forkRange(state, __FUNCTION__, values);
     }else {
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
     }
 }
 
@@ -1848,7 +1848,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     ss << __FUNCTION__ << "_" <<  std::hex << (retaddr) << "_retval";
     klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, ss.str());
     klee::ref<klee::Expr> expr = klee::UleExpr::create(symb, klee::ConstantExpr::create(length, klee::Expr::Int32));
-    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
     state->addConstraint(expr);
 
     state->bypassFunction(5);
@@ -1888,7 +1888,7 @@ void NdisHandlers::NdisWritePciSlotInformation(S2EExecutionState* state, Functio
     ss << __FUNCTION__ << "_" << std::hex << retaddr << "_retval";
     klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, ss.str());
     klee::ref<klee::Expr> expr = klee::UleExpr::create(symb, klee::ConstantExpr::create(length, klee::Expr::Int32));
-    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
     state->addConstraint(expr);
 
     state->bypassFunction(5);
@@ -1977,7 +1977,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
 
     //Get the return value
     uint32_t eax;
-    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
@@ -1990,7 +1990,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
 
     if (consistency == OVERAPPROX) {
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
     }else
 
     //ExecutionConsistencyModel: LOCAL
@@ -2028,7 +2028,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
 
     //Get the return value
     uint32_t eax;
-    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
@@ -2040,7 +2040,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
 
     if (consistency == OVERAPPROX) {
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+        state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
     }else
 
     //ExecutionConsistencyModel: LOCAL
@@ -2224,7 +2224,7 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
 
     //Get the return value
     uint32_t eax;
-    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
@@ -2233,7 +2233,7 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
         //Replace the return value with a symbolic value
         if ((int)eax>=0) {
             klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-            state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), ret);
+            state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), ret);
         }
     }
 }
@@ -2285,7 +2285,7 @@ void NdisHandlers::CheckForHang(S2EExecutionState* state, FunctionMonitorState *
 
     if (exercised) {
         uint32_t success = 1;
-        state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &success, sizeof(success));
+        state->writeCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &success, sizeof(success));
         state->bypassFunction(1);
         throw CpuExitException();
     }
@@ -2303,7 +2303,7 @@ void NdisHandlers::CheckForHangRet(S2EExecutionState* state)
     if (consistency == OVERAPPROX) {
         //Pretend we did not hang
         //uint32_t success = 0;
-        //state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &success, sizeof(success));
+        //state->writeCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &success, sizeof(success));
     }
 
     if (m_manager) {
@@ -2403,7 +2403,7 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     }
 
     //Check the success status, kill if failure
-    klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
+    klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
     klee::Solver *solver = s2e()->getExecutor()->getSolver();
     bool isTrue;
     klee::ref<klee::Expr> eq = klee::EqExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
@@ -2506,7 +2506,7 @@ void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *f
     S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
 
     //One of the states will run the shutdown handler
-    ts->writeCpuState(offsetof(CPUState, eip), plgState->shutdownHandler, sizeof(uint32_t)*8);
+    ts->writeCpuState(offsetof(CPUX86State, eip), plgState->shutdownHandler, sizeof(uint32_t)*8);
 
     FUNCMON_REGISTER_RETURN(ts, fns, NdisHandlers::HaltHandlerRet)
     FUNCMON_REGISTER_RETURN(fs, fns, NdisHandlers::HaltHandlerRet)
@@ -2725,7 +2725,7 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
     hf->fakeoid = false;
 
     //Set the new stack pointer for the fake state
-    ts->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_ESP]), &current_sp, sizeof(current_sp));
+    ts->writeCpuRegisterConcrete(offsetof(CPUX86State, regs[R_ESP]), &current_sp, sizeof(current_sp));
 
     //Add a constraint for the buffer size
     klee::ref<klee::Expr> symbBufferConstr = klee::UleExpr::create(symbBufferSize, klee::ConstantExpr::create(newBufferSize, klee::Expr::Int32));
@@ -2976,7 +2976,7 @@ void NdisHandlers::SendHandlerRet(S2EExecutionState* state, uint32_t pPacket)
 
     uint32_t status;
     bool ok;
-    if (!(ok = state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &status, sizeof(status)))) {
+    if (!(ok = state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &status, sizeof(status)))) {
         s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete\n";
     }
 

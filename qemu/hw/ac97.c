@@ -12,6 +12,9 @@
  * If you received this file as part of a commercial VirtualBox
  * distribution, then only the terms of your commercial VirtualBox
  * license agreement apply instead of the previous paragraph.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "hw.h"
@@ -1172,17 +1175,17 @@ static const VMStateDescription vmstate_ac97_bm_regs = {
     .minimum_version_id = 1,
     .minimum_version_id_old = 1,
     .fields      = (VMStateField []) {
-        VMSTATE_UINT32(bdbar, AC97BusMasterRegs),
-        VMSTATE_UINT8(civ, AC97BusMasterRegs),
-        VMSTATE_UINT8(lvi, AC97BusMasterRegs),
-        VMSTATE_UINT16(sr, AC97BusMasterRegs),
-        VMSTATE_UINT16(picb, AC97BusMasterRegs),
-        VMSTATE_UINT8(piv, AC97BusMasterRegs),
-        VMSTATE_UINT8(cr, AC97BusMasterRegs),
-        VMSTATE_UINT32(bd_valid, AC97BusMasterRegs),
-        VMSTATE_UINT32(bd.addr, AC97BusMasterRegs),
-        VMSTATE_UINT32(bd.ctl_len, AC97BusMasterRegs),
-        VMSTATE_END_OF_LIST()
+        VMSTATE_UINT32 (bdbar, AC97BusMasterRegs),
+        VMSTATE_UINT8 (civ, AC97BusMasterRegs),
+        VMSTATE_UINT8 (lvi, AC97BusMasterRegs),
+        VMSTATE_UINT16 (sr, AC97BusMasterRegs),
+        VMSTATE_UINT16 (picb, AC97BusMasterRegs),
+        VMSTATE_UINT8 (piv, AC97BusMasterRegs),
+        VMSTATE_UINT8 (cr, AC97BusMasterRegs),
+        VMSTATE_UINT32 (bd_valid, AC97BusMasterRegs),
+        VMSTATE_UINT32 (bd.addr, AC97BusMasterRegs),
+        VMSTATE_UINT32 (bd.ctl_len, AC97BusMasterRegs),
+        VMSTATE_END_OF_LIST ()
     }
 };
 
@@ -1221,15 +1224,15 @@ static const VMStateDescription vmstate_ac97 = {
     .minimum_version_id_old = 2,
     .post_load = ac97_post_load,
     .fields      = (VMStateField []) {
-        VMSTATE_PCI_DEVICE(dev, AC97LinkState),
-        VMSTATE_UINT32(glob_cnt, AC97LinkState),
-        VMSTATE_UINT32(glob_sta, AC97LinkState),
-        VMSTATE_UINT32(cas, AC97LinkState),
-        VMSTATE_STRUCT_ARRAY(bm_regs, AC97LinkState, 3, 1,
-                             vmstate_ac97_bm_regs, AC97BusMasterRegs),
-        VMSTATE_BUFFER(mixer_data, AC97LinkState),
-        VMSTATE_UNUSED_TEST(is_version_2, 3),
-        VMSTATE_END_OF_LIST()
+        VMSTATE_PCI_DEVICE (dev, AC97LinkState),
+        VMSTATE_UINT32 (glob_cnt, AC97LinkState),
+        VMSTATE_UINT32 (glob_sta, AC97LinkState),
+        VMSTATE_UINT32 (cas, AC97LinkState),
+        VMSTATE_STRUCT_ARRAY (bm_regs, AC97LinkState, 3, 1,
+                              vmstate_ac97_bm_regs, AC97BusMasterRegs),
+        VMSTATE_BUFFER (mixer_data, AC97LinkState),
+        VMSTATE_UNUSED_TEST (is_version_2, 3),
+        VMSTATE_END_OF_LIST ()
     }
 };
 
@@ -1240,7 +1243,7 @@ static const MemoryRegionPortio nam_portio[] = {
     { 0, 256 * 1, 1, .write = nam_writeb, },
     { 0, 256 * 2, 2, .write = nam_writew, },
     { 0, 256 * 4, 4, .write = nam_writel, },
-    PORTIO_END_OF_LIST(),
+    PORTIO_END_OF_LIST (),
 };
 
 static const MemoryRegionOps ac97_io_nam_ops = {
@@ -1254,7 +1257,7 @@ static const MemoryRegionPortio nabm_portio[] = {
     { 0, 64 * 1, 1, .write = nabm_writeb, },
     { 0, 64 * 2, 2, .write = nabm_writew, },
     { 0, 64 * 4, 4, .write = nabm_writel, },
-    PORTIO_END_OF_LIST()
+    PORTIO_END_OF_LIST ()
 };
 
 static const MemoryRegionOps ac97_io_nabm_ops = {
@@ -1341,26 +1344,37 @@ int ac97_init (PCIBus *bus)
     return 0;
 }
 
-static PCIDeviceInfo ac97_info = {
-    .qdev.name    = "AC97",
-    .qdev.desc    = "Intel 82801AA AC97 Audio",
-    .qdev.size    = sizeof (AC97LinkState),
-    .qdev.vmsd    = &vmstate_ac97,
-    .init         = ac97_initfn,
-    .exit         = ac97_exitfn,
-    .vendor_id    = PCI_VENDOR_ID_INTEL,
-    .device_id    = PCI_DEVICE_ID_INTEL_82801AA_5,
-    .revision     = 0x01,
-    .class_id     = PCI_CLASS_MULTIMEDIA_AUDIO,
-    .qdev.props   = (Property[]) {
-        DEFINE_PROP_UINT32("use_broken_id", AC97LinkState, use_broken_id, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property ac97_properties[] = {
+    DEFINE_PROP_UINT32 ("use_broken_id", AC97LinkState, use_broken_id, 0),
+    DEFINE_PROP_END_OF_LIST (),
 };
 
-static void ac97_register (void)
+static void ac97_class_init (ObjectClass *klass, void *data)
 {
-    pci_qdev_register (&ac97_info);
-}
-device_init (ac97_register);
+    DeviceClass *dc = DEVICE_CLASS (klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS (klass);
 
+    k->init = ac97_initfn;
+    k->exit = ac97_exitfn;
+    k->vendor_id = PCI_VENDOR_ID_INTEL;
+    k->device_id = PCI_DEVICE_ID_INTEL_82801AA_5;
+    k->revision = 0x01;
+    k->class_id = PCI_CLASS_MULTIMEDIA_AUDIO;
+    dc->desc = "Intel 82801AA AC97 Audio";
+    dc->vmsd = &vmstate_ac97;
+    dc->props = ac97_properties;
+}
+
+static TypeInfo ac97_info = {
+    .name          = "AC97",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof (AC97LinkState),
+    .class_init    = ac97_class_init,
+};
+
+static void ac97_register_types (void)
+{
+    type_register_static (&ac97_info);
+}
+
+type_init (ac97_register_types)

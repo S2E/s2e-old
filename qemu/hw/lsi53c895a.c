@@ -392,7 +392,7 @@ static inline uint32_t read_dword(LSIState *s, uint32_t addr)
 {
     uint32_t buf;
 
-    pci_dma_read(&s->dev, addr, (uint8_t *)&buf, 4);
+    pci_dma_read(&s->dev, addr, &buf, 4);
     return cpu_to_le32(buf);
 }
 
@@ -699,7 +699,7 @@ static int lsi_queue_req(LSIState *s, SCSIRequest *req, uint32_t len)
 }
 
  /* Callback to indicate that the SCSI layer has completed a command.  */
-static void lsi_command_complete(SCSIRequest *req, uint32_t status)
+static void lsi_command_complete(SCSIRequest *req, uint32_t status, size_t resid)
 {
     LSIState *s = DO_UPCAST(LSIState, dev.qdev, req->bus->qbus.parent);
     int out;
@@ -1079,7 +1079,7 @@ again:
 
             /* 32-bit Table indirect */
             offset = sxt24(addr);
-            pci_dma_read(&s->dev, s->dsa + offset, (uint8_t *)buf, 8);
+            pci_dma_read(&s->dev, s->dsa + offset, buf, 8);
             /* byte count is stored in bits 0:23 only */
             s->dbc = cpu_to_le32(buf[0]) & 0xffffff;
             s->rbc = s->dbc;
@@ -1681,7 +1681,7 @@ static void lsi_reg_writeb(LSIState *s, int offset, uint8_t val)
                 DeviceState *dev;
 
                 QTAILQ_FOREACH(dev, &s->bus.qbus.children, sibling) {
-                    dev->info->reset(dev);
+                    device_reset(dev);
                 }
                 s->sstat0 |= LSI_SSTAT0_RST;
                 lsi_script_scsi_interrupt(s, LSI_SIST0_RST, 0);
@@ -2120,23 +2120,31 @@ static int lsi_scsi_init(PCIDevice *dev)
     return 0;
 }
 
-static PCIDeviceInfo lsi_info = {
-    .qdev.name  = "lsi53c895a",
-    .qdev.alias = "lsi",
-    .qdev.size  = sizeof(LSIState),
-    .qdev.reset = lsi_scsi_reset,
-    .qdev.vmsd  = &vmstate_lsi_scsi,
-    .init       = lsi_scsi_init,
-    .exit       = lsi_scsi_uninit,
-    .vendor_id  = PCI_VENDOR_ID_LSI_LOGIC,
-    .device_id  = PCI_DEVICE_ID_LSI_53C895A,
-    .class_id   = PCI_CLASS_STORAGE_SCSI,
-    .subsystem_id = 0x1000,
-};
-
-static void lsi53c895a_register_devices(void)
+static void lsi_class_init(ObjectClass *klass, void *data)
 {
-    pci_qdev_register(&lsi_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = lsi_scsi_init;
+    k->exit = lsi_scsi_uninit;
+    k->vendor_id = PCI_VENDOR_ID_LSI_LOGIC;
+    k->device_id = PCI_DEVICE_ID_LSI_53C895A;
+    k->class_id = PCI_CLASS_STORAGE_SCSI;
+    k->subsystem_id = 0x1000;
+    dc->reset = lsi_scsi_reset;
+    dc->vmsd = &vmstate_lsi_scsi;
 }
 
-device_init(lsi53c895a_register_devices);
+static TypeInfo lsi_info = {
+    .name          = "lsi53c895a",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(LSIState),
+    .class_init    = lsi_class_init,
+};
+
+static void lsi53c895a_register_types(void)
+{
+    type_register_static(&lsi_info);
+}
+
+type_init(lsi53c895a_register_types)

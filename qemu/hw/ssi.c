@@ -5,6 +5,9 @@
  * Written by Paul Brook
  *
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "ssi.h"
@@ -18,10 +21,10 @@ static struct BusInfo ssi_bus_info = {
     .size = sizeof(SSIBus),
 };
 
-static int ssi_slave_init(DeviceState *dev, DeviceInfo *base_info)
+static int ssi_slave_init(DeviceState *dev)
 {
-    SSISlaveInfo *info = container_of(base_info, SSISlaveInfo, qdev);
-    SSISlave *s = SSI_SLAVE_FROM_QDEV(dev);
+    SSISlave *s = SSI_SLAVE(dev);
+    SSISlaveClass *ssc = SSI_SLAVE_GET_CLASS(s);
     SSIBus *bus;
 
     bus = FROM_QBUS(SSIBus, qdev_get_parent_bus(dev));
@@ -30,17 +33,23 @@ static int ssi_slave_init(DeviceState *dev, DeviceInfo *base_info)
         hw_error("Too many devices on SSI bus");
     }
 
-    s->info = info;
-    return info->init(s);
+    return ssc->init(s);
 }
 
-void ssi_register_slave(SSISlaveInfo *info)
+static void ssi_slave_class_init(ObjectClass *klass, void *data)
 {
-    assert(info->qdev.size >= sizeof(SSISlave));
-    info->qdev.init = ssi_slave_init;
-    info->qdev.bus_info = &ssi_bus_info;
-    qdev_register(&info->qdev);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    dc->init = ssi_slave_init;
+    dc->bus_info = &ssi_bus_info;
 }
+
+static TypeInfo ssi_slave_info = {
+    .name = TYPE_SSI_SLAVE,
+    .parent = TYPE_DEVICE,
+    .class_init = ssi_slave_class_init,
+    .class_size = sizeof(SSISlaveClass),
+    .abstract = true,
+};
 
 DeviceState *ssi_create_slave(SSIBus *bus, const char *name)
 {
@@ -61,10 +70,19 @@ uint32_t ssi_transfer(SSIBus *bus, uint32_t val)
 {
     DeviceState *dev;
     SSISlave *slave;
+    SSISlaveClass *ssc;
     dev = QTAILQ_FIRST(&bus->qbus.children);
     if (!dev) {
         return 0;
     }
-    slave = SSI_SLAVE_FROM_QDEV(dev);
-    return slave->info->transfer(slave, val);
+    slave = SSI_SLAVE(dev);
+    ssc = SSI_SLAVE_GET_CLASS(slave);
+    return ssc->transfer(slave, val);
 }
+
+static void ssi_slave_register_types(void)
+{
+    type_register_static(&ssi_slave_info);
+}
+
+type_init(ssi_slave_register_types)

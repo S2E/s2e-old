@@ -13,9 +13,13 @@ struct QemuCond {
     HANDLE continue_event;
 };
 
+typedef struct QemuThreadData QemuThreadData;
 struct QemuThread {
-    HANDLE thread;
-    void *ret;
+    QemuThreadData *data;
+    unsigned tid;
 };
+
+/* Only valid for joinable threads.  */
+HANDLE qemu_thread_get_handle(QemuThread *thread);
 
 #endif

@@ -32,6 +32,7 @@
 #include "sysemu.h"
 #include "boards.h"
 #include "loader.h"
+#include "exec-memory.h"
 
 #define BIOS_FILENAME "shix_bios.bin"
 #define BIOS_ADDRESS 0xA0000000
@@ -42,8 +43,11 @@ static void shix_init(ram_addr_t ram_size,
 	       const char *initrd_filename, const char *cpu_model)
 {
     int ret;
-    CPUState *env;
+    CPUSH4State *env;
     struct SH7750State *s;
+    MemoryRegion *sysmem = get_system_memory();
+    MemoryRegion *rom = g_new(MemoryRegion, 1);
+    MemoryRegion *sdram = g_new(MemoryRegion, 2);
     
     if (!cpu_model)
         cpu_model = "any";
@@ -53,11 +57,18 @@ static void shix_init(ram_addr_t ram_size,
 
     /* Allocate memory space */
     printf("Allocating ROM\n");
-    cpu_register_physical_memory(0x00000000, 0x00004000, IO_MEM_ROM);
+    memory_region_init_ram(rom, "shix.rom", 0x4000);
+    vmstate_register_ram_global(rom);
+    memory_region_set_readonly(rom, true);
+    memory_region_add_subregion(sysmem, 0x00000000, rom);
     printf("Allocating SDRAM 1\n");
-    cpu_register_physical_memory(0x08000000, 0x01000000, 0x00004000);
+    memory_region_init_ram(&sdram[0], "shix.sdram1", 0x01000000);
+    vmstate_register_ram_global(&sdram[0]);
+    memory_region_add_subregion(sysmem, 0x08000000, &sdram[0]);
     printf("Allocating SDRAM 2\n");
-    cpu_register_physical_memory(0x0c000000, 0x01000000, 0x01004000);
+    memory_region_init_ram(&sdram[1], "shix.sdram2", 0x01000000);
+    vmstate_register_ram_global(&sdram[1]);
+    memory_region_add_subregion(sysmem, 0x0c000000, &sdram[1]);
 
     /* Load BIOS in 0 (and access it through P2, 0xA0000000) */
     if (bios_name == NULL)
@@ -72,7 +83,7 @@ static void shix_init(ram_addr_t ram_size,
     }
 
     /* Register peripherals */
-    s = sh7750_init(env);
+    s = sh7750_init(env, sysmem);
     /* XXXXX Check success */
     tc58128_init(s, "shix_linux_nand.bin", NULL);
     fprintf(stderr, "initialization terminated\n");

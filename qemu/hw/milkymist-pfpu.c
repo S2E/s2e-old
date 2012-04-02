@@ -499,7 +499,7 @@ static int milkymist_pfpu_init(SysBusDevice *dev)
 
     memory_region_init_io(&s->regs_region, &pfpu_mmio_ops, s,
             "milkymist-pfpu", MICROCODE_END * 4);
-    sysbus_init_mmio_region(dev, &s->regs_region);
+    sysbus_init_mmio(dev, &s->regs_region);
 
     return 0;
 }
@@ -519,17 +519,26 @@ static const VMStateDescription vmstate_milkymist_pfpu = {
     }
 };
 
-static SysBusDeviceInfo milkymist_pfpu_info = {
-    .init = milkymist_pfpu_init,
-    .qdev.name  = "milkymist-pfpu",
-    .qdev.size  = sizeof(MilkymistPFPUState),
-    .qdev.vmsd  = &vmstate_milkymist_pfpu,
-    .qdev.reset = milkymist_pfpu_reset,
-};
-
-static void milkymist_pfpu_register(void)
+static void milkymist_pfpu_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&milkymist_pfpu_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = milkymist_pfpu_init;
+    dc->reset = milkymist_pfpu_reset;
+    dc->vmsd = &vmstate_milkymist_pfpu;
 }
 
-device_init(milkymist_pfpu_register)
+static TypeInfo milkymist_pfpu_info = {
+    .name          = "milkymist-pfpu",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(MilkymistPFPUState),
+    .class_init    = milkymist_pfpu_class_init,
+};
+
+static void milkymist_pfpu_register_types(void)
+{
+    type_register_static(&milkymist_pfpu_info);
+}
+
+type_init(milkymist_pfpu_register_types)

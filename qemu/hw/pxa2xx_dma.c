@@ -18,9 +18,9 @@
 #define PXA2XX_DMA_NUM_REQUESTS 75
 
 typedef struct {
-    target_phys_addr_t descr;
-    target_phys_addr_t src;
-    target_phys_addr_t dest;
+    uint32_t descr;
+    uint32_t src;
+    uint32_t dest;
     uint32_t cmd;
     uint32_t state;
     int request;
@@ -28,6 +28,7 @@ typedef struct {
 
 typedef struct PXA2xxDMAState {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     qemu_irq irq;
 
     uint32_t stopintr;
@@ -250,10 +251,16 @@ static void pxa2xx_dma_run(PXA2xxDMAState *s)
     }
 }
 
-static uint32_t pxa2xx_dma_read(void *opaque, target_phys_addr_t offset)
+static uint64_t pxa2xx_dma_read(void *opaque, target_phys_addr_t offset,
+                                unsigned size)
 {
     PXA2xxDMAState *s = (PXA2xxDMAState *) opaque;
     unsigned int channel;
+
+    if (size != 4) {
+        hw_error("%s: Bad access width\n", __FUNCTION__);
+        return 5;
+    }
 
     switch (offset) {
     case DRCMR64 ... DRCMR74:
@@ -303,11 +310,16 @@ static uint32_t pxa2xx_dma_read(void *opaque, target_phys_addr_t offset)
     return 7;
 }
 
-static void pxa2xx_dma_write(void *opaque,
-                 target_phys_addr_t offset, uint32_t value)
+static void pxa2xx_dma_write(void *opaque, target_phys_addr_t offset,
+                             uint64_t value, unsigned size)
 {
     PXA2xxDMAState *s = (PXA2xxDMAState *) opaque;
     unsigned int channel;
+
+    if (size != 4) {
+        hw_error("%s: Bad access width\n", __FUNCTION__);
+        return;
+    }
 
     switch (offset) {
     case DRCMR64 ... DRCMR74:
@@ -319,7 +331,7 @@ static void pxa2xx_dma_write(void *opaque,
         if (value & DRCMR_MAPVLD)
             if ((value & DRCMR_CHLNUM) > s->channels)
                 hw_error("%s: Bad DMA channel %i\n",
-                         __FUNCTION__, value & DRCMR_CHLNUM);
+                         __FUNCTION__, (unsigned)value & DRCMR_CHLNUM);
 
         s->req[channel] = value;
         break;
@@ -402,28 +414,10 @@ static void pxa2xx_dma_write(void *opaque,
     }
 }
 
-static uint32_t pxa2xx_dma_readbad(void *opaque, target_phys_addr_t offset)
-{
-    hw_error("%s: Bad access width\n", __FUNCTION__);
-    return 5;
-}
-
-static void pxa2xx_dma_writebad(void *opaque,
-                 target_phys_addr_t offset, uint32_t value)
-{
-    hw_error("%s: Bad access width\n", __FUNCTION__);
-}
-
-static CPUReadMemoryFunc * const pxa2xx_dma_readfn[] = {
-    pxa2xx_dma_readbad,
-    pxa2xx_dma_readbad,
-    pxa2xx_dma_read
-};
-
-static CPUWriteMemoryFunc * const pxa2xx_dma_writefn[] = {
-    pxa2xx_dma_writebad,
-    pxa2xx_dma_writebad,
-    pxa2xx_dma_write
+static const MemoryRegionOps pxa2xx_dma_ops = {
+    .read = pxa2xx_dma_read,
+    .write = pxa2xx_dma_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static void pxa2xx_dma_request(void *opaque, int req_num, int on)
@@ -453,7 +447,7 @@ static void pxa2xx_dma_request(void *opaque, int req_num, int on)
 
 static int pxa2xx_dma_init(SysBusDevice *dev)
 {
-    int i, iomemtype;
+    int i;
     PXA2xxDMAState *s;
     s = FROM_SYSBUS(PXA2xxDMAState, dev);
 
@@ -471,9 +465,9 @@ static int pxa2xx_dma_init(SysBusDevice *dev)
 
     qdev_init_gpio_in(&dev->qdev, pxa2xx_dma_request, PXA2XX_DMA_NUM_REQUESTS);
 
-    iomemtype = cpu_register_io_memory(pxa2xx_dma_readfn,
-                    pxa2xx_dma_writefn, s, DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, 0x00010000, iomemtype);
+    memory_region_init_io(&s->iomem, &pxa2xx_dma_ops, s,
+                          "pxa2xx.dma", 0x00010000);
+    sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
 
     return 0;
@@ -518,9 +512,9 @@ static VMStateDescription vmstate_pxa2xx_dma_chan = {
     .minimum_version_id = 1,
     .minimum_version_id_old = 1,
     .fields = (VMStateField[]) {
-        VMSTATE_UINTTL(descr, PXA2xxDMAChannel),
-        VMSTATE_UINTTL(src, PXA2xxDMAChannel),
-        VMSTATE_UINTTL(dest, PXA2xxDMAChannel),
+        VMSTATE_UINT32(descr, PXA2xxDMAChannel),
+        VMSTATE_UINT32(src, PXA2xxDMAChannel),
+        VMSTATE_UINT32(dest, PXA2xxDMAChannel),
         VMSTATE_UINT32(cmd, PXA2xxDMAChannel),
         VMSTATE_UINT32(state, PXA2xxDMAChannel),
         VMSTATE_INT32(request, PXA2xxDMAChannel),
@@ -549,20 +543,32 @@ static VMStateDescription vmstate_pxa2xx_dma = {
     },
 };
 
-static SysBusDeviceInfo pxa2xx_dma_info = {
-    .init       = pxa2xx_dma_init,
-    .qdev.name  = "pxa2xx-dma",
-    .qdev.desc  = "PXA2xx DMA controller",
-    .qdev.size  = sizeof(PXA2xxDMAState),
-    .qdev.vmsd  = &vmstate_pxa2xx_dma,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_INT32("channels", PXA2xxDMAState, channels, -1),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static Property pxa2xx_dma_properties[] = {
+    DEFINE_PROP_INT32("channels", PXA2xxDMAState, channels, -1),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void pxa2xx_dma_register(void)
+static void pxa2xx_dma_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&pxa2xx_dma_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = pxa2xx_dma_init;
+    dc->desc = "PXA2xx DMA controller";
+    dc->vmsd = &vmstate_pxa2xx_dma;
+    dc->props = pxa2xx_dma_properties;
 }
-device_init(pxa2xx_dma_register);
+
+static TypeInfo pxa2xx_dma_info = {
+    .name          = "pxa2xx-dma",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PXA2xxDMAState),
+    .class_init    = pxa2xx_dma_class_init,
+};
+
+static void pxa2xx_dma_register_types(void)
+{
+    type_register_static(&pxa2xx_dma_info);
+}
+
+type_init(pxa2xx_dma_register_types)

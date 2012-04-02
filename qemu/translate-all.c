@@ -74,7 +74,7 @@ void cpu_gen_init(void)
    '*gen_code_size_ptr' contains the size of the generated code (host
    code).
 */
-int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
+int cpu_gen_code(CPUArchState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 {
     TCGContext *s = &tcg_ctx;
     uint8_t *gen_code_buf;
@@ -155,7 +155,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 /* The cpu state corresponding to 'searched_pc' is restored.
  */
 int cpu_restore_state(TranslationBlock *tb,
-                      CPUState *env, unsigned long searched_pc)
+                      CPUArchState *env, unsigned long searched_pc)
 {
 /**
  *  The retranslation mechanism interferes with S2E's instrumentation.
@@ -230,7 +230,7 @@ int cpu_restore_state(TranslationBlock *tb,
 #ifdef CONFIG_S2E
 
 /** Generates LLVM code for already translated TB */
-int cpu_gen_llvm(CPUState *env, TranslationBlock *tb)
+int cpu_gen_llvm(CPUArchState *env, TranslationBlock *tb)
 {
     TCGContext *s = &tcg_ctx;
     assert(tb->llvm_function == NULL);

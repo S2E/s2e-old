@@ -463,7 +463,7 @@ static inline void gen_op_addl_T0_T1(void)
 
 static inline void gen_op_jmp_T0(DisasContext *s)
 {
-    tcg_gen_st_tl(cpu_T[0], cpu_env, offsetof(CPUState, eip));
+    tcg_gen_st_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, eip));
     #ifdef CONFIG_S2E
     s2e_translate_compute_reg_mask_end(s);
     s2e_on_translate_block_end(g_s2e, g_s2e_state,
@@ -533,12 +533,12 @@ static inline void gen_op_addl_A0_reg_sN(int shift, int reg)
 
 static inline void gen_op_movl_A0_seg(int reg)
 {
-    tcg_gen_ld32u_tl(cpu_A0, cpu_env, offsetof(CPUState, segs[reg].base) + REG_L_OFFSET);
+    tcg_gen_ld32u_tl(cpu_A0, cpu_env, offsetof(CPUX86State, segs[reg].base) + REG_L_OFFSET);
 }
 
 static inline void gen_op_addl_A0_seg(int reg)
 {
-    tcg_gen_ld_tl(cpu_tmp0, cpu_env, offsetof(CPUState, segs[reg].base));
+    tcg_gen_ld_tl(cpu_tmp0, cpu_env, offsetof(CPUX86State, segs[reg].base));
     tcg_gen_add_tl(cpu_A0, cpu_A0, cpu_tmp0);
 #ifdef TARGET_X86_64
     tcg_gen_andi_tl(cpu_A0, cpu_A0, 0xffffffff);
@@ -548,12 +548,12 @@ static inline void gen_op_addl_A0_seg(int reg)
 #ifdef TARGET_X86_64
 static inline void gen_op_movq_A0_seg(int reg)
 {
-    tcg_gen_ld_tl(cpu_A0, cpu_env, offsetof(CPUState, segs[reg].base));
+    tcg_gen_ld_tl(cpu_A0, cpu_env, offsetof(CPUX86State, segs[reg].base));
 }
 
 static inline void gen_op_addq_A0_seg(int reg)
 {
-    tcg_gen_ld_tl(cpu_tmp0, cpu_env, offsetof(CPUState, segs[reg].base));
+    tcg_gen_ld_tl(cpu_tmp0, cpu_env, offsetof(CPUX86State, segs[reg].base));
     tcg_gen_add_tl(cpu_A0, cpu_A0, cpu_tmp0);
 }
 
@@ -663,7 +663,7 @@ static inline void gen_op_st_T1_A0(int idx)
 static inline void gen_jmp_im(DisasContext *s, target_ulong pc)
 {
     tcg_gen_movi_tl(cpu_tmp0, pc);
-    tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
+    tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUX86State, eip));
     #ifdef CONFIG_S2E
     /* gen_eob may come after gototb, so we need to instrument here ! */
     if (s->enable_jmp_im) {
@@ -732,7 +732,7 @@ static inline void gen_string_movl_A0_EDI(DisasContext *s)
 
 static inline void gen_op_movl_T0_Dshift(int ot) 
 {
-    tcg_gen_ld32s_tl(cpu_T[0], cpu_env, offsetof(CPUState, df));
+    tcg_gen_ld32s_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, df));
     tcg_gen_shli_tl(cpu_T[0], cpu_T[0], ot);
 };
 
@@ -4201,11 +4201,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
 
 #ifdef CONFIG_S2E
     tcg_gen_movi_tl(cpu_tmp0, pc_start - s->cs_base);
-    tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
+    tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUArchState, eip));
 
-    tcg_gen_ld_i64(cpu_tmp1_i64, cpu_env, offsetof(CPUState, s2e_icount));
+    tcg_gen_ld_i64(cpu_tmp1_i64, cpu_env, offsetof(CPUArchState, s2e_icount));
     tcg_gen_addi_i64(cpu_tmp1_i64, cpu_tmp1_i64, 1);
-    tcg_gen_st_i64(cpu_tmp1_i64, cpu_env, offsetof(CPUState, s2e_icount));
+    tcg_gen_st_i64(cpu_tmp1_i64, cpu_env, offsetof(CPUArchState, s2e_icount));
 
     if (s->cc_op != CC_OP_DYNAMIC)
         gen_op_set_cc_op(s->cc_op);
@@ -5017,20 +5017,23 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             tcg_gen_sub_tl(t2, cpu_regs[R_EAX], t0);
             gen_extu(ot, t2);
             tcg_gen_brcondi_tl(TCG_COND_EQ, t2, 0, label1);
+            label2 = gen_new_label();
             if (mod == 3) {
-                label2 = gen_new_label();
                 gen_op_mov_reg_v(ot, R_EAX, t0);
                 tcg_gen_br(label2);
                 gen_set_label(label1);
                 gen_op_mov_reg_v(ot, rm, t1);
-                gen_set_label(label2);
             } else {
-                tcg_gen_mov_tl(t1, t0);
+                /* perform no-op store cycle like physical cpu; must be
+                   before changing accumulator to ensure idempotency if
+                   the store faults and the instruction is restarted */
+                gen_op_st_v(ot + s->mem_index, t0, a0);
                 gen_op_mov_reg_v(ot, R_EAX, t0);
+                tcg_gen_br(label2);
                 gen_set_label(label1);
-                /* always store */
                 gen_op_st_v(ot + s->mem_index, t1, a0);
             }
+            gen_set_label(label2);
             tcg_gen_mov_tl(cpu_cc_src, t0);
             tcg_gen_mov_tl(cpu_cc_dst, t2);
             s->cc_op = CC_OP_SUBB + ot;
@@ -6627,11 +6630,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         break;
     case 0xfc: /* cld */
         tcg_gen_movi_i32(cpu_tmp2_i32, 1);
-        tcg_gen_st_i32(cpu_tmp2_i32, cpu_env, offsetof(CPUState, df));
+        tcg_gen_st_i32(cpu_tmp2_i32, cpu_env, offsetof(CPUX86State, df));
         break;
     case 0xfd: /* std */
         tcg_gen_movi_i32(cpu_tmp2_i32, -1);
-        tcg_gen_st_i32(cpu_tmp2_i32, cpu_env, offsetof(CPUState, df));
+        tcg_gen_st_i32(cpu_tmp2_i32, cpu_env, offsetof(CPUX86State, df));
         break;
 
         /************************/
@@ -7709,7 +7712,8 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
             if (op == 2) {
                 gen_op_ld_T0_A0(OT_LONG + s->mem_index);
-                tcg_gen_st32_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, mxcsr));
+                tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
+                gen_helper_ldmxcsr(cpu_tmp2_i32);
             } else {
                 tcg_gen_ld32u_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, mxcsr));
                 gen_op_st_T0_A0(OT_LONG + s->mem_index);
@@ -7809,64 +7813,64 @@ void optimize_flags_init(void)
 {
     cpu_env = tcg_global_reg_new_ptr(TCG_AREG0, "env");
     cpu_cc_op = tcg_global_mem_new_i32(TCG_AREG0,
-                                       offsetof(CPUState, cc_op), "cc_op");
-    cpu_cc_src = tcg_global_mem_new(TCG_AREG0, offsetof(CPUState, cc_src),
+                                       offsetof(CPUX86State, cc_op), "cc_op");
+    cpu_cc_src = tcg_global_mem_new(TCG_AREG0, offsetof(CPUX86State, cc_src),
                                     "cc_src");
-    cpu_cc_dst = tcg_global_mem_new(TCG_AREG0, offsetof(CPUState, cc_dst),
+    cpu_cc_dst = tcg_global_mem_new(TCG_AREG0, offsetof(CPUX86State, cc_dst),
                                     "cc_dst");
-    cpu_cc_tmp = tcg_global_mem_new(TCG_AREG0, offsetof(CPUState, cc_tmp),
+    cpu_cc_tmp = tcg_global_mem_new(TCG_AREG0, offsetof(CPUX86State, cc_tmp),
                                     "cc_tmp");
 
 #ifdef TARGET_X86_64
     cpu_regs[R_EAX] = tcg_global_mem_new_i64(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EAX]), "rax");
+                                             offsetof(CPUX86State, regs[R_EAX]), "rax");
     cpu_regs[R_ECX] = tcg_global_mem_new_i64(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_ECX]), "rcx");
+                                             offsetof(CPUX86State, regs[R_ECX]), "rcx");
     cpu_regs[R_EDX] = tcg_global_mem_new_i64(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EDX]), "rdx");
+                                             offsetof(CPUX86State, regs[R_EDX]), "rdx");
     cpu_regs[R_EBX] = tcg_global_mem_new_i64(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EBX]), "rbx");
+                                             offsetof(CPUX86State, regs[R_EBX]), "rbx");
     cpu_regs[R_ESP] = tcg_global_mem_new_i64(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_ESP]), "rsp");
+                                             offsetof(CPUX86State, regs[R_ESP]), "rsp");
     cpu_regs[R_EBP] = tcg_global_mem_new_i64(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EBP]), "rbp");
+                                             offsetof(CPUX86State, regs[R_EBP]), "rbp");
     cpu_regs[R_ESI] = tcg_global_mem_new_i64(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_ESI]), "rsi");
+                                             offsetof(CPUX86State, regs[R_ESI]), "rsi");
     cpu_regs[R_EDI] = tcg_global_mem_new_i64(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EDI]), "rdi");
+                                             offsetof(CPUX86State, regs[R_EDI]), "rdi");
     cpu_regs[8] = tcg_global_mem_new_i64(TCG_AREG0,
-                                         offsetof(CPUState, regs[8]), "r8");
+                                         offsetof(CPUX86State, regs[8]), "r8");
     cpu_regs[9] = tcg_global_mem_new_i64(TCG_AREG0,
-                                          offsetof(CPUState, regs[9]), "r9");
+                                          offsetof(CPUX86State, regs[9]), "r9");
     cpu_regs[10] = tcg_global_mem_new_i64(TCG_AREG0,
-                                          offsetof(CPUState, regs[10]), "r10");
+                                          offsetof(CPUX86State, regs[10]), "r10");
     cpu_regs[11] = tcg_global_mem_new_i64(TCG_AREG0,
-                                          offsetof(CPUState, regs[11]), "r11");
+                                          offsetof(CPUX86State, regs[11]), "r11");
     cpu_regs[12] = tcg_global_mem_new_i64(TCG_AREG0,
-                                          offsetof(CPUState, regs[12]), "r12");
+                                          offsetof(CPUX86State, regs[12]), "r12");
     cpu_regs[13] = tcg_global_mem_new_i64(TCG_AREG0,
-                                          offsetof(CPUState, regs[13]), "r13");
+                                          offsetof(CPUX86State, regs[13]), "r13");
     cpu_regs[14] = tcg_global_mem_new_i64(TCG_AREG0,
-                                          offsetof(CPUState, regs[14]), "r14");
+                                          offsetof(CPUX86State, regs[14]), "r14");
     cpu_regs[15] = tcg_global_mem_new_i64(TCG_AREG0,
-                                          offsetof(CPUState, regs[15]), "r15");
+                                          offsetof(CPUX86State, regs[15]), "r15");
 #else
     cpu_regs[R_EAX] = tcg_global_mem_new_i32(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EAX]), "eax");
+                                             offsetof(CPUX86State, regs[R_EAX]), "eax");
     cpu_regs[R_ECX] = tcg_global_mem_new_i32(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_ECX]), "ecx");
+                                             offsetof(CPUX86State, regs[R_ECX]), "ecx");
     cpu_regs[R_EDX] = tcg_global_mem_new_i32(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EDX]), "edx");
+                                             offsetof(CPUX86State, regs[R_EDX]), "edx");
     cpu_regs[R_EBX] = tcg_global_mem_new_i32(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EBX]), "ebx");
+                                             offsetof(CPUX86State, regs[R_EBX]), "ebx");
     cpu_regs[R_ESP] = tcg_global_mem_new_i32(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_ESP]), "esp");
+                                             offsetof(CPUX86State, regs[R_ESP]), "esp");
     cpu_regs[R_EBP] = tcg_global_mem_new_i32(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EBP]), "ebp");
+                                             offsetof(CPUX86State, regs[R_EBP]), "ebp");
     cpu_regs[R_ESI] = tcg_global_mem_new_i32(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_ESI]), "esi");
+                                             offsetof(CPUX86State, regs[R_ESI]), "esi");
     cpu_regs[R_EDI] = tcg_global_mem_new_i32(TCG_AREG0,
-                                             offsetof(CPUState, regs[R_EDI]), "edi");
+                                             offsetof(CPUX86State, regs[R_EDI]), "edi");
 #endif
 
     /* register helpers */
@@ -7878,7 +7882,7 @@ void optimize_flags_init(void)
 /* generate intermediate code in gen_opc_buf and gen_opparam_buf for
    basic block 'tb'. If search_pc is TRUE, also generate PC
    information for each intermediate instruction. */
-static inline void gen_intermediate_code_internal(CPUState *env,
+static inline void gen_intermediate_code_internal(CPUX86State *env,
                                                   TranslationBlock *tb,
                                                   int search_pc)
 {
@@ -7972,7 +7976,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     tb->s2e_tb_type = TB_DEFAULT;
 
     tcg_gen_movi_i64(cpu_tmp1_i64, (uint64_t) tb);
-    tcg_gen_st_i64(cpu_tmp1_i64, cpu_env, offsetof(CPUState, s2e_current_tb));
+    tcg_gen_st_i64(cpu_tmp1_i64, cpu_env, offsetof(CPUArchState, s2e_current_tb));
 
     s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
 #endif
@@ -8097,17 +8101,17 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     }
 }
 
-void gen_intermediate_code(CPUState *env, TranslationBlock *tb)
+void gen_intermediate_code(CPUX86State *env, TranslationBlock *tb)
 {
     gen_intermediate_code_internal(env, tb, 0);
 }
 
-void gen_intermediate_code_pc(CPUState *env, TranslationBlock *tb)
+void gen_intermediate_code_pc(CPUX86State *env, TranslationBlock *tb)
 {
     gen_intermediate_code_internal(env, tb, 1);
 }
 
-void restore_state_to_opc(CPUState *env, TranslationBlock *tb, int pc_pos)
+void restore_state_to_opc(CPUX86State *env, TranslationBlock *tb, int pc_pos)
 {
     int cc_op;
 #ifdef DEBUG_DISAS

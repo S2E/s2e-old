@@ -38,13 +38,20 @@
 #  define LOG_UIC(...) do { } while (0)
 #endif
 
+static void ppc4xx_reset(void *opaque)
+{
+    CPUPPCState *env = opaque;
+
+    cpu_state_reset(env);
+}
+
 /*****************************************************************************/
 /* Generic PowerPC 4xx processor instantiation */
-CPUState *ppc4xx_init (const char *cpu_model,
+CPUPPCState *ppc4xx_init (const char *cpu_model,
                        clk_setup_t *cpu_clk, clk_setup_t *tb_clk,
                        uint32_t sysclk)
 {
-    CPUState *env;
+    CPUPPCState *env;
 
     /* init CPUs */
     env = cpu_init(cpu_model);
@@ -60,7 +67,7 @@ CPUState *ppc4xx_init (const char *cpu_model,
     tb_clk->opaque = env;
     ppc_dcr_init(env, NULL, NULL);
     /* Register qemu callbacks */
-    qemu_register_reset((QEMUResetHandler*)&cpu_reset, env);
+    qemu_register_reset(ppc4xx_reset, env);
 
     return env;
 }
@@ -288,7 +295,7 @@ static void ppcuic_reset (void *opaque)
     }
 }
 
-qemu_irq *ppcuic_init (CPUState *env, qemu_irq *irqs,
+qemu_irq *ppcuic_init (CPUPPCState *env, qemu_irq *irqs,
                        uint32_t dcr_base, int has_ssr, int has_vr)
 {
     ppcuic_t *uic;
@@ -634,7 +641,7 @@ static void sdram_reset (void *opaque)
     sdram->cfg = 0x00800000;
 }
 
-void ppc4xx_sdram_init (CPUState *env, qemu_irq irq, int nbanks,
+void ppc4xx_sdram_init (CPUPPCState *env, qemu_irq irq, int nbanks,
                         MemoryRegion *ram_memories,
                         target_phys_addr_t *ram_bases,
                         target_phys_addr_t *ram_sizes,
@@ -686,7 +693,8 @@ ram_addr_t ppc4xx_sdram_adjust(ram_addr_t ram_size, int nr_banks,
             if (bank_size <= size_left) {
                 char name[32];
                 snprintf(name, sizeof(name), "ppc4xx.sdram%d", i);
-                memory_region_init_ram(&ram_memories[i], NULL, name, bank_size);
+                memory_region_init_ram(&ram_memories[i], name, bank_size);
+                vmstate_register_ram_global(&ram_memories[i]);
                 ram_bases[i] = base;
                 ram_sizes[i] = bank_size;
                 base += ram_size;

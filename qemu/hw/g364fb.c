@@ -62,7 +62,8 @@ typedef struct G364State {
 
 static inline int check_dirty(G364State *s, ram_addr_t page)
 {
-    return memory_region_get_dirty(&s->mem_vram, page, DIRTY_MEMORY_VGA);
+    return memory_region_get_dirty(&s->mem_vram, page, G364_PAGE_SIZE,
+                                   DIRTY_MEMORY_VGA);
 }
 
 static inline void reset_dirty(G364State *s,
@@ -268,12 +269,9 @@ static void g364fb_update_display(void *opaque)
 static inline void g364fb_invalidate_display(void *opaque)
 {
     G364State *s = opaque;
-    int i;
 
     s->blanked = 0;
-    for (i = 0; i < s->vram_size; i += G364_PAGE_SIZE) {
-        memory_region_set_dirty(&s->mem_vram, i);
-    }
+    memory_region_set_dirty(&s->mem_vram, 0, s->vram_size);
 }
 
 static void g364fb_reset(G364State *s)
@@ -291,7 +289,7 @@ static void g364fb_reset(G364State *s)
     g364fb_invalidate_display(s);
 }
 
-static void g364fb_screen_dump(void *opaque, const char *filename)
+static void g364fb_screen_dump(void *opaque, const char *filename, bool cswitch)
 {
     G364State *s = opaque;
     int y, x;
@@ -385,7 +383,7 @@ static void g364fb_update_depth(G364State *s)
 
 static void g364_invalidate_cursor_position(G364State *s)
 {
-    int ymin, ymax, start, end, i;
+    int ymin, ymax, start, end;
 
     /* invalidate only near the cursor */
     ymin = s->cursor_position & 0xfff;
@@ -393,9 +391,7 @@ static void g364_invalidate_cursor_position(G364State *s)
     start = ymin * ds_get_linesize(s->ds);
     end = (ymax + 1) * ds_get_linesize(s->ds);
 
-    for (i = start; i < end; i += G364_PAGE_SIZE) {
-        memory_region_set_dirty(&s->mem_vram, i);
-    }
+    memory_region_set_dirty(&s->mem_vram, start, end - start);
 }
 
 static void g364fb_ctrl_write(void *opaque,
@@ -524,8 +520,9 @@ static void g364fb_init(DeviceState *dev, G364State *s)
                                  g364fb_screen_dump, NULL, s);
 
     memory_region_init_io(&s->mem_ctrl, &g364fb_ctrl_ops, s, "ctrl", 0x180000);
-    memory_region_init_ram_ptr(&s->mem_vram, dev, "vram",
+    memory_region_init_ram_ptr(&s->mem_vram, "vram",
                                s->vram_size, s->vram);
+    vmstate_register_ram(&s->mem_vram, dev);
     memory_region_set_coalescing(&s->mem_vram);
 }
 
@@ -540,8 +537,8 @@ static int g364fb_sysbus_init(SysBusDevice *dev)
 
     g364fb_init(&dev->qdev, s);
     sysbus_init_irq(dev, &s->irq);
-    sysbus_init_mmio_region(dev, &s->mem_ctrl);
-    sysbus_init_mmio_region(dev, &s->mem_vram);
+    sysbus_init_mmio(dev, &s->mem_ctrl);
+    sysbus_init_mmio(dev, &s->mem_vram);
 
     return 0;
 }
@@ -552,23 +549,34 @@ static void g364fb_sysbus_reset(DeviceState *d)
     g364fb_reset(&s->g364);
 }
 
-static SysBusDeviceInfo g364fb_sysbus_info = {
-    .init = g364fb_sysbus_init,
-    .qdev.name = "sysbus-g364",
-    .qdev.desc = "G364 framebuffer",
-    .qdev.size = sizeof(G364SysBusState),
-    .qdev.vmsd = &vmstate_g364fb,
-    .qdev.reset = g364fb_sysbus_reset,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_HEX32("vram_size", G364SysBusState, g364.vram_size,
-                          8 * 1024 * 1024),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property g364fb_sysbus_properties[] = {
+    DEFINE_PROP_HEX32("vram_size", G364SysBusState, g364.vram_size,
+    8 * 1024 * 1024),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void g364fb_register(void)
+static void g364fb_sysbus_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&g364fb_sysbus_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = g364fb_sysbus_init;
+    dc->desc = "G364 framebuffer";
+    dc->reset = g364fb_sysbus_reset;
+    dc->vmsd = &vmstate_g364fb;
+    dc->props = g364fb_sysbus_properties;
 }
 
-device_init(g364fb_register);
+static TypeInfo g364fb_sysbus_info = {
+    .name          = "sysbus-g364",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(G364SysBusState),
+    .class_init    = g364fb_sysbus_class_init,
+};
+
+static void g364fb_register_types(void)
+{
+    type_register_static(&g364fb_sysbus_info);
+}
+
+type_init(g364fb_register_types)

@@ -176,17 +176,25 @@ void vga_hw_invalidate(void)
 void vga_hw_screen_dump(const char *filename)
 {
     TextConsole *previous_active_console;
+    bool cswitch;
 
     previous_active_console = active_console;
+    cswitch = previous_active_console && previous_active_console->index != 0;
 
     /* There is currently no way of specifying which screen we want to dump,
        so always dump the first one.  */
-    console_select(0);
+    if (cswitch) {
+        console_select(0);
+    }
     if (consoles[0] && consoles[0]->hw_screen_dump) {
-        consoles[0]->hw_screen_dump(consoles[0]->hw, filename);
+        consoles[0]->hw_screen_dump(consoles[0]->hw, filename, cswitch);
+    } else {
+        error_report("screen dump not implemented");
     }
 
-    console_select(previous_active_console->index);
+    if (cswitch) {
+        console_select(previous_active_console->index);
+    }
 }
 
 void vga_hw_text_update(console_ch_t *chardata)
@@ -1009,16 +1017,17 @@ static void console_putchar(TextConsole *s, int ch)
                             console_clear_xy(s, x, y);
                         }
                     }
-                break;
+                    break;
                 }
+                break;
             case 'K':
                 switch (s->esc_params[0]) {
                 case 0:
-                /* clear to eol */
-                for(x = s->x; x < s->width; x++) {
+                    /* clear to eol */
+                    for(x = s->x; x < s->width; x++) {
                         console_clear_xy(s, x, s->y);
-                }
-                break;
+                    }
+                    break;
                 case 1:
                     /* clear from beginning of line */
                     for (x = 0; x <= s->x; x++) {
@@ -1030,12 +1039,12 @@ static void console_putchar(TextConsole *s, int ch)
                     for(x = 0; x < s->width; x++) {
                         console_clear_xy(s, x, s->y);
                     }
-                break;
-            }
+                    break;
+                }
                 break;
             case 'm':
-            console_handle_escape(s);
-            break;
+                console_handle_escape(s);
+                break;
             case 'n':
                 /* report cursor position */
                 /* TODO: send ESC[row;colR */
@@ -1438,9 +1447,6 @@ void console_color_init(DisplayState *ds)
     }
 }
 
-static int n_text_consoles;
-static CharDriverState *text_consoles[128];
-
 static void text_console_set_echo(CharDriverState *chr, bool echo)
 {
     TextConsole *s = chr->opaque;
@@ -1507,7 +1513,7 @@ static void text_console_do_init(CharDriverState *chr, DisplayState *ds)
         chr->init(chr);
 }
 
-int text_console_init(QemuOpts *opts, CharDriverState **_chr)
+CharDriverState *text_console_init(QemuOpts *opts)
 {
     CharDriverState *chr;
     TextConsole *s;
@@ -1515,13 +1521,6 @@ int text_console_init(QemuOpts *opts, CharDriverState **_chr)
     unsigned height;
 
     chr = g_malloc0(sizeof(CharDriverState));
-
-    if (n_text_consoles == 128) {
-        fprintf(stderr, "Too many text consoles\n");
-        exit(1);
-    }
-    text_consoles[n_text_consoles] = chr;
-    n_text_consoles++;
 
     width = qemu_opt_get_number(opts, "width", 0);
     if (width == 0)
@@ -1539,7 +1538,7 @@ int text_console_init(QemuOpts *opts, CharDriverState **_chr)
 
     if (!s) {
         g_free(chr);
-        return -EBUSY;
+        return NULL;
     }
 
     s->chr = chr;
@@ -1547,20 +1546,18 @@ int text_console_init(QemuOpts *opts, CharDriverState **_chr)
     s->g_height = height;
     chr->opaque = s;
     chr->chr_set_echo = text_console_set_echo;
-
-    *_chr = chr;
-    return 0;
+    return chr;
 }
 
 void text_consoles_set_display(DisplayState *ds)
 {
     int i;
 
-    for (i = 0; i < n_text_consoles; i++) {
-        text_console_do_init(text_consoles[i], ds);
+    for (i = 0; i < nb_consoles; i++) {
+        if (consoles[i]->console_type != GRAPHIC_CONSOLE) {
+            text_console_do_init(consoles[i]->chr, ds);
+        }
     }
-
-    n_text_consoles = 0;
 }
 
 void qemu_console_resize(DisplayState *ds, int width, int height)
@@ -1687,6 +1684,7 @@ PixelFormat qemu_default_pixelformat(int bpp)
             pf.rbits = 8;
             pf.gbits = 8;
             pf.bbits = 8;
+            break;
         case 32:
             pf.rmask = 0x00FF0000;
             pf.gmask = 0x0000FF00;

@@ -20,7 +20,7 @@ Descriptions of section entries:
 	   Supported:	Someone is actually paid to look after this.
 	   Maintained:	Someone actually looks after it.
 	   Odd Fixes:	It has a maintainer but they don't have time to do
-			much other than throw the odd patch in. See below..
+			much other than throw the odd patch in. See below.
 	   Orphan:	No current maintainer [but maybe you could take the
 			role as you write your new code].
 	   Obsolete:	Old code. Something tagged obsolete generally means
@@ -93,6 +93,7 @@ F: target-mips/
 
 PowerPC
 M: Alexander Graf <agraf@suse.de>
+L: qemu-ppc@nongnu.org
 S: Maintained
 F: target-ppc/
 
@@ -110,6 +111,11 @@ SPARC
 M: Blue Swirl <blauwirbel@gmail.com>
 S: Maintained
 F: target-sparc/
+
+UniCore32
+M: Guan Xuetao <gxt@mprc.pku.edu.cn>
+S: Maintained
+F: target-unicore32/
 
 X86
 M: qemu-devel@nongnu.org
@@ -160,8 +166,42 @@ S: Supported
 F: xen-*
 F: */xen*
 
+Hosts:
+------
+
+LINUX
+L: qemu-devel@nongnu.org
+S: Maintained
+F: linux-*
+F: linux-headers/
+
+POSIX
+L: qemu-devel@nongnu.org
+S: Maintained
+F: *posix*
+
+W32, W64
+L: qemu-devel@nongnu.org
+M: Stefan Weil <sw@weilnetz.de>
+S: Maintained
+F: *win32*
+
 ARM Machines
 ------------
+Exynos
+M: Evgeny Voevodin <e.voevodin@samsung.com>
+M: Maksim Kozlov <m.kozlov@samsung.com>
+M: Igor Mitsyanko <i.mitsyanko@samsung.com>
+M: Dmitry Solodkiy <d.solodkiy@samsung.com>
+S: Maintained
+F: hw/exynos*
+
+Calxeda Highbank
+M: Mark Langsdorf <mark.langsdorf@calxeda.com>
+S: Supported
+F: hw/highbank.c
+F: hw/xgmac.c
+
 Gumstix
 M: qemu-devel@nongnu.org
 S: Orphan
@@ -215,6 +255,13 @@ M: Paul Brook <paul@codesourcery.com>
 M: Peter Maydell <peter.maydell@linaro.org>
 S: Maintained
 F: hw/versatilepb.c
+
+Xilinx Zynq
+M: Peter Crosthwaite <peter.crosthwaite@petalogix.com>
+S: Maintained
+F: hw/xilinx_zynq.c
+F: hw/zynq_slcr.c
+F: hw/cadence_*
 
 CRIS Machines
 -------------
@@ -290,23 +337,31 @@ PowerPC Machines
 ----------------
 405
 M: Alexander Graf <agraf@suse.de>
+L: qemu-ppc@nongnu.org
 S: Maintained
 F: hw/ppc405_boards.c
 
 New World
 M: Alexander Graf <agraf@suse.de>
+L: qemu-ppc@nongnu.org
 S: Maintained
 F: hw/ppc_newworld.c
+F: hw/unin_pci.c
+F: hw/dec_pci.[hc]
 
 Old World
 M: Alexander Graf <agraf@suse.de>
+L: qemu-ppc@nongnu.org
 S: Maintained
 F: hw/ppc_oldworld.c
+F: hw/grackle_pci.c
 
 PReP
 M: Andreas Färber <andreas.faerber@web.de>
+L: qemu-ppc@nongnu.org
 S: Odd Fixes
 F: hw/ppc_prep.c
+F: hw/prep_pci.[hc]
 
 SH4 Machines
 ------------
@@ -377,11 +432,16 @@ F: hw/pci*
 F: hw/piix*
 
 SCSI
+M: Paolo Bonzini <pbonzini@redhat.com>
+S: Supported
+F: hw/virtio-scsi.*
+F: hw/scsi*
+T: git://github.com/bonzini/qemu.git scsi-next
+
+LSI53C895A
 M: Paul Brook <paul@codesourcery.com>
-M: Kevin Wolf <kwolf@redhat.com>
 S: Odd Fixes
 F: hw/lsi53c895a.c
-F: hw/scsi*
 
 USB
 M: Gerd Hoffmann <kraxel@redhat.com>
@@ -399,9 +459,11 @@ S: Supported
 F: hw/virtio*
 
 virtio-9p
-M: Venkateswararao Jujjuri (JV) <jvrao@linux.vnet.ibm.com>
+M: Aneesh Kumar K.V <aneesh.kumar@linux.vnet.ibm.com>
 S: Supported
-F: hw/virtio-9p*
+F: hw/9pfs/ fsdev/
+T: https://github.com/kvaneesh/QEMU
+
 
 virtio-blk
 M: Kevin Wolf <kwolf@redhat.com>
@@ -473,6 +535,14 @@ M: Mark McLoughlin <markmc@redhat.com>
 S: Maintained
 F: net/
 
+Network Block Device (NBD)
+M: Paolo Bonzini <pbonzini@redhat.com>
+S: Odd Fixes
+F: block/nbd.c
+F: nbd.*
+F: qemu-nbd.c
+T: git://github.com/bonzini/qemu.git nbd-next
+
 SLIRP
 M: Jan Kiszka <jan.kiszka@siemens.com>
 S: Maintained
@@ -483,7 +553,8 @@ Tracing
 M: Stefan Hajnoczi <stefanha@linux.vnet.ibm.com>
 S: Maintained
 F: trace/
-T: git://repo.or.cz/qemu/stefanha.git tracing
+F: docs/tracing.txt
+T: git://github.com/stefanha/qemu.git tracing
 
 Checkpatch
 M: Blue Swirl <blauwirbel@gmail.com>

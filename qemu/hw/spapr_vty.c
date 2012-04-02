@@ -72,7 +72,7 @@ static int spapr_vty_init(VIOsPAPRDevice *sdev)
 /* Forward declaration */
 static VIOsPAPRDevice *vty_lookup(sPAPREnvironment *spapr, target_ulong reg);
 
-static target_ulong h_put_term_char(CPUState *env, sPAPREnvironment *spapr,
+static target_ulong h_put_term_char(CPUPPCState *env, sPAPREnvironment *spapr,
                                     target_ulong opcode, target_ulong *args)
 {
     target_ulong reg = args[0];
@@ -99,7 +99,7 @@ static target_ulong h_put_term_char(CPUState *env, sPAPREnvironment *spapr,
     return H_SUCCESS;
 }
 
-static target_ulong h_get_term_char(CPUState *env, sPAPREnvironment *spapr,
+static target_ulong h_get_term_char(CPUPPCState *env, sPAPREnvironment *spapr,
                                     target_ulong opcode, target_ulong *args)
 {
     target_ulong reg = args[0];
@@ -135,26 +135,65 @@ void spapr_vty_create(VIOsPAPRBus *bus, uint32_t reg, CharDriverState *chardev)
     qdev_init_nofail(dev);
 }
 
-static void vty_hcalls(VIOsPAPRBus *bus)
+static Property spapr_vty_properties[] = {
+    DEFINE_SPAPR_PROPERTIES(VIOsPAPRVTYDevice, sdev, SPAPR_VTY_BASE_ADDRESS, 0),
+    DEFINE_PROP_CHR("chardev", VIOsPAPRVTYDevice, chardev),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void spapr_vty_class_init(ObjectClass *klass, void *data)
 {
-    spapr_register_hypercall(H_PUT_TERM_CHAR, h_put_term_char);
-    spapr_register_hypercall(H_GET_TERM_CHAR, h_get_term_char);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    VIOsPAPRDeviceClass *k = VIO_SPAPR_DEVICE_CLASS(klass);
+
+    k->init = spapr_vty_init;
+    k->dt_name = "vty";
+    k->dt_type = "serial";
+    k->dt_compatible = "hvterm1";
+    dc->props = spapr_vty_properties;
 }
 
-static VIOsPAPRDeviceInfo spapr_vty = {
-    .init = spapr_vty_init,
-    .dt_name = "vty",
-    .dt_type = "serial",
-    .dt_compatible = "hvterm1",
-    .hcalls = vty_hcalls,
-    .qdev.name = "spapr-vty",
-    .qdev.size = sizeof(VIOsPAPRVTYDevice),
-    .qdev.props = (Property[]) {
-        DEFINE_SPAPR_PROPERTIES(VIOsPAPRVTYDevice, sdev, SPAPR_VTY_BASE_ADDRESS, 0),
-        DEFINE_PROP_CHR("chardev", VIOsPAPRVTYDevice, chardev),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static TypeInfo spapr_vty_info = {
+    .name          = "spapr-vty",
+    .parent        = TYPE_VIO_SPAPR_DEVICE,
+    .instance_size = sizeof(VIOsPAPRVTYDevice),
+    .class_init    = spapr_vty_class_init,
 };
+
+VIOsPAPRDevice *spapr_vty_get_default(VIOsPAPRBus *bus)
+{
+    VIOsPAPRDevice *sdev, *selected;
+    DeviceState *iter;
+
+    /*
+     * To avoid the console bouncing around we want one VTY to be
+     * the "default". We haven't really got anything to go on, so
+     * arbitrarily choose the one with the lowest reg value.
+     */
+
+    selected = NULL;
+    QTAILQ_FOREACH(iter, &bus->bus.children, sibling) {
+        /* Only look at VTY devices */
+        if (!object_dynamic_cast(OBJECT(iter), "spapr-vty")) {
+            continue;
+        }
+
+        sdev = DO_UPCAST(VIOsPAPRDevice, qdev, iter);
+
+        /* First VTY we've found, so it is selected for now */
+        if (!selected) {
+            selected = sdev;
+            continue;
+        }
+
+        /* Choose VTY with lowest reg value */
+        if (sdev->reg < selected->reg) {
+            selected = sdev;
+        }
+    }
+
+    return selected;
+}
 
 static VIOsPAPRDevice *vty_lookup(sPAPREnvironment *spapr, target_ulong reg)
 {
@@ -162,25 +201,22 @@ static VIOsPAPRDevice *vty_lookup(sPAPREnvironment *spapr, target_ulong reg)
 
     sdev = spapr_vio_find_by_reg(spapr->vio_bus, reg);
     if (!sdev && reg == 0) {
-        DeviceState *qdev;
-
         /* Hack for kernel early debug, which always specifies reg==0.
-         * We search all VIO devices, and grab the first available vty
-         * device.  This attempts to mimic existing PowerVM behaviour
+         * We search all VIO devices, and grab the vty with the lowest
+         * reg.  This attempts to mimic existing PowerVM behaviour
          * (early debug does work there, despite having no vty with
          * reg==0. */
-        QTAILQ_FOREACH(qdev, &spapr->vio_bus->bus.children, sibling) {
-            if (qdev->info == &spapr_vty.qdev) {
-                return DO_UPCAST(VIOsPAPRDevice, qdev, qdev);
-            }
-        }
+        return spapr_vty_get_default(spapr->vio_bus);
     }
 
     return sdev;
 }
 
-static void spapr_vty_register(void)
+static void spapr_vty_register_types(void)
 {
-    spapr_vio_bus_register_withprop(&spapr_vty);
+    spapr_register_hypercall(H_PUT_TERM_CHAR, h_put_term_char);
+    spapr_register_hypercall(H_GET_TERM_CHAR, h_get_term_char);
+    type_register_static(&spapr_vty_info);
 }
-device_init(spapr_vty_register);
+
+type_init(spapr_vty_register_types)

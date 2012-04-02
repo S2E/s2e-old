@@ -110,30 +110,7 @@ static void sh_pci_set_irq(void *opaque, int irq_num, int level)
     qemu_set_irq(pic[irq_num], level);
 }
 
-static void sh_pci_map(SysBusDevice *dev, target_phys_addr_t base)
-{
-    SHPCIState *s = FROM_SYSBUS(SHPCIState, dev);
-
-    memory_region_add_subregion(get_system_memory(),
-                                P4ADDR(base),
-                                &s->memconfig_p4);
-    memory_region_add_subregion(get_system_memory(),
-                                A7ADDR(base),
-                                &s->memconfig_a7);
-    s->iobr = 0xfe240000;
-    memory_region_add_subregion(get_system_memory(), s->iobr, &s->isa);
-}
-
-static void sh_pci_unmap(SysBusDevice *dev, target_phys_addr_t base)
-{
-    SHPCIState *s = FROM_SYSBUS(SHPCIState, dev);
-
-    memory_region_del_subregion(get_system_memory(), &s->memconfig_p4);
-    memory_region_del_subregion(get_system_memory(), &s->memconfig_a7);
-    memory_region_del_subregion(get_system_memory(), &s->isa);
-}
-
-static int sh_pci_init_device(SysBusDevice *dev)
+static int sh_pci_device_init(SysBusDevice *dev)
 {
     SHPCIState *s;
     int i;
@@ -153,9 +130,11 @@ static int sh_pci_init_device(SysBusDevice *dev)
     memory_region_init_alias(&s->memconfig_a7, "sh_pci.2", &s->memconfig_p4,
                              0, 0x224);
     isa_mmio_setup(&s->isa, 0x40000);
-    sysbus_init_mmio_cb2(dev, sh_pci_map, sh_pci_unmap);
-    sysbus_init_mmio_region(dev, &s->memconfig_a7);
-    sysbus_init_mmio_region(dev, &s->isa);
+    sysbus_init_mmio(dev, &s->memconfig_p4);
+    sysbus_init_mmio(dev, &s->memconfig_a7);
+    s->iobr = 0xfe240000;
+    memory_region_add_subregion(get_system_memory(), s->iobr, &s->isa);
+
     s->dev = pci_create_simple(s->bus, PCI_DEVFN(0, 0), "sh_pci_host");
     return 0;
 }
@@ -168,19 +147,40 @@ static int sh_pci_host_init(PCIDevice *d)
     return 0;
 }
 
-static PCIDeviceInfo sh_pci_host_info = {
-    .qdev.name = "sh_pci_host",
-    .qdev.size = sizeof(PCIDevice),
-    .init      = sh_pci_host_init,
-    .vendor_id = PCI_VENDOR_ID_HITACHI,
-    .device_id = PCI_DEVICE_ID_HITACHI_SH7751R,
-};
-
-static void sh_pci_register_devices(void)
+static void sh_pci_host_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_dev("sh_pci", sizeof(SHPCIState),
-                        sh_pci_init_device);
-    pci_qdev_register(&sh_pci_host_info);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = sh_pci_host_init;
+    k->vendor_id = PCI_VENDOR_ID_HITACHI;
+    k->device_id = PCI_DEVICE_ID_HITACHI_SH7751R;
 }
 
-device_init(sh_pci_register_devices)
+static TypeInfo sh_pci_host_info = {
+    .name          = "sh_pci_host",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIDevice),
+    .class_init    = sh_pci_host_class_init,
+};
+
+static void sh_pci_device_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = sh_pci_device_init;
+}
+
+static TypeInfo sh_pci_device_info = {
+    .name          = "sh_pci",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SHPCIState),
+    .class_init    = sh_pci_device_class_init,
+};
+
+static void sh_pci_register_types(void)
+{
+    type_register_static(&sh_pci_device_info);
+    type_register_static(&sh_pci_host_info);
+}
+
+type_init(sh_pci_register_types)

@@ -340,16 +340,24 @@ static int ssd0323_init(SSISlave *dev)
     return 0;
 }
 
-static SSISlaveInfo ssd0323_info = {
-    .qdev.name = "ssd0323",
-    .qdev.size = sizeof(ssd0323_state),
-    .init = ssd0323_init,
-    .transfer = ssd0323_transfer
-};
-
-static void ssd03232_register_devices(void)
+static void ssd0323_class_init(ObjectClass *klass, void *data)
 {
-    ssi_register_slave(&ssd0323_info);
+    SSISlaveClass *k = SSI_SLAVE_CLASS(klass);
+
+    k->init = ssd0323_init;
+    k->transfer = ssd0323_transfer;
 }
 
-device_init(ssd03232_register_devices)
+static TypeInfo ssd0323_info = {
+    .name          = "ssd0323",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(ssd0323_state),
+    .class_init    = ssd0323_class_init,
+};
+
+static void ssd03232_register_types(void)
+{
+    type_register_static(&ssd0323_info);
+}
+
+type_init(ssd03232_register_types)

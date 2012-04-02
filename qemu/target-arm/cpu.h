@@ -23,7 +23,7 @@
 
 #define ELF_MACHINE	EM_ARM
 
-#define CPUState struct CPUARMState
+#define CPUArchState struct CPUARMState
 
 #include "config.h"
 #include "qemu-common.h"
@@ -116,6 +116,7 @@ typedef struct CPUARMState {
         uint32_t c1_sys; /* System control register.  */
         uint32_t c1_coproc; /* Coprocessor access register.  */
         uint32_t c1_xscaleauxcr; /* XScale auxiliary control register.  */
+        uint32_t c1_scr; /* secure config register.  */
         uint32_t c2_base0; /* MMU translation table base 0.  */
         uint32_t c2_base1; /* MMU translation table base 1.  */
         uint32_t c2_control; /* MMU translation table base control.  */
@@ -149,6 +150,10 @@ typedef struct CPUARMState {
         uint32_t c15_i_max; /* Maximum D-cache dirty line index.  */
         uint32_t c15_i_min; /* Minimum D-cache dirty line index.  */
         uint32_t c15_threadid; /* TI debugger thread-ID.  */
+        uint32_t c15_config_base_address; /* SCU base address.  */
+        uint32_t c15_diagnostic; /* diagnostic register */
+        uint32_t c15_power_diagnostic;
+        uint32_t c15_power_control; /* power control */
     } cp15;
 
     struct {
@@ -233,7 +238,6 @@ typedef struct CPUARMState {
 CPUARMState *cpu_arm_init(const char *cpu_model);
 void arm_translate_init(void);
 int cpu_arm_exec(CPUARMState *s);
-void cpu_arm_close(CPUARMState *s);
 void do_interrupt(CPUARMState *);
 void switch_mode(CPUARMState *, int);
 uint32_t do_arm_semihosting(CPUARMState *env);
@@ -377,6 +381,8 @@ enum arm_features {
     ARM_FEATURE_VAPA, /* cp15 VA to PA lookups */
     ARM_FEATURE_ARM_DIV, /* divide supported in ARM encoding */
     ARM_FEATURE_VFP4, /* VFPv4 (implies that NEON is v2) */
+    ARM_FEATURE_GENERIC_TIMER,
+    ARM_FEATURE_MVFR, /* Media and VFP Feature Registers 0 and 1 */
 };
 
 static inline int arm_feature(CPUARMState *env, int feature)
@@ -427,6 +433,7 @@ void cpu_arm_set_cp_io(CPUARMState *env, int cpnum,
 #define ARM_CPUID_ARM11MPCORE 0x410fb022
 #define ARM_CPUID_CORTEXA8    0x410fc080
 #define ARM_CPUID_CORTEXA9    0x410fc090
+#define ARM_CPUID_CORTEXA15   0x412fc0f1
 #define ARM_CPUID_CORTEXM3    0x410fc231
 #define ARM_CPUID_ANY         0xffffffff
 
@@ -448,19 +455,19 @@ void cpu_arm_set_cp_io(CPUARMState *env, int cpnum,
 #define cpu_signal_handler cpu_arm_signal_handler
 #define cpu_list arm_cpu_list
 
-#define CPU_SAVE_VERSION 4
+#define CPU_SAVE_VERSION 6
 
 /* MMU modes definitions */
 #define MMU_MODE0_SUFFIX _kernel
 #define MMU_MODE1_SUFFIX _user
 #define MMU_USER_IDX 1
-static inline int cpu_mmu_index (CPUState *env)
+static inline int cpu_mmu_index (CPUARMState *env)
 {
     return (env->uncached_cpsr & CPSR_M) == ARM_CPU_MODE_USR ? 1 : 0;
 }
 
 #if defined(CONFIG_USER_ONLY)
-static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
+static inline void cpu_clone_regs(CPUARMState *env, target_ulong newsp)
 {
     if (newsp)
         env->regs[13] = newsp;
@@ -469,6 +476,7 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 #endif
 
 #include "cpu-all.h"
+#include "cpu-qom.h"
 
 /* Bit usage in the TB flags field: */
 #define ARM_TBFLAG_THUMB_SHIFT      0
@@ -499,7 +507,7 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 #define ARM_TBFLAG_CONDEXEC(F) \
     (((F) & ARM_TBFLAG_CONDEXEC_MASK) >> ARM_TBFLAG_CONDEXEC_SHIFT)
 
-static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
+static inline void cpu_get_tb_cpu_state(CPUARMState *env, target_ulong *pc,
                                         target_ulong *cs_base, int *flags)
 {
     int privmode;
@@ -522,7 +530,7 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
     }
 }
 
-static inline bool cpu_has_work(CPUState *env)
+static inline bool cpu_has_work(CPUARMState *env)
 {
     return env->interrupt_request &
         (CPU_INTERRUPT_FIQ | CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB);
@@ -530,7 +538,7 @@ static inline bool cpu_has_work(CPUState *env)
 
 #include "exec-all.h"
 
-static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
+static inline void cpu_pc_from_tb(CPUARMState *env, TranslationBlock *tb)
 {
     env->regs[15] = tb->pc;
 }

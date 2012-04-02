@@ -888,7 +888,7 @@ static int escc_init1(SysBusDevice *dev)
 
     memory_region_init_io(&s->mmio, &escc_mem_ops, s, "escc",
                           ESCC_SIZE << s->it_shift);
-    sysbus_init_mmio_region(dev, &s->mmio);
+    sysbus_init_mmio(dev, &s->mmio);
 
     if (s->chn[0].type == mouse) {
         qemu_add_mouse_event_handler(sunmouse_event, &s->chn[0], 0,
@@ -901,28 +901,39 @@ static int escc_init1(SysBusDevice *dev)
     return 0;
 }
 
-static SysBusDeviceInfo escc_info = {
-    .init = escc_init1,
-    .qdev.name  = "escc",
-    .qdev.size  = sizeof(SerialState),
-    .qdev.vmsd  = &vmstate_escc,
-    .qdev.reset = escc_reset,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("frequency", SerialState, frequency,   0),
-        DEFINE_PROP_UINT32("it_shift",  SerialState, it_shift,    0),
-        DEFINE_PROP_UINT32("disabled",  SerialState, disabled,    0),
-        DEFINE_PROP_UINT32("disabled",  SerialState, disabled,    0),
-        DEFINE_PROP_UINT32("chnBtype",  SerialState, chn[0].type, 0),
-        DEFINE_PROP_UINT32("chnAtype",  SerialState, chn[1].type, 0),
-        DEFINE_PROP_CHR("chrB", SerialState, chn[0].chr),
-        DEFINE_PROP_CHR("chrA", SerialState, chn[1].chr),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property escc_properties[] = {
+    DEFINE_PROP_UINT32("frequency", SerialState, frequency,   0),
+    DEFINE_PROP_UINT32("it_shift",  SerialState, it_shift,    0),
+    DEFINE_PROP_UINT32("disabled",  SerialState, disabled,    0),
+    DEFINE_PROP_UINT32("disabled",  SerialState, disabled,    0),
+    DEFINE_PROP_UINT32("chnBtype",  SerialState, chn[0].type, 0),
+    DEFINE_PROP_UINT32("chnAtype",  SerialState, chn[1].type, 0),
+    DEFINE_PROP_CHR("chrB", SerialState, chn[0].chr),
+    DEFINE_PROP_CHR("chrA", SerialState, chn[1].chr),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void escc_register_devices(void)
+static void escc_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&escc_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = escc_init1;
+    dc->reset = escc_reset;
+    dc->vmsd = &vmstate_escc;
+    dc->props = escc_properties;
 }
 
-device_init(escc_register_devices)
+static TypeInfo escc_info = {
+    .name          = "escc",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SerialState),
+    .class_init    = escc_class_init,
+};
+
+static void escc_register_types(void)
+{
+    type_register_static(&escc_info);
+}
+
+type_init(escc_register_types)

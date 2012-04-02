@@ -75,7 +75,7 @@ void WindowsCrashDumpGenerator::generateDump(S2EExecutionState *state, const std
         s2e()->getDebugStream() << "Could not save BSOD context" << '\n';
         return;
     }
-    context.Eip = state->readCpuState(offsetof(CPUState, eip), 8*sizeof(uint32_t));
+    context.Eip = state->readCpuState(offsetof(CPUX86State, eip), 8*sizeof(uint32_t));
 
 
     BugCheckDesc bugDesc;
@@ -126,29 +126,29 @@ bool WindowsCrashDumpGenerator::saveContext(S2EExecutionState *state, s2e::windo
 
     ctx.ContextFlags = CONTEXT_FULL;
 
-    ctx.Eax = readAndConcretizeRegister(state, offsetof(CPUState, regs[R_EAX]));
-    ctx.Ebx = readAndConcretizeRegister(state, offsetof(CPUState, regs[R_EBX]));
-    ctx.Ecx = readAndConcretizeRegister(state, offsetof(CPUState, regs[R_ECX]));
-    ctx.Edx = readAndConcretizeRegister(state, offsetof(CPUState, regs[R_EDX]));
-    ctx.Esi = readAndConcretizeRegister(state, offsetof(CPUState, regs[R_ESI]));
-    ctx.Edi = readAndConcretizeRegister(state, offsetof(CPUState, regs[R_EDI]));
-    ctx.Esp = readAndConcretizeRegister(state, offsetof(CPUState, regs[R_ESP]));
-    ctx.Ebp = readAndConcretizeRegister(state, offsetof(CPUState, regs[R_EBP]));
+    ctx.Eax = readAndConcretizeRegister(state, offsetof(CPUX86State, regs[R_EAX]));
+    ctx.Ebx = readAndConcretizeRegister(state, offsetof(CPUX86State, regs[R_EBX]));
+    ctx.Ecx = readAndConcretizeRegister(state, offsetof(CPUX86State, regs[R_ECX]));
+    ctx.Edx = readAndConcretizeRegister(state, offsetof(CPUX86State, regs[R_EDX]));
+    ctx.Esi = readAndConcretizeRegister(state, offsetof(CPUX86State, regs[R_ESI]));
+    ctx.Edi = readAndConcretizeRegister(state, offsetof(CPUX86State, regs[R_EDI]));
+    ctx.Esp = readAndConcretizeRegister(state, offsetof(CPUX86State, regs[R_ESP]));
+    ctx.Ebp = readAndConcretizeRegister(state, offsetof(CPUX86State, regs[R_EBP]));
 
-    ctx.Dr0 = state->readCpuState(offsetof(CPUState, dr[0]), 8*sizeof(uint32_t));
-    ctx.Dr1 = state->readCpuState(offsetof(CPUState, dr[1]), 8*sizeof(uint32_t));
-    ctx.Dr2 = state->readCpuState(offsetof(CPUState, dr[2]), 8*sizeof(uint32_t));
-    ctx.Dr3 = state->readCpuState(offsetof(CPUState, dr[3]), 8*sizeof(uint32_t));
-    ctx.Dr6 = state->readCpuState(offsetof(CPUState, dr[6]), 8*sizeof(uint32_t));
-    ctx.Dr7 = state->readCpuState(offsetof(CPUState, dr[7]), 8*sizeof(uint32_t));
+    ctx.Dr0 = state->readCpuState(offsetof(CPUX86State, dr[0]), 8*sizeof(uint32_t));
+    ctx.Dr1 = state->readCpuState(offsetof(CPUX86State, dr[1]), 8*sizeof(uint32_t));
+    ctx.Dr2 = state->readCpuState(offsetof(CPUX86State, dr[2]), 8*sizeof(uint32_t));
+    ctx.Dr3 = state->readCpuState(offsetof(CPUX86State, dr[3]), 8*sizeof(uint32_t));
+    ctx.Dr6 = state->readCpuState(offsetof(CPUX86State, dr[6]), 8*sizeof(uint32_t));
+    ctx.Dr7 = state->readCpuState(offsetof(CPUX86State, dr[7]), 8*sizeof(uint32_t));
 
-    ctx.SegDs = state->readCpuState(offsetof(CPUState, segs[R_DS].selector), 8*sizeof(uint32_t));
-    ctx.SegEs = state->readCpuState(offsetof(CPUState, segs[R_ES].selector), 8*sizeof(uint32_t));
-    ctx.SegFs = state->readCpuState(offsetof(CPUState, segs[R_FS].selector), 8*sizeof(uint32_t));
-    ctx.SegGs = state->readCpuState(offsetof(CPUState, segs[R_GS].selector), 8*sizeof(uint32_t));
+    ctx.SegDs = state->readCpuState(offsetof(CPUX86State, segs[R_DS].selector), 8*sizeof(uint32_t));
+    ctx.SegEs = state->readCpuState(offsetof(CPUX86State, segs[R_ES].selector), 8*sizeof(uint32_t));
+    ctx.SegFs = state->readCpuState(offsetof(CPUX86State, segs[R_FS].selector), 8*sizeof(uint32_t));
+    ctx.SegGs = state->readCpuState(offsetof(CPUX86State, segs[R_GS].selector), 8*sizeof(uint32_t));
 
-    ctx.SegCs = state->readCpuState(offsetof(CPUState, segs[R_CS].selector), 8*sizeof(uint32_t));
-    ctx.SegSs = state->readCpuState(offsetof(CPUState, segs[R_SS].selector), 8*sizeof(uint32_t));
+    ctx.SegCs = state->readCpuState(offsetof(CPUX86State, segs[R_CS].selector), 8*sizeof(uint32_t));
+    ctx.SegSs = state->readCpuState(offsetof(CPUX86State, segs[R_SS].selector), 8*sizeof(uint32_t));
 
 
     ctx.EFlags = cpu_get_eflags(env);

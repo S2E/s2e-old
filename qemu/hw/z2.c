@@ -6,6 +6,9 @@
  * Code is based on mainstone platform.
  *
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "hw.h"
@@ -171,21 +174,30 @@ static VMStateDescription vmstate_zipit_lcd_state = {
     }
 };
 
-static SSISlaveInfo zipit_lcd_info = {
-    .qdev.name = "zipit-lcd",
-    .qdev.size = sizeof(ZipitLCD),
-    .qdev.vmsd = &vmstate_zipit_lcd_state,
-    .init = zipit_lcd_init,
-    .transfer = zipit_lcd_transfer
+static void zipit_lcd_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SSISlaveClass *k = SSI_SLAVE_CLASS(klass);
+
+    k->init = zipit_lcd_init;
+    k->transfer = zipit_lcd_transfer;
+    dc->vmsd = &vmstate_zipit_lcd_state;
+}
+
+static TypeInfo zipit_lcd_info = {
+    .name          = "zipit-lcd",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(ZipitLCD),
+    .class_init    = zipit_lcd_class_init,
 };
 
 typedef struct {
-    i2c_slave i2c;
+    I2CSlave i2c;
     int len;
     uint8_t buf[3];
 } AER915State;
 
-static int aer915_send(i2c_slave *i2c, uint8_t data)
+static int aer915_send(I2CSlave *i2c, uint8_t data)
 {
     AER915State *s = FROM_I2C_SLAVE(AER915State, i2c);
     s->buf[s->len] = data;
@@ -203,7 +215,7 @@ static int aer915_send(i2c_slave *i2c, uint8_t data)
     return 0;
 }
 
-static void aer915_event(i2c_slave *i2c, enum i2c_event event)
+static void aer915_event(I2CSlave *i2c, enum i2c_event event)
 {
     AER915State *s = FROM_I2C_SLAVE(AER915State, i2c);
     switch (event) {
@@ -222,7 +234,7 @@ static void aer915_event(i2c_slave *i2c, enum i2c_event event)
     }
 }
 
-static int aer915_recv(i2c_slave *slave)
+static int aer915_recv(I2CSlave *slave)
 {
     int retval = 0x00;
     AER915State *s = FROM_I2C_SLAVE(AER915State, slave);
@@ -245,7 +257,7 @@ static int aer915_recv(i2c_slave *slave)
     return retval;
 }
 
-static int aer915_init(i2c_slave *i2c)
+static int aer915_init(I2CSlave *i2c)
 {
     /* Nothing to do.  */
     return 0;
@@ -263,14 +275,23 @@ static VMStateDescription vmstate_aer915_state = {
     }
 };
 
-static I2CSlaveInfo aer915_info = {
-    .qdev.name = "aer915",
-    .qdev.size = sizeof(AER915State),
-    .qdev.vmsd = &vmstate_aer915_state,
-    .init = aer915_init,
-    .event = aer915_event,
-    .recv = aer915_recv,
-    .send = aer915_send
+static void aer915_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    I2CSlaveClass *k = I2C_SLAVE_CLASS(klass);
+
+    k->init = aer915_init;
+    k->event = aer915_event;
+    k->recv = aer915_recv;
+    k->send = aer915_send;
+    dc->vmsd = &vmstate_aer915_state;
+}
+
+static TypeInfo aer915_info = {
+    .name          = "aer915",
+    .parent        = TYPE_I2C_SLAVE,
+    .instance_size = sizeof(AER915State),
+    .class_init    = aer915_class_init,
 };
 
 static void z2_init(ram_addr_t ram_size,
@@ -323,8 +344,8 @@ static void z2_init(ram_addr_t ram_size,
         NULL,
         qdev_get_gpio_in(cpu->gpio, Z2_GPIO_SD_DETECT));
 
-    ssi_register_slave(&zipit_lcd_info);
-    i2c_register_slave(&aer915_info);
+    type_register_static(&zipit_lcd_info);
+    type_register_static(&aer915_info);
     z2_lcd = ssi_create_slave(cpu->ssp[1], "zipit-lcd");
     bus = pxa2xx_i2c_bus(cpu->i2c[0]);
     i2c_create_slave(bus, "aer915", 0x55);

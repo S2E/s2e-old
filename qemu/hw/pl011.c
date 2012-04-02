@@ -12,6 +12,7 @@
 
 typedef struct {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     uint32_t readbuff;
     uint32_t flags;
     uint32_t lcr;
@@ -53,7 +54,8 @@ static void pl011_update(pl011_state *s)
     qemu_set_irq(s->irq, flags != 0);
 }
 
-static uint32_t pl011_read(void *opaque, target_phys_addr_t offset)
+static uint64_t pl011_read(void *opaque, target_phys_addr_t offset,
+                           unsigned size)
 {
     pl011_state *s = (pl011_state *)opaque;
     uint32_t c;
@@ -123,7 +125,7 @@ static void pl011_set_read_trigger(pl011_state *s)
 }
 
 static void pl011_write(void *opaque, target_phys_addr_t offset,
-                          uint32_t value)
+                        uint64_t value, unsigned size)
 {
     pl011_state *s = (pl011_state *)opaque;
     unsigned char ch;
@@ -223,16 +225,10 @@ static void pl011_event(void *opaque, int event)
         pl011_put_fifo(opaque, 0x400);
 }
 
-static CPUReadMemoryFunc * const pl011_readfn[] = {
-   pl011_read,
-   pl011_read,
-   pl011_read
-};
-
-static CPUWriteMemoryFunc * const pl011_writefn[] = {
-   pl011_write,
-   pl011_write,
-   pl011_write
+static const MemoryRegionOps pl011_ops = {
+    .read = pl011_read,
+    .write = pl011_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static const VMStateDescription vmstate_pl011 = {
@@ -262,16 +258,13 @@ static const VMStateDescription vmstate_pl011 = {
 
 static int pl011_init(SysBusDevice *dev, const unsigned char *id)
 {
-    int iomemtype;
     pl011_state *s = FROM_SYSBUS(pl011_state, dev);
 
-    iomemtype = cpu_register_io_memory(pl011_readfn,
-                                       pl011_writefn, s,
-                                       DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, 0x1000,iomemtype);
+    memory_region_init_io(&s->iomem, &pl011_ops, s, "pl011", 0x1000);
+    sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
     s->id = id;
-    s->chr = qdev_init_chardev(&dev->qdev);
+    s->chr = qemu_char_get_next_serial();
 
     s->read_trigger = 1;
     s->ifl = 0x12;
@@ -285,22 +278,48 @@ static int pl011_init(SysBusDevice *dev, const unsigned char *id)
     return 0;
 }
 
-static int pl011_init_arm(SysBusDevice *dev)
+static int pl011_arm_init(SysBusDevice *dev)
 {
     return pl011_init(dev, pl011_id_arm);
 }
 
-static int pl011_init_luminary(SysBusDevice *dev)
+static int pl011_luminary_init(SysBusDevice *dev)
 {
     return pl011_init(dev, pl011_id_luminary);
 }
 
-static void pl011_register_devices(void)
+static void pl011_arm_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_dev("pl011", sizeof(pl011_state),
-                        pl011_init_arm);
-    sysbus_register_dev("pl011_luminary", sizeof(pl011_state),
-                        pl011_init_luminary);
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = pl011_arm_init;
 }
 
-device_init(pl011_register_devices)
+static TypeInfo pl011_arm_info = {
+    .name          = "pl011",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl011_state),
+    .class_init    = pl011_arm_class_init,
+};
+
+static void pl011_luminary_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = pl011_luminary_init;
+}
+
+static TypeInfo pl011_luminary_info = {
+    .name          = "pl011_luminary",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl011_state),
+    .class_init    = pl011_luminary_class_init,
+};
+
+static void pl011_register_types(void)
+{
+    type_register_static(&pl011_arm_info);
+    type_register_static(&pl011_luminary_info);
+}
+
+type_init(pl011_register_types)

@@ -14,6 +14,9 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, see <http://www.gnu.org/licenses/>.
+ *
+ *  Contributions after 2012-01-13 are licensed under the terms of the
+ *  GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include <stdio.h>
@@ -49,7 +52,6 @@ static int syncwrite    = 0;
 static int batch_maps   = 0;
 
 static int max_requests = 32;
-static int use_aio      = 1;
 
 /* ------------------------------------------------------------- */
 
@@ -314,76 +316,6 @@ static int ioreq_map(struct ioreq *ioreq)
     return 0;
 }
 
-static int ioreq_runio_qemu_sync(struct ioreq *ioreq)
-{
-    struct XenBlkDev *blkdev = ioreq->blkdev;
-    int i, rc;
-    off_t pos;
-
-    if (ioreq->req.nr_segments && ioreq_map(ioreq) == -1) {
-        goto err_no_map;
-    }
-    if (ioreq->presync) {
-        bdrv_flush(blkdev->bs);
-    }
-
-    switch (ioreq->req.operation) {
-    case BLKIF_OP_READ:
-        pos = ioreq->start;
-        for (i = 0; i < ioreq->v.niov; i++) {
-            rc = bdrv_read(blkdev->bs, pos / BLOCK_SIZE,
-                           ioreq->v.iov[i].iov_base,
-                           ioreq->v.iov[i].iov_len / BLOCK_SIZE);
-            if (rc != 0) {
-                xen_be_printf(&blkdev->xendev, 0, "rd I/O error (%p, len %zd)\n",
-                              ioreq->v.iov[i].iov_base,
-                              ioreq->v.iov[i].iov_len);
-                goto err;
-            }
-            pos += ioreq->v.iov[i].iov_len;
-        }
-        break;
-    case BLKIF_OP_WRITE:
-    case BLKIF_OP_WRITE_BARRIER:
-        if (!ioreq->req.nr_segments) {
-            break;
-        }
-        pos = ioreq->start;
-        for (i = 0; i < ioreq->v.niov; i++) {
-            rc = bdrv_write(blkdev->bs, pos / BLOCK_SIZE,
-                            ioreq->v.iov[i].iov_base,
-                            ioreq->v.iov[i].iov_len / BLOCK_SIZE);
-            if (rc != 0) {
-                xen_be_printf(&blkdev->xendev, 0, "wr I/O error (%p, len %zd)\n",
-                              ioreq->v.iov[i].iov_base,
-                              ioreq->v.iov[i].iov_len);
-                goto err;
-            }
-            pos += ioreq->v.iov[i].iov_len;
-        }
-        break;
-    default:
-        /* unknown operation (shouldn't happen -- parse catches this) */
-        goto err;
-    }
-
-    if (ioreq->postsync) {
-        bdrv_flush(blkdev->bs);
-    }
-    ioreq->status = BLKIF_RSP_OKAY;
-
-    ioreq_unmap(ioreq);
-    ioreq_finish(ioreq);
-    return 0;
-
-err:
-    ioreq_unmap(ioreq);
-err_no_map:
-    ioreq_finish(ioreq);
-    ioreq->status = BLKIF_RSP_ERROR;
-    return -1;
-}
-
 static void qemu_aio_complete(void *opaque, int ret)
 {
     struct ioreq *ioreq = opaque;
@@ -397,6 +329,9 @@ static void qemu_aio_complete(void *opaque, int ret)
     ioreq->aio_inflight--;
     if (ioreq->aio_inflight > 0) {
         return;
+    }
+    if (ioreq->postsync) {
+        bdrv_flush(ioreq->blkdev->bs);
     }
 
     ioreq->status = ioreq->aio_errors ? BLKIF_RSP_ERROR : BLKIF_RSP_OKAY;
@@ -444,9 +379,6 @@ static int ioreq_runio_qemu_aio(struct ioreq *ioreq)
         goto err;
     }
 
-    if (ioreq->postsync) {
-        bdrv_flush(blkdev->bs); /* FIXME: aio_flush() ??? */
-    }
     qemu_aio_complete(ioreq, 0);
 
     return 0;
@@ -554,9 +486,7 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
     rp = blkdev->rings.common.sring->req_prod;
     xen_rmb(); /* Ensure we see queued requests up to 'rp'. */
 
-    if (use_aio) {
-        blk_send_response_all(blkdev);
-    }
+    blk_send_response_all(blkdev);
     while (rc != rp) {
         /* pull request from ring */
         if (RING_REQUEST_CONS_OVERFLOW(&blkdev->rings.common, rc)) {
@@ -579,16 +509,7 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
             continue;
         }
 
-        if (use_aio) {
-            /* run i/o in aio mode */
-            ioreq_runio_qemu_aio(ioreq);
-        } else {
-            /* run i/o in sync mode */
-            ioreq_runio_qemu_sync(ioreq);
-        }
-    }
-    if (!use_aio) {
-        blk_send_response_all(blkdev);
+        ioreq_runio_qemu_aio(ioreq);
     }
 
     if (blkdev->more_work && blkdev->requests_inflight < max_requests) {
@@ -663,10 +584,10 @@ static int blk_init(struct XenDevice *xendev)
     }
 
     /* read-only ? */
+    qflags = BDRV_O_NOCACHE | BDRV_O_CACHE_WB | BDRV_O_NATIVE_AIO;
     if (strcmp(blkdev->mode, "w") == 0) {
-        qflags = BDRV_O_RDWR;
+        qflags |= BDRV_O_RDWR;
     } else {
-        qflags = 0;
         info  |= VDISK_READONLY;
     }
 
@@ -805,6 +726,7 @@ static void blk_disconnect(struct XenDevice *xendev)
         if (!blkdev->dinfo) {
             /* close/delete only if we created it ourself */
             bdrv_close(blkdev->bs);
+            bdrv_detach_dev(blkdev->bs, blkdev);
             bdrv_delete(blkdev->bs);
         }
         blkdev->bs = NULL;

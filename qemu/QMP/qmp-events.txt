@@ -26,6 +26,24 @@ Example:
 Note: If action is "stop", a STOP event will eventually follow the
 BLOCK_IO_ERROR event.
 
+DEVICE_TRAY_MOVED
+-----------------
+
+It's emitted whenever the tray of a removable device is moved by the guest
+or by HMP/QMP commands.
+
+Data:
+
+- "device": device name (json-string)
+- "tray-open": true if the tray has been opened or false if it has been closed
+               (json-bool)
+
+{ "event": "DEVICE_TRAY_MOVED",
+  "data": { "device": "ide1-cd0",
+            "tray-open": true
+  },
+  "timestamp": { "seconds": 1265044230, "microseconds": 450486 } }
+
 RESET
 -----
 
@@ -126,7 +144,7 @@ the authentication ID is not provided.
 VNC_DISCONNECTED
 ----------------
 
-Emitted when the conection is closed.
+Emitted when the connection is closed.
 
 Data:
 
@@ -264,3 +282,56 @@ Example:
 
 Note: If action is "reset", "shutdown", or "pause" the WATCHDOG event is
 followed respectively by the RESET, SHUTDOWN, or STOP events.
+
+
+BLOCK_JOB_COMPLETED
+-------------------
+
+Emitted when a block job has completed.
+
+Data:
+
+- "type":     Job type ("stream" for image streaming, json-string)
+- "device":   Device name (json-string)
+- "len":      Maximum progress value (json-int)
+- "offset":   Current progress value (json-int)
+              On success this is equal to len.
+              On failure this is less than len.
+- "speed":    Rate limit, bytes per second (json-int)
+- "error":    Error message (json-string, optional)
+              Only present on failure.  This field contains a human-readable
+              error message.  There are no semantics other than that streaming
+              has failed and clients should not try to interpret the error
+              string.
+
+Example:
+
+{ "event": "BLOCK_JOB_COMPLETED",
+     "data": { "type": "stream", "device": "virtio-disk0",
+               "len": 10737418240, "offset": 10737418240,
+               "speed": 0 },
+     "timestamp": { "seconds": 1267061043, "microseconds": 959568 } }
+
+
+BLOCK_JOB_CANCELLED
+-------------------
+
+Emitted when a block job has been cancelled.
+
+Data:
+
+- "type":     Job type ("stream" for image streaming, json-string)
+- "device":   Device name (json-string)
+- "len":      Maximum progress value (json-int)
+- "offset":   Current progress value (json-int)
+              On success this is equal to len.
+              On failure this is less than len.
+- "speed":    Rate limit, bytes per second (json-int)
+
+Example:
+
+{ "event": "BLOCK_JOB_CANCELLED",
+     "data": { "type": "stream", "device": "virtio-disk0",
+               "len": 10737418240, "offset": 134217728,
+               "speed": 0 },
+     "timestamp": { "seconds": 1267061043, "microseconds": 959568 } }

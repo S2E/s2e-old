@@ -11,6 +11,9 @@
  * from ST Microelectronics.
  *
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #ifndef NAND_IO
@@ -414,23 +417,34 @@ static int nand_device_init(SysBusDevice *dev)
     return 0;
 }
 
-static SysBusDeviceInfo nand_info = {
-    .init = nand_device_init,
-    .qdev.name = "nand",
-    .qdev.size = sizeof(NANDFlashState),
-    .qdev.reset = nand_reset,
-    .qdev.vmsd = &vmstate_nand,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT8("manufacturer_id", NANDFlashState, manf_id, 0),
-        DEFINE_PROP_UINT8("chip_id", NANDFlashState, chip_id, 0),
-        DEFINE_PROP_DRIVE("drive", NANDFlashState, bdrv),
-        DEFINE_PROP_END_OF_LIST()
-    }
+static Property nand_properties[] = {
+    DEFINE_PROP_UINT8("manufacturer_id", NANDFlashState, manf_id, 0),
+    DEFINE_PROP_UINT8("chip_id", NANDFlashState, chip_id, 0),
+    DEFINE_PROP_DRIVE("drive", NANDFlashState, bdrv),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void nand_create_device(void)
+static void nand_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&nand_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = nand_device_init;
+    dc->reset = nand_reset;
+    dc->vmsd = &vmstate_nand;
+    dc->props = nand_properties;
+}
+
+static TypeInfo nand_info = {
+    .name          = "nand",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(NANDFlashState),
+    .class_init    = nand_class_init,
+};
+
+static void nand_register_types(void)
+{
+    type_register_static(&nand_info);
 }
 
 /*
@@ -621,7 +635,7 @@ DeviceState *nand_init(BlockDriverState *bdrv, int manf_id, int chip_id)
     return dev;
 }
 
-device_init(nand_create_device)
+type_init(nand_register_types)
 
 #else
 

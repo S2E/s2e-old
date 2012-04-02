@@ -65,11 +65,11 @@
 # define PXA2XX_INTERNAL_SIZE	0x40000
 
 /* pxa2xx_pic.c */
-DeviceState *pxa2xx_pic_init(target_phys_addr_t base, CPUState *env);
+DeviceState *pxa2xx_pic_init(target_phys_addr_t base, CPUARMState *env);
 
 /* pxa2xx_gpio.c */
 DeviceState *pxa2xx_gpio_init(target_phys_addr_t base,
-                CPUState *env, DeviceState *pic, int lines);
+                CPUARMState *env, DeviceState *pic, int lines);
 void pxa2xx_gpio_read_notifier(DeviceState *dev, qemu_irq handler);
 
 /* pxa2xx_dma.c */
@@ -78,14 +78,15 @@ DeviceState *pxa27x_dma_init(target_phys_addr_t base, qemu_irq irq);
 
 /* pxa2xx_lcd.c */
 typedef struct PXA2xxLCDState PXA2xxLCDState;
-PXA2xxLCDState *pxa2xx_lcdc_init(target_phys_addr_t base,
-                qemu_irq irq);
+PXA2xxLCDState *pxa2xx_lcdc_init(MemoryRegion *sysmem,
+                target_phys_addr_t base, qemu_irq irq);
 void pxa2xx_lcd_vsync_notifier(PXA2xxLCDState *s, qemu_irq handler);
 void pxa2xx_lcdc_oritentation(void *opaque, int angle);
 
 /* pxa2xx_mmci.c */
 typedef struct PXA2xxMMCIState PXA2xxMMCIState;
-PXA2xxMMCIState *pxa2xx_mmci_init(target_phys_addr_t base,
+PXA2xxMMCIState *pxa2xx_mmci_init(MemoryRegion *sysmem,
+                target_phys_addr_t base,
                 BlockDriverState *bd, qemu_irq irq,
                 qemu_irq rx_dma, qemu_irq tx_dma);
 void pxa2xx_mmci_handlers(PXA2xxMMCIState *s, qemu_irq readonly,
@@ -93,7 +94,8 @@ void pxa2xx_mmci_handlers(PXA2xxMMCIState *s, qemu_irq readonly,
 
 /* pxa2xx_pcmcia.c */
 typedef struct PXA2xxPCMCIAState PXA2xxPCMCIAState;
-PXA2xxPCMCIAState *pxa2xx_pcmcia_init(target_phys_addr_t base);
+PXA2xxPCMCIAState *pxa2xx_pcmcia_init(MemoryRegion *sysmem,
+                                      target_phys_addr_t base);
 int pxa2xx_pcmcia_attach(void *opaque, PCMCIACardState *card);
 int pxa2xx_pcmcia_dettach(void *opaque);
 void pxa2xx_pcmcia_set_irq_cb(void *opaque, qemu_irq irq, qemu_irq cd_irq);
@@ -104,8 +106,9 @@ struct  keymap {
     int row;
 };
 typedef struct PXA2xxKeyPadState PXA2xxKeyPadState;
-PXA2xxKeyPadState *pxa27x_keypad_init(target_phys_addr_t base,
-                qemu_irq irq);
+PXA2xxKeyPadState *pxa27x_keypad_init(MemoryRegion *sysmem,
+                                      target_phys_addr_t base,
+                                      qemu_irq irq);
 void pxa27x_register_keypad(PXA2xxKeyPadState *kp, struct keymap *map,
                 int size);
 
@@ -119,7 +122,7 @@ typedef struct PXA2xxI2SState PXA2xxI2SState;
 typedef struct PXA2xxFIrState PXA2xxFIrState;
 
 typedef struct {
-    CPUState *env;
+    CPUARMState *env;
     DeviceState *pic;
     qemu_irq reset;
     MemoryRegion sdram;

@@ -9,6 +9,7 @@
 
 #include "dma.h"
 #include "block_int.h"
+#include "trace.h"
 
 void qemu_sglist_init(QEMUSGList *qsg, int alloc_hint)
 {
@@ -83,6 +84,8 @@ static void dma_bdrv_unmap(DMAAIOCB *dbs)
 
 static void dma_complete(DMAAIOCB *dbs, int ret)
 {
+    trace_dma_complete(dbs, ret, dbs->common.cb);
+
     dma_bdrv_unmap(dbs);
     if (dbs->common.cb) {
         dbs->common.cb(dbs->common.opaque, ret);
@@ -105,6 +108,8 @@ static void dma_bdrv_cb(void *opaque, int ret)
     DMAAIOCB *dbs = (DMAAIOCB *)opaque;
     target_phys_addr_t cur_addr, cur_len;
     void *mem;
+
+    trace_dma_bdrv_cb(dbs, ret);
 
     dbs->acb = NULL;
     dbs->sector_num += dbs->iov.size / 512;
@@ -130,20 +135,21 @@ static void dma_bdrv_cb(void *opaque, int ret)
     }
 
     if (dbs->iov.size == 0) {
+        trace_dma_map_wait(dbs);
         cpu_register_map_client(dbs, continue_after_map_failure);
         return;
     }
 
     dbs->acb = dbs->io_func(dbs->bs, dbs->sector_num, &dbs->iov,
                             dbs->iov.size / 512, dma_bdrv_cb, dbs);
-    if (!dbs->acb) {
-        dma_complete(dbs, -EIO);
-    }
+    assert(dbs->acb);
 }
 
 static void dma_aio_cancel(BlockDriverAIOCB *acb)
 {
     DMAAIOCB *dbs = container_of(acb, DMAAIOCB, common);
+
+    trace_dma_aio_cancel(dbs);
 
     if (dbs->acb) {
         BlockDriverAIOCB *acb = dbs->acb;
@@ -167,6 +173,8 @@ BlockDriverAIOCB *dma_bdrv_io(
     void *opaque, bool to_dev)
 {
     DMAAIOCB *dbs = qemu_aio_get(&dma_aio_pool, bs, cb, opaque);
+
+    trace_dma_bdrv_io(dbs, bs, sector_num, to_dev);
 
     dbs->acb = NULL;
     dbs->bs = bs;
@@ -195,4 +203,41 @@ BlockDriverAIOCB *dma_bdrv_write(BlockDriverState *bs,
                                  void (*cb)(void *opaque, int ret), void *opaque)
 {
     return dma_bdrv_io(bs, sg, sector, bdrv_aio_writev, cb, opaque, true);
+}
+
+
+static uint64_t dma_buf_rw(uint8_t *ptr, int32_t len, QEMUSGList *sg, bool to_dev)
+{
+    uint64_t resid;
+    int sg_cur_index;
+
+    resid = sg->size;
+    sg_cur_index = 0;
+    len = MIN(len, resid);
+    while (len > 0) {
+        ScatterGatherEntry entry = sg->sg[sg_cur_index++];
+        int32_t xfer = MIN(len, entry.len);
+        cpu_physical_memory_rw(entry.base, ptr, xfer, !to_dev);
+        ptr += xfer;
+        len -= xfer;
+        resid -= xfer;
+    }
+
+    return resid;
+}
+
+uint64_t dma_buf_read(uint8_t *ptr, int32_t len, QEMUSGList *sg)
+{
+    return dma_buf_rw(ptr, len, sg, 0);
+}
+
+uint64_t dma_buf_write(uint8_t *ptr, int32_t len, QEMUSGList *sg)
+{
+    return dma_buf_rw(ptr, len, sg, 1);
+}
+
+void dma_acct_start(BlockDriverState *bs, BlockAcctCookie *cookie,
+                    QEMUSGList *sg, enum BlockAcctType type)
+{
+    bdrv_acct_start(bs, cookie, sg->size, type);
 }

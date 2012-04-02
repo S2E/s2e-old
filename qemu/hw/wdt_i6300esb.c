@@ -143,7 +143,7 @@ static void i6300esb_disable_timer(I6300State *d)
 
 static void i6300esb_reset(DeviceState *dev)
 {
-    PCIDevice *pdev = DO_UPCAST(PCIDevice, qdev, dev);
+    PCIDevice *pdev = PCI_DEVICE(dev);
     I6300State *d = DO_UPCAST(I6300State, dev, pdev);
 
     i6300esb_debug("I6300State = %p\n", d);
@@ -425,24 +425,33 @@ static WatchdogTimerModel model = {
     .wdt_description = "Intel 6300ESB",
 };
 
-static PCIDeviceInfo i6300esb_info = {
-    .qdev.name    = "i6300esb",
-    .qdev.size    = sizeof(I6300State),
-    .qdev.vmsd    = &vmstate_i6300esb,
-    .qdev.reset   = i6300esb_reset,
-    .config_read  = i6300esb_config_read,
-    .config_write = i6300esb_config_write,
-    .init         = i6300esb_init,
-    .exit         = i6300esb_exit,
-    .vendor_id    = PCI_VENDOR_ID_INTEL,
-    .device_id    = PCI_DEVICE_ID_INTEL_ESB_9,
-    .class_id     = PCI_CLASS_SYSTEM_OTHER,
-};
-
-static void i6300esb_register_devices(void)
+static void i6300esb_class_init(ObjectClass *klass, void *data)
 {
-    watchdog_add_model(&model);
-    pci_qdev_register(&i6300esb_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->config_read = i6300esb_config_read;
+    k->config_write = i6300esb_config_write;
+    k->init = i6300esb_init;
+    k->exit = i6300esb_exit;
+    k->vendor_id = PCI_VENDOR_ID_INTEL;
+    k->device_id = PCI_DEVICE_ID_INTEL_ESB_9;
+    k->class_id = PCI_CLASS_SYSTEM_OTHER;
+    dc->reset = i6300esb_reset;
+    dc->vmsd = &vmstate_i6300esb;
 }
 
-device_init(i6300esb_register_devices);
+static TypeInfo i6300esb_info = {
+    .name          = "i6300esb",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(I6300State),
+    .class_init    = i6300esb_class_init,
+};
+
+static void i6300esb_register_types(void)
+{
+    watchdog_add_model(&model);
+    type_register_static(&i6300esb_info);
+}
+
+type_init(i6300esb_register_types)

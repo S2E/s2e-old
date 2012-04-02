@@ -12,6 +12,9 @@
  *          Copyright (c) 2006 Igor Kovalenko
  *
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 #include "hw.h"
 #include "pc.h"
@@ -335,8 +338,9 @@ static void create_shared_memory_BAR(IVShmemState *s, int fd) {
 
     ptr = mmap(0, s->ivshmem_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 
-    memory_region_init_ram_ptr(&s->ivshmem, &s->dev.qdev, "ivshmem.bar2",
+    memory_region_init_ram_ptr(&s->ivshmem, "ivshmem.bar2",
                                s->ivshmem_size, ptr);
+    vmstate_register_ram(&s->ivshmem, &s->dev.qdev);
     memory_region_add_subregion(&s->bar, 0, &s->ivshmem);
 
     /* region for shared memory */
@@ -451,8 +455,9 @@ static void ivshmem_read(void *opaque, const uint8_t * buf, int flags)
         /* mmap the region and map into the BAR2 */
         map_ptr = mmap(0, s->ivshmem_size, PROT_READ|PROT_WRITE, MAP_SHARED,
                                                             incoming_fd, 0);
-        memory_region_init_ram_ptr(&s->ivshmem, &s->dev.qdev,
+        memory_region_init_ram_ptr(&s->ivshmem,
                                    "ivshmem.bar2", s->ivshmem_size, map_ptr);
+        vmstate_register_ram(&s->ivshmem, &s->dev.qdev);
 
         IVSHMEM_DPRINTF("guest h/w addr = %" PRIu64 ", size = %" PRIu64 "\n",
                          s->ivshmem_offset, s->ivshmem_size);
@@ -753,6 +758,7 @@ static int pci_ivshmem_uninit(PCIDevice *dev)
 
     memory_region_destroy(&s->ivshmem_mmio);
     memory_region_del_subregion(&s->bar, &s->ivshmem);
+    vmstate_unregister_ram(&s->ivshmem, &s->dev.qdev);
     memory_region_destroy(&s->ivshmem);
     memory_region_destroy(&s->bar);
     unregister_savevm(&dev->qdev, "ivshmem", s);
@@ -760,30 +766,41 @@ static int pci_ivshmem_uninit(PCIDevice *dev)
     return 0;
 }
 
-static PCIDeviceInfo ivshmem_info = {
-    .qdev.name  = "ivshmem",
-    .qdev.size  = sizeof(IVShmemState),
-    .qdev.reset = ivshmem_reset,
-    .init       = pci_ivshmem_init,
-    .exit       = pci_ivshmem_uninit,
-    .vendor_id  = PCI_VENDOR_ID_REDHAT_QUMRANET,
-    .device_id  = 0x1110,
-    .class_id   = PCI_CLASS_MEMORY_RAM,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_CHR("chardev", IVShmemState, server_chr),
-        DEFINE_PROP_STRING("size", IVShmemState, sizearg),
-        DEFINE_PROP_UINT32("vectors", IVShmemState, vectors, 1),
-        DEFINE_PROP_BIT("ioeventfd", IVShmemState, features, IVSHMEM_IOEVENTFD, false),
-        DEFINE_PROP_BIT("msi", IVShmemState, features, IVSHMEM_MSI, true),
-        DEFINE_PROP_STRING("shm", IVShmemState, shmobj),
-        DEFINE_PROP_STRING("role", IVShmemState, role),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property ivshmem_properties[] = {
+    DEFINE_PROP_CHR("chardev", IVShmemState, server_chr),
+    DEFINE_PROP_STRING("size", IVShmemState, sizearg),
+    DEFINE_PROP_UINT32("vectors", IVShmemState, vectors, 1),
+    DEFINE_PROP_BIT("ioeventfd", IVShmemState, features, IVSHMEM_IOEVENTFD, false),
+    DEFINE_PROP_BIT("msi", IVShmemState, features, IVSHMEM_MSI, true),
+    DEFINE_PROP_STRING("shm", IVShmemState, shmobj),
+    DEFINE_PROP_STRING("role", IVShmemState, role),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void ivshmem_register_devices(void)
+static void ivshmem_class_init(ObjectClass *klass, void *data)
 {
-    pci_qdev_register(&ivshmem_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = pci_ivshmem_init;
+    k->exit = pci_ivshmem_uninit;
+    k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
+    k->device_id = 0x1110;
+    k->class_id = PCI_CLASS_MEMORY_RAM;
+    dc->reset = ivshmem_reset;
+    dc->props = ivshmem_properties;
 }
 
-device_init(ivshmem_register_devices)
+static TypeInfo ivshmem_info = {
+    .name          = "ivshmem",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(IVShmemState),
+    .class_init    = ivshmem_class_init,
+};
+
+static void ivshmem_register_types(void)
+{
+    type_register_static(&ivshmem_info);
+}
+
+type_init(ivshmem_register_types)

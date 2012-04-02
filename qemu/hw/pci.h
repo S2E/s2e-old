@@ -75,6 +75,7 @@
 #define PCI_DEVICE_ID_VIRTIO_BLOCK       0x1001
 #define PCI_DEVICE_ID_VIRTIO_BALLOON     0x1002
 #define PCI_DEVICE_ID_VIRTIO_CONSOLE     0x1003
+#define PCI_DEVICE_ID_VIRTIO_SCSI        0x1004
 
 #define FMT_PCIBUS                      PRIx64
 
@@ -126,6 +127,46 @@ enum {
 #define QEMU_PCI_CAP_SERR_BITNR 4
     QEMU_PCI_CAP_SERR = (1 << QEMU_PCI_CAP_SERR_BITNR),
 };
+
+#define TYPE_PCI_DEVICE "pci-device"
+#define PCI_DEVICE(obj) \
+     OBJECT_CHECK(PCIDevice, (obj), TYPE_PCI_DEVICE)
+#define PCI_DEVICE_CLASS(klass) \
+     OBJECT_CLASS_CHECK(PCIDeviceClass, (klass), TYPE_PCI_DEVICE)
+#define PCI_DEVICE_GET_CLASS(obj) \
+     OBJECT_GET_CLASS(PCIDeviceClass, (obj), TYPE_PCI_DEVICE)
+
+typedef struct PCIDeviceClass {
+    DeviceClass parent_class;
+
+    int (*init)(PCIDevice *dev);
+    PCIUnregisterFunc *exit;
+    PCIConfigReadFunc *config_read;
+    PCIConfigWriteFunc *config_write;
+
+    uint16_t vendor_id;
+    uint16_t device_id;
+    uint8_t revision;
+    uint16_t class_id;
+    uint16_t subsystem_vendor_id;       /* only for header type = 0 */
+    uint16_t subsystem_id;              /* only for header type = 0 */
+
+    /*
+     * pci-to-pci bridge or normal device.
+     * This doesn't mean pci host switch.
+     * When card bus bridge is supported, this would be enhanced.
+     */
+    int is_bridge;
+
+    /* pcie stuff */
+    int is_express;   /* is this device pci express? */
+
+    /* device isn't hot-pluggable */
+    int no_hotplug;
+
+    /* rom bar */
+    const char *romfile;
+} PCIDeviceClass;
 
 struct PCIDevice {
     DeviceState qdev;
@@ -195,11 +236,6 @@ struct PCIDevice {
     MemoryRegion rom;
     uint32_t rom_bar;
 };
-
-PCIDevice *pci_register_device(PCIBus *bus, const char *name,
-                               int instance_size, int devfn,
-                               PCIConfigReadFunc *config_read,
-                               PCIConfigWriteFunc *config_write);
 
 void pci_register_bar(PCIDevice *pci_dev, int region_num,
                       uint8_t attr, MemoryRegion *memory);
@@ -429,52 +465,74 @@ pci_quad_test_and_set_mask(uint8_t *config, uint64_t mask)
     return val & mask;
 }
 
-typedef int (*pci_qdev_initfn)(PCIDevice *dev);
-typedef struct _PCIDeviceInfo {
-    DeviceInfo qdev;
-    pci_qdev_initfn init;
-    PCIUnregisterFunc *exit;
-    PCIConfigReadFunc *config_read;
-    PCIConfigWriteFunc *config_write;
+/* Access a register specified by a mask */
+static inline void
+pci_set_byte_by_mask(uint8_t *config, uint8_t mask, uint8_t reg)
+{
+    uint8_t val = pci_get_byte(config);
+    uint8_t rval = reg << (ffs(mask) - 1);
+    pci_set_byte(config, (~mask & val) | (mask & rval));
+}
 
-    uint16_t vendor_id;
-    uint16_t device_id;
-    uint8_t revision;
-    uint16_t class_id;
-    uint16_t subsystem_vendor_id;       /* only for header type = 0 */
-    uint16_t subsystem_id;              /* only for header type = 0 */
+static inline uint8_t
+pci_get_byte_by_mask(uint8_t *config, uint8_t mask)
+{
+    uint8_t val = pci_get_byte(config);
+    return (val & mask) >> (ffs(mask) - 1);
+}
 
-    /*
-     * pci-to-pci bridge or normal device.
-     * This doesn't mean pci host switch.
-     * When card bus bridge is supported, this would be enhanced.
-     */
-    int is_bridge;
+static inline void
+pci_set_word_by_mask(uint8_t *config, uint16_t mask, uint16_t reg)
+{
+    uint16_t val = pci_get_word(config);
+    uint16_t rval = reg << (ffs(mask) - 1);
+    pci_set_word(config, (~mask & val) | (mask & rval));
+}
 
-    /* pcie stuff */
-    int is_express;   /* is this device pci express? */
+static inline uint16_t
+pci_get_word_by_mask(uint8_t *config, uint16_t mask)
+{
+    uint16_t val = pci_get_word(config);
+    return (val & mask) >> (ffs(mask) - 1);
+}
 
-    /* device isn't hot-pluggable */
-    int no_hotplug;
+static inline void
+pci_set_long_by_mask(uint8_t *config, uint32_t mask, uint32_t reg)
+{
+    uint32_t val = pci_get_long(config);
+    uint32_t rval = reg << (ffs(mask) - 1);
+    pci_set_long(config, (~mask & val) | (mask & rval));
+}
 
-    /* rom bar */
-    const char *romfile;
-} PCIDeviceInfo;
+static inline uint32_t
+pci_get_long_by_mask(uint8_t *config, uint32_t mask)
+{
+    uint32_t val = pci_get_long(config);
+    return (val & mask) >> (ffs(mask) - 1);
+}
 
-void pci_qdev_register(PCIDeviceInfo *info);
-void pci_qdev_register_many(PCIDeviceInfo *info);
+static inline void
+pci_set_quad_by_mask(uint8_t *config, uint64_t mask, uint64_t reg)
+{
+    uint64_t val = pci_get_quad(config);
+    uint64_t rval = reg << (ffs(mask) - 1);
+    pci_set_quad(config, (~mask & val) | (mask & rval));
+}
+
+static inline uint64_t
+pci_get_quad_by_mask(uint8_t *config, uint64_t mask)
+{
+    uint64_t val = pci_get_quad(config);
+    return (val & mask) >> (ffs(mask) - 1);
+}
 
 PCIDevice *pci_create_multifunction(PCIBus *bus, int devfn, bool multifunction,
                                     const char *name);
 PCIDevice *pci_create_simple_multifunction(PCIBus *bus, int devfn,
                                            bool multifunction,
                                            const char *name);
-PCIDevice *pci_try_create_multifunction(PCIBus *bus, int devfn,
-                                        bool multifunction,
-                                        const char *name);
 PCIDevice *pci_create(PCIBus *bus, int devfn, const char *name);
 PCIDevice *pci_create_simple(PCIBus *bus, int devfn, const char *name);
-PCIDevice *pci_try_create(PCIBus *bus, int devfn, const char *name);
 
 static inline int pci_is_express(const PCIDevice *d)
 {
@@ -550,6 +608,24 @@ static inline void pci_dma_sglist_init(QEMUSGList *qsg, PCIDevice *dev,
                                        int alloc_hint)
 {
     qemu_sglist_init(qsg, alloc_hint);
+}
+
+extern const VMStateDescription vmstate_pci_device;
+
+#define VMSTATE_PCI_DEVICE(_field, _state) {                         \
+    .name       = (stringify(_field)),                               \
+    .size       = sizeof(PCIDevice),                                 \
+    .vmsd       = &vmstate_pci_device,                               \
+    .flags      = VMS_STRUCT,                                        \
+    .offset     = vmstate_offset_value(_state, _field, PCIDevice),   \
+}
+
+#define VMSTATE_PCI_DEVICE_POINTER(_field, _state) {                 \
+    .name       = (stringify(_field)),                               \
+    .size       = sizeof(PCIDevice),                                 \
+    .vmsd       = &vmstate_pci_device,                               \
+    .flags      = VMS_STRUCT|VMS_POINTER,                            \
+    .offset     = vmstate_offset_pointer(_state, _field, PCIDevice), \
 }
 
 #endif

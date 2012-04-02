@@ -69,7 +69,7 @@ static int virtio_blk_handle_rw_error(VirtIOBlockReq *req, int error,
     VirtIOBlock *s = req->dev;
 
     if (action == BLOCK_ERR_IGNORE) {
-        bdrv_mon_event(s->bs, BDRV_ACTION_IGNORE, is_read);
+        bdrv_emit_qmp_error_event(s->bs, BDRV_ACTION_IGNORE, is_read);
         return 0;
     }
 
@@ -77,14 +77,14 @@ static int virtio_blk_handle_rw_error(VirtIOBlockReq *req, int error,
             || action == BLOCK_ERR_STOP_ANY) {
         req->next = s->rq;
         s->rq = req;
-        bdrv_mon_event(s->bs, BDRV_ACTION_STOP, is_read);
+        bdrv_emit_qmp_error_event(s->bs, BDRV_ACTION_STOP, is_read);
         vm_stop(RUN_STATE_IO_ERROR);
         bdrv_iostatus_set_err(s->bs, error);
     } else {
         virtio_blk_req_complete(req, VIRTIO_BLK_S_IOERR);
         bdrv_acct_done(s->bs, &req->acct);
         g_free(req);
-        bdrv_mon_event(s->bs, BDRV_ACTION_REPORT, is_read);
+        bdrv_emit_qmp_error_event(s->bs, BDRV_ACTION_REPORT, is_read);
     }
 
     return 1;
@@ -152,6 +152,12 @@ static void virtio_blk_handle_scsi(VirtIOBlockReq *req)
     int ret;
     int status;
     int i;
+
+    if ((req->dev->vdev.guest_features & (1 << VIRTIO_BLK_F_SCSI)) == 0) {
+        virtio_blk_req_complete(req, VIRTIO_BLK_S_UNSUPP);
+        g_free(req);
+        return;
+    }
 
     /*
      * We require at least one output segment each for the virtio_blk_outhdr
@@ -288,19 +294,13 @@ static void virtio_submit_multiwrite(BlockDriverState *bs, MultiReqBuffer *mrb)
 
 static void virtio_blk_handle_flush(VirtIOBlockReq *req, MultiReqBuffer *mrb)
 {
-    BlockDriverAIOCB *acb;
-
     bdrv_acct_start(req->dev->bs, &req->acct, 0, BDRV_ACCT_FLUSH);
 
     /*
      * Make sure all outstanding writes are posted to the backing device.
      */
     virtio_submit_multiwrite(req->dev->bs, mrb);
-
-    acb = bdrv_aio_flush(req->dev->bs, virtio_blk_flush_complete, req);
-    if (!acb) {
-        virtio_blk_flush_complete(req, -EIO);
-    }
+    bdrv_aio_flush(req->dev->bs, virtio_blk_flush_complete, req);
 }
 
 static void virtio_blk_handle_write(VirtIOBlockReq *req, MultiReqBuffer *mrb)
@@ -340,12 +340,13 @@ static void virtio_blk_handle_write(VirtIOBlockReq *req, MultiReqBuffer *mrb)
 
 static void virtio_blk_handle_read(VirtIOBlockReq *req)
 {
-    BlockDriverAIOCB *acb;
     uint64_t sector;
 
     sector = ldq_p(&req->out->sector);
 
     bdrv_acct_start(req->dev->bs, &req->acct, req->qiov.size, BDRV_ACCT_READ);
+
+    trace_virtio_blk_handle_read(req, sector, req->qiov.size / 512);
 
     if (sector & req->dev->sector_mask) {
         virtio_blk_rw_complete(req, -EIO);
@@ -355,13 +356,9 @@ static void virtio_blk_handle_read(VirtIOBlockReq *req)
         virtio_blk_rw_complete(req, -EIO);
         return;
     }
-
-    acb = bdrv_aio_readv(req->dev->bs, sector, &req->qiov,
-                         req->qiov.size / BDRV_SECTOR_SIZE,
-                         virtio_blk_rw_complete, req);
-    if (!acb) {
-        virtio_blk_rw_complete(req, -EIO);
-    }
+    bdrv_aio_readv(req->dev->bs, sector, &req->qiov,
+                   req->qiov.size / BDRV_SECTOR_SIZE,
+                   virtio_blk_rw_complete, req);
 }
 
 static void virtio_blk_handle_request(VirtIOBlockReq *req,
@@ -474,7 +471,7 @@ static void virtio_blk_reset(VirtIODevice *vdev)
      * This should cancel pending requests, but can't do nicely until there
      * are per-device request lists.
      */
-    qemu_aio_flush();
+    bdrv_drain_all();
 }
 
 /* coalesce internal state, copy to pci i/o region 0
@@ -580,7 +577,7 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, BlockConf *conf,
     DriveInfo *dinfo;
 
     if (!conf->bs) {
-        error_report("virtio-blk-pci: drive property not set");
+        error_report("drive property not set");
         return NULL;
     }
     if (!bdrv_is_inserted(conf->bs)) {

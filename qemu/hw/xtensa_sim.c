@@ -39,7 +39,7 @@ static uint64_t translate_phys_addr(void *env, uint64_t addr)
 
 static void sim_reset(void *env)
 {
-    cpu_reset(env);
+    cpu_state_reset(env);
 }
 
 static void sim_init(ram_addr_t ram_size,
@@ -47,7 +47,7 @@ static void sim_init(ram_addr_t ram_size,
         const char *kernel_filename, const char *kernel_cmdline,
         const char *initrd_filename, const char *cpu_model)
 {
-    CPUState *env = NULL;
+    CPUXtensaState *env = NULL;
     MemoryRegion *ram, *rom;
     int n;
 
@@ -66,11 +66,13 @@ static void sim_init(ram_addr_t ram_size,
     }
 
     ram = g_malloc(sizeof(*ram));
-    memory_region_init_ram(ram, NULL, "xtensa.sram", ram_size);
+    memory_region_init_ram(ram, "xtensa.sram", ram_size);
+    vmstate_register_ram_global(ram);
     memory_region_add_subregion(get_system_memory(), 0, ram);
 
     rom = g_malloc(sizeof(*rom));
-    memory_region_init_ram(rom, NULL, "xtensa.rom", 0x1000);
+    memory_region_init_ram(rom, "xtensa.rom", 0x1000);
+    vmstate_register_ram_global(rom);
     memory_region_add_subregion(get_system_memory(), 0xfe000000, rom);
 
     if (kernel_filename) {

@@ -323,7 +323,6 @@ struct fs_eth
 	MemoryRegion mmio;
 	NICState *nic;
 	NICConf conf;
-	int ethregs;
 
 	/* Two addrs in the filter.  */
 	uint8_t macaddr[2][6];
@@ -541,7 +540,7 @@ static ssize_t eth_receive(VLANClientState *nc, const uint8_t *buf, size_t size)
         return size;
 }
 
-static int eth_tx_push(void *opaque, unsigned char *buf, int len)
+static int eth_tx_push(void *opaque, unsigned char *buf, int len, bool eop)
 {
 	struct fs_eth *eth = opaque;
 
@@ -570,8 +569,6 @@ static const MemoryRegionOps eth_ops = {
 static void eth_cleanup(VLANClientState *nc)
 {
 	struct fs_eth *eth = DO_UPCAST(NICState, nc, nc)->opaque;
-
-        cpu_unregister_io_memory(eth->ethregs);
 
 	/* Disconnect the client.  */
 	eth->dma_out->client.push = NULL;
@@ -604,11 +601,11 @@ static int fs_eth_init(SysBusDevice *dev)
 	s->dma_in->client.pull = NULL;
 
 	memory_region_init_io(&s->mmio, &eth_ops, s, "etraxfs-eth", 0x5c);
-	sysbus_init_mmio_region(dev, &s->mmio);
+	sysbus_init_mmio(dev, &s->mmio);
 
 	qemu_macaddr_default_if_unset(&s->conf.macaddr);
 	s->nic = qemu_new_nic(&net_etraxfs_info, &s->conf,
-			      dev->qdev.info->name, dev->qdev.id, s);
+			      object_get_typename(OBJECT(s)), dev->qdev.id, s);
 	qemu_format_nic_info_str(&s->nic->nc, s->conf.macaddr.a);
 
 	tdk_init(&s->phy);
@@ -616,22 +613,33 @@ static int fs_eth_init(SysBusDevice *dev)
 	return 0;
 }
 
-static SysBusDeviceInfo etraxfs_eth_info = {
-	.init = fs_eth_init,
-	.qdev.name  = "etraxfs-eth",
-	.qdev.size  = sizeof(struct fs_eth),
-	.qdev.props = (Property[]) {
-		DEFINE_PROP_UINT32("phyaddr", struct fs_eth, phyaddr, 1),
-		DEFINE_PROP_PTR("dma_out", struct fs_eth, vdma_out),
-		DEFINE_PROP_PTR("dma_in", struct fs_eth, vdma_in),
-		DEFINE_NIC_PROPERTIES(struct fs_eth, conf),
-		DEFINE_PROP_END_OF_LIST(),
-	}
+static Property etraxfs_eth_properties[] = {
+    DEFINE_PROP_UINT32("phyaddr", struct fs_eth, phyaddr, 1),
+    DEFINE_PROP_PTR("dma_out", struct fs_eth, vdma_out),
+    DEFINE_PROP_PTR("dma_in", struct fs_eth, vdma_in),
+    DEFINE_NIC_PROPERTIES(struct fs_eth, conf),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void etraxfs_eth_register(void)
+static void etraxfs_eth_class_init(ObjectClass *klass, void *data)
 {
-	sysbus_register_withprop(&etraxfs_eth_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = fs_eth_init;
+    dc->props = etraxfs_eth_properties;
 }
 
-device_init(etraxfs_eth_register)
+static TypeInfo etraxfs_eth_info = {
+    .name          = "etraxfs-eth",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(struct fs_eth),
+    .class_init    = etraxfs_eth_class_init,
+};
+
+static void etraxfs_eth_register_types(void)
+{
+    type_register_static(&etraxfs_eth_info);
+}
+
+type_init(etraxfs_eth_register_types)

@@ -5,12 +5,15 @@
  * Written by Paul Brook
  *
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "i2c.h"
 
 typedef struct {
-    i2c_slave i2c;
+    I2CSlave i2c;
     time_t offset;
     struct tm now;
     uint8_t nvram[56];
@@ -18,7 +21,7 @@ typedef struct {
     int addr_byte;
 } DS1338State;
 
-static void ds1338_event(i2c_slave *i2c, enum i2c_event event)
+static void ds1338_event(I2CSlave *i2c, enum i2c_event event)
 {
     DS1338State *s = FROM_I2C_SLAVE(DS1338State, i2c);
 
@@ -48,7 +51,7 @@ static void ds1338_event(i2c_slave *i2c, enum i2c_event event)
     }
 }
 
-static int ds1338_recv(i2c_slave *i2c)
+static int ds1338_recv(I2CSlave *i2c)
 {
     DS1338State *s = FROM_I2C_SLAVE(DS1338State, i2c);
     uint8_t res;
@@ -58,7 +61,7 @@ static int ds1338_recv(i2c_slave *i2c)
     return res;
 }
 
-static int ds1338_send(i2c_slave *i2c, uint8_t data)
+static int ds1338_send(I2CSlave *i2c, uint8_t data)
 {
     DS1338State *s = FROM_I2C_SLAVE(DS1338State, i2c);
     if (s->addr_byte) {
@@ -97,6 +100,7 @@ static int ds1338_send(i2c_slave *i2c, uint8_t data)
             break;
         case 5:
             s->now.tm_mon = from_bcd(data & 0x1f) - 1;
+            break;
         case 6:
             s->now.tm_year = from_bcd(data) + 100;
             break;
@@ -110,23 +114,31 @@ static int ds1338_send(i2c_slave *i2c, uint8_t data)
     return 0;
 }
 
-static int ds1338_init(i2c_slave *i2c)
+static int ds1338_init(I2CSlave *i2c)
 {
     return 0;
 }
 
-static I2CSlaveInfo ds1338_info = {
-    .qdev.name = "ds1338",
-    .qdev.size = sizeof(DS1338State),
-    .init = ds1338_init,
-    .event = ds1338_event,
-    .recv = ds1338_recv,
-    .send = ds1338_send,
-};
-
-static void ds1338_register_devices(void)
+static void ds1338_class_init(ObjectClass *klass, void *data)
 {
-    i2c_register_slave(&ds1338_info);
+    I2CSlaveClass *k = I2C_SLAVE_CLASS(klass);
+
+    k->init = ds1338_init;
+    k->event = ds1338_event;
+    k->recv = ds1338_recv;
+    k->send = ds1338_send;
 }
 
-device_init(ds1338_register_devices)
+static TypeInfo ds1338_info = {
+    .name          = "ds1338",
+    .parent        = TYPE_I2C_SLAVE,
+    .instance_size = sizeof(DS1338State),
+    .class_init    = ds1338_class_init,
+};
+
+static void ds1338_register_types(void)
+{
+    type_register_static(&ds1338_info);
+}
+
+type_init(ds1338_register_types)

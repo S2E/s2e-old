@@ -7,6 +7,9 @@
  * Code based on spitz platform by Andrzej Zaborowski <balrog@zabor.org>
  *
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 #include "hw.h"
 #include "pxa.h"
@@ -111,7 +114,8 @@ static void mainstone_common_init(MemoryRegion *address_space_mem,
 
     /* Setup CPU & memory */
     cpu = pxa270_init(address_space_mem, mainstone_binfo.ram_size, cpu_model);
-    memory_region_init_ram(rom, NULL, "mainstone.rom", MAINSTONE_ROM);
+    memory_region_init_ram(rom, "mainstone.rom", MAINSTONE_ROM);
+    vmstate_register_ram_global(rom);
     memory_region_set_readonly(rom, true);
     memory_region_add_subregion(address_space_mem, 0, rom);
 

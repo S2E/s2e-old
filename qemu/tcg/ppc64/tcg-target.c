@@ -552,6 +552,27 @@ static void tcg_out_ldsta (TCGContext *s, int ret, int addr,
 
 #include "../../softmmu_defs.h"
 
+#ifdef CONFIG_TCG_PASS_AREG0
+/* helper signature: helper_ld_mmu(CPUState *env, target_ulong addr,
+   int mmu_idx) */
+static const void * const qemu_ld_helpers[4] = {
+    helper_ldb_mmu,
+    helper_ldw_mmu,
+    helper_ldl_mmu,
+    helper_ldq_mmu,
+};
+
+/* helper signature: helper_st_mmu(CPUState *env, target_ulong addr,
+   uintxx_t val, int mmu_idx) */
+static const void * const qemu_st_helpers[4] = {
+    helper_stb_mmu,
+    helper_stw_mmu,
+    helper_stl_mmu,
+    helper_stq_mmu,
+};
+#else
+/* legacy helper signature: __ld_mmu(target_ulong addr, int
+   mmu_idx) */
 static void *qemu_ld_helpers[4] = {
     __ldb_mmu,
     __ldw_mmu,
@@ -559,12 +580,15 @@ static void *qemu_ld_helpers[4] = {
     __ldq_mmu,
 };
 
+/* legacy helper signature: __st_mmu(target_ulong addr, uintxx_t val,
+   int mmu_idx) */
 static void *qemu_st_helpers[4] = {
     __stb_mmu,
     __stw_mmu,
     __stl_mmu,
     __stq_mmu,
 };
+#endif
 
 static void tcg_out_tlb_read (TCGContext *s, int r0, int r1, int r2,
                               int addr_reg, int s_bits, int offset)
@@ -635,7 +659,7 @@ static void tcg_out_qemu_ld (TCGContext *s, const TCGArg *args, int opc)
     rbase = 0;
 
     tcg_out_tlb_read (s, r0, r1, r2, addr_reg, s_bits,
-                      offsetof (CPUState, tlb_table[mem_index][0].addr_read));
+                      offsetof (CPUArchState, tlb_table[mem_index][0].addr_read));
 
     tcg_out32 (s, CMP | BF (7) | RA (r2) | RB (r1) | CMP_L);
 
@@ -648,6 +672,15 @@ static void tcg_out_qemu_ld (TCGContext *s, const TCGArg *args, int opc)
     tcg_out_mov (s, TCG_TYPE_I64, 3, addr_reg);
     tcg_out_movi (s, TCG_TYPE_I64, 4, mem_index);
 
+#ifdef CONFIG_TCG_PASS_AREG0
+    /* XXX/FIXME: suboptimal */
+    tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[2],
+                tcg_target_call_iarg_regs[1]);
+    tcg_out_mov(s, TCG_TYPE_TL, tcg_target_call_iarg_regs[1],
+                tcg_target_call_iarg_regs[0]);
+    tcg_out_mov(s, TCG_TYPE_PTR, tcg_target_call_iarg_regs[0],
+                TCG_AREG0);
+#endif
     tcg_out_call (s, (tcg_target_long) qemu_ld_helpers[s_bits], 1);
 
     switch (opc) {
@@ -782,7 +815,7 @@ static void tcg_out_qemu_st (TCGContext *s, const TCGArg *args, int opc)
     rbase = 0;
 
     tcg_out_tlb_read (s, r0, r1, r2, addr_reg, opc,
-                      offsetof (CPUState, tlb_table[mem_index][0].addr_write));
+                      offsetof (CPUArchState, tlb_table[mem_index][0].addr_write));
 
     tcg_out32 (s, CMP | BF (7) | RA (r2) | RB (r1) | CMP_L);
 
@@ -796,6 +829,17 @@ static void tcg_out_qemu_st (TCGContext *s, const TCGArg *args, int opc)
     tcg_out_rld (s, RLDICL, 4, data_reg, 0, 64 - (1 << (3 + opc)));
     tcg_out_movi (s, TCG_TYPE_I64, 5, mem_index);
 
+#ifdef CONFIG_TCG_PASS_AREG0
+    /* XXX/FIXME: suboptimal */
+    tcg_out_mov(s, TCG_TYPE_I32, tcg_target_call_iarg_regs[3],
+                tcg_target_call_iarg_regs[2]);
+    tcg_out_mov(s, TCG_TYPE_I64, tcg_target_call_iarg_regs[2],
+                tcg_target_call_iarg_regs[1]);
+    tcg_out_mov(s, TCG_TYPE_TL, tcg_target_call_iarg_regs[1],
+                tcg_target_call_iarg_regs[0]);
+    tcg_out_mov(s, TCG_TYPE_PTR, tcg_target_call_iarg_regs[0],
+                TCG_AREG0);
+#endif
     tcg_out_call (s, (tcg_target_long) qemu_st_helpers[opc], 1);
 
     label2_ptr = s->code_ptr;
@@ -1612,7 +1656,6 @@ static const TCGTargetOpDef ppc_op_defs[] = {
     { INDEX_op_ld16s_i64, { "r", "r" } },
     { INDEX_op_ld32u_i64, { "r", "r" } },
     { INDEX_op_ld32s_i64, { "r", "r" } },
-    { INDEX_op_ld_i64, { "r", "r" } },
 
     { INDEX_op_add_i32, { "r", "r", "ri" } },
     { INDEX_op_mul_i32, { "r", "r", "ri" } },

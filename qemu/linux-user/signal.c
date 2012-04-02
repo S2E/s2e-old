@@ -80,7 +80,7 @@ static uint8_t host_to_target_signal_table[_NSIG] = {
     [SIGSYS] = TARGET_SIGSYS,
     /* next signals stay the same */
     /* Nasty hack: Reverse SIGRTMIN and SIGRTMAX to avoid overlap with
-       host libpthread signals.  This assumes noone actually uses SIGRTMAX :-/
+       host libpthread signals.  This assumes no one actually uses SIGRTMAX :-/
        To fix this properly we need to do manual signal delivery multiplexed
        over a single host signal.  */
     [__SIGRTMIN] = __SIGRTMAX,
@@ -347,7 +347,7 @@ void signal_init(void)
 
 /* signal queue handling */
 
-static inline struct sigqueue *alloc_sigqueue(CPUState *env)
+static inline struct sigqueue *alloc_sigqueue(CPUArchState *env)
 {
     TaskState *ts = env->opaque;
     struct sigqueue *q = ts->first_free;
@@ -357,7 +357,7 @@ static inline struct sigqueue *alloc_sigqueue(CPUState *env)
     return q;
 }
 
-static inline void free_sigqueue(CPUState *env, struct sigqueue *q)
+static inline void free_sigqueue(CPUArchState *env, struct sigqueue *q)
 {
     TaskState *ts = env->opaque;
     q->next = ts->first_free;
@@ -415,7 +415,7 @@ static void QEMU_NORETURN force_sig(int target_sig)
 
 /* queue a signal so that it will be send to the virtual CPU as soon
    as possible */
-int queue_signal(CPUState *env, int sig, target_siginfo_t *info)
+int queue_signal(CPUArchState *env, int sig, target_siginfo_t *info)
 {
     TaskState *ts = env->opaque;
     struct emulated_sigtable *k;
@@ -587,7 +587,11 @@ int do_sigaction(int sig, const struct target_sigaction *act,
 #endif
     if (oact) {
         oact->_sa_handler = tswapal(k->_sa_handler);
+#if defined(TARGET_MIPS) || defined (TARGET_ALPHA)
+        oact->sa_flags = bswap32(k->sa_flags);
+#else
         oact->sa_flags = tswapal(k->sa_flags);
+#endif
 #if !defined(TARGET_MIPS)
         oact->sa_restorer = tswapal(k->sa_restorer);
 #endif
@@ -596,7 +600,11 @@ int do_sigaction(int sig, const struct target_sigaction *act,
     if (act) {
         /* FIXME: This is not threadsafe.  */
         k->_sa_handler = tswapal(act->_sa_handler);
+#if defined(TARGET_MIPS) || defined (TARGET_ALPHA)
+        k->sa_flags = bswap32(act->sa_flags);
+#else
         k->sa_flags = tswapal(act->sa_flags);
+#endif
 #if !defined(TARGET_MIPS)
         k->sa_restorer = tswapal(act->sa_restorer);
 #endif
@@ -1197,14 +1205,14 @@ static const abi_ulong retcodes[4] = {
 
 #define __get_user_error(x,p,e) __get_user(x, p)
 
-static inline int valid_user_regs(CPUState *regs)
+static inline int valid_user_regs(CPUARMState *regs)
 {
     return 1;
 }
 
 static void
 setup_sigcontext(struct target_sigcontext *sc, /*struct _fpstate *fpstate,*/
-		 CPUState *env, abi_ulong mask)
+                 CPUARMState *env, abi_ulong mask)
 {
 	__put_user(env->regs[0], &sc->arm_r0);
 	__put_user(env->regs[1], &sc->arm_r1);
@@ -1233,7 +1241,7 @@ setup_sigcontext(struct target_sigcontext *sc, /*struct _fpstate *fpstate,*/
 }
 
 static inline abi_ulong
-get_sigframe(struct target_sigaction *ka, CPUState *regs, int framesize)
+get_sigframe(struct target_sigaction *ka, CPUARMState *regs, int framesize)
 {
 	unsigned long sp = regs->regs[13];
 
@@ -1249,7 +1257,7 @@ get_sigframe(struct target_sigaction *ka, CPUState *regs, int framesize)
 }
 
 static int
-setup_return(CPUState *env, struct target_sigaction *ka,
+setup_return(CPUARMState *env, struct target_sigaction *ka,
 	     abi_ulong *rc, abi_ulong frame_addr, int usig, abi_ulong rc_addr)
 {
 	abi_ulong handler = ka->_sa_handler;
@@ -1287,7 +1295,7 @@ setup_return(CPUState *env, struct target_sigaction *ka,
 	return 0;
 }
 
-static abi_ulong *setup_sigframe_v2_vfp(abi_ulong *regspace, CPUState *env)
+static abi_ulong *setup_sigframe_v2_vfp(abi_ulong *regspace, CPUARMState *env)
 {
     int i;
     struct target_vfp_sigframe *vfpframe;
@@ -1304,7 +1312,8 @@ static abi_ulong *setup_sigframe_v2_vfp(abi_ulong *regspace, CPUState *env)
     return (abi_ulong*)(vfpframe+1);
 }
 
-static abi_ulong *setup_sigframe_v2_iwmmxt(abi_ulong *regspace, CPUState *env)
+static abi_ulong *setup_sigframe_v2_iwmmxt(abi_ulong *regspace,
+                                           CPUARMState *env)
 {
     int i;
     struct target_iwmmxt_sigframe *iwmmxtframe;
@@ -1324,7 +1333,7 @@ static abi_ulong *setup_sigframe_v2_iwmmxt(abi_ulong *regspace, CPUState *env)
 }
 
 static void setup_sigframe_v2(struct target_ucontext_v2 *uc,
-                              target_sigset_t *set, CPUState *env)
+                              target_sigset_t *set, CPUARMState *env)
 {
     struct target_sigaltstack stack;
     int i;
@@ -1359,7 +1368,7 @@ static void setup_sigframe_v2(struct target_ucontext_v2 *uc,
 
 /* compare linux/arch/arm/kernel/signal.c:setup_frame() */
 static void setup_frame_v1(int usig, struct target_sigaction *ka,
-			   target_sigset_t *set, CPUState *regs)
+                           target_sigset_t *set, CPUARMState *regs)
 {
 	struct sigframe_v1 *frame;
 	abi_ulong frame_addr = get_sigframe(ka, regs, sizeof(*frame));
@@ -1383,7 +1392,7 @@ end:
 }
 
 static void setup_frame_v2(int usig, struct target_sigaction *ka,
-			   target_sigset_t *set, CPUState *regs)
+                           target_sigset_t *set, CPUARMState *regs)
 {
 	struct sigframe_v2 *frame;
 	abi_ulong frame_addr = get_sigframe(ka, regs, sizeof(*frame));
@@ -1400,7 +1409,7 @@ static void setup_frame_v2(int usig, struct target_sigaction *ka,
 }
 
 static void setup_frame(int usig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *regs)
+                        target_sigset_t *set, CPUARMState *regs)
 {
     if (get_osversion() >= 0x020612) {
         setup_frame_v2(usig, ka, set, regs);
@@ -1412,7 +1421,7 @@ static void setup_frame(int usig, struct target_sigaction *ka,
 /* compare linux/arch/arm/kernel/signal.c:setup_rt_frame() */
 static void setup_rt_frame_v1(int usig, struct target_sigaction *ka,
                               target_siginfo_t *info,
-			      target_sigset_t *set, CPUState *env)
+                              target_sigset_t *set, CPUARMState *env)
 {
 	struct rt_sigframe_v1 *frame;
 	abi_ulong frame_addr = get_sigframe(ka, env, sizeof(*frame));
@@ -1456,7 +1465,7 @@ end:
 
 static void setup_rt_frame_v2(int usig, struct target_sigaction *ka,
                               target_siginfo_t *info,
-                              target_sigset_t *set, CPUState *env)
+                              target_sigset_t *set, CPUARMState *env)
 {
 	struct rt_sigframe_v2 *frame;
 	abi_ulong frame_addr = get_sigframe(ka, env, sizeof(*frame));
@@ -1482,7 +1491,7 @@ static void setup_rt_frame_v2(int usig, struct target_sigaction *ka,
 
 static void setup_rt_frame(int usig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUARMState *env)
 {
     if (get_osversion() >= 0x020612) {
         setup_rt_frame_v2(usig, ka, info, set, env);
@@ -1492,7 +1501,7 @@ static void setup_rt_frame(int usig, struct target_sigaction *ka,
 }
 
 static int
-restore_sigcontext(CPUState *env, struct target_sigcontext *sc)
+restore_sigcontext(CPUARMState *env, struct target_sigcontext *sc)
 {
 	int err = 0;
         uint32_t cpsr;
@@ -1523,7 +1532,7 @@ restore_sigcontext(CPUState *env, struct target_sigcontext *sc)
 	return err;
 }
 
-static long do_sigreturn_v1(CPUState *env)
+static long do_sigreturn_v1(CPUARMState *env)
 {
         abi_ulong frame_addr;
 	struct sigframe_v1 *frame;
@@ -1570,7 +1579,7 @@ badframe:
 	return 0;
 }
 
-static abi_ulong *restore_sigframe_v2_vfp(CPUState *env, abi_ulong *regspace)
+static abi_ulong *restore_sigframe_v2_vfp(CPUARMState *env, abi_ulong *regspace)
 {
     int i;
     abi_ulong magic, sz;
@@ -1600,7 +1609,8 @@ static abi_ulong *restore_sigframe_v2_vfp(CPUState *env, abi_ulong *regspace)
     return (abi_ulong*)(vfpframe + 1);
 }
 
-static abi_ulong *restore_sigframe_v2_iwmmxt(CPUState *env, abi_ulong *regspace)
+static abi_ulong *restore_sigframe_v2_iwmmxt(CPUARMState *env,
+                                             abi_ulong *regspace)
 {
     int i;
     abi_ulong magic, sz;
@@ -1624,7 +1634,7 @@ static abi_ulong *restore_sigframe_v2_iwmmxt(CPUState *env, abi_ulong *regspace)
     return (abi_ulong*)(iwmmxtframe + 1);
 }
 
-static int do_sigframe_return_v2(CPUState *env, target_ulong frame_addr,
+static int do_sigframe_return_v2(CPUARMState *env, target_ulong frame_addr,
                                  struct target_ucontext_v2 *uc)
 {
     sigset_t host_set;
@@ -1663,7 +1673,7 @@ static int do_sigframe_return_v2(CPUState *env, target_ulong frame_addr,
     return 0;
 }
 
-static long do_sigreturn_v2(CPUState *env)
+static long do_sigreturn_v2(CPUARMState *env)
 {
         abi_ulong frame_addr;
 	struct sigframe_v2 *frame;
@@ -1692,7 +1702,7 @@ badframe:
 	return 0;
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUARMState *env)
 {
     if (get_osversion() >= 0x020612) {
         return do_sigreturn_v2(env);
@@ -1701,7 +1711,7 @@ long do_sigreturn(CPUState *env)
     }
 }
 
-static long do_rt_sigreturn_v1(CPUState *env)
+static long do_rt_sigreturn_v1(CPUARMState *env)
 {
         abi_ulong frame_addr;
 	struct rt_sigframe_v1 *frame;
@@ -1742,7 +1752,7 @@ badframe:
 	return 0;
 }
 
-static long do_rt_sigreturn_v2(CPUState *env)
+static long do_rt_sigreturn_v2(CPUARMState *env)
 {
         abi_ulong frame_addr;
 	struct rt_sigframe_v2 *frame;
@@ -1771,7 +1781,7 @@ badframe:
 	return 0;
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUARMState *env)
 {
     if (get_osversion() >= 0x020612) {
         return do_rt_sigreturn_v2(env);
@@ -1880,7 +1890,8 @@ struct target_rt_signal_frame {
 #define UREG_SP        UREG_O6
 
 static inline abi_ulong get_sigframe(struct target_sigaction *sa, 
-                                     CPUState *env, unsigned long framesize)
+                                     CPUSPARCState *env,
+                                     unsigned long framesize)
 {
 	abi_ulong sp;
 
@@ -1896,7 +1907,7 @@ static inline abi_ulong get_sigframe(struct target_sigaction *sa,
 }
 
 static int
-setup___siginfo(__siginfo_t *si, CPUState *env, abi_ulong mask)
+setup___siginfo(__siginfo_t *si, CPUSPARCState *env, abi_ulong mask)
 {
 	int err = 0, i;
 
@@ -1917,7 +1928,7 @@ setup___siginfo(__siginfo_t *si, CPUState *env, abi_ulong mask)
 #if 0
 static int
 setup_sigcontext(struct target_sigcontext *sc, /*struct _fpstate *fpstate,*/
-		 CPUState *env, unsigned long mask)
+                 CPUSPARCState *env, unsigned long mask)
 {
 	int err = 0;
 
@@ -1935,7 +1946,7 @@ setup_sigcontext(struct target_sigcontext *sc, /*struct _fpstate *fpstate,*/
 #define NF_ALIGNEDSZ  (((sizeof(struct target_signal_frame) + 7) & (~7)))
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUSPARCState *env)
 {
         abi_ulong sf_addr;
 	struct target_signal_frame *sf;
@@ -2024,7 +2035,7 @@ sigsegv:
 	force_sig(TARGET_SIGSEGV);
 }
 static inline int
-restore_fpu_state(CPUState *env, qemu_siginfo_fpu_t *fpu)
+restore_fpu_state(CPUSPARCState *env, qemu_siginfo_fpu_t *fpu)
 {
         int err;
 #if 0
@@ -2065,12 +2076,12 @@ restore_fpu_state(CPUState *env, qemu_siginfo_fpu_t *fpu)
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUSPARCState *env)
 {
     fprintf(stderr, "setup_rt_frame: not implemented\n");
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUSPARCState *env)
 {
         abi_ulong sf_addr;
         struct target_signal_frame *sf;
@@ -2143,7 +2154,7 @@ segv_and_exit:
 	force_sig(TARGET_SIGSEGV);
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUSPARCState *env)
 {
     fprintf(stderr, "do_rt_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
@@ -2419,25 +2430,25 @@ void sparc64_get_context(CPUSPARCState *env)
 # warning signal handling not implemented
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUMIPSState *env)
 {
     fprintf(stderr, "setup_frame: not implemented\n");
 }
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUMIPSState *env)
 {
     fprintf(stderr, "setup_rt_frame: not implemented\n");
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUMIPSState *env)
 {
     fprintf(stderr, "do_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUMIPSState *env)
 {
     fprintf(stderr, "do_rt_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
@@ -2448,25 +2459,25 @@ long do_rt_sigreturn(CPUState *env)
 # warning signal handling not implemented
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUMIPSState *env)
 {
     fprintf(stderr, "setup_frame: not implemented\n");
 }
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUMIPSState *env)
 {
     fprintf(stderr, "setup_rt_frame: not implemented\n");
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUMIPSState *env)
 {
     fprintf(stderr, "do_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUMIPSState *env)
 {
     fprintf(stderr, "do_rt_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
@@ -2538,7 +2549,7 @@ static inline int install_sigtramp(unsigned int *tramp,   unsigned int syscall)
 }
 
 static inline int
-setup_sigcontext(CPUState *regs, struct target_sigcontext *sc)
+setup_sigcontext(CPUMIPSState *regs, struct target_sigcontext *sc)
 {
     int err = 0;
 
@@ -2613,7 +2624,7 @@ setup_sigcontext(CPUState *regs, struct target_sigcontext *sc)
 }
 
 static inline int
-restore_sigcontext(CPUState *regs, struct target_sigcontext *sc)
+restore_sigcontext(CPUMIPSState *regs, struct target_sigcontext *sc)
 {
     int err = 0;
 
@@ -2684,7 +2695,7 @@ restore_sigcontext(CPUState *regs, struct target_sigcontext *sc)
  * Determine which stack to use..
  */
 static inline abi_ulong
-get_sigframe(struct target_sigaction *ka, CPUState *regs, size_t frame_size)
+get_sigframe(struct target_sigaction *ka, CPUMIPSState *regs, size_t frame_size)
 {
     unsigned long sp;
 
@@ -2692,7 +2703,7 @@ get_sigframe(struct target_sigaction *ka, CPUState *regs, size_t frame_size)
     sp = regs->active_tc.gpr[29];
 
     /*
-     * FPU emulator may have it's own trampoline active just
+     * FPU emulator may have its own trampoline active just
      * above the user stack, 16-bytes before the next lowest
      * 16 byte boundary.  Try to avoid trashing it.
      */
@@ -2708,7 +2719,7 @@ get_sigframe(struct target_sigaction *ka, CPUState *regs, size_t frame_size)
 
 /* compare linux/arch/mips/kernel/signal.c:setup_frame() */
 static void setup_frame(int sig, struct target_sigaction * ka,
-                        target_sigset_t *set, CPUState *regs)
+                        target_sigset_t *set, CPUMIPSState *regs)
 {
     struct sigframe *frame;
     abi_ulong frame_addr;
@@ -2756,7 +2767,7 @@ give_sigsegv:
     return;
 }
 
-long do_sigreturn(CPUState *regs)
+long do_sigreturn(CPUMIPSState *regs)
 {
     struct sigframe *frame;
     abi_ulong frame_addr;
@@ -2807,7 +2818,7 @@ badframe:
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUMIPSState *env)
 {
     struct target_rt_sigframe *frame;
     abi_ulong frame_addr;
@@ -2865,7 +2876,7 @@ give_sigsegv:
     return;
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUMIPSState *env)
 {
     struct target_rt_sigframe *frame;
     abi_ulong frame_addr;
@@ -2966,7 +2977,7 @@ static abi_ulong get_sigframe(struct target_sigaction *ka,
 }
 
 static int setup_sigcontext(struct target_sigcontext *sc,
-			    CPUState *regs, unsigned long mask)
+                            CPUSH4State *regs, unsigned long mask)
 {
     int err = 0;
     int i;
@@ -2997,7 +3008,7 @@ static int setup_sigcontext(struct target_sigcontext *sc,
     return err;
 }
 
-static int restore_sigcontext(CPUState *regs, struct target_sigcontext *sc,
+static int restore_sigcontext(CPUSH4State *regs, struct target_sigcontext *sc,
                               target_ulong *r0_p)
 {
     unsigned int err = 0;
@@ -3029,7 +3040,7 @@ static int restore_sigcontext(CPUState *regs, struct target_sigcontext *sc,
 }
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *regs)
+                        target_sigset_t *set, CPUSH4State *regs)
 {
     struct target_sigframe *frame;
     abi_ulong frame_addr;
@@ -3081,7 +3092,7 @@ give_sigsegv:
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *regs)
+                           target_sigset_t *set, CPUSH4State *regs)
 {
     struct target_rt_sigframe *frame;
     abi_ulong frame_addr;
@@ -3142,7 +3153,7 @@ give_sigsegv:
     force_sig(TARGET_SIGSEGV);
 }
 
-long do_sigreturn(CPUState *regs)
+long do_sigreturn(CPUSH4State *regs)
 {
     struct target_sigframe *frame;
     abi_ulong frame_addr;
@@ -3182,7 +3193,7 @@ badframe:
     return 0;
 }
 
-long do_rt_sigreturn(CPUState *regs)
+long do_rt_sigreturn(CPUSH4State *regs)
 {
     struct target_rt_sigframe *frame;
     abi_ulong frame_addr;
@@ -3249,7 +3260,7 @@ struct rt_signal_frame {
     uint32_t tramp[2];
 };
 
-static void setup_sigcontext(struct target_sigcontext *sc, CPUState *env)
+static void setup_sigcontext(struct target_sigcontext *sc, CPUMBState *env)
 {
     __put_user(env->regs[0], &sc->regs.r0);
     __put_user(env->regs[1], &sc->regs.r1);
@@ -3286,7 +3297,7 @@ static void setup_sigcontext(struct target_sigcontext *sc, CPUState *env)
     __put_user(env->sregs[SR_PC], &sc->regs.pc);
 }
 
-static void restore_sigcontext(struct target_sigcontext *sc, CPUState *env)
+static void restore_sigcontext(struct target_sigcontext *sc, CPUMBState *env)
 {
     __get_user(env->regs[0], &sc->regs.r0);
     __get_user(env->regs[1], &sc->regs.r1);
@@ -3324,7 +3335,7 @@ static void restore_sigcontext(struct target_sigcontext *sc, CPUState *env)
 }
 
 static abi_ulong get_sigframe(struct target_sigaction *ka,
-                              CPUState *env, int frame_size)
+                              CPUMBState *env, int frame_size)
 {
     abi_ulong sp = env->regs[1];
 
@@ -3335,7 +3346,7 @@ static abi_ulong get_sigframe(struct target_sigaction *ka,
 }
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUMBState *env)
 {
     struct target_signal_frame *frame;
     abi_ulong frame_addr;
@@ -3401,12 +3412,12 @@ static void setup_frame(int sig, struct target_sigaction *ka,
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUMBState *env)
 {
     fprintf(stderr, "Microblaze setup_rt_frame: not implemented\n");
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUMBState *env)
 {
     struct target_signal_frame *frame;
     abi_ulong frame_addr;
@@ -3441,7 +3452,7 @@ long do_sigreturn(CPUState *env)
     force_sig(TARGET_SIGSEGV);
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUMBState *env)
 {
     fprintf(stderr, "Microblaze do_rt_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
@@ -3470,7 +3481,7 @@ struct rt_signal_frame {
         uint8_t retcode[8];       /* Trampoline code. */
 };
 
-static void setup_sigcontext(struct target_sigcontext *sc, CPUState *env)
+static void setup_sigcontext(struct target_sigcontext *sc, CPUCRISState *env)
 {
 	__put_user(env->regs[0], &sc->regs.r0);
 	__put_user(env->regs[1], &sc->regs.r1);
@@ -3493,7 +3504,7 @@ static void setup_sigcontext(struct target_sigcontext *sc, CPUState *env)
 	__put_user(env->pc, &sc->regs.erp);
 }
 
-static void restore_sigcontext(struct target_sigcontext *sc, CPUState *env)
+static void restore_sigcontext(struct target_sigcontext *sc, CPUCRISState *env)
 {
 	__get_user(env->regs[0], &sc->regs.r0);
 	__get_user(env->regs[1], &sc->regs.r1);
@@ -3516,7 +3527,7 @@ static void restore_sigcontext(struct target_sigcontext *sc, CPUState *env)
 	__get_user(env->pc, &sc->regs.erp);
 }
 
-static abi_ulong get_sigframe(CPUState *env, int framesize)
+static abi_ulong get_sigframe(CPUCRISState *env, int framesize)
 {
 	abi_ulong sp;
 	/* Align the stack downwards to 4.  */
@@ -3525,7 +3536,7 @@ static abi_ulong get_sigframe(CPUState *env, int framesize)
 }
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUCRISState *env)
 {
 	struct target_signal_frame *frame;
 	abi_ulong frame_addr;
@@ -3576,12 +3587,12 @@ static void setup_frame(int sig, struct target_sigaction *ka,
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUCRISState *env)
 {
     fprintf(stderr, "CRIS setup_rt_frame: not implemented\n");
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUCRISState *env)
 {
 	struct target_signal_frame *frame;
 	abi_ulong frame_addr;
@@ -3612,7 +3623,7 @@ long do_sigreturn(CPUState *env)
 	force_sig(TARGET_SIGSEGV);
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUCRISState *env)
 {
     fprintf(stderr, "CRIS do_rt_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
@@ -3679,7 +3690,7 @@ typedef struct {
 } rt_sigframe;
 
 static inline abi_ulong
-get_sigframe(struct target_sigaction *ka, CPUState *env, size_t frame_size)
+get_sigframe(struct target_sigaction *ka, CPUS390XState *env, size_t frame_size)
 {
     abi_ulong sp;
 
@@ -3704,7 +3715,7 @@ get_sigframe(struct target_sigaction *ka, CPUState *env, size_t frame_size)
     return (sp - frame_size) & -8ul;
 }
 
-static void save_sigregs(CPUState *env, target_sigregs *sregs)
+static void save_sigregs(CPUS390XState *env, target_sigregs *sregs)
 {
     int i;
     //save_access_regs(current->thread.acrs); FIXME
@@ -3730,7 +3741,7 @@ static void save_sigregs(CPUState *env, target_sigregs *sregs)
 }
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUS390XState *env)
 {
     sigframe *frame;
     abi_ulong frame_addr;
@@ -3797,7 +3808,7 @@ give_sigsegv:
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-                           target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUS390XState *env)
 {
     int i;
     rt_sigframe *frame;
@@ -3861,7 +3872,7 @@ give_sigsegv:
 }
 
 static int
-restore_sigregs(CPUState *env, target_sigregs *sc)
+restore_sigregs(CPUS390XState *env, target_sigregs *sc)
 {
     int err = 0;
     int i;
@@ -3887,7 +3898,7 @@ restore_sigregs(CPUState *env, target_sigregs *sc)
     return err;
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUS390XState *env)
 {
     sigframe *frame;
     abi_ulong frame_addr = env->regs[15];
@@ -3919,7 +3930,7 @@ badframe:
     return 0;
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUS390XState *env)
 {
     rt_sigframe *frame;
     abi_ulong frame_addr = env->regs[15];
@@ -4099,7 +4110,7 @@ struct target_rt_sigframe {
 
 /* See arch/powerpc/kernel/signal.c.  */
 static target_ulong get_sigframe(struct target_sigaction *ka,
-                                 CPUState *env,
+                                 CPUPPCState *env,
                                  int frame_size)
 {
     target_ulong oldsp, newsp;
@@ -4107,7 +4118,7 @@ static target_ulong get_sigframe(struct target_sigaction *ka,
     oldsp = env->gpr[1];
 
     if ((ka->sa_flags & TARGET_SA_ONSTACK) &&
-        (sas_ss_flags(oldsp))) {
+        (sas_ss_flags(oldsp) == 0)) {
         oldsp = (target_sigaltstack_used.ss_sp
                  + target_sigaltstack_used.ss_size);
     }
@@ -4117,7 +4128,7 @@ static target_ulong get_sigframe(struct target_sigaction *ka,
     return newsp;
 }
 
-static int save_user_regs(CPUState *env, struct target_mcontext *frame,
+static int save_user_regs(CPUPPCState *env, struct target_mcontext *frame,
                           int sigret)
 {
     target_ulong msr = env->msr;
@@ -4213,7 +4224,7 @@ static int save_user_regs(CPUState *env, struct target_mcontext *frame,
     return 0;
 }
 
-static int restore_user_regs(CPUState *env,
+static int restore_user_regs(CPUPPCState *env,
                              struct target_mcontext *frame, int sig)
 {
     target_ulong save_r2 = 0;
@@ -4312,7 +4323,7 @@ static int restore_user_regs(CPUState *env,
 }
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-                        target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUPPCState *env)
 {
     struct target_sigframe *frame;
     struct target_sigcontext *sc;
@@ -4374,7 +4385,7 @@ sigsegv:
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-                           target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUPPCState *env)
 {
     struct target_rt_sigframe *rt_sf;
     struct target_mcontext *frame;
@@ -4442,7 +4453,7 @@ sigsegv:
 
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUPPCState *env)
 {
     struct target_sigcontext *sc = NULL;
     struct target_mcontext *sr = NULL;
@@ -4485,7 +4496,7 @@ sigsegv:
 }
 
 /* See arch/powerpc/kernel/signal_32.c.  */
-static int do_setcontext(struct target_ucontext *ucp, CPUState *env, int sig)
+static int do_setcontext(struct target_ucontext *ucp, CPUPPCState *env, int sig)
 {
     struct target_mcontext *mcp;
     target_ulong mcp_addr;
@@ -4520,7 +4531,7 @@ sigsegv:
 #endif
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUPPCState *env)
 {
     struct target_rt_sigframe *rt_sf = NULL;
     target_ulong rt_sf_addr;
@@ -4609,7 +4620,8 @@ struct target_rt_sigframe
 };
 
 static int
-setup_sigcontext(struct target_sigcontext *sc, CPUState *env, abi_ulong mask)
+setup_sigcontext(struct target_sigcontext *sc, CPUM68KState *env,
+                 abi_ulong mask)
 {
     int err = 0;
 
@@ -4626,7 +4638,7 @@ setup_sigcontext(struct target_sigcontext *sc, CPUState *env, abi_ulong mask)
 }
 
 static int
-restore_sigcontext(CPUState *env, struct target_sigcontext *sc, int *pd0)
+restore_sigcontext(CPUM68KState *env, struct target_sigcontext *sc, int *pd0)
 {
     int err = 0;
     int temp;
@@ -4648,7 +4660,8 @@ restore_sigcontext(CPUState *env, struct target_sigcontext *sc, int *pd0)
  * Determine which stack to use..
  */
 static inline abi_ulong
-get_sigframe(struct target_sigaction *ka, CPUState *regs, size_t frame_size)
+get_sigframe(struct target_sigaction *ka, CPUM68KState *regs,
+             size_t frame_size)
 {
     unsigned long sp;
 
@@ -4663,7 +4676,7 @@ get_sigframe(struct target_sigaction *ka, CPUState *regs, size_t frame_size)
 }
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUM68KState *env)
 {
     struct target_sigframe *frame;
     abi_ulong frame_addr;
@@ -4717,7 +4730,7 @@ give_sigsegv:
 }
 
 static inline int target_rt_setup_ucontext(struct target_ucontext *uc,
-                                           CPUState *env)
+                                           CPUM68KState *env)
 {
     target_greg_t *gregs = uc->tuc_mcontext.gregs;
     int err;
@@ -4745,7 +4758,7 @@ static inline int target_rt_setup_ucontext(struct target_ucontext *uc,
     return err;
 }
  
-static inline int target_rt_restore_ucontext(CPUState *env,
+static inline int target_rt_restore_ucontext(CPUM68KState *env,
                                              struct target_ucontext *uc,
                                              int *pd0)
 {
@@ -4787,7 +4800,7 @@ badframe:
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUM68KState *env)
 {
     struct target_rt_sigframe *frame;
     abi_ulong frame_addr;
@@ -4858,7 +4871,7 @@ give_sigsegv:
     force_sig(TARGET_SIGSEGV);
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUM68KState *env)
 {
     struct target_sigframe *frame;
     abi_ulong frame_addr = env->aregs[7] - 4;
@@ -4896,7 +4909,7 @@ badframe:
     return 0;
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUM68KState *env)
 {
     struct target_rt_sigframe *frame;
     abi_ulong frame_addr = env->aregs[7] - 4;
@@ -4977,7 +4990,7 @@ struct target_rt_sigframe {
 #define INSN_LDI_R0             0x201f0000
 #define INSN_CALLSYS            0x00000083
 
-static int setup_sigcontext(struct target_sigcontext *sc, CPUState *env,
+static int setup_sigcontext(struct target_sigcontext *sc, CPUAlphaState *env,
                             abi_ulong frame_addr, target_sigset_t *set)
 {
     int i, err = 0;
@@ -5005,7 +5018,8 @@ static int setup_sigcontext(struct target_sigcontext *sc, CPUState *env,
     return err;
 }
 
-static int restore_sigcontext(CPUState *env, struct target_sigcontext *sc)
+static int restore_sigcontext(CPUAlphaState *env,
+                              struct target_sigcontext *sc)
 {
     uint64_t fpcr;
     int i, err = 0;
@@ -5026,7 +5040,8 @@ static int restore_sigcontext(CPUState *env, struct target_sigcontext *sc)
 }
 
 static inline abi_ulong get_sigframe(struct target_sigaction *sa,
-                                     CPUState *env, unsigned long framesize)
+                                     CPUAlphaState *env,
+                                     unsigned long framesize)
 {
     abi_ulong sp = env->ir[IR_SP];
 
@@ -5038,7 +5053,7 @@ static inline abi_ulong get_sigframe(struct target_sigaction *sa,
 }
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-                        target_sigset_t *set, CPUState *env)
+                        target_sigset_t *set, CPUAlphaState *env)
 {
     abi_ulong frame_addr, r26;
     struct target_sigframe *frame;
@@ -5082,7 +5097,7 @@ static void setup_frame(int sig, struct target_sigaction *ka,
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+                           target_sigset_t *set, CPUAlphaState *env)
 {
     abi_ulong frame_addr, r26;
     struct target_rt_sigframe *frame;
@@ -5136,7 +5151,7 @@ static void setup_rt_frame(int sig, struct target_sigaction *ka,
     env->ir[IR_SP] = frame_addr;
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUAlphaState *env)
 {
     struct target_sigcontext *sc;
     abi_ulong sc_addr = env->ir[IR_A0];
@@ -5166,7 +5181,7 @@ long do_sigreturn(CPUState *env)
     force_sig(TARGET_SIGSEGV);
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUAlphaState *env)
 {
     abi_ulong frame_addr = env->ir[IR_A0];
     struct target_rt_sigframe *frame;
@@ -5199,25 +5214,25 @@ long do_rt_sigreturn(CPUState *env)
 #else
 
 static void setup_frame(int sig, struct target_sigaction *ka,
-			target_sigset_t *set, CPUState *env)
+			target_sigset_t *set, CPUArchState *env)
 {
     fprintf(stderr, "setup_frame: not implemented\n");
 }
 
 static void setup_rt_frame(int sig, struct target_sigaction *ka,
                            target_siginfo_t *info,
-			   target_sigset_t *set, CPUState *env)
+			   target_sigset_t *set, CPUArchState *env)
 {
     fprintf(stderr, "setup_rt_frame: not implemented\n");
 }
 
-long do_sigreturn(CPUState *env)
+long do_sigreturn(CPUArchState *env)
 {
     fprintf(stderr, "do_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
 }
 
-long do_rt_sigreturn(CPUState *env)
+long do_rt_sigreturn(CPUArchState *env)
 {
     fprintf(stderr, "do_rt_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
@@ -5225,7 +5240,7 @@ long do_rt_sigreturn(CPUState *env)
 
 #endif
 
-void process_pending_signals(CPUState *cpu_env)
+void process_pending_signals(CPUArchState *cpu_env)
 {
     int sig;
     abi_ulong handler;

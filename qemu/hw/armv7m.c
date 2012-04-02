@@ -126,7 +126,7 @@ static int bitband_init(SysBusDevice *dev)
 
     memory_region_init_io(&s->iomem, &bitband_ops, &s->base, "bitband",
                           0x02000000);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
     return 0;
 }
 
@@ -149,7 +149,7 @@ static void armv7m_bitband_init(void)
 
 static void armv7m_reset(void *opaque)
 {
-    cpu_reset((CPUState *)opaque);
+    cpu_state_reset((CPUARMState *)opaque);
 }
 
 /* Init CPU and memory for a v7-M based board.
@@ -160,7 +160,7 @@ qemu_irq *armv7m_init(MemoryRegion *address_space_mem,
                       int flash_size, int sram_size,
                       const char *kernel_filename, const char *cpu_model)
 {
-    CPUState *env;
+    CPUARMState *env;
     DeviceState *nvic;
     /* FIXME: make this local state.  */
     static qemu_irq pic[64];
@@ -198,10 +198,12 @@ qemu_irq *armv7m_init(MemoryRegion *address_space_mem,
 #endif
 
     /* Flash programming is done via the SCU, so pretend it is ROM.  */
-    memory_region_init_ram(flash, NULL, "armv7m.flash", flash_size);
+    memory_region_init_ram(flash, "armv7m.flash", flash_size);
+    vmstate_register_ram_global(flash);
     memory_region_set_readonly(flash, true);
     memory_region_add_subregion(address_space_mem, 0, flash);
-    memory_region_init_ram(sram, NULL, "armv7m.sram", sram_size);
+    memory_region_init_ram(sram, "armv7m.sram", sram_size);
+    vmstate_register_ram_global(sram);
     memory_region_add_subregion(address_space_mem, 0x20000000, sram);
     armv7m_bitband_init();
 
@@ -235,26 +237,38 @@ qemu_irq *armv7m_init(MemoryRegion *address_space_mem,
     /* Hack to map an additional page of ram at the top of the address
        space.  This stops qemu complaining about executing code outside RAM
        when returning from an exception.  */
-    memory_region_init_ram(hack, NULL, "armv7m.hack", 0x1000);
+    memory_region_init_ram(hack, "armv7m.hack", 0x1000);
+    vmstate_register_ram_global(hack);
     memory_region_add_subregion(address_space_mem, 0xfffff000, hack);
 
     qemu_register_reset(armv7m_reset, env);
     return pic;
 }
 
-static SysBusDeviceInfo bitband_info = {
-    .init = bitband_init,
-    .qdev.name  = "ARM,bitband-memory",
-    .qdev.size  = sizeof(BitBandState),
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("base", BitBandState, base, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property bitband_properties[] = {
+    DEFINE_PROP_UINT32("base", BitBandState, base, 0),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void armv7m_register_devices(void)
+static void bitband_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&bitband_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = bitband_init;
+    dc->props = bitband_properties;
 }
 
-device_init(armv7m_register_devices)
+static TypeInfo bitband_info = {
+    .name          = "ARM,bitband-memory",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(BitBandState),
+    .class_init    = bitband_class_init,
+};
+
+static void armv7m_register_types(void)
+{
+    type_register_static(&bitband_info);
+}
+
+type_init(armv7m_register_types)

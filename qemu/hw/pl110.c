@@ -40,6 +40,7 @@ enum pl110_version
 
 typedef struct {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     DisplayState *ds;
 
     int version;
@@ -59,10 +60,13 @@ typedef struct {
     qemu_irq irq;
 } pl110_state;
 
+static int vmstate_pl110_post_load(void *opaque, int version_id);
+
 static const VMStateDescription vmstate_pl110 = {
     .name = "pl110",
     .version_id = 2,
     .minimum_version_id = 1,
+    .post_load = vmstate_pl110_post_load,
     .fields = (VMStateField[]) {
         VMSTATE_INT32(version, pl110_state),
         VMSTATE_UINT32_ARRAY(timing, pl110_state, 4),
@@ -228,7 +232,7 @@ static void pl110_update_display(void *opaque)
     }
     dest_width *= s->cols;
     first = 0;
-    framebuffer_update_display(s->ds,
+    framebuffer_update_display(s->ds, sysbus_address_space(&s->busdev),
                                s->upbase, s->cols, s->rows,
                                src_width, dest_width, 0,
                                s->invalidate,
@@ -301,7 +305,8 @@ static void pl110_update(pl110_state *s)
   /* TODO: Implement interrupts.  */
 }
 
-static uint32_t pl110_read(void *opaque, target_phys_addr_t offset)
+static uint64_t pl110_read(void *opaque, target_phys_addr_t offset,
+                           unsigned size)
 {
     pl110_state *s = (pl110_state *)opaque;
 
@@ -350,13 +355,13 @@ static uint32_t pl110_read(void *opaque, target_phys_addr_t offset)
 }
 
 static void pl110_write(void *opaque, target_phys_addr_t offset,
-                        uint32_t val)
+                        uint64_t val, unsigned size)
 {
     pl110_state *s = (pl110_state *)opaque;
     int n;
 
     /* For simplicity invalidate the display whenever a control register
-       is writen to.  */
+       is written to.  */
     s->invalidate = 1;
     if (offset >= 0x200 && offset < 0x400) {
         /* Pallette.  */
@@ -416,16 +421,10 @@ static void pl110_write(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static CPUReadMemoryFunc * const pl110_readfn[] = {
-   pl110_read,
-   pl110_read,
-   pl110_read
-};
-
-static CPUWriteMemoryFunc * const pl110_writefn[] = {
-   pl110_write,
-   pl110_write,
-   pl110_write
+static const MemoryRegionOps pl110_ops = {
+    .read = pl110_read,
+    .write = pl110_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static void pl110_mux_ctrl_set(void *opaque, int line, int level)
@@ -434,15 +433,20 @@ static void pl110_mux_ctrl_set(void *opaque, int line, int level)
     s->mux_ctrl = level;
 }
 
+static int vmstate_pl110_post_load(void *opaque, int version_id)
+{
+    pl110_state *s = opaque;
+    /* Make sure we redraw, and at the right size */
+    pl110_invalidate_display(s);
+    return 0;
+}
+
 static int pl110_init(SysBusDevice *dev)
 {
     pl110_state *s = FROM_SYSBUS(pl110_state, dev);
-    int iomemtype;
 
-    iomemtype = cpu_register_io_memory(pl110_readfn,
-                                       pl110_writefn, s,
-                                       DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, 0x1000, iomemtype);
+    memory_region_init_io(&s->iomem, &pl110_ops, s, "pl110", 0x1000);
+    sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
     qdev_init_gpio_in(&s->busdev.qdev, pl110_mux_ctrl_set, 1);
     s->ds = graphic_console_init(pl110_update_display,
@@ -465,35 +469,62 @@ static int pl111_init(SysBusDevice *dev)
     return pl110_init(dev);
 }
 
-static SysBusDeviceInfo pl110_info = {
-    .init = pl110_init,
-    .qdev.name = "pl110",
-    .qdev.size = sizeof(pl110_state),
-    .qdev.vmsd = &vmstate_pl110,
-    .qdev.no_user = 1,
-};
-
-static SysBusDeviceInfo pl110_versatile_info = {
-    .init = pl110_versatile_init,
-    .qdev.name = "pl110_versatile",
-    .qdev.size = sizeof(pl110_state),
-    .qdev.vmsd = &vmstate_pl110,
-    .qdev.no_user = 1,
-};
-
-static SysBusDeviceInfo pl111_info = {
-    .init = pl111_init,
-    .qdev.name = "pl111",
-    .qdev.size = sizeof(pl110_state),
-    .qdev.vmsd = &vmstate_pl110,
-    .qdev.no_user = 1,
-};
-
-static void pl110_register_devices(void)
+static void pl110_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&pl110_info);
-    sysbus_register_withprop(&pl110_versatile_info);
-    sysbus_register_withprop(&pl111_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = pl110_init;
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_pl110;
 }
 
-device_init(pl110_register_devices)
+static TypeInfo pl110_info = {
+    .name          = "pl110",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl110_state),
+    .class_init    = pl110_class_init,
+};
+
+static void pl110_versatile_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = pl110_versatile_init;
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_pl110;
+}
+
+static TypeInfo pl110_versatile_info = {
+    .name          = "pl110_versatile",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl110_state),
+    .class_init    = pl110_versatile_class_init,
+};
+
+static void pl111_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = pl111_init;
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_pl110;
+}
+
+static TypeInfo pl111_info = {
+    .name          = "pl111",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl110_state),
+    .class_init    = pl111_class_init,
+};
+
+static void pl110_register_types(void)
+{
+    type_register_static(&pl110_info);
+    type_register_static(&pl110_versatile_info);
+    type_register_static(&pl111_info);
+}
+
+type_init(pl110_register_types)

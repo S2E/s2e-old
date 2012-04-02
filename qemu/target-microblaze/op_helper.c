@@ -42,11 +42,11 @@
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
 /* XXX: fix it to restore all registers */
-void tlb_fill(CPUState *env1, target_ulong addr, int is_write, int mmu_idx,
+void tlb_fill(CPUMBState *env1, target_ulong addr, int is_write, int mmu_idx,
               void *retaddr)
 {
     TranslationBlock *tb;
-    CPUState *saved_env;
+    CPUMBState *saved_env;
     unsigned long pc;
     int ret;
 
@@ -163,6 +163,11 @@ uint32_t helper_cmpu(uint32_t a, uint32_t b)
     if ((b & 0x80000000) ^ (a & 0x80000000))
         t = (t & 0x7fffffff) | (a & 0x80000000);
     return t;
+}
+
+uint32_t helper_clz(uint32_t t0)
+{
+    return clz32(t0);
 }
 
 uint32_t helper_carry(uint32_t a, uint32_t b, uint32_t cf)
@@ -478,6 +483,17 @@ void helper_memalign(uint32_t addr, uint32_t dr, uint32_t wr, uint32_t mask)
     }
 }
 
+void helper_stackprot(uint32_t addr)
+{
+    if (addr < env->slr || addr > env->shr) {
+            qemu_log("Stack protector violation at %x %x %x\n",
+                     addr, env->slr, env->shr);
+            env->sregs[SR_EAR] = addr;
+            env->sregs[SR_ESR] = ESR_EC_STACKPROT;
+            helper_raise_exception(EXCP_HW_EXCP);
+    }
+}
+
 #if !defined(CONFIG_USER_ONLY)
 /* Writes/reads to the MMU's special regs end up here.  */
 uint32_t helper_mmu_read(uint32_t rn)
@@ -490,10 +506,10 @@ void helper_mmu_write(uint32_t rn, uint32_t v)
     mmu_write(env, rn, v);
 }
 
-void cpu_unassigned_access(CPUState *env1, target_phys_addr_t addr,
+void cpu_unassigned_access(CPUMBState *env1, target_phys_addr_t addr,
                            int is_write, int is_exec, int is_asi, int size)
 {
-    CPUState *saved_env;
+    CPUMBState *saved_env;
 
     saved_env = env;
     env = env1;

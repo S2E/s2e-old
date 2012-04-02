@@ -26,9 +26,6 @@
 #define unlikely(x)   __builtin_expect(!!(x), 0)
 #endif
 
-#ifdef CONFIG_NEED_OFFSETOF
-#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *) 0)->MEMBER)
-#endif
 #ifndef container_of
 #define container_of(ptr, type, member) ({                      \
         const typeof(((type *) 0)->member) *__mptr = (ptr);     \
@@ -71,12 +68,6 @@
 #endif
 #else
 #define inline always_inline
-#endif
-
-#ifdef __i386__
-#define REGPARM __attribute((regparm(3)))
-#else
-#define REGPARM
 #endif
 
 #define qemu_printf printf
@@ -148,5 +139,7 @@ static inline void qemu_timersub(const struct timeval *val1,
 #else
 #define qemu_timersub timersub
 #endif
+
+void qemu_set_cloexec(int fd);
 
 #endif

@@ -5,6 +5,9 @@
  * Written by Paul Brook
  *
  * This code is licensed under the GNU GPL v2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "blockdev.h"
@@ -241,16 +244,24 @@ static int ssi_sd_init(SSISlave *dev)
     return 0;
 }
 
-static SSISlaveInfo ssi_sd_info = {
-    .qdev.name = "ssi-sd",
-    .qdev.size = sizeof(ssi_sd_state),
-    .init = ssi_sd_init,
-    .transfer = ssi_sd_transfer
-};
-
-static void ssi_sd_register_devices(void)
+static void ssi_sd_class_init(ObjectClass *klass, void *data)
 {
-    ssi_register_slave(&ssi_sd_info);
+    SSISlaveClass *k = SSI_SLAVE_CLASS(klass);
+
+    k->init = ssi_sd_init;
+    k->transfer = ssi_sd_transfer;
 }
 
-device_init(ssi_sd_register_devices)
+static TypeInfo ssi_sd_info = {
+    .name          = "ssi-sd",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(ssi_sd_state),
+    .class_init    = ssi_sd_class_init,
+};
+
+static void ssi_sd_register_types(void)
+{
+    type_register_static(&ssi_sd_info);
+}
+
+type_init(ssi_sd_register_types)

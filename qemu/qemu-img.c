@@ -515,40 +515,6 @@ static int img_commit(int argc, char **argv)
 }
 
 /*
- * Checks whether the sector is not a zero sector.
- *
- * Attention! The len must be a multiple of 4 * sizeof(long) due to
- * restriction of optimizations in this function.
- */
-static int is_not_zero(const uint8_t *sector, int len)
-{
-    /*
-     * Use long as the biggest available internal data type that fits into the
-     * CPU register and unroll the loop to smooth out the effect of memory
-     * latency.
-     */
-
-    int i;
-    long d0, d1, d2, d3;
-    const long * const data = (const long *) sector;
-
-    len /= sizeof(long);
-
-    for(i = 0; i < len; i += 4) {
-        d0 = data[i + 0];
-        d1 = data[i + 1];
-        d2 = data[i + 2];
-        d3 = data[i + 3];
-
-        if (d0 || d1 || d2 || d3) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-/*
  * Returns true iff the first sector pointed to by 'buf' contains at least
  * a non-NUL byte.
  *
@@ -557,20 +523,22 @@ static int is_not_zero(const uint8_t *sector, int len)
  */
 static int is_allocated_sectors(const uint8_t *buf, int n, int *pnum)
 {
-    int v, i;
+    bool is_zero;
+    int i;
 
     if (n <= 0) {
         *pnum = 0;
         return 0;
     }
-    v = is_not_zero(buf, 512);
+    is_zero = buffer_is_zero(buf, 512);
     for(i = 1; i < n; i++) {
         buf += 512;
-        if (v != is_not_zero(buf, 512))
+        if (is_zero != buffer_is_zero(buf, 512)) {
             break;
+        }
     }
     *pnum = i;
-    return v;
+    return !is_zero;
 }
 
 /*
@@ -955,7 +923,7 @@ static int img_convert(int argc, char **argv)
             if (n < cluster_sectors) {
                 memset(buf + n * 512, 0, cluster_size - n * 512);
             }
-            if (is_not_zero(buf, cluster_size)) {
+            if (!buffer_is_zero(buf, cluster_size)) {
                 ret = bdrv_write_compressed(out_bs, sector_num, buf,
                                             cluster_sectors);
                 if (ret != 0) {
@@ -1420,6 +1388,8 @@ static int img_rebase(int argc, char **argv)
      */
     if (!unsafe) {
         uint64_t num_sectors;
+        uint64_t old_backing_num_sectors;
+        uint64_t new_backing_num_sectors;
         uint64_t sector;
         int n;
         uint8_t * buf_old;
@@ -1430,6 +1400,8 @@ static int img_rebase(int argc, char **argv)
         buf_new = qemu_blockalign(bs, IO_BUF_SIZE);
 
         bdrv_get_geometry(bs, &num_sectors);
+        bdrv_get_geometry(bs_old_backing, &old_backing_num_sectors);
+        bdrv_get_geometry(bs_new_backing, &new_backing_num_sectors);
 
         local_progress = (float)100 /
             (num_sectors / MIN(num_sectors, IO_BUF_SIZE / 512));
@@ -1448,16 +1420,36 @@ static int img_rebase(int argc, char **argv)
                 continue;
             }
 
-            /* Read old and new backing file */
-            ret = bdrv_read(bs_old_backing, sector, buf_old, n);
-            if (ret < 0) {
-                error_report("error while reading from old backing file");
-                goto out;
+            /*
+             * Read old and new backing file and take into consideration that
+             * backing files may be smaller than the COW image.
+             */
+            if (sector >= old_backing_num_sectors) {
+                memset(buf_old, 0, n * BDRV_SECTOR_SIZE);
+            } else {
+                if (sector + n > old_backing_num_sectors) {
+                    n = old_backing_num_sectors - sector;
+                }
+
+                ret = bdrv_read(bs_old_backing, sector, buf_old, n);
+                if (ret < 0) {
+                    error_report("error while reading from old backing file");
+                    goto out;
+                }
             }
-            ret = bdrv_read(bs_new_backing, sector, buf_new, n);
-            if (ret < 0) {
-                error_report("error while reading from new backing file");
-                goto out;
+
+            if (sector >= new_backing_num_sectors) {
+                memset(buf_new, 0, n * BDRV_SECTOR_SIZE);
+            } else {
+                if (sector + n > new_backing_num_sectors) {
+                    n = new_backing_num_sectors - sector;
+                }
+
+                ret = bdrv_read(bs_new_backing, sector, buf_new, n);
+                if (ret < 0) {
+                    error_report("error while reading from new backing file");
+                    goto out;
+                }
             }
 
             /* If they differ, we need to write to the COW file */
@@ -1622,7 +1614,7 @@ static int img_resize(int argc, char **argv)
         printf("Image resized.\n");
         break;
     case -ENOTSUP:
-        error_report("This image format does not support resize");
+        error_report("This image does not support resize");
         break;
     case -EACCES:
         error_report("Image is read-only");
@@ -1662,6 +1654,8 @@ int main(int argc, char **argv)
         help();
     cmdname = argv[1];
     argc--; argv++;
+
+    qemu_init_main_loop();
 
     /* find the command */
     for(cmd = img_cmds; cmd->name != NULL; cmd++) {

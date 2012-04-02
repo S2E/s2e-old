@@ -65,6 +65,7 @@
 #define PARA_CTR_SIGNAL (PARA_CTR_SELECT|PARA_CTR_INIT|PARA_CTR_AUTOLF|PARA_CTR_STROBE)
 
 typedef struct ParallelState {
+    MemoryRegion iomem;
     uint8_t dataw;
     uint8_t datar;
     uint8_t status;
@@ -555,24 +556,20 @@ static void parallel_mm_writel (void *opaque,
     parallel_ioport_write_sw(s, addr >> s->it_shift, value);
 }
 
-static CPUReadMemoryFunc * const parallel_mm_read_sw[] = {
-    &parallel_mm_readb,
-    &parallel_mm_readw,
-    &parallel_mm_readl,
-};
-
-static CPUWriteMemoryFunc * const parallel_mm_write_sw[] = {
-    &parallel_mm_writeb,
-    &parallel_mm_writew,
-    &parallel_mm_writel,
+static const MemoryRegionOps parallel_mm_ops = {
+    .old_mmio = {
+        .read = { parallel_mm_readb, parallel_mm_readw, parallel_mm_readl },
+        .write = { parallel_mm_writeb, parallel_mm_writew, parallel_mm_writel },
+    },
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 /* If fd is zero, it means that the parallel device uses the console */
-bool parallel_mm_init(target_phys_addr_t base, int it_shift, qemu_irq irq,
+bool parallel_mm_init(MemoryRegion *address_space,
+                      target_phys_addr_t base, int it_shift, qemu_irq irq,
                       CharDriverState *chr)
 {
     ParallelState *s;
-    int io_sw;
 
     s = g_malloc0(sizeof(ParallelState));
     s->irq = irq;
@@ -580,28 +577,38 @@ bool parallel_mm_init(target_phys_addr_t base, int it_shift, qemu_irq irq,
     s->it_shift = it_shift;
     qemu_register_reset(parallel_reset, s);
 
-    io_sw = cpu_register_io_memory(parallel_mm_read_sw, parallel_mm_write_sw,
-                                   s, DEVICE_NATIVE_ENDIAN);
-    cpu_register_physical_memory(base, 8 << it_shift, io_sw);
+    memory_region_init_io(&s->iomem, &parallel_mm_ops, s,
+                          "parallel", 8 << it_shift);
+    memory_region_add_subregion(address_space, base, &s->iomem);
     return true;
 }
 
-static ISADeviceInfo parallel_isa_info = {
-    .qdev.name  = "isa-parallel",
-    .qdev.size  = sizeof(ISAParallelState),
-    .init       = parallel_isa_initfn,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("index", ISAParallelState, index,   -1),
-        DEFINE_PROP_HEX32("iobase", ISAParallelState, iobase,  -1),
-        DEFINE_PROP_UINT32("irq",   ISAParallelState, isairq,  7),
-        DEFINE_PROP_CHR("chardev",  ISAParallelState, state.chr),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static Property parallel_isa_properties[] = {
+    DEFINE_PROP_UINT32("index", ISAParallelState, index,   -1),
+    DEFINE_PROP_HEX32("iobase", ISAParallelState, iobase,  -1),
+    DEFINE_PROP_UINT32("irq",   ISAParallelState, isairq,  7),
+    DEFINE_PROP_CHR("chardev",  ISAParallelState, state.chr),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void parallel_register_devices(void)
+static void parallel_isa_class_initfn(ObjectClass *klass, void *data)
 {
-    isa_qdev_register(&parallel_isa_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
+    ic->init = parallel_isa_initfn;
+    dc->props = parallel_isa_properties;
 }
 
-device_init(parallel_register_devices)
+static TypeInfo parallel_isa_info = {
+    .name          = "isa-parallel",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(ISAParallelState),
+    .class_init    = parallel_isa_class_initfn,
+};
+
+static void parallel_register_types(void)
+{
+    type_register_static(&parallel_isa_info);
+}
+
+type_init(parallel_register_types)

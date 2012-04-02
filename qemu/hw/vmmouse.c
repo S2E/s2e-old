@@ -254,6 +254,8 @@ static void vmmouse_reset(DeviceState *d)
 
     s->status = 0xffff;
     s->queue_size = VMMOUSE_QUEUE_SIZE;
+
+    vmmouse_disable(s);
 }
 
 static int vmmouse_initfn(ISADevice *dev)
@@ -269,21 +271,32 @@ static int vmmouse_initfn(ISADevice *dev)
     return 0;
 }
 
-static ISADeviceInfo vmmouse_info = {
-    .init          = vmmouse_initfn,
-    .qdev.name     = "vmmouse",
-    .qdev.size     = sizeof(VMMouseState),
-    .qdev.vmsd     = &vmstate_vmmouse,
-    .qdev.no_user  = 1,
-    .qdev.reset    = vmmouse_reset,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_PTR("ps2_mouse", VMMouseState, ps2_mouse),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property vmmouse_properties[] = {
+    DEFINE_PROP_PTR("ps2_mouse", VMMouseState, ps2_mouse),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void vmmouse_dev_register(void)
+static void vmmouse_class_initfn(ObjectClass *klass, void *data)
 {
-    isa_qdev_register(&vmmouse_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
+    ic->init = vmmouse_initfn;
+    dc->no_user = 1;
+    dc->reset = vmmouse_reset;
+    dc->vmsd = &vmstate_vmmouse;
+    dc->props = vmmouse_properties;
 }
-device_init(vmmouse_dev_register)
+
+static TypeInfo vmmouse_info = {
+    .name          = "vmmouse",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(VMMouseState),
+    .class_init    = vmmouse_class_initfn,
+};
+
+static void vmmouse_register_types(void)
+{
+    type_register_static(&vmmouse_info);
+}
+
+type_init(vmmouse_register_types)

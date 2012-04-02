@@ -4,7 +4,7 @@
  * Copyright (c) 2011
  * Written by Mathieu Sonet - www.elasticsheep.com
  *
- * This code is licenced under the GPL.
+ * This code is licensed under the GPL.
  *
  * *****************************************************************
  *
@@ -543,7 +543,7 @@ static int pl041_init(SysBusDevice *dev)
 
     /* Connect the device to the sysbus */
     memory_region_init_io(&s->iomem, &pl041_ops, s, "pl041", 0x1000);
-    sysbus_init_mmio_region(dev, &s->iomem);
+    sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
 
     /* Init the codec */
@@ -613,24 +613,34 @@ static const VMStateDescription vmstate_pl041 = {
     }
 };
 
-static SysBusDeviceInfo pl041_device_info = {
-    .init = pl041_init,
-    .qdev.name = "pl041",
-    .qdev.size = sizeof(pl041_state),
-    .qdev.vmsd = &vmstate_pl041,
-    .qdev.reset = pl041_device_reset,
-    .qdev.no_user = 1,
-    .qdev.props = (Property[]) {
-        /* Non-compact FIFO depth property */
-        DEFINE_PROP_UINT32("nc_fifo_depth", pl041_state,
-                           fifo_depth, DEFAULT_FIFO_DEPTH),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static Property pl041_device_properties[] = {
+    /* Non-compact FIFO depth property */
+    DEFINE_PROP_UINT32("nc_fifo_depth", pl041_state, fifo_depth, DEFAULT_FIFO_DEPTH),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void pl041_register_device(void)
+static void pl041_device_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&pl041_device_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = pl041_init;
+    dc->no_user = 1;
+    dc->reset = pl041_device_reset;
+    dc->vmsd = &vmstate_pl041;
+    dc->props = pl041_device_properties;
 }
 
-device_init(pl041_register_device)
+static TypeInfo pl041_device_info = {
+    .name          = "pl041",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl041_state),
+    .class_init    = pl041_device_class_init,
+};
+
+static void pl041_register_types(void)
+{
+    type_register_static(&pl041_device_info);
+}
+
+type_init(pl041_register_types)

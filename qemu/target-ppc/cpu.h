@@ -71,7 +71,7 @@
 
 #endif /* defined (TARGET_PPC64) */
 
-#define CPUState struct CPUPPCState
+#define CPUArchState struct CPUPPCState
 
 #include "cpu-defs.h"
 
@@ -187,7 +187,10 @@ enum {
     POWERPC_EXCP_EPERFM   = 35, /* Embedded performance monitor interrupt    */
     POWERPC_EXCP_DOORI    = 36, /* Embedded doorbell interrupt               */
     POWERPC_EXCP_DOORCI   = 37, /* Embedded doorbell critical interrupt      */
-    /* Vectors 38 to 63 are reserved                                         */
+    POWERPC_EXCP_GDOORI   = 38, /* Embedded guest doorbell interrupt         */
+    POWERPC_EXCP_GDOORCI  = 39, /* Embedded guest doorbell critical interrupt*/
+    POWERPC_EXCP_HYPPRIV  = 41, /* Embedded hypervisor priv instruction      */
+    /* Vectors 42 to 63 are reserved                                         */
     /* Exceptions defined in the PowerPC server specification                */
     POWERPC_EXCP_RESET    = 64, /* System reset exception                    */
     POWERPC_EXCP_DSEG     = 65, /* Data segment exception                    */
@@ -855,6 +858,22 @@ enum {
 #define BOOKE206_MAX_TLBN      4
 
 /*****************************************************************************/
+/* Embedded.Processor Control */
+
+#define DBELL_TYPE_SHIFT               27
+#define DBELL_TYPE_MASK                (0x1f << DBELL_TYPE_SHIFT)
+#define DBELL_TYPE_DBELL               (0x00 << DBELL_TYPE_SHIFT)
+#define DBELL_TYPE_DBELL_CRIT          (0x01 << DBELL_TYPE_SHIFT)
+#define DBELL_TYPE_G_DBELL             (0x02 << DBELL_TYPE_SHIFT)
+#define DBELL_TYPE_G_DBELL_CRIT        (0x03 << DBELL_TYPE_SHIFT)
+#define DBELL_TYPE_G_DBELL_MC          (0x04 << DBELL_TYPE_SHIFT)
+
+#define DBELL_BRDCAST                  (1 << 26)
+#define DBELL_LPIDTAG_SHIFT            14
+#define DBELL_LPIDTAG_MASK             (0xfff << DBELL_LPIDTAG_SHIFT)
+#define DBELL_PIRTAG_MASK              0x3fff
+
+/*****************************************************************************/
 /* The whole PowerPC CPU context */
 #define NB_MMU_MODES 3
 
@@ -1004,7 +1023,7 @@ struct CPUPPCState {
     int error_code;
     uint32_t pending_interrupts;
 #if !defined(CONFIG_USER_ONLY)
-    /* This is the IRQ controller, which is implementation dependant
+    /* This is the IRQ controller, which is implementation dependent
      * and only relevant when emulating a complete machine.
      */
     uint32_t irq_input_state;
@@ -1024,7 +1043,7 @@ struct CPUPPCState {
 
     /* Those resources are used only in Qemu core */
     target_ulong hflags;      /* hflags is a MSR & HFLAGS_MASK         */
-    target_ulong hflags_nmsr; /* specific hflags, not comming from MSR */
+    target_ulong hflags_nmsr; /* specific hflags, not coming from MSR */
     int mmu_idx;         /* precomputed MMU index to speed up mem accesses */
 
     /* Power management */
@@ -1154,12 +1173,12 @@ void store_40x_dbcr0 (CPUPPCState *env, uint32_t val);
 void store_40x_sler (CPUPPCState *env, uint32_t val);
 void store_booke_tcr (CPUPPCState *env, target_ulong val);
 void store_booke_tsr (CPUPPCState *env, target_ulong val);
-void booke206_flush_tlb(CPUState *env, int flags, const int check_iprot);
-target_phys_addr_t booke206_tlb_to_page_size(CPUState *env, ppcmas_tlb_t *tlb);
-int ppcemb_tlb_check(CPUState *env, ppcemb_tlb_t *tlb,
+void booke206_flush_tlb(CPUPPCState *env, int flags, const int check_iprot);
+target_phys_addr_t booke206_tlb_to_page_size(CPUPPCState *env, ppcmas_tlb_t *tlb);
+int ppcemb_tlb_check(CPUPPCState *env, ppcemb_tlb_t *tlb,
                      target_phys_addr_t *raddrp, target_ulong address,
                      uint32_t pid, int ext, int i);
-int ppcmas_tlb_check(CPUState *env, ppcmas_tlb_t *tlb,
+int ppcmas_tlb_check(CPUPPCState *env, ppcmas_tlb_t *tlb,
                      target_phys_addr_t *raddrp, target_ulong address,
                      uint32_t pid);
 void ppc_tlb_invalidate_all (CPUPPCState *env);
@@ -1207,13 +1226,13 @@ int ppc_dcr_write (ppc_dcr_t *dcr_env, int dcrn, uint32_t val);
 #define MMU_MODE1_SUFFIX _kernel
 #define MMU_MODE2_SUFFIX _hypv
 #define MMU_USER_IDX 0
-static inline int cpu_mmu_index (CPUState *env)
+static inline int cpu_mmu_index (CPUPPCState *env)
 {
     return env->mmu_idx;
 }
 
 #if defined(CONFIG_USER_ONLY)
-static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
+static inline void cpu_clone_regs(CPUPPCState *env, target_ulong newsp)
 {
     if (newsp)
         env->gpr[1] = newsp;
@@ -1355,6 +1374,10 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 #define SPR_BOOKE_DVC2        (0x13F)
 #define SPR_BOOKE_TSR         (0x150)
 #define SPR_BOOKE_TCR         (0x154)
+#define SPR_BOOKE_TLB0PS      (0x158)
+#define SPR_BOOKE_TLB1PS      (0x159)
+#define SPR_BOOKE_TLB2PS      (0x15A)
+#define SPR_BOOKE_TLB3PS      (0x15B)
 #define SPR_BOOKE_IVOR0       (0x190)
 #define SPR_BOOKE_IVOR1       (0x191)
 #define SPR_BOOKE_IVOR2       (0x192)
@@ -1371,6 +1394,11 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 #define SPR_BOOKE_IVOR13      (0x19D)
 #define SPR_BOOKE_IVOR14      (0x19E)
 #define SPR_BOOKE_IVOR15      (0x19F)
+#define SPR_BOOKE_IVOR38      (0x1B0)
+#define SPR_BOOKE_IVOR39      (0x1B1)
+#define SPR_BOOKE_IVOR40      (0x1B2)
+#define SPR_BOOKE_IVOR41      (0x1B3)
+#define SPR_BOOKE_IVOR42      (0x1B4)
 #define SPR_BOOKE_SPEFSCR     (0x200)
 #define SPR_Exxx_BBEAR        (0x201)
 #define SPR_Exxx_BBTAR        (0x202)
@@ -1888,8 +1916,12 @@ enum {
     PPC2_VSX           = 0x0000000000000002ULL,
     /* Decimal Floating Point (DFP)                                          */
     PPC2_DFP           = 0x0000000000000004ULL,
+    /* Embedded.Processor Control                                            */
+    PPC2_PRCNTL        = 0x0000000000000008ULL,
+    /* Byte-reversed, indexed, double-word load and store                    */
+    PPC2_DBRX          = 0x0000000000000010ULL,
 
-#define PPC_TCG_INSNS2 (PPC2_BOOKE206)
+#define PPC_TCG_INSNS2 (PPC2_BOOKE206 | PPC2_PRCNTL | PPC2_DBRX)
 };
 
 /*****************************************************************************/
@@ -2021,9 +2053,12 @@ enum {
     PPC_INTERRUPT_PERFM,          /* Performance monitor interrupt        */
 };
 
+/* CPU should be reset next, restart from scratch afterwards */
+#define CPU_INTERRUPT_RESET       CPU_INTERRUPT_TGT_INT_0
+
 /*****************************************************************************/
 
-static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
+static inline void cpu_get_tb_cpu_state(CPUPPCState *env, target_ulong *pc,
                                         target_ulong *cs_base, int *flags)
 {
     *pc = env->nip;
@@ -2031,7 +2066,7 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
     *flags = env->hflags;
 }
 
-static inline void cpu_set_tls(CPUState *env, target_ulong newtls)
+static inline void cpu_set_tls(CPUPPCState *env, target_ulong newtls)
 {
 #if defined(TARGET_PPC64)
     /* The kernel checks TIF_32BIT here; we don't support loading 32-bit
@@ -2043,7 +2078,7 @@ static inline void cpu_set_tls(CPUState *env, target_ulong newtls)
 }
 
 #if !defined(CONFIG_USER_ONLY)
-static inline int booke206_tlbm_id(CPUState *env, ppcmas_tlb_t *tlbm)
+static inline int booke206_tlbm_id(CPUPPCState *env, ppcmas_tlb_t *tlbm)
 {
     uintptr_t tlbml = (uintptr_t)tlbm;
     uintptr_t tlbl = (uintptr_t)env->tlb.tlbm;
@@ -2051,21 +2086,21 @@ static inline int booke206_tlbm_id(CPUState *env, ppcmas_tlb_t *tlbm)
     return (tlbml - tlbl) / sizeof(env->tlb.tlbm[0]);
 }
 
-static inline int booke206_tlb_size(CPUState *env, int tlbn)
+static inline int booke206_tlb_size(CPUPPCState *env, int tlbn)
 {
     uint32_t tlbncfg = env->spr[SPR_BOOKE_TLB0CFG + tlbn];
     int r = tlbncfg & TLBnCFG_N_ENTRY;
     return r;
 }
 
-static inline int booke206_tlb_ways(CPUState *env, int tlbn)
+static inline int booke206_tlb_ways(CPUPPCState *env, int tlbn)
 {
     uint32_t tlbncfg = env->spr[SPR_BOOKE_TLB0CFG + tlbn];
     int r = tlbncfg >> TLBnCFG_ASSOC_SHIFT;
     return r;
 }
 
-static inline int booke206_tlbm_to_tlbn(CPUState *env, ppcmas_tlb_t *tlbm)
+static inline int booke206_tlbm_to_tlbn(CPUPPCState *env, ppcmas_tlb_t *tlbm)
 {
     int id = booke206_tlbm_id(env, tlbm);
     int end = 0;
@@ -2082,14 +2117,14 @@ static inline int booke206_tlbm_to_tlbn(CPUState *env, ppcmas_tlb_t *tlbm)
     return 0;
 }
 
-static inline int booke206_tlbm_to_way(CPUState *env, ppcmas_tlb_t *tlb)
+static inline int booke206_tlbm_to_way(CPUPPCState *env, ppcmas_tlb_t *tlb)
 {
     int tlbn = booke206_tlbm_to_tlbn(env, tlb);
     int tlbid = booke206_tlbm_id(env, tlb);
     return tlbid & (booke206_tlb_ways(env, tlbn) - 1);
 }
 
-static inline ppcmas_tlb_t *booke206_get_tlbm(CPUState *env, const int tlbn,
+static inline ppcmas_tlb_t *booke206_get_tlbm(CPUPPCState *env, const int tlbn,
                                               target_ulong ea, int way)
 {
     int r;
@@ -2103,6 +2138,10 @@ static inline ppcmas_tlb_t *booke206_get_tlbm(CPUState *env, const int tlbn,
     ea &= (1 << (tlb_bits - ways_bits)) - 1;
     r = (ea << ways_bits) | way;
 
+    if (r >= booke206_tlb_size(env, tlbn)) {
+        return NULL;
+    }
+
     /* bump up to tlbn index */
     for (i = 0; i < tlbn; i++) {
         r += booke206_tlb_size(env, i);
@@ -2111,22 +2150,43 @@ static inline ppcmas_tlb_t *booke206_get_tlbm(CPUState *env, const int tlbn,
     return &env->tlb.tlbm[r];
 }
 
+/* returns bitmap of supported page sizes for a given TLB */
+static inline uint32_t booke206_tlbnps(CPUPPCState *env, const int tlbn)
+{
+    bool mav2 = false;
+    uint32_t ret = 0;
+
+    if (mav2) {
+        ret = env->spr[SPR_BOOKE_TLB0PS + tlbn];
+    } else {
+        uint32_t tlbncfg = env->spr[SPR_BOOKE_TLB0CFG + tlbn];
+        uint32_t min = (tlbncfg & TLBnCFG_MINSIZE) >> TLBnCFG_MINSIZE_SHIFT;
+        uint32_t max = (tlbncfg & TLBnCFG_MAXSIZE) >> TLBnCFG_MAXSIZE_SHIFT;
+        int i;
+        for (i = min; i <= max; i++) {
+            ret |= (1 << (i << 1));
+        }
+    }
+
+    return ret;
+}
+
 #endif
 
-extern void (*cpu_ppc_hypercall)(CPUState *);
+extern void (*cpu_ppc_hypercall)(CPUPPCState *);
 
-static inline bool cpu_has_work(CPUState *env)
+static inline bool cpu_has_work(CPUPPCState *env)
 {
     return msr_ee && (env->interrupt_request & CPU_INTERRUPT_HARD);
 }
 
 #include "exec-all.h"
 
-static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
+static inline void cpu_pc_from_tb(CPUPPCState *env, TranslationBlock *tb)
 {
     env->nip = tb->pc;
 }
 
-void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUState *env);
+void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUPPCState *env);
 
 #endif /* !defined (__CPU_PPC_H__) */

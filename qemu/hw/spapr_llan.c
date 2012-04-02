@@ -189,7 +189,7 @@ static int spapr_vlan_init(VIOsPAPRDevice *sdev)
     qemu_macaddr_default_if_unset(&dev->nicconf.macaddr);
 
     dev->nic = qemu_new_nic(&net_spapr_vlan_info, &dev->nicconf,
-                            sdev->qdev.info->name, sdev->qdev.id, dev);
+                            object_get_typename(OBJECT(sdev)), sdev->qdev.id, dev);
     qemu_format_nic_info_str(&dev->nic->nc, dev->nicconf.macaddr.a);
 
     return 0;
@@ -254,7 +254,7 @@ static int check_bd(VIOsPAPRVLANDevice *dev, vlan_bd_t bd,
     return 0;
 }
 
-static target_ulong h_register_logical_lan(CPUState *env,
+static target_ulong h_register_logical_lan(CPUPPCState *env,
                                            sPAPREnvironment *spapr,
                                            target_ulong opcode,
                                            target_ulong *args)
@@ -320,7 +320,7 @@ static target_ulong h_register_logical_lan(CPUState *env,
 }
 
 
-static target_ulong h_free_logical_lan(CPUState *env, sPAPREnvironment *spapr,
+static target_ulong h_free_logical_lan(CPUPPCState *env, sPAPREnvironment *spapr,
                                        target_ulong opcode, target_ulong *args)
 {
     target_ulong reg = args[0];
@@ -343,7 +343,7 @@ static target_ulong h_free_logical_lan(CPUState *env, sPAPREnvironment *spapr,
     return H_SUCCESS;
 }
 
-static target_ulong h_add_logical_lan_buffer(CPUState *env,
+static target_ulong h_add_logical_lan_buffer(CPUPPCState *env,
                                              sPAPREnvironment *spapr,
                                              target_ulong opcode,
                                              target_ulong *args)
@@ -392,7 +392,7 @@ static target_ulong h_add_logical_lan_buffer(CPUState *env,
     return H_SUCCESS;
 }
 
-static target_ulong h_send_logical_lan(CPUState *env, sPAPREnvironment *spapr,
+static target_ulong h_send_logical_lan(CPUPPCState *env, sPAPREnvironment *spapr,
                                        target_ulong opcode, target_ulong *args)
 {
     target_ulong reg = args[0];
@@ -461,7 +461,7 @@ static target_ulong h_send_logical_lan(CPUState *env, sPAPREnvironment *spapr,
     return H_SUCCESS;
 }
 
-static target_ulong h_multicast_ctrl(CPUState *env, sPAPREnvironment *spapr,
+static target_ulong h_multicast_ctrl(CPUPPCState *env, sPAPREnvironment *spapr,
                                      target_ulong opcode, target_ulong *args)
 {
     target_ulong reg = args[0];
@@ -474,7 +474,34 @@ static target_ulong h_multicast_ctrl(CPUState *env, sPAPREnvironment *spapr,
     return H_SUCCESS;
 }
 
-static void vlan_hcalls(VIOsPAPRBus *bus)
+static Property spapr_vlan_properties[] = {
+    DEFINE_SPAPR_PROPERTIES(VIOsPAPRVLANDevice, sdev, 0x1000, 0x10000000),
+    DEFINE_NIC_PROPERTIES(VIOsPAPRVLANDevice, nicconf),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void spapr_vlan_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    VIOsPAPRDeviceClass *k = VIO_SPAPR_DEVICE_CLASS(klass);
+
+    k->init = spapr_vlan_init;
+    k->devnode = spapr_vlan_devnode;
+    k->dt_name = "l-lan";
+    k->dt_type = "network";
+    k->dt_compatible = "IBM,l-lan";
+    k->signal_mask = 0x1;
+    dc->props = spapr_vlan_properties;
+}
+
+static TypeInfo spapr_vlan_info = {
+    .name          = "spapr-vlan",
+    .parent        = TYPE_VIO_SPAPR_DEVICE,
+    .instance_size = sizeof(VIOsPAPRVLANDevice),
+    .class_init    = spapr_vlan_class_init,
+};
+
+static void spapr_vlan_register_types(void)
 {
     spapr_register_hypercall(H_REGISTER_LOGICAL_LAN, h_register_logical_lan);
     spapr_register_hypercall(H_FREE_LOGICAL_LAN, h_free_logical_lan);
@@ -482,27 +509,7 @@ static void vlan_hcalls(VIOsPAPRBus *bus)
     spapr_register_hypercall(H_ADD_LOGICAL_LAN_BUFFER,
                              h_add_logical_lan_buffer);
     spapr_register_hypercall(H_MULTICAST_CTRL, h_multicast_ctrl);
+    type_register_static(&spapr_vlan_info);
 }
 
-static VIOsPAPRDeviceInfo spapr_vlan = {
-    .init = spapr_vlan_init,
-    .devnode = spapr_vlan_devnode,
-    .dt_name = "l-lan",
-    .dt_type = "network",
-    .dt_compatible = "IBM,l-lan",
-    .signal_mask = 0x1,
-    .hcalls = vlan_hcalls,
-    .qdev.name = "spapr-vlan",
-    .qdev.size = sizeof(VIOsPAPRVLANDevice),
-    .qdev.props = (Property[]) {
-        DEFINE_SPAPR_PROPERTIES(VIOsPAPRVLANDevice, sdev, 0x1000, 0x10000000),
-        DEFINE_NIC_PROPERTIES(VIOsPAPRVLANDevice, nicconf),
-        DEFINE_PROP_END_OF_LIST(),
-    },
-};
-
-static void spapr_vlan_register(void)
-{
-    spapr_vio_bus_register_withprop(&spapr_vlan);
-}
-device_init(spapr_vlan_register);
+type_init(spapr_vlan_register_types)

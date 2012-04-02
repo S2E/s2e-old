@@ -9,13 +9,20 @@
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "qemu-common.h"
 #include "sysemu.h"
 #include "qmp-commands.h"
+#include "ui/qemu-spice.h"
+#include "ui/vnc.h"
 #include "kvm.h"
 #include "arch_init.h"
+#include "hw/qdev.h"
+#include "blockdev.h"
+#include "qemu/qom-qobject.h"
 
 NameInfo *qmp_query_name(Error **errp)
 {
@@ -117,3 +124,294 @@ SpiceInfo *qmp_query_spice(Error **errp)
     return NULL;
 };
 #endif
+
+static void iostatus_bdrv_it(void *opaque, BlockDriverState *bs)
+{
+    bdrv_iostatus_reset(bs);
+}
+
+static void encrypted_bdrv_it(void *opaque, BlockDriverState *bs)
+{
+    Error **err = opaque;
+
+    if (!error_is_set(err) && bdrv_key_required(bs)) {
+        error_set(err, QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs),
+                  bdrv_get_encrypted_filename(bs));
+    }
+}
+
+void qmp_cont(Error **errp)
+{
+    Error *local_err = NULL;
+
+    if (runstate_check(RUN_STATE_INMIGRATE)) {
+        error_set(errp, QERR_MIGRATION_EXPECTED);
+        return;
+    } else if (runstate_check(RUN_STATE_INTERNAL_ERROR) ||
+               runstate_check(RUN_STATE_SHUTDOWN)) {
+        error_set(errp, QERR_RESET_REQUIRED);
+        return;
+    }
+
+    bdrv_iterate(iostatus_bdrv_it, NULL);
+    bdrv_iterate(encrypted_bdrv_it, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    vm_start();
+}
+
+void qmp_system_wakeup(Error **errp)
+{
+    qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER);
+}
+
+ObjectPropertyInfoList *qmp_qom_list(const char *path, Error **errp)
+{
+    Object *obj;
+    bool ambiguous = false;
+    ObjectPropertyInfoList *props = NULL;
+    ObjectProperty *prop;
+
+    obj = object_resolve_path(path, &ambiguous);
+    if (obj == NULL) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND, path);
+        return NULL;
+    }
+
+    QTAILQ_FOREACH(prop, &obj->properties, node) {
+        ObjectPropertyInfoList *entry = g_malloc0(sizeof(*entry));
+
+        entry->value = g_malloc0(sizeof(ObjectPropertyInfo));
+        entry->next = props;
+        props = entry;
+
+        entry->value->name = g_strdup(prop->name);
+        entry->value->type = g_strdup(prop->type);
+    }
+
+    return props;
+}
+
+/* FIXME: teach qapi about how to pass through Visitors */
+int qmp_qom_set(Monitor *mon, const QDict *qdict, QObject **ret)
+{
+    const char *path = qdict_get_str(qdict, "path");
+    const char *property = qdict_get_str(qdict, "property");
+    QObject *value = qdict_get(qdict, "value");
+    Error *local_err = NULL;
+    Object *obj;
+
+    obj = object_resolve_path(path, NULL);
+    if (!obj) {
+        error_set(&local_err, QERR_DEVICE_NOT_FOUND, path);
+        goto out;
+    }
+
+    object_property_set_qobject(obj, value, property, &local_err);
+
+out:
+    if (local_err) {
+        qerror_report_err(local_err);
+        error_free(local_err);
+        return -1;
+    }
+
+    return 0;
+}
+
+int qmp_qom_get(Monitor *mon, const QDict *qdict, QObject **ret)
+{
+    const char *path = qdict_get_str(qdict, "path");
+    const char *property = qdict_get_str(qdict, "property");
+    Error *local_err = NULL;
+    Object *obj;
+
+    obj = object_resolve_path(path, NULL);
+    if (!obj) {
+        error_set(&local_err, QERR_DEVICE_NOT_FOUND, path);
+        goto out;
+    }
+
+    *ret = object_property_get_qobject(obj, property, &local_err);
+
+out:
+    if (local_err) {
+        qerror_report_err(local_err);
+        error_free(local_err);
+        return -1;
+    }
+
+    return 0;
+}
+
+void qmp_set_password(const char *protocol, const char *password,
+                      bool has_connected, const char *connected, Error **errp)
+{
+    int disconnect_if_connected = 0;
+    int fail_if_connected = 0;
+    int rc;
+
+    if (has_connected) {
+        if (strcmp(connected, "fail") == 0) {
+            fail_if_connected = 1;
+        } else if (strcmp(connected, "disconnect") == 0) {
+            disconnect_if_connected = 1;
+        } else if (strcmp(connected, "keep") == 0) {
+            /* nothing */
+        } else {
+            error_set(errp, QERR_INVALID_PARAMETER, "connected");
+            return;
+        }
+    }
+
+    if (strcmp(protocol, "spice") == 0) {
+        if (!using_spice) {
+            /* correct one? spice isn't a device ,,, */
+            error_set(errp, QERR_DEVICE_NOT_ACTIVE, "spice");
+            return;
+        }
+        rc = qemu_spice_set_passwd(password, fail_if_connected,
+                                   disconnect_if_connected);
+        if (rc != 0) {
+            error_set(errp, QERR_SET_PASSWD_FAILED);
+        }
+        return;
+    }
+
+    if (strcmp(protocol, "vnc") == 0) {
+        if (fail_if_connected || disconnect_if_connected) {
+            /* vnc supports "connected=keep" only */
+            error_set(errp, QERR_INVALID_PARAMETER, "connected");
+            return;
+        }
+        /* Note that setting an empty password will not disable login through
+         * this interface. */
+        rc = vnc_display_password(NULL, password);
+        if (rc < 0) {
+            error_set(errp, QERR_SET_PASSWD_FAILED);
+        }
+        return;
+    }
+
+    error_set(errp, QERR_INVALID_PARAMETER, "protocol");
+}
+
+void qmp_expire_password(const char *protocol, const char *whenstr,
+                         Error **errp)
+{
+    time_t when;
+    int rc;
+
+    if (strcmp(whenstr, "now") == 0) {
+        when = 0;
+    } else if (strcmp(whenstr, "never") == 0) {
+        when = TIME_MAX;
+    } else if (whenstr[0] == '+') {
+        when = time(NULL) + strtoull(whenstr+1, NULL, 10);
+    } else {
+        when = strtoull(whenstr, NULL, 10);
+    }
+
+    if (strcmp(protocol, "spice") == 0) {
+        if (!using_spice) {
+            /* correct one? spice isn't a device ,,, */
+            error_set(errp, QERR_DEVICE_NOT_ACTIVE, "spice");
+            return;
+        }
+        rc = qemu_spice_set_pw_expire(when);
+        if (rc != 0) {
+            error_set(errp, QERR_SET_PASSWD_FAILED);
+        }
+        return;
+    }
+
+    if (strcmp(protocol, "vnc") == 0) {
+        rc = vnc_display_pw_expire(NULL, when);
+        if (rc != 0) {
+            error_set(errp, QERR_SET_PASSWD_FAILED);
+        }
+        return;
+    }
+
+    error_set(errp, QERR_INVALID_PARAMETER, "protocol");
+}
+
+#ifdef CONFIG_VNC
+void qmp_change_vnc_password(const char *password, Error **errp)
+{
+    if (vnc_display_password(NULL, password) < 0) {
+        error_set(errp, QERR_SET_PASSWD_FAILED);
+    }
+}
+
+static void qmp_change_vnc_listen(const char *target, Error **err)
+{
+    if (vnc_display_open(NULL, target) < 0) {
+        error_set(err, QERR_VNC_SERVER_FAILED, target);
+    }
+}
+
+static void qmp_change_vnc(const char *target, bool has_arg, const char *arg,
+                           Error **errp)
+{
+    if (strcmp(target, "passwd") == 0 || strcmp(target, "password") == 0) {
+        if (!has_arg) {
+            error_set(errp, QERR_MISSING_PARAMETER, "password");
+        } else {
+            qmp_change_vnc_password(arg, errp);
+        }
+    } else {
+        qmp_change_vnc_listen(target, errp);
+    }
+}
+#else
+void qmp_change_vnc_password(const char *password, Error **errp)
+{
+    error_set(errp, QERR_FEATURE_DISABLED, "vnc");
+}
+static void qmp_change_vnc(const char *target, bool has_arg, const char *arg,
+                           Error **errp)
+{
+    error_set(errp, QERR_FEATURE_DISABLED, "vnc");
+}
+#endif /* !CONFIG_VNC */
+
+void qmp_change(const char *device, const char *target,
+                bool has_arg, const char *arg, Error **err)
+{
+    if (strcmp(device, "vnc") == 0) {
+        qmp_change_vnc(target, has_arg, arg, err);
+    } else {
+        qmp_change_blockdev(device, target, has_arg, arg, err);
+    }
+}
+
+static void qom_list_types_tramp(ObjectClass *klass, void *data)
+{
+    ObjectTypeInfoList *e, **pret = data;
+    ObjectTypeInfo *info;
+
+    info = g_malloc0(sizeof(*info));
+    info->name = g_strdup(object_class_get_name(klass));
+
+    e = g_malloc0(sizeof(*e));
+    e->value = info;
+    e->next = *pret;
+    *pret = e;
+}
+
+ObjectTypeInfoList *qmp_qom_list_types(bool has_implements,
+                                       const char *implements,
+                                       bool has_abstract,
+                                       bool abstract,
+                                       Error **errp)
+{
+    ObjectTypeInfoList *ret = NULL;
+
+    object_class_foreach(qom_list_types_tramp, implements, abstract, &ret);
+
+    return ret;
+}

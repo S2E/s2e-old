@@ -5,14 +5,14 @@
 #include "qemu-queue.h"
 #include "qemu-char.h"
 #include "qemu-option.h"
+#include "qapi/qapi-visit-core.h"
+#include "qemu/object.h"
 
 typedef struct Property Property;
 
 typedef struct PropertyInfo PropertyInfo;
 
 typedef struct CompatProperty CompatProperty;
-
-typedef struct DeviceInfo DeviceInfo;
 
 typedef struct BusState BusState;
 
@@ -27,14 +27,45 @@ enum {
     DEV_NVECTORS_UNSPECIFIED = -1,
 };
 
+#define TYPE_DEVICE "device"
+#define DEVICE(obj) OBJECT_CHECK(DeviceState, (obj), TYPE_DEVICE)
+#define DEVICE_CLASS(klass) OBJECT_CLASS_CHECK(DeviceClass, (klass), TYPE_DEVICE)
+#define DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(DeviceClass, (obj), TYPE_DEVICE)
+
+typedef int (*qdev_initfn)(DeviceState *dev);
+typedef int (*qdev_event)(DeviceState *dev);
+typedef void (*qdev_resetfn)(DeviceState *dev);
+
+typedef struct DeviceClass {
+    ObjectClass parent_class;
+
+    const char *fw_name;
+    const char *desc;
+    Property *props;
+    int no_user;
+
+    /* callbacks */
+    void (*reset)(DeviceState *dev);
+
+    /* device state */
+    const VMStateDescription *vmsd;
+
+    /* Private to qdev / bus.  */
+    qdev_initfn init;
+    qdev_event unplug;
+    qdev_event exit;
+    BusInfo *bus_info;
+} DeviceClass;
+
 /* This structure should not be accessed directly.  We declare it here
    so that it can be embedded in individual device state structures.  */
 struct DeviceState {
+    Object parent_obj;
+
     const char *id;
     enum DevState state;
     QemuOpts *opts;
     int hotplugged;
-    DeviceInfo *info;
     BusState *parent_bus;
     int num_gpio_out;
     qemu_irq *gpio_out;
@@ -81,35 +112,22 @@ struct Property {
     const char   *name;
     PropertyInfo *info;
     int          offset;
-    int          bitnr;
-    void         *defval;
-};
-
-enum PropertyType {
-    PROP_TYPE_UNSPEC = 0,
-    PROP_TYPE_UINT8,
-    PROP_TYPE_UINT16,
-    PROP_TYPE_UINT32,
-    PROP_TYPE_INT32,
-    PROP_TYPE_UINT64,
-    PROP_TYPE_TADDR,
-    PROP_TYPE_MACADDR,
-    PROP_TYPE_DRIVE,
-    PROP_TYPE_CHR,
-    PROP_TYPE_STRING,
-    PROP_TYPE_NETDEV,
-    PROP_TYPE_VLAN,
-    PROP_TYPE_PTR,
-    PROP_TYPE_BIT,
+    uint8_t      bitnr;
+    uint8_t      qtype;
+    int64_t      defval;
 };
 
 struct PropertyInfo {
     const char *name;
-    size_t size;
-    enum PropertyType type;
+    const char *legacy_name;
+    const char **enum_table;
+    int64_t min;
+    int64_t max;
     int (*parse)(DeviceState *dev, Property *prop, const char *str);
     int (*print)(DeviceState *dev, Property *prop, char *dest, size_t len);
-    void (*free)(DeviceState *dev, Property *prop);
+    ObjectPropertyAccessor *get;
+    ObjectPropertyAccessor *set;
+    ObjectPropertyRelease *release;
 };
 
 typedef struct GlobalProperty {
@@ -123,6 +141,7 @@ typedef struct GlobalProperty {
 
 DeviceState *qdev_create(BusState *bus, const char *name);
 DeviceState *qdev_try_create(BusState *bus, const char *name);
+bool qdev_exists(const char *name);
 int qdev_device_help(QemuOpts *opts);
 DeviceState *qdev_device_add(QemuOpts *opts);
 int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;
@@ -142,42 +161,10 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name);
 
 /*** Device API.  ***/
 
-typedef int (*qdev_initfn)(DeviceState *dev, DeviceInfo *info);
-typedef int (*qdev_event)(DeviceState *dev);
-typedef void (*qdev_resetfn)(DeviceState *dev);
-
-struct DeviceInfo {
-    const char *name;
-    const char *fw_name;
-    const char *alias;
-    const char *desc;
-    size_t size;
-    Property *props;
-    int no_user;
-
-    /* callbacks */
-    qdev_resetfn reset;
-
-    /* device state */
-    const VMStateDescription *vmsd;
-
-    /* Private to qdev / bus.  */
-    qdev_initfn init;
-    qdev_event unplug;
-    qdev_event exit;
-    BusInfo *bus_info;
-    struct DeviceInfo *next;
-};
-extern DeviceInfo *device_info_list;
-
-void qdev_register(DeviceInfo *info);
-
 /* Register device properties.  */
 /* GPIO inputs also double as IRQ sinks.  */
 void qdev_init_gpio_in(DeviceState *dev, qemu_irq_handler handler, int n);
 void qdev_init_gpio_out(DeviceState *dev, qemu_irq *pins, int n);
-
-CharDriverState *qdev_init_chardev(DeviceState *dev);
 
 BusState *qdev_get_parent_bus(DeviceState *dev);
 
@@ -231,6 +218,7 @@ extern PropertyInfo qdev_prop_string;
 extern PropertyInfo qdev_prop_chr;
 extern PropertyInfo qdev_prop_ptr;
 extern PropertyInfo qdev_prop_macaddr;
+extern PropertyInfo qdev_prop_losttickpolicy;
 extern PropertyInfo qdev_prop_drive;
 extern PropertyInfo qdev_prop_netdev;
 extern PropertyInfo qdev_prop_vlan;
@@ -247,7 +235,8 @@ extern PropertyInfo qdev_prop_pci_devfn;
         .info      = &(_prop),                                          \
         .offset    = offsetof(_state, _field)                           \
             + type_check(_type,typeof_field(_state, _field)),           \
-        .defval    = (_type[]) { _defval },                             \
+        .qtype     = QTYPE_QINT,                                        \
+        .defval    = (_type)_defval,                                    \
         }
 #define DEFINE_PROP_BIT(_name, _state, _field, _bit, _defval) {  \
         .name      = (_name),                                    \
@@ -255,7 +244,8 @@ extern PropertyInfo qdev_prop_pci_devfn;
         .bitnr    = (_bit),                                      \
         .offset    = offsetof(_state, _field)                    \
             + type_check(uint32_t,typeof_field(_state, _field)), \
-        .defval    = (bool[]) { (_defval) },                     \
+        .qtype     = QTYPE_QBOOL,                                \
+        .defval    = (bool)_defval,                              \
         }
 
 #define DEFINE_PROP_UINT8(_n, _s, _f, _d)                       \
@@ -291,6 +281,9 @@ extern PropertyInfo qdev_prop_pci_devfn;
     DEFINE_PROP(_n, _s, _f, qdev_prop_drive, BlockDriverState *)
 #define DEFINE_PROP_MACADDR(_n, _s, _f)         \
     DEFINE_PROP(_n, _s, _f, qdev_prop_macaddr, MACAddr)
+#define DEFINE_PROP_LOSTTICKPOLICY(_n, _s, _f, _d) \
+    DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_losttickpolicy, \
+                        LostTickPolicy)
 
 #define DEFINE_PROP_END_OF_LIST()               \
     {}
@@ -299,7 +292,6 @@ extern PropertyInfo qdev_prop_pci_devfn;
 void *qdev_get_prop_ptr(DeviceState *dev, Property *prop);
 int qdev_prop_exists(DeviceState *dev, const char *name);
 int qdev_prop_parse(DeviceState *dev, const char *name, const char *value);
-void qdev_prop_set(DeviceState *dev, const char *name, void *src, enum PropertyType type);
 void qdev_prop_set_bit(DeviceState *dev, const char *name, bool value);
 void qdev_prop_set_uint8(DeviceState *dev, const char *name, uint8_t value);
 void qdev_prop_set_uint16(DeviceState *dev, const char *name, uint16_t value);
@@ -313,20 +305,53 @@ void qdev_prop_set_vlan(DeviceState *dev, const char *name, VLANState *value);
 int qdev_prop_set_drive(DeviceState *dev, const char *name, BlockDriverState *value) QEMU_WARN_UNUSED_RESULT;
 void qdev_prop_set_drive_nofail(DeviceState *dev, const char *name, BlockDriverState *value);
 void qdev_prop_set_macaddr(DeviceState *dev, const char *name, uint8_t *value);
+void qdev_prop_set_enum(DeviceState *dev, const char *name, int value);
 /* FIXME: Remove opaque pointer properties.  */
 void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value);
 void qdev_prop_set_defaults(DeviceState *dev, Property *props);
 
 void qdev_prop_register_global_list(GlobalProperty *props);
 void qdev_prop_set_globals(DeviceState *dev);
-
-static inline const char *qdev_fw_name(DeviceState *dev)
-{
-    return dev->info->fw_name ? : dev->info->alias ? : dev->info->name;
-}
+void error_set_from_qdev_prop_error(Error **errp, int ret, DeviceState *dev,
+                                    Property *prop, const char *value);
 
 char *qdev_get_fw_dev_path(DeviceState *dev);
+
 /* This is a nasty hack to allow passing a NULL bus to qdev_create.  */
 extern struct BusInfo system_bus_info;
+
+/**
+ * @qdev_property_add_static - add a @Property to a device referencing a
+ * field in a struct.
+ */
+void qdev_property_add_static(DeviceState *dev, Property *prop, Error **errp);
+
+/**
+ * @qdev_machine_init
+ *
+ * Initialize platform devices before machine init.  This is a hack until full
+ * support for composition is added.
+ */
+void qdev_machine_init(void);
+
+/**
+ * @device_reset
+ *
+ * Reset a single device (by calling the reset method).
+ */
+void device_reset(DeviceState *dev);
+
+const VMStateDescription *qdev_get_vmsd(DeviceState *dev);
+
+const char *qdev_fw_name(DeviceState *dev);
+
+BusInfo *qdev_get_bus_info(DeviceState *dev);
+
+Property *qdev_get_props(DeviceState *dev);
+
+/* FIXME: make this a link<> */
+void qdev_set_parent_bus(DeviceState *dev, BusState *bus);
+
+extern int qdev_hotplug;
 
 #endif

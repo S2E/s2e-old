@@ -35,6 +35,7 @@
  *
  */
 #include "qemu-timer.h"
+#include "memory.h"
 
 #define DATA_SIZE (1 << SHIFT)
 
@@ -64,6 +65,18 @@
 #else
 #define READ_ACCESS_TYPE 0
 #define ADDR_READ addr_read
+#endif
+
+#ifndef CONFIG_TCG_PASS_AREG0
+#define ENV_PARAM
+#define ENV_VAR
+#define CPU_PREFIX
+#define HELPER_PREFIX __
+#else
+#define ENV_PARAM CPUArchState *env,
+#define ENV_VAR env,
+#define CPU_PREFIX cpu_
+#define HELPER_PREFIX helper_
 #endif
 
 #define ADDR_MAX 0xffffffff
@@ -107,17 +120,20 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         int mmu_idx,
                                                         void *retaddr);
 
-DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
-                                                  target_ulong addr,
-                                                  void *retaddr);
+DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(ENV_PARAM
+                                              target_phys_addr_t physaddr,
+                                              target_ulong addr,
+                                              void *retaddr);
+
 #ifndef S2E_LLVM_LIB
-DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(ENV_PARAM
+                                              target_phys_addr_t physaddr,
                                               target_ulong addr,
                                               void *retaddr)
 {
     DATA_TYPE res;
-    int index;
-    index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
+    MemoryRegion *mr = iotlb_to_region(physaddr);
+
     physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
 
 #ifdef CONFIG_S2E
@@ -127,31 +143,33 @@ DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
 #endif
 
     env->mem_io_pc = (uintptr_t)retaddr;
-    if (index > (IO_MEM_NOTDIRTY >> IO_MEM_SHIFT)
+    if (mr != &io_mem_ram && mr != &io_mem_rom
+        && mr != &io_mem_unassigned
+        && mr != &io_mem_notdirty
             && !can_do_io(env)) {
         cpu_io_recompile(env, retaddr);
     }
 
     env->mem_io_vaddr = addr;
 #if SHIFT <= 2
-    res = io_mem_read[index][SHIFT](io_mem_opaque[index], physaddr);
+    res = io_mem_read(mr, physaddr, 1 << SHIFT);
 #else
 #ifdef TARGET_WORDS_BIGENDIAN
-    res = (uint64_t)io_mem_read[index][2](io_mem_opaque[index], physaddr) << 32;
-    res |= io_mem_read[index][2](io_mem_opaque[index], physaddr + 4);
+    res = io_mem_read(mr, physaddr, 4) << 32;
+    res |= io_mem_read(mr, physaddr + 4, 4);
 #else
-    res = io_mem_read[index][2](io_mem_opaque[index], physaddr);
-    res |= (uint64_t)io_mem_read[index][2](io_mem_opaque[index], physaddr + 4) << 32;
+    res = io_mem_read(mr, physaddr, 4);
+    res |= io_mem_read(mr, physaddr + 4, 4) << 32;
 #endif
 #endif /* SHIFT > 2 */
     return res;
 }
 
-inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_addr_t physaddr,
                                           target_ulong addr,
                                           void *retaddr)
 {
-    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(physaddr, addr, retaddr);
+    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(ENV_VAR physaddr, addr, retaddr);
 }
 
 
@@ -182,7 +200,7 @@ inline DATA_TYPE glue(io_read_chk_symb_, SUFFIX)(const char *label, target_ulong
     return data.dt;
 }
 
-inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_addr_t physaddr,
                                           target_ulong addr,
                                           void *retaddr)
 {
@@ -210,7 +228,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t p
     if (s2e_ismemfunc(io_mem_read[index][SHIFT])) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         if (isSymb) {
-            return glue(io_read_chk_symb_, SUFFIX)(label, naddr, (uintptr_t)(pa));
+            return glue(io_read_chk_symb_, SUFFIX)(ENV_VAR label, naddr, (uintptr_t)(pa));
         }
         return glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa));
     }
@@ -254,8 +272,10 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t p
 #endif
 
 /* handle all cases except unaligned access which span two pages */
-DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
-                                                      int mmu_idx)
+DATA_TYPE
+glue(glue(glue(HELPER_PREFIX, ld), SUFFIX), MMUSUFFIX)(ENV_PARAM
+                                                       target_ulong addr,
+                                                       int mmu_idx)
 {
     DATA_TYPE res;
     int object_index, index;
@@ -280,7 +300,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             retaddr = GETPC();
 #endif
             ioaddr = env->iotlb[mmu_idx][index];
-            res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ioaddr, addr, retaddr);
+            res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_VAR ioaddr, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+ioaddr, res, 0, 1);
 
@@ -291,9 +311,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             retaddr = GETPC();
 #endif
 #ifdef ALIGNED_ONLY
-            do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
+            do_unaligned_access(ENV_VAR addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
 #endif
-            res = glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(addr,
+            res = glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(ENV_VAR addr,
                                                          mmu_idx, retaddr);
         } else {
             /* unaligned/aligned access in the same page */
@@ -302,7 +322,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #ifndef S2E_LLVM_LIB
                 retaddr = GETPC();
 #endif
-                do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
+                do_unaligned_access(ENV_VAR addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
@@ -324,7 +344,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
 #ifdef ALIGNED_ONLY
         if ((addr & (DATA_SIZE - 1)) != 0)
-            do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
+            do_unaligned_access(ENV_VAR addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
 #endif
         tlb_fill(env, addr, object_index << S2E_RAM_OBJECT_BITS,
                  READ_ACCESS_TYPE, mmu_idx, retaddr);
@@ -335,9 +355,11 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 }
 
 /* handle all unaligned cases */
-static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
-                                                        int mmu_idx,
-                                                        void *retaddr)
+static DATA_TYPE
+glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(ENV_PARAM
+                                       target_ulong addr,
+                                       int mmu_idx,
+                                       void *retaddr)
 {
     DATA_TYPE res, res1, res2;
     int object_index, index, shift;
@@ -359,17 +381,18 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             retaddr = GETPC();
 #endif
             ioaddr = env->iotlb[mmu_idx][index];
-            res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ioaddr, addr, retaddr);
+            res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_VAR ioaddr, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+ioaddr, res, 0, 1);
         } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
+
         do_unaligned_access:
             /* slow unaligned access (it spans two pages) */
             addr1 = addr & ~(DATA_SIZE - 1);
             addr2 = addr1 + DATA_SIZE;
-            res1 = glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(addr1,
+            res1 = glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(ENV_VAR addr1,
                                                           mmu_idx, retaddr);
-            res2 = glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(addr2,
+            res2 = glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(ENV_VAR addr2,
                                                           mmu_idx, retaddr);
             shift = (addr & (DATA_SIZE - 1)) * 8;
 #ifdef TARGET_WORDS_BIGENDIAN
@@ -405,27 +428,32 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 
 #ifndef SOFTMMU_CODE_ACCESS
 
-static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
+static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(ENV_PARAM
+                                                   target_ulong addr,
                                                    DATA_TYPE val,
                                                    int mmu_idx,
                                                    void *retaddr);
 
-void glue(glue(io_write, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+void glue(glue(io_write, SUFFIX), MMUSUFFIX)(
+                                          ENV_PARAM target_phys_addr_t physaddr,
                                           DATA_TYPE val,
                                           target_ulong addr,
                                           void *retaddr);
 #ifndef S2E_LLVM_LIB
 
 
-void glue(glue(io_write, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+void glue(glue(io_write, SUFFIX), MMUSUFFIX)(ENV_PARAM
+                                             target_phys_addr_t physaddr,
                                           DATA_TYPE val,
                                           target_ulong addr,
                                           void *retaddr)
 {
-    int index;
-    index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
+    MemoryRegion *mr = iotlb_to_region(physaddr);
+
     physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
-    if (index > (IO_MEM_NOTDIRTY >> IO_MEM_SHIFT)
+    if (mr != &io_mem_ram && mr != &io_mem_rom
+        && mr != &io_mem_unassigned
+        && mr != &io_mem_notdirty
             && !can_do_io(env)) {
         cpu_io_recompile(env, retaddr);
     }
@@ -433,25 +461,25 @@ void glue(glue(io_write, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
     env->mem_io_vaddr = addr;
     env->mem_io_pc = (uintptr_t)retaddr;
 #if SHIFT <= 2
-    io_mem_write[index][SHIFT](io_mem_opaque[index], physaddr, val);
+    io_mem_write(mr, physaddr, val, 1 << SHIFT);
 #else
 #ifdef TARGET_WORDS_BIGENDIAN
-    io_mem_write[index][2](io_mem_opaque[index], physaddr, val >> 32);
-    io_mem_write[index][2](io_mem_opaque[index], physaddr + 4, val);
+    io_mem_write(mr, physaddr, (val >> 32), 4);
+    io_mem_write(mr, physaddr + 4, (uint32_t)val, 4);
 #else
-    io_mem_write[index][2](io_mem_opaque[index], physaddr, val);
-    io_mem_write[index][2](io_mem_opaque[index], physaddr + 4, val >> 32);
+    io_mem_write(mr, physaddr, (uint32_t)val, 4);
+    io_mem_write(mr, physaddr + 4, val >> 32, 4);
 #endif
 #endif /* SHIFT > 2 */
 }
 
-inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_addr_t physaddr,
                                           DATA_TYPE val,
                                           target_ulong addr,
                                           void *retaddr)
 {
     //XXX: check symbolic memory mapped devices and write log here.
-    glue(glue(io_write, SUFFIX), MMUSUFFIX)(physaddr, val, addr, retaddr);
+    glue(glue(io_write, SUFFIX), MMUSUFFIX)(ENV_VAR physaddr, val, addr, retaddr);
 }
 
 #else
@@ -465,7 +493,7 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
   *
   * It also deals with writes to memory-mapped devices that are symbolic
   */
-inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_addr_t physaddr,
                                           DATA_TYPE val,
                                           target_ulong addr,
                                           void *retaddr)
@@ -518,14 +546,16 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
     }
 
     //By default, call the original io_write function, which is external
-    glue(glue(io_write, SUFFIX), MMUSUFFIX)(oldphysaddr, val, addr, retaddr);
+    glue(glue(io_write, SUFFIX), MMUSUFFIX)(ENV_VAR oldphysaddr, val, addr, retaddr);
 }
 
 #endif
 
-void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
-                                                 DATA_TYPE val,
-                                                 int mmu_idx)
+
+void glue(glue(glue(HELPER_PREFIX, st), SUFFIX), MMUSUFFIX)(ENV_PARAM
+                                                            target_ulong addr,
+                                                            DATA_TYPE val,
+                                                            int mmu_idx)
 {
     target_phys_addr_t addend, ioaddr;
     target_ulong tlb_addr;
@@ -547,18 +577,19 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             retaddr = GETPC();
 #endif
             ioaddr = env->iotlb[mmu_idx][index];
-            glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ioaddr, val, addr, retaddr);
+            glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_VAR ioaddr, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+ioaddr, val, 1, 1);
         } else if (unlikely(((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE)) {
+
         do_unaligned_access:
 #ifndef S2E_LLVM_LIB
             retaddr = GETPC();
 #endif
 #ifdef ALIGNED_ONLY
-            do_unaligned_access(addr, 1, mmu_idx, retaddr);
+            do_unaligned_access(ENV_VAR addr, 1, mmu_idx, retaddr);
 #endif
-            glue(glue(slow_st, SUFFIX), MMUSUFFIX)(addr, val,
+            glue(glue(slow_st, SUFFIX), MMUSUFFIX)(ENV_VAR addr, val,
                                                    mmu_idx, retaddr);
         } else {
             /* aligned/unaligned access in the same page */
@@ -567,7 +598,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #ifndef S2E_LLVM_LIB
                 retaddr = GETPC();
 #endif
-                do_unaligned_access(addr, 1, mmu_idx, retaddr);
+                do_unaligned_access(ENV_VAR addr, 1, mmu_idx, retaddr);
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
@@ -589,7 +620,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
 #ifdef ALIGNED_ONLY
         if ((addr & (DATA_SIZE - 1)) != 0)
-            do_unaligned_access(addr, 1, mmu_idx, retaddr);
+            do_unaligned_access(ENV_VAR addr, 1, mmu_idx, retaddr);
 #endif
         tlb_fill(env, addr, object_index << S2E_RAM_OBJECT_BITS,
                  1, mmu_idx, retaddr);
@@ -598,7 +629,8 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 }
 
 /* handles all unaligned cases */
-static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
+static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(ENV_PARAM
+                                                   target_ulong addr,
                                                    DATA_TYPE val,
                                                    int mmu_idx,
                                                    void *retaddr)
@@ -619,20 +651,23 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
             ioaddr = env->iotlb[mmu_idx][index];
-            glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ioaddr, val, addr, retaddr);
+            glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_VAR ioaddr, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+ioaddr, val, 1, 1);
         } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
+
         do_unaligned_access:
             /* XXX: not efficient, but simple */
             /* Note: relies on the fact that tlb_fill() does not remove the
              * previous page from the TLB cache.  */
             for(i = DATA_SIZE - 1; i >= 0; i--) {
 #ifdef TARGET_WORDS_BIGENDIAN
-                glue(slow_stb, MMUSUFFIX)(addr + i, val >> (((DATA_SIZE - 1) * 8) - (i * 8)),
+                glue(slow_stb, MMUSUFFIX)(ENV_VAR addr + i,
+                                          val >> (((DATA_SIZE - 1) * 8) - (i * 8)),
                                           mmu_idx, retaddr);
 #else
-                glue(slow_stb, MMUSUFFIX)(addr + i, val >> (i * 8),
+                glue(slow_stb, MMUSUFFIX)(ENV_VAR addr + i,
+                                          val >> (i * 8),
                                           mmu_idx, retaddr);
 #endif
             }
@@ -676,3 +711,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #undef USUFFIX
 #undef DATA_SIZE
 #undef ADDR_READ
+#undef ENV_PARAM
+#undef ENV_VAR
+#undef CPU_PREFIX
+#undef HELPER_PREFIX

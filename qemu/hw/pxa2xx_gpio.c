@@ -16,10 +16,11 @@
 typedef struct PXA2xxGPIOInfo PXA2xxGPIOInfo;
 struct PXA2xxGPIOInfo {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     qemu_irq irq0, irq1, irqX;
     int lines;
     int ncpu;
-    CPUState *cpu_env;
+    CPUARMState *cpu_env;
 
     /* XXX: GNU C vectors are more suitable */
     uint32_t ilevel[PXA2XX_GPIO_BANKS];
@@ -137,7 +138,8 @@ static void pxa2xx_gpio_handler_update(PXA2xxGPIOInfo *s) {
     }
 }
 
-static uint32_t pxa2xx_gpio_read(void *opaque, target_phys_addr_t offset)
+static uint64_t pxa2xx_gpio_read(void *opaque, target_phys_addr_t offset,
+                                 unsigned size)
 {
     PXA2xxGPIOInfo *s = (PXA2xxGPIOInfo *) opaque;
     uint32_t ret;
@@ -188,8 +190,8 @@ static uint32_t pxa2xx_gpio_read(void *opaque, target_phys_addr_t offset)
     return 0;
 }
 
-static void pxa2xx_gpio_write(void *opaque,
-                target_phys_addr_t offset, uint32_t value)
+static void pxa2xx_gpio_write(void *opaque, target_phys_addr_t offset,
+                              uint64_t value, unsigned size)
 {
     PXA2xxGPIOInfo *s = (PXA2xxGPIOInfo *) opaque;
     int bank;
@@ -240,20 +242,14 @@ static void pxa2xx_gpio_write(void *opaque,
     }
 }
 
-static CPUReadMemoryFunc * const pxa2xx_gpio_readfn[] = {
-    pxa2xx_gpio_read,
-    pxa2xx_gpio_read,
-    pxa2xx_gpio_read
-};
-
-static CPUWriteMemoryFunc * const pxa2xx_gpio_writefn[] = {
-    pxa2xx_gpio_write,
-    pxa2xx_gpio_write,
-    pxa2xx_gpio_write
+static const MemoryRegionOps pxa_gpio_ops = {
+    .read = pxa2xx_gpio_read,
+    .write = pxa2xx_gpio_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 DeviceState *pxa2xx_gpio_init(target_phys_addr_t base,
-                CPUState *env, DeviceState *pic, int lines)
+                CPUARMState *env, DeviceState *pic, int lines)
 {
     DeviceState *dev;
 
@@ -275,7 +271,6 @@ DeviceState *pxa2xx_gpio_init(target_phys_addr_t base,
 
 static int pxa2xx_gpio_initfn(SysBusDevice *dev)
 {
-    int iomemtype;
     PXA2xxGPIOInfo *s;
 
     s = FROM_SYSBUS(PXA2xxGPIOInfo, dev);
@@ -285,10 +280,8 @@ static int pxa2xx_gpio_initfn(SysBusDevice *dev)
     qdev_init_gpio_in(&dev->qdev, pxa2xx_gpio_set, s->lines);
     qdev_init_gpio_out(&dev->qdev, s->handler, s->lines);
 
-    iomemtype = cpu_register_io_memory(pxa2xx_gpio_readfn,
-                    pxa2xx_gpio_writefn, s, DEVICE_NATIVE_ENDIAN);
-
-    sysbus_init_mmio(dev, 0x1000, iomemtype);
+    memory_region_init_io(&s->iomem, &pxa_gpio_ops, s, "pxa2xx-gpio", 0x1000);
+    sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq0);
     sysbus_init_irq(dev, &s->irq1);
     sysbus_init_irq(dev, &s->irqX);
@@ -324,20 +317,32 @@ static const VMStateDescription vmstate_pxa2xx_gpio_regs = {
     },
 };
 
-static SysBusDeviceInfo pxa2xx_gpio_info = {
-    .init       = pxa2xx_gpio_initfn,
-    .qdev.name  = "pxa2xx-gpio",
-    .qdev.desc  = "PXA2xx GPIO controller",
-    .qdev.size  = sizeof(PXA2xxGPIOInfo),
-    .qdev.props = (Property []) {
-        DEFINE_PROP_INT32("lines", PXA2xxGPIOInfo, lines, 0),
-        DEFINE_PROP_INT32("ncpu", PXA2xxGPIOInfo, ncpu, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property pxa2xx_gpio_properties[] = {
+    DEFINE_PROP_INT32("lines", PXA2xxGPIOInfo, lines, 0),
+    DEFINE_PROP_INT32("ncpu", PXA2xxGPIOInfo, ncpu, 0),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void pxa2xx_gpio_register(void)
+static void pxa2xx_gpio_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&pxa2xx_gpio_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = pxa2xx_gpio_initfn;
+    dc->desc = "PXA2xx GPIO controller";
+    dc->props = pxa2xx_gpio_properties;
 }
-device_init(pxa2xx_gpio_register);
+
+static TypeInfo pxa2xx_gpio_info = {
+    .name          = "pxa2xx-gpio",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PXA2xxGPIOInfo),
+    .class_init    = pxa2xx_gpio_class_init,
+};
+
+static void pxa2xx_gpio_register_types(void)
+{
+    type_register_static(&pxa2xx_gpio_info);
+}
+
+type_init(pxa2xx_gpio_register_types)

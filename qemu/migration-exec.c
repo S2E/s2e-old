@@ -11,6 +11,8 @@
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
  *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "qemu-common.h"
@@ -50,12 +52,9 @@ static int exec_close(MigrationState *s)
         ret = qemu_fclose(s->opaque);
         s->opaque = NULL;
         s->fd = -1;
-        if (ret != -1 &&
-            WIFEXITED(ret)
-            && WEXITSTATUS(ret) == 0) {
-            ret = 0;
-        } else {
-            ret = -1;
+        if (ret >= 0 && !(WIFEXITED(ret) && WEXITSTATUS(ret) == 0)) {
+            /* close succeeded, but non-zero exit code: */
+            ret = -EIO; /* fake errno value */
         }
     }
     return ret;

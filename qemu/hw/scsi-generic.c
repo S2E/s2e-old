@@ -59,6 +59,28 @@ typedef struct SCSIGenericReq {
     sg_io_hdr_t io_header;
 } SCSIGenericReq;
 
+static void scsi_generic_save_request(QEMUFile *f, SCSIRequest *req)
+{
+    SCSIGenericReq *r = DO_UPCAST(SCSIGenericReq, req, req);
+
+    qemu_put_sbe32s(f, &r->buflen);
+    if (r->buflen && r->req.cmd.mode == SCSI_XFER_TO_DEV) {
+        assert(!r->req.sg);
+        qemu_put_buffer(f, r->buf, r->req.cmd.xfer);
+    }
+}
+
+static void scsi_generic_load_request(QEMUFile *f, SCSIRequest *req)
+{
+    SCSIGenericReq *r = DO_UPCAST(SCSIGenericReq, req, req);
+
+    qemu_get_sbe32s(f, &r->buflen);
+    if (r->buflen && r->req.cmd.mode == SCSI_XFER_TO_DEV) {
+        assert(!r->req.sg);
+        qemu_get_buffer(f, r->buf, r->req.cmd.xfer);
+    }
+}
+
 static void scsi_free_request(SCSIRequest *req)
 {
     SCSIGenericReq *r = DO_UPCAST(SCSIGenericReq, req, req);
@@ -152,10 +174,6 @@ static int execute_command(BlockDriverState *bdrv,
     r->io_header.flags |= SG_FLAG_DIRECT_IO;
 
     r->req.aiocb = bdrv_aio_ioctl(bdrv, SG_IO, &r->io_header, complete, r);
-    if (r->req.aiocb == NULL) {
-        BADF("execute_command: read failed !\n");
-        return -ENOMEM;
-    }
 
     return 0;
 }
@@ -361,7 +379,7 @@ static int get_stream_blocksize(BlockDriverState *bdrv)
 
 static void scsi_generic_reset(DeviceState *dev)
 {
-    SCSIDevice *s = DO_UPCAST(SCSIDevice, qdev, dev);
+    SCSIDevice *s = SCSI_DEVICE(dev);
 
     scsi_device_purge_requests(s, SENSE_CODE(RESET));
 }
@@ -378,13 +396,13 @@ static int scsi_generic_initfn(SCSIDevice *s)
     struct sg_scsi_id scsiid;
 
     if (!s->conf.bs) {
-        error_report("scsi-generic: drive property not set");
+        error_report("drive property not set");
         return -1;
     }
 
     /* check we are really using a /dev/sg* file */
     if (!bdrv_is_sg(s->conf.bs)) {
-        error_report("scsi-generic: not /dev/sg*");
+        error_report("not /dev/sg*");
         return -1;
     }
 
@@ -400,13 +418,13 @@ static int scsi_generic_initfn(SCSIDevice *s)
     /* check we are using a driver managing SG_IO (version 3 and after */
     if (bdrv_ioctl(s->conf.bs, SG_GET_VERSION_NUM, &sg_version) < 0 ||
         sg_version < 30000) {
-        error_report("scsi-generic: scsi generic interface too old");
+        error_report("scsi generic interface too old");
         return -1;
     }
 
     /* get LUN of the /dev/sg? */
     if (bdrv_ioctl(s->conf.bs, SG_GET_SCSI_ID, &scsiid)) {
-        error_report("scsi-generic: SG_GET_SCSI_ID ioctl failed");
+        error_report("SG_GET_SCSI_ID ioctl failed");
         return -1;
     }
 
@@ -450,6 +468,8 @@ const SCSIReqOps scsi_generic_req_ops = {
     .write_data   = scsi_write_data,
     .cancel_io    = scsi_cancel_io,
     .get_buf      = scsi_get_buf,
+    .load_request = scsi_generic_load_request,
+    .save_request = scsi_generic_save_request,
 };
 
 static SCSIRequest *scsi_new_request(SCSIDevice *d, uint32_t tag, uint32_t lun,
@@ -461,25 +481,38 @@ static SCSIRequest *scsi_new_request(SCSIDevice *d, uint32_t tag, uint32_t lun,
     return req;
 }
 
-static SCSIDeviceInfo scsi_generic_info = {
-    .qdev.name    = "scsi-generic",
-    .qdev.fw_name = "disk",
-    .qdev.desc    = "pass through generic scsi device (/dev/sg*)",
-    .qdev.size    = sizeof(SCSIDevice),
-    .qdev.reset   = scsi_generic_reset,
-    .init         = scsi_generic_initfn,
-    .destroy      = scsi_destroy,
-    .alloc_req    = scsi_new_request,
-    .qdev.props   = (Property[]) {
-        DEFINE_BLOCK_PROPERTIES(SCSIDevice, conf),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static Property scsi_generic_properties[] = {
+    DEFINE_BLOCK_PROPERTIES(SCSIDevice, conf),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void scsi_generic_register_devices(void)
+static void scsi_generic_class_initfn(ObjectClass *klass, void *data)
 {
-    scsi_qdev_register(&scsi_generic_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
+
+    sc->init         = scsi_generic_initfn;
+    sc->destroy      = scsi_destroy;
+    sc->alloc_req    = scsi_new_request;
+    dc->fw_name = "disk";
+    dc->desc = "pass through generic scsi device (/dev/sg*)";
+    dc->reset = scsi_generic_reset;
+    dc->props = scsi_generic_properties;
+    dc->vmsd  = &vmstate_scsi_device;
 }
-device_init(scsi_generic_register_devices)
+
+static TypeInfo scsi_generic_info = {
+    .name          = "scsi-generic",
+    .parent        = TYPE_SCSI_DEVICE,
+    .instance_size = sizeof(SCSIDevice),
+    .class_init    = scsi_generic_class_initfn,
+};
+
+static void scsi_generic_register_types(void)
+{
+    type_register_static(&scsi_generic_info);
+}
+
+type_init(scsi_generic_register_types)
 
 #endif /* __linux__ */

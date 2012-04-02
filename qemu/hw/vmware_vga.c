@@ -1003,11 +1003,11 @@ static void vmsvga_invalidate_display(void *opaque)
 
 /* save the vga display in a PPM image even if no display is
    available */
-static void vmsvga_screen_dump(void *opaque, const char *filename)
+static void vmsvga_screen_dump(void *opaque, const char *filename, bool cswitch)
 {
     struct vmsvga_state_s *s = opaque;
     if (!s->enable) {
-        s->vga.screen_dump(&s->vga, filename);
+        s->vga.screen_dump(&s->vga, filename, cswitch);
         return;
     }
 
@@ -1091,7 +1091,8 @@ static void vmsvga_init(struct vmsvga_state_s *s, int vga_ram_size,
 
 
     s->fifo_size = SVGA_FIFO_SIZE;
-    memory_region_init_ram(&s->fifo_ram, NULL, "vmsvga.fifo", s->fifo_size);
+    memory_region_init_ram(&s->fifo_ram, "vmsvga.fifo", s->fifo_size);
+    vmstate_register_ram_global(&s->fifo_ram);
     s->fifo_ptr = memory_region_get_ram_ptr(&s->fifo_ram);
 
     vga_common_init(&s->vga, vga_ram_size);
@@ -1198,24 +1199,33 @@ static int pci_vmsvga_initfn(PCIDevice *dev)
     return 0;
 }
 
-static PCIDeviceInfo vmsvga_info = {
-    .qdev.name    = "vmware-svga",
-    .qdev.size    = sizeof(struct pci_vmsvga_state_s),
-    .qdev.vmsd    = &vmstate_vmware_vga,
-    .qdev.reset   = vmsvga_reset,
-    .no_hotplug   = 1,
-    .init         = pci_vmsvga_initfn,
-    .romfile      = "vgabios-vmware.bin",
+static void vmsvga_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
-    .vendor_id    =  PCI_VENDOR_ID_VMWARE,
-    .device_id    = SVGA_PCI_DEVICE_ID,
-    .class_id     = PCI_CLASS_DISPLAY_VGA,
-    .subsystem_vendor_id = PCI_VENDOR_ID_VMWARE,
-    .subsystem_id = SVGA_PCI_DEVICE_ID,
+    k->no_hotplug = 1;
+    k->init = pci_vmsvga_initfn;
+    k->romfile = "vgabios-vmware.bin";
+    k->vendor_id = PCI_VENDOR_ID_VMWARE;
+    k->device_id = SVGA_PCI_DEVICE_ID;
+    k->class_id = PCI_CLASS_DISPLAY_VGA;
+    k->subsystem_vendor_id = PCI_VENDOR_ID_VMWARE;
+    k->subsystem_id = SVGA_PCI_DEVICE_ID;
+    dc->reset = vmsvga_reset;
+    dc->vmsd = &vmstate_vmware_vga;
+}
+
+static TypeInfo vmsvga_info = {
+    .name          = "vmware-svga",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(struct pci_vmsvga_state_s),
+    .class_init    = vmsvga_class_init,
 };
 
-static void vmsvga_register(void)
+static void vmsvga_register_types(void)
 {
-    pci_qdev_register(&vmsvga_info);
+    type_register_static(&vmsvga_info);
 }
-device_init(vmsvga_register);
+
+type_init(vmsvga_register_types)

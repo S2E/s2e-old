@@ -302,7 +302,7 @@ static int milkymist_ac97_init(SysBusDevice *dev)
 
     memory_region_init_io(&s->regs_region, &ac97_mmio_ops, s,
             "milkymist-ac97", R_MAX * 4);
-    sysbus_init_mmio_region(dev, &s->regs_region);
+    sysbus_init_mmio(dev, &s->regs_region);
 
     return 0;
 }
@@ -319,17 +319,26 @@ static const VMStateDescription vmstate_milkymist_ac97 = {
     }
 };
 
-static SysBusDeviceInfo milkymist_ac97_info = {
-    .init = milkymist_ac97_init,
-    .qdev.name  = "milkymist-ac97",
-    .qdev.size  = sizeof(MilkymistAC97State),
-    .qdev.vmsd  = &vmstate_milkymist_ac97,
-    .qdev.reset = milkymist_ac97_reset,
-};
-
-static void milkymist_ac97_register(void)
+static void milkymist_ac97_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&milkymist_ac97_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = milkymist_ac97_init;
+    dc->reset = milkymist_ac97_reset;
+    dc->vmsd = &vmstate_milkymist_ac97;
 }
 
-device_init(milkymist_ac97_register)
+static TypeInfo milkymist_ac97_info = {
+    .name          = "milkymist-ac97",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(MilkymistAC97State),
+    .class_init    = milkymist_ac97_class_init,
+};
+
+static void milkymist_ac97_register_types(void)
+{
+    type_register_static(&milkymist_ac97_info);
+}
+
+type_init(milkymist_ac97_register_types)

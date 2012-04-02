@@ -23,8 +23,9 @@
 
 #include "cpu.h"
 #include "softfloat.h"
+#include "helper.h"
 
-uint64_t cpu_alpha_load_fpcr (CPUState *env)
+uint64_t cpu_alpha_load_fpcr (CPUAlphaState *env)
 {
     uint64_t r = 0;
     uint8_t t;
@@ -81,7 +82,7 @@ uint64_t cpu_alpha_load_fpcr (CPUState *env)
         break;
     }
 
-    if (env->fpcr_dnz) {
+    if (env->fp_status.flush_inputs_to_zero) {
         r |= FPCR_DNZ;
     }
     if (env->fpcr_dnod) {
@@ -94,7 +95,7 @@ uint64_t cpu_alpha_load_fpcr (CPUState *env)
     return r;
 }
 
-void cpu_alpha_store_fpcr (CPUState *env, uint64_t val)
+void cpu_alpha_store_fpcr (CPUAlphaState *env, uint64_t val)
 {
     uint8_t t;
 
@@ -150,24 +151,32 @@ void cpu_alpha_store_fpcr (CPUState *env, uint64_t val)
     }
     env->fpcr_dyn_round = t;
 
-    env->fpcr_flush_to_zero
-      = (val & (FPCR_UNDZ|FPCR_UNFD)) == (FPCR_UNDZ|FPCR_UNFD);
-
-    env->fpcr_dnz = (val & FPCR_DNZ) != 0;
     env->fpcr_dnod = (val & FPCR_DNOD) != 0;
     env->fpcr_undz = (val & FPCR_UNDZ) != 0;
+    env->fpcr_flush_to_zero = env->fpcr_dnod & env->fpcr_undz;
+    env->fp_status.flush_inputs_to_zero = (val & FPCR_DNZ) != 0;
+}
+
+uint64_t helper_load_fpcr(CPUAlphaState *env)
+{
+    return cpu_alpha_load_fpcr(env);
+}
+
+void helper_store_fpcr(CPUAlphaState *env, uint64_t val)
+{
+    cpu_alpha_store_fpcr(env, val);
 }
 
 #if defined(CONFIG_USER_ONLY)
-int cpu_alpha_handle_mmu_fault (CPUState *env, target_ulong address, int rw,
-                                int mmu_idx)
+int cpu_alpha_handle_mmu_fault(CPUAlphaState *env, target_ulong address,
+                               int rw, int mmu_idx)
 {
     env->exception_index = EXCP_MMFAULT;
     env->trap_arg0 = address;
     return 1;
 }
 #else
-void swap_shadow_regs(CPUState *env)
+void swap_shadow_regs(CPUAlphaState *env)
 {
     uint64_t i0, i1, i2, i3, i4, i5, i6, i7;
 
@@ -200,7 +209,7 @@ void swap_shadow_regs(CPUState *env)
 }
 
 /* Returns the OSF/1 entMM failure indication, or -1 on success.  */
-static int get_physical_address(CPUState *env, target_ulong addr,
+static int get_physical_address(CPUAlphaState *env, target_ulong addr,
                                 int prot_need, int mmu_idx,
                                 target_ulong *pphys, int *pprot)
 {
@@ -306,7 +315,7 @@ static int get_physical_address(CPUState *env, target_ulong addr,
     return ret;
 }
 
-target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
+target_phys_addr_t cpu_get_phys_page_debug(CPUAlphaState *env, target_ulong addr)
 {
     target_ulong phys;
     int prot, fail;
@@ -315,7 +324,7 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
     return (fail >= 0 ? -1 : phys);
 }
 
-int cpu_alpha_handle_mmu_fault(CPUState *env, target_ulong addr, int rw,
+int cpu_alpha_handle_mmu_fault(CPUAlphaState *env, target_ulong addr, int rw,
                                int mmu_idx)
 {
     target_ulong phys;
@@ -336,7 +345,7 @@ int cpu_alpha_handle_mmu_fault(CPUState *env, target_ulong addr, int rw,
 }
 #endif /* USER_ONLY */
 
-void do_interrupt (CPUState *env)
+void do_interrupt (CPUAlphaState *env)
 {
     int i = env->exception_index;
 
@@ -453,7 +462,7 @@ void do_interrupt (CPUState *env)
 #endif /* !USER_ONLY */
 }
 
-void cpu_dump_state (CPUState *env, FILE *f, fprintf_function cpu_fprintf,
+void cpu_dump_state (CPUAlphaState *env, FILE *f, fprintf_function cpu_fprintf,
                      int flags)
 {
     static const char *linux_reg_names[] = {
@@ -483,4 +492,42 @@ void cpu_dump_state (CPUState *env, FILE *f, fprintf_function cpu_fprintf,
             cpu_fprintf(f, "\n");
     }
     cpu_fprintf(f, "\n");
+}
+
+void do_restore_state(CPUAlphaState *env, void *retaddr)
+{
+    uintptr_t pc = (uintptr_t)retaddr;
+    if (pc) {
+        TranslationBlock *tb = tb_find_pc(pc);
+        if (tb) {
+            cpu_restore_state(tb, env, pc);
+        }
+    }
+}
+
+/* This should only be called from translate, via gen_excp.
+   We expect that ENV->PC has already been updated.  */
+void QEMU_NORETURN helper_excp(CPUAlphaState *env, int excp, int error)
+{
+    env->exception_index = excp;
+    env->error_code = error;
+    cpu_loop_exit(env);
+}
+
+/* This may be called from any of the helpers to set up EXCEPTION_INDEX.  */
+void QEMU_NORETURN dynamic_excp(CPUAlphaState *env, void *retaddr,
+                                int excp, int error)
+{
+    env->exception_index = excp;
+    env->error_code = error;
+    do_restore_state(env, retaddr);
+    cpu_loop_exit(env);
+}
+
+void QEMU_NORETURN arith_excp(CPUAlphaState *env, void *retaddr,
+                              int exc, uint64_t mask)
+{
+    env->trap_arg0 = exc;
+    env->trap_arg1 = mask;
+    dynamic_excp(env, retaddr, EXCP_ARITH, 0);
 }

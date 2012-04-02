@@ -157,7 +157,7 @@ typedef target_elf_greg_t  target_elf_gregset_t[ELF_NREG];
  *
  * See linux kernel: arch/x86/include/asm/elf.h
  */
-static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUX86State *env)
 {
     (*regs)[0] = env->regs[15];
     (*regs)[1] = env->regs[14];
@@ -229,7 +229,7 @@ typedef target_elf_greg_t  target_elf_gregset_t[ELF_NREG];
  *
  * See linux kernel: arch/x86/include/asm/elf.h
  */
-static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUX86State *env)
 {
     (*regs)[0] = env->regs[R_EBX];
     (*regs)[1] = env->regs[R_ECX];
@@ -288,7 +288,7 @@ static inline void init_thread(struct target_pt_regs *regs,
 #define ELF_NREG    18
 typedef target_elf_greg_t  target_elf_gregset_t[ELF_NREG];
 
-static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUARMState *env)
 {
     (*regs)[0] = tswapl(env->regs[0]);
     (*regs)[1] = tswapl(env->regs[1]);
@@ -307,7 +307,7 @@ static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
     (*regs)[14] = tswapl(env->regs[14]);
     (*regs)[15] = tswapl(env->regs[15]);
 
-    (*regs)[16] = tswapl(cpsr_read((CPUState *)env));
+    (*regs)[16] = tswapl(cpsr_read((CPUARMState *)env));
     (*regs)[17] = tswapl(env->regs[0]); /* XXX */
 }
 
@@ -410,7 +410,7 @@ static inline void init_thread(struct target_pt_regs *regs,
 #define ELF_NREG    34
 typedef target_elf_greg_t  target_elf_gregset_t[ELF_NREG];
 
-static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUUniCore32State *env)
 {
     (*regs)[0] = env->regs[0];
     (*regs)[1] = env->regs[1];
@@ -445,7 +445,7 @@ static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
     (*regs)[30] = env->regs[30];
     (*regs)[31] = env->regs[31];
 
-    (*regs)[32] = cpu_asr_read((CPUState *)env);
+    (*regs)[32] = cpu_asr_read((CPUUniCore32State *)env);
     (*regs)[33] = env->regs[0]; /* XXX */
 }
 
@@ -572,7 +572,7 @@ enum {
 
 static uint32_t get_elf_hwcap(void)
 {
-    CPUState *e = thread_env;
+    CPUPPCState *e = thread_env;
     uint32_t features = 0;
 
     /* We don't have to be terribly complete here; the high points are
@@ -628,7 +628,7 @@ static inline void init_thread(struct target_pt_regs *_regs, struct image_info *
 #define ELF_NREG 48
 typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
 
-static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUPPCState *env)
 {
     int i;
     target_ulong ccr = 0;
@@ -697,7 +697,7 @@ enum {
 };
 
 /* See linux kernel: arch/mips/kernel/process.c:elf_dump_regs.  */
-static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUMIPSState *env)
 {
     int i;
 
@@ -749,7 +749,7 @@ static inline void init_thread(struct target_pt_regs *regs,
 typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
 
 /* See linux kernel: arch/mips/kernel/process.c:elf_dump_regs.  */
-static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUMBState *env)
 {
     int i, pos = 0;
 
@@ -797,7 +797,7 @@ enum {
 };
 
 static inline void elf_core_copy_regs(target_elf_gregset_t *regs,
-                                      const CPUState *env)
+                                      const CPUSH4State *env)
 {
     int i;
 
@@ -862,7 +862,7 @@ static inline void init_thread(struct target_pt_regs *regs,
 #define ELF_NREG 20
 typedef target_elf_greg_t target_elf_gregset_t[ELF_NREG];
 
-static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUState *env)
+static void elf_core_copy_regs(target_elf_gregset_t *regs, const CPUM68KState *env)
 {
     (*regs)[0] = tswapl(env->dregs[1]);
     (*regs)[1] = tswapl(env->dregs[2]);
@@ -1044,7 +1044,7 @@ static inline void bswap_sym(struct elf_sym *sym) { }
 #endif
 
 #ifdef USE_ELF_CORE_DUMP
-static int elf_core_dump(int, const CPUState *);
+static int elf_core_dump(int, const CPUArchState *);
 #endif /* USE_ELF_CORE_DUMP */
 static void load_symbols(struct elfhdr *hdr, int fd, abi_ulong load_bias);
 
@@ -1245,6 +1245,7 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
                                    struct image_info *interp_info)
 {
     abi_ulong sp;
+    abi_ulong sp_auxv;
     int size;
     int i;
     abi_ulong u_rand_bytes;
@@ -1316,6 +1317,7 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
         sp -= n; put_user_ual(id, sp);          \
     } while(0)
 
+    sp_auxv = sp;
     NEW_AUX_ENT (AT_NULL, 0);
 
     /* There must be exactly DLINFO_ITEMS entries here.  */
@@ -1346,6 +1348,7 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
 #undef NEW_AUX_ENT
 
     info->saved_auxv = sp;
+    info->auxv_len = sp_auxv - sp;
 
     sp = loader_build_argptr(envc, argc, sp, p, 0);
     return sp;
@@ -1683,12 +1686,12 @@ static void load_elf_interp(const char *filename, struct image_info *info,
 
 static int symfind(const void *s0, const void *s1)
 {
-    struct elf_sym *key = (struct elf_sym *)s0;
+    target_ulong addr = *(target_ulong *)s0;
     struct elf_sym *sym = (struct elf_sym *)s1;
     int result = 0;
-    if (key->st_value < sym->st_value) {
+    if (addr < sym->st_value) {
         result = -1;
-    } else if (key->st_value >= sym->st_value + sym->st_size) {
+    } else if (addr >= sym->st_value + sym->st_size) {
         result = 1;
     }
     return result;
@@ -1703,12 +1706,9 @@ static const char *lookup_symbolxx(struct syminfo *s, target_ulong orig_addr)
 #endif
 
     // binary search
-    struct elf_sym key;
     struct elf_sym *sym;
 
-    key.st_value = orig_addr;
-
-    sym = bsearch(&key, syms, s->disas_num_syms, sizeof(*syms), symfind);
+    sym = bsearch(&orig_addr, syms, s->disas_num_syms, sizeof(*syms), symfind);
     if (sym != NULL) {
         return s->disas_strtab + sym->st_name;
     }
@@ -1930,7 +1930,7 @@ int load_elf_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
  * from given cpu into just specified register set.  Prototype is:
  *
  * static void elf_core_copy_regs(taret_elf_gregset_t *regs,
- *                                const CPUState *env);
+ *                                const CPUArchState *env);
  *
  * Parameters:
  *     regs - copy register values into here (allocated and zeroed by caller)
@@ -2054,8 +2054,8 @@ static void fill_auxv_note(struct memelfnote *, const TaskState *);
 static void fill_elf_note_phdr(struct elf_phdr *, int, off_t);
 static size_t note_size(const struct memelfnote *);
 static void free_note_info(struct elf_note_info *);
-static int fill_note_info(struct elf_note_info *, long, const CPUState *);
-static void fill_thread_info(struct elf_note_info *, const CPUState *);
+static int fill_note_info(struct elf_note_info *, long, const CPUArchState *);
+static void fill_thread_info(struct elf_note_info *, const CPUArchState *);
 static int core_dump_filename(const TaskState *, char *, size_t);
 
 static int dump_write(int, const void *, size_t);
@@ -2329,24 +2329,14 @@ static void fill_auxv_note(struct memelfnote *note, const TaskState *ts)
 {
     elf_addr_t auxv = (elf_addr_t)ts->info->saved_auxv;
     elf_addr_t orig_auxv = auxv;
-    abi_ulong val;
     void *ptr;
-    int i, len;
+    int len = ts->info->auxv_len;
 
     /*
      * Auxiliary vector is stored in target process stack.  It contains
      * {type, value} pairs that we need to dump into note.  This is not
      * strictly necessary but we do it here for sake of completeness.
      */
-
-    /* find out lenght of the vector, AT_NULL is terminator */
-    i = len = 0;
-    do {
-        get_user_ual(val, auxv);
-        i += 2;
-        auxv += 2 * sizeof (elf_addr_t);
-    } while (val != AT_NULL);
-    len = i * sizeof (elf_addr_t);
 
     /* read in whole auxv vector and copy it to memelfnote */
     ptr = lock_user(VERIFY_READ, orig_auxv, len, 0);
@@ -2458,7 +2448,7 @@ static int write_note(struct memelfnote *men, int fd)
     return (0);
 }
 
-static void fill_thread_info(struct elf_note_info *info, const CPUState *env)
+static void fill_thread_info(struct elf_note_info *info, const CPUArchState *env)
 {
     TaskState *ts = (TaskState *)env->opaque;
     struct elf_thread_status *ets;
@@ -2476,10 +2466,10 @@ static void fill_thread_info(struct elf_note_info *info, const CPUState *env)
 }
 
 static int fill_note_info(struct elf_note_info *info,
-                          long signr, const CPUState *env)
+                          long signr, const CPUArchState *env)
 {
 #define NUMNOTES 3
-    CPUState *cpu = NULL;
+    CPUArchState *cpu = NULL;
     TaskState *ts = (TaskState *)env->opaque;
     int i;
 
@@ -2605,7 +2595,7 @@ static int write_note_info(struct elf_note_info *info, int fd)
  * handler (provided that target process haven't registered
  * handler for that) that does the dump when signal is received.
  */
-static int elf_core_dump(int signr, const CPUState *env)
+static int elf_core_dump(int signr, const CPUArchState *env)
 {
     const TaskState *ts = (const TaskState *)env->opaque;
     struct vm_area_struct *vma = NULL;

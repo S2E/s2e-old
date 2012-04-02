@@ -27,6 +27,11 @@ static ssize_t flush_buf(VirtIOSerialPort *port, const uint8_t *buf, size_t len)
     VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
     ssize_t ret;
 
+    if (!vcon->chr) {
+        /* If there's no backend, we can just say we consumed all data. */
+        return len;
+    }
+
     ret = qemu_chr_fe_write(vcon->chr, buf, len);
     trace_virtio_console_flush_buf(port->id, len, ret);
 
@@ -52,6 +57,9 @@ static void guest_open(VirtIOSerialPort *port)
 {
     VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
 
+    if (!vcon->chr) {
+        return;
+    }
     qemu_chr_fe_open(vcon->chr);
 }
 
@@ -60,6 +68,9 @@ static void guest_close(VirtIOSerialPort *port)
 {
     VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
 
+    if (!vcon->chr) {
+        return;
+    }
     qemu_chr_fe_close(vcon->chr);
 }
 
@@ -98,10 +109,9 @@ static void chr_event(void *opaque, int event)
 static int virtconsole_initfn(VirtIOSerialPort *port)
 {
     VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
-    VirtIOSerialPortInfo *info = DO_UPCAST(VirtIOSerialPortInfo, qdev,
-                                           vcon->port.dev.info);
+    VirtIOSerialPortClass *k = VIRTIO_SERIAL_PORT_GET_CLASS(port);
 
-    if (port->id == 0 && !info->is_console) {
+    if (port->id == 0 && !k->is_console) {
         error_report("Port number 0 on virtio-serial devices reserved for virtconsole devices for backward compatibility.");
         return -1;
     }
@@ -109,60 +119,64 @@ static int virtconsole_initfn(VirtIOSerialPort *port)
     if (vcon->chr) {
         qemu_chr_add_handlers(vcon->chr, chr_can_read, chr_read, chr_event,
                               vcon);
-        info->have_data = flush_buf;
-        info->guest_open = guest_open;
-        info->guest_close = guest_close;
     }
 
     return 0;
 }
 
-static int virtconsole_exitfn(VirtIOSerialPort *port)
-{
-    VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
-
-    if (vcon->chr) {
-	/*
-	 * Instead of closing the chardev, free it so it can be used
-	 * for other purposes.
-	 */
-	qemu_chr_add_handlers(vcon->chr, NULL, NULL, NULL, NULL);
-    }
-
-    return 0;
-}
-
-static VirtIOSerialPortInfo virtconsole_info = {
-    .qdev.name     = "virtconsole",
-    .qdev.size     = sizeof(VirtConsole),
-    .is_console    = true,
-    .init          = virtconsole_initfn,
-    .exit          = virtconsole_exitfn,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_CHR("chardev", VirtConsole, chr),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static Property virtconsole_properties[] = {
+    DEFINE_PROP_CHR("chardev", VirtConsole, chr),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void virtconsole_register(void)
+static void virtconsole_class_init(ObjectClass *klass, void *data)
 {
-    virtio_serial_port_qdev_register(&virtconsole_info);
-}
-device_init(virtconsole_register)
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    VirtIOSerialPortClass *k = VIRTIO_SERIAL_PORT_CLASS(klass);
 
-static VirtIOSerialPortInfo virtserialport_info = {
-    .qdev.name     = "virtserialport",
-    .qdev.size     = sizeof(VirtConsole),
-    .init          = virtconsole_initfn,
-    .exit          = virtconsole_exitfn,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_CHR("chardev", VirtConsole, chr),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+    k->is_console = true;
+    k->init = virtconsole_initfn;
+    k->have_data = flush_buf;
+    k->guest_open = guest_open;
+    k->guest_close = guest_close;
+    dc->props = virtconsole_properties;
+}
+
+static TypeInfo virtconsole_info = {
+    .name          = "virtconsole",
+    .parent        = TYPE_VIRTIO_SERIAL_PORT,
+    .instance_size = sizeof(VirtConsole),
+    .class_init    = virtconsole_class_init,
 };
 
-static void virtserialport_register(void)
+static Property virtserialport_properties[] = {
+    DEFINE_PROP_CHR("chardev", VirtConsole, chr),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtserialport_class_init(ObjectClass *klass, void *data)
 {
-    virtio_serial_port_qdev_register(&virtserialport_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    VirtIOSerialPortClass *k = VIRTIO_SERIAL_PORT_CLASS(klass);
+
+    k->init = virtconsole_initfn;
+    k->have_data = flush_buf;
+    k->guest_open = guest_open;
+    k->guest_close = guest_close;
+    dc->props = virtserialport_properties;
 }
-device_init(virtserialport_register)
+
+static TypeInfo virtserialport_info = {
+    .name          = "virtserialport",
+    .parent        = TYPE_VIRTIO_SERIAL_PORT,
+    .instance_size = sizeof(VirtConsole),
+    .class_init    = virtserialport_class_init,
+};
+
+static void virtconsole_register_types(void)
+{
+    type_register_static(&virtconsole_info);
+    type_register_static(&virtserialport_info);
+}
+
+type_init(virtconsole_register_types)

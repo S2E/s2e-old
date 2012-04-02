@@ -22,7 +22,6 @@ typedef struct QEMUMachine {
     unsigned int no_serial:1,
         no_parallel:1,
         use_virtcon:1,
-        no_vga:1,
         no_floppy:1,
         no_cdrom:1,
         no_sdcard:1;
@@ -33,6 +32,7 @@ typedef struct QEMUMachine {
 } QEMUMachine;
 
 int qemu_register_machine(QEMUMachine *m);
+QEMUMachine *find_default_machine(void);
 
 extern QEMUMachine *current_machine;
 

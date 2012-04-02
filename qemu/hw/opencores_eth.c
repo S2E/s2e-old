@@ -692,12 +692,12 @@ static void open_eth_desc_write(void *opaque,
 }
 
 
-static MemoryRegionOps open_eth_reg_ops = {
+static const MemoryRegionOps open_eth_reg_ops = {
     .read = open_eth_reg_read,
     .write = open_eth_reg_write,
 };
 
-static MemoryRegionOps open_eth_desc_ops = {
+static const MemoryRegionOps open_eth_desc_ops = {
     .read = open_eth_desc_read,
     .write = open_eth_desc_write,
 };
@@ -708,16 +708,16 @@ static int sysbus_open_eth_init(SysBusDevice *dev)
 
     memory_region_init_io(&s->reg_io, &open_eth_reg_ops, s,
             "open_eth.regs", 0x54);
-    sysbus_init_mmio_region(dev, &s->reg_io);
+    sysbus_init_mmio(dev, &s->reg_io);
 
     memory_region_init_io(&s->desc_io, &open_eth_desc_ops, s,
             "open_eth.desc", 0x400);
-    sysbus_init_mmio_region(dev, &s->desc_io);
+    sysbus_init_mmio(dev, &s->desc_io);
 
     sysbus_init_irq(dev, &s->irq);
 
     s->nic = qemu_new_nic(&net_open_eth_info, &s->conf,
-                          s->dev.qdev.info->name, s->dev.qdev.id, s);
+                          object_get_typename(OBJECT(s)), s->dev.qdev.id, s);
     return 0;
 }
 
@@ -727,21 +727,32 @@ static void qdev_open_eth_reset(DeviceState *dev)
     open_eth_reset(d);
 }
 
-static SysBusDeviceInfo open_eth_info = {
-    .qdev.name  = "open_eth",
-    .qdev.desc  = "Opencores 10/100 Mbit Ethernet",
-    .qdev.size  = sizeof(OpenEthState),
-    .qdev.reset = qdev_open_eth_reset,
-    .init       = sysbus_open_eth_init,
-    .qdev.props = (Property[]) {
-        DEFINE_NIC_PROPERTIES(OpenEthState, conf),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property open_eth_properties[] = {
+    DEFINE_NIC_PROPERTIES(OpenEthState, conf),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void open_eth_register_devices(void)
+static void open_eth_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&open_eth_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = sysbus_open_eth_init;
+    dc->desc = "Opencores 10/100 Mbit Ethernet";
+    dc->reset = qdev_open_eth_reset;
+    dc->props = open_eth_properties;
 }
 
-device_init(open_eth_register_devices)
+static TypeInfo open_eth_info = {
+    .name          = "open_eth",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(OpenEthState),
+    .class_init    = open_eth_class_init,
+};
+
+static void open_eth_register_types(void)
+{
+    type_register_static(&open_eth_info);
+}
+
+type_init(open_eth_register_types)

@@ -24,6 +24,7 @@
 #include "sysbus.h"
 #include "sysemu.h"
 #include "qemu-timer.h"
+#include "ptimer.h"
 
 #define D(x)
 
@@ -323,15 +324,28 @@ static int etraxfs_timer_init(SysBusDevice *dev)
     sysbus_init_irq(dev, &t->nmi);
 
     memory_region_init_io(&t->mmio, &timer_ops, t, "etraxfs-timer", 0x5c);
-    sysbus_init_mmio_region(dev, &t->mmio);
+    sysbus_init_mmio(dev, &t->mmio);
     qemu_register_reset(etraxfs_timer_reset, t);
     return 0;
 }
 
-static void etraxfs_timer_register(void)
+static void etraxfs_timer_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_dev("etraxfs,timer", sizeof (struct etrax_timer),
-                        etraxfs_timer_init);
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = etraxfs_timer_init;
 }
 
-device_init(etraxfs_timer_register)
+static TypeInfo etraxfs_timer_info = {
+    .name          = "etraxfs,timer",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof (struct etrax_timer),
+    .class_init    = etraxfs_timer_class_init,
+};
+
+static void etraxfs_timer_register_types(void)
+{
+    type_register_static(&etraxfs_timer_info);
+}
+
+type_init(etraxfs_timer_register_types)

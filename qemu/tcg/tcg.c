@@ -577,9 +577,7 @@ int tcg_check_temp_count(void)
 }
 #endif
 
-void tcg_register_helper_with_reg_mask(void *func, const char *name,
-                                       uint64_t reg_rmask, uint64_t reg_wmask,
-                                       uint64_t accesses_mem)
+void tcg_register_helper(void *func, const char *name)
 {
     TCGContext *s = &tcg_ctx;
     int n;
@@ -595,15 +593,7 @@ void tcg_register_helper_with_reg_mask(void *func, const char *name,
     }
     s->helpers[s->nb_helpers].func = (tcg_target_ulong)func;
     s->helpers[s->nb_helpers].name = name;
-    s->helpers[s->nb_helpers].reg_rmask = reg_rmask;
-    s->helpers[s->nb_helpers].reg_wmask = reg_wmask;
-    s->helpers[s->nb_helpers].accesses_mem = accesses_mem;
     s->nb_helpers++;
-}
-
-void tcg_register_helper(void *func, const char *name)
-{
-    tcg_register_helper_with_reg_mask(func, name, (uint64_t) -1, (uint64_t) -1, 1);
 }
 
 /* Note: we convert the 64 bit args to 32 bit and do some alignment
@@ -892,7 +882,7 @@ void tcg_helper_get_reg_mask(TCGContext *s, void *func,
         *reg_rmask = (uint64_t) -1;
         *reg_wmask = (uint64_t) -1;
 #ifdef CONFIG_S2E
-#warning Change 0 to 1 here, but register S2E helpers before!
+//XXX: Change 0 to 1 here, but register S2E helpers before!
         *accesses_mem = 0; /* XXX! */
 #endif
     }

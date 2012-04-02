@@ -54,7 +54,6 @@
 #include "nvram.h"
 #include "pc.h"
 #include "pci.h"
-#include "usb-ohci.h"
 #include "net.h"
 #include "sysemu.h"
 #include "boards.h"
@@ -122,6 +121,13 @@ static target_phys_addr_t round_page(target_phys_addr_t addr)
     return (addr + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK;
 }
 
+static void ppc_core99_reset(void *opaque)
+{
+    CPUPPCState *env = opaque;
+
+    cpu_state_reset(env);
+}
+
 /* PowerPC Mac99 hardware initialisation */
 static void ppc_core99_init (ram_addr_t ram_size,
                              const char *boot_device,
@@ -130,7 +136,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
                              const char *initrd_filename,
                              const char *cpu_model)
 {
-    CPUState *env = NULL;
+    CPUPPCState *env = NULL;
     char *filename;
     qemu_irq *pic, **openpic_irqs;
     MemoryRegion *unin_memory = g_new(MemoryRegion, 1);
@@ -167,15 +173,17 @@ static void ppc_core99_init (ram_addr_t ram_size,
         }
         /* Set time-base frequency to 100 Mhz */
         cpu_ppc_tb_init(env, 100UL * 1000UL * 1000UL);
-        qemu_register_reset((QEMUResetHandler*)&cpu_reset, env);
+        qemu_register_reset(ppc_core99_reset, env);
     }
 
     /* allocate RAM */
-    memory_region_init_ram(ram, NULL, "ppc_core99.ram", ram_size);
+    memory_region_init_ram(ram, "ppc_core99.ram", ram_size);
+    vmstate_register_ram_global(ram);
     memory_region_add_subregion(get_system_memory(), 0, ram);
 
     /* allocate and load BIOS */
-    memory_region_init_ram(bios, NULL, "ppc_core99.bios", BIOS_SIZE);
+    memory_region_init_ram(bios, "ppc_core99.bios", BIOS_SIZE);
+    vmstate_register_ram_global(bios);
     if (bios_name == NULL)
         bios_name = PROM_FILENAME;
     filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
@@ -309,7 +317,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
             exit(1);
         }
     }
-    pic = openpic_init(NULL, &pic_mem, smp_cpus, openpic_irqs, NULL);
+    pic = openpic_init(&pic_mem, smp_cpus, openpic_irqs, NULL);
     if (PPC_INPUT(env) == PPC_FLAGS_INPUT_970) {
         /* 970 gets a U3 bus */
         pci_bus = pci_pmac_u3_init(pic, get_system_memory(), get_system_io());
@@ -350,7 +358,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
                dbdma_mem, cuda_mem, NULL, 3, ide_mem, escc_bar);
 
     if (usb_enabled) {
-        usb_ohci_init_pci(pci_bus, -1);
+        pci_create_simple(pci_bus, -1, "pci-ohci");
     }
 
     /* U3 needs to use USB for input because Linux doesn't support via-cuda

@@ -53,7 +53,7 @@ static uint64_t bmdma_read(void *opaque, target_phys_addr_t addr, unsigned size)
         break;
     }
 #ifdef DEBUG_IDE
-    printf("bmdma: readb 0x%02x : 0x%02x\n", addr, val);
+    printf("bmdma: readb 0x%02x : 0x%02x\n", (uint8_t)addr, val);
 #endif
     return val;
 }
@@ -68,7 +68,7 @@ static void bmdma_write(void *opaque, target_phys_addr_t addr,
     }
 
 #ifdef DEBUG_IDE
-    printf("bmdma: writeb 0x%02x : 0x%02x\n", addr, val);
+    printf("bmdma: writeb 0x%02x : 0x%02x\n", (uint8_t)addr, (uint8_t)val);
 #endif
     switch(addr & 3) {
     case 0:
@@ -79,7 +79,7 @@ static void bmdma_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static MemoryRegionOps piix_bmdma_ops = {
+static const MemoryRegionOps piix_bmdma_ops = {
     .read = bmdma_read,
     .write = bmdma_write,
 };
@@ -136,7 +136,7 @@ static void pci_piix_init_ports(PCIIDEState *d) {
         ide_bus_new(&d->bus[i], &d->dev.qdev, i);
         ide_init_ioport(&d->bus[i], NULL, port_info[i].iobase,
                         port_info[i].iobase2);
-        ide_init2(&d->bus[i], isa_get_irq(port_info[i].isairq));
+        ide_init2(&d->bus[i], isa_get_irq(NULL, port_info[i].isairq));
 
         bmdma_init(&d->bus[i], &d->bmdma[i], d);
         d->bmdma[i].bus = &d->bus[i];
@@ -195,7 +195,6 @@ PCIDevice *pci_piix3_xen_ide_init(PCIBus *bus, DriveInfo **hd_table, int devfn)
     PCIDevice *dev;
 
     dev = pci_create_simple(bus, devfn, "piix3-ide-xen");
-    dev->qdev.info->unplug = pci_piix3_xen_ide_unplug;
     pci_ide_create_devs(dev, hd_table);
     return dev;
 }
@@ -238,42 +237,73 @@ PCIDevice *pci_piix4_ide_init(PCIBus *bus, DriveInfo **hd_table, int devfn)
     return dev;
 }
 
-static PCIDeviceInfo piix_ide_info[] = {
-    {
-        .qdev.name    = "piix3-ide",
-        .qdev.size    = sizeof(PCIIDEState),
-        .qdev.no_user = 1,
-        .no_hotplug   = 1,
-        .init         = pci_piix_ide_initfn,
-        .exit         = pci_piix_ide_exitfn,
-        .vendor_id    = PCI_VENDOR_ID_INTEL,
-        .device_id    = PCI_DEVICE_ID_INTEL_82371SB_1,
-        .class_id     = PCI_CLASS_STORAGE_IDE,
-    },{
-        .qdev.name    = "piix3-ide-xen",
-        .qdev.size    = sizeof(PCIIDEState),
-        .qdev.no_user = 1,
-        .init         = pci_piix_ide_initfn,
-        .vendor_id    = PCI_VENDOR_ID_INTEL,
-        .device_id    = PCI_DEVICE_ID_INTEL_82371SB_1,
-        .class_id     = PCI_CLASS_STORAGE_IDE,
-    },{
-        .qdev.name    = "piix4-ide",
-        .qdev.size    = sizeof(PCIIDEState),
-        .qdev.no_user = 1,
-        .no_hotplug   = 1,
-        .init         = pci_piix_ide_initfn,
-        .exit         = pci_piix_ide_exitfn,
-        .vendor_id    = PCI_VENDOR_ID_INTEL,
-        .device_id    = PCI_DEVICE_ID_INTEL_82371AB,
-        .class_id     = PCI_CLASS_STORAGE_IDE,
-    },{
-        /* end of list */
-    }
+static void piix3_ide_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->no_hotplug = 1;
+    k->init = pci_piix_ide_initfn;
+    k->exit = pci_piix_ide_exitfn;
+    k->vendor_id = PCI_VENDOR_ID_INTEL;
+    k->device_id = PCI_DEVICE_ID_INTEL_82371SB_1;
+    k->class_id = PCI_CLASS_STORAGE_IDE;
+    dc->no_user = 1;
+}
+
+static TypeInfo piix3_ide_info = {
+    .name          = "piix3-ide",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIIDEState),
+    .class_init    = piix3_ide_class_init,
 };
 
-static void piix_ide_register(void)
+static void piix3_ide_xen_class_init(ObjectClass *klass, void *data)
 {
-    pci_qdev_register_many(piix_ide_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = pci_piix_ide_initfn;
+    k->vendor_id = PCI_VENDOR_ID_INTEL;
+    k->device_id = PCI_DEVICE_ID_INTEL_82371SB_1;
+    k->class_id = PCI_CLASS_STORAGE_IDE;
+    dc->no_user = 1;
+    dc->unplug = pci_piix3_xen_ide_unplug;
 }
-device_init(piix_ide_register);
+
+static TypeInfo piix3_ide_xen_info = {
+    .name          = "piix3-ide-xen",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIIDEState),
+    .class_init    = piix3_ide_xen_class_init,
+};
+
+static void piix4_ide_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->no_hotplug = 1;
+    k->init = pci_piix_ide_initfn;
+    k->exit = pci_piix_ide_exitfn;
+    k->vendor_id = PCI_VENDOR_ID_INTEL;
+    k->device_id = PCI_DEVICE_ID_INTEL_82371AB;
+    k->class_id = PCI_CLASS_STORAGE_IDE;
+    dc->no_user = 1;
+}
+
+static TypeInfo piix4_ide_info = {
+    .name          = "piix4-ide",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIIDEState),
+    .class_init    = piix4_ide_class_init,
+};
+
+static void piix_ide_register_types(void)
+{
+    type_register_static(&piix3_ide_info);
+    type_register_static(&piix3_ide_xen_info);
+    type_register_static(&piix4_ide_info);
+}
+
+type_init(piix_ide_register_types)

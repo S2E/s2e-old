@@ -17,6 +17,7 @@
 
 #include <stdbool.h>
 #include "qemu-queue.h"
+#include "qemu-timer.h"
 
 /**
  * Coroutines are a mechanism for stack switching and can be used for
@@ -118,11 +119,22 @@ void qemu_co_queue_init(CoQueue *queue);
 void coroutine_fn qemu_co_queue_wait(CoQueue *queue);
 
 /**
+ * Adds the current coroutine to the head of the CoQueue and transfers control to the
+ * caller of the coroutine.
+ */
+void coroutine_fn qemu_co_queue_wait_insert_head(CoQueue *queue);
+
+/**
  * Restarts the next coroutine in the CoQueue and removes it from the queue.
  *
  * Returns true if a coroutine was restarted, false if the queue is empty.
  */
 bool qemu_co_queue_next(CoQueue *queue);
+
+/**
+ * Restarts all coroutines in the CoQueue and leaves the queue empty.
+ */
+void qemu_co_queue_restart_all(CoQueue *queue);
 
 /**
  * Checks if the CoQueue is empty.
@@ -187,5 +199,13 @@ void qemu_co_rwlock_wrlock(CoRwlock *lock);
  * waiting for this lock to be run.
  */
 void qemu_co_rwlock_unlock(CoRwlock *lock);
+
+/**
+ * Yield the coroutine for a given duration
+ *
+ * Note this function uses timers and hence only works when a main loop is in
+ * use.  See main-loop.h and do not use from qemu-tool programs.
+ */
+void coroutine_fn co_sleep_ns(QEMUClock *clock, int64_t ns);
 
 #endif /* QEMU_COROUTINE_H */

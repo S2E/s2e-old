@@ -31,6 +31,7 @@
 #include "hpet_emul.h"
 #include "sysbus.h"
 #include "mc146818rtc.h"
+#include "i8254.h"
 
 //#define HPET_DEBUG
 #ifdef HPET_DEBUG
@@ -59,10 +60,12 @@ typedef struct HPETTimer {  /* timers */
 
 typedef struct HPETState {
     SysBusDevice busdev;
+    MemoryRegion iomem;
     uint64_t hpet_offset;
     qemu_irq irqs[HPET_NUM_IRQ_ROUTES];
     uint32_t flags;
     uint8_t rtc_irq_level;
+    qemu_irq pit_enabled;
     uint8_t num_timers;
     HPETTimer timer[HPET_MAX_TIMERS];
 
@@ -239,6 +242,24 @@ static int hpet_post_load(void *opaque, int version_id)
     return 0;
 }
 
+static bool hpet_rtc_irq_level_needed(void *opaque)
+{
+    HPETState *s = opaque;
+
+    return s->rtc_irq_level != 0;
+}
+
+static const VMStateDescription vmstate_hpet_rtc_irq_level = {
+    .name = "hpet/rtc_irq_level",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .fields      = (VMStateField[]) {
+        VMSTATE_UINT8(rtc_irq_level, HPETState),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 static const VMStateDescription vmstate_hpet_timer = {
     .name = "hpet_timer",
     .version_id = 1,
@@ -272,6 +293,14 @@ static const VMStateDescription vmstate_hpet = {
         VMSTATE_STRUCT_VARRAY_UINT8(timer, HPETState, num_timers, 0,
                                     vmstate_hpet_timer, HPETTimer),
         VMSTATE_END_OF_LIST()
+    },
+    .subsections = (VMStateSubsection[]) {
+        {
+            .vmsd = &vmstate_hpet_rtc_irq_level,
+            .needed = hpet_rtc_irq_level_needed,
+        }, {
+            /* empty */
+        }
     }
 };
 
@@ -354,7 +383,8 @@ static uint32_t hpet_ram_readw(void *opaque, target_phys_addr_t addr)
 }
 #endif
 
-static uint32_t hpet_ram_readl(void *opaque, target_phys_addr_t addr)
+static uint64_t hpet_ram_read(void *opaque, target_phys_addr_t addr,
+                              unsigned size)
 {
     HPETState *s = opaque;
     uint64_t cur_tick, index;
@@ -425,24 +455,8 @@ static uint32_t hpet_ram_readl(void *opaque, target_phys_addr_t addr)
     return 0;
 }
 
-#ifdef HPET_DEBUG
-static void hpet_ram_writeb(void *opaque, target_phys_addr_t addr,
-                            uint32_t value)
-{
-    printf("qemu: invalid hpet_write b at %" PRIx64 " = %#x\n",
-           addr, value);
-}
-
-static void hpet_ram_writew(void *opaque, target_phys_addr_t addr,
-                            uint32_t value)
-{
-    printf("qemu: invalid hpet_write w at %" PRIx64 " = %#x\n",
-           addr, value);
-}
-#endif
-
-static void hpet_ram_writel(void *opaque, target_phys_addr_t addr,
-                            uint32_t value)
+static void hpet_ram_write(void *opaque, target_phys_addr_t addr,
+                           uint64_t value, unsigned size)
 {
     int i;
     HPETState *s = opaque;
@@ -450,7 +464,7 @@ static void hpet_ram_writel(void *opaque, target_phys_addr_t addr,
 
     DPRINTF("qemu: Enter hpet_ram_writel at %" PRIx64 " = %#x\n", addr, value);
     index = addr;
-    old_val = hpet_ram_readl(opaque, addr);
+    old_val = hpet_ram_read(opaque, addr, 4);
     new_val = value;
 
     /*address range of all TN regs*/
@@ -560,12 +574,15 @@ static void hpet_ram_writel(void *opaque, target_phys_addr_t addr,
                     hpet_del_timer(&s->timer[i]);
                 }
             }
-            /* i8254 and RTC are disabled when HPET is in legacy mode */
+            /* i8254 and RTC output pins are disabled
+             * when HPET is in legacy mode */
             if (activating_bit(old_val, new_val, HPET_CFG_LEGACY)) {
-                hpet_pit_disable();
+                qemu_set_irq(s->pit_enabled, 0);
+                qemu_irq_lower(s->irqs[0]);
                 qemu_irq_lower(s->irqs[RTC_ISA_IRQ]);
             } else if (deactivating_bit(old_val, new_val, HPET_CFG_LEGACY)) {
-                hpet_pit_enable();
+                qemu_irq_lower(s->irqs[0]);
+                qemu_set_irq(s->pit_enabled, 1);
                 qemu_set_irq(s->irqs[RTC_ISA_IRQ], s->rtc_irq_level);
             }
             break;
@@ -605,33 +622,20 @@ static void hpet_ram_writel(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static CPUReadMemoryFunc * const hpet_ram_read[] = {
-#ifdef HPET_DEBUG
-    hpet_ram_readb,
-    hpet_ram_readw,
-#else
-    NULL,
-    NULL,
-#endif
-    hpet_ram_readl,
-};
-
-static CPUWriteMemoryFunc * const hpet_ram_write[] = {
-#ifdef HPET_DEBUG
-    hpet_ram_writeb,
-    hpet_ram_writew,
-#else
-    NULL,
-    NULL,
-#endif
-    hpet_ram_writel,
+static const MemoryRegionOps hpet_ram_ops = {
+    .read = hpet_ram_read,
+    .write = hpet_ram_write,
+    .valid = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
+    .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
 static void hpet_reset(DeviceState *d)
 {
     HPETState *s = FROM_SYSBUS(HPETState, sysbus_from_qdev(d));
     int i;
-    static int count = 0;
 
     for (i = 0; i < s->num_timers; i++) {
         HPETTimer *timer = &s->timer[i];
@@ -648,36 +652,37 @@ static void hpet_reset(DeviceState *d)
         timer->wrap_flag = 0;
     }
 
+    qemu_set_irq(s->pit_enabled, 1);
     s->hpet_counter = 0ULL;
     s->hpet_offset = 0ULL;
     s->config = 0ULL;
-    if (count > 0) {
-        /* we don't enable pit when hpet_reset is first called (by hpet_init)
-         * because hpet is taking over for pit here. On subsequent invocations,
-         * hpet_reset is called due to system reset. At this point control must
-         * be returned to pit until SW reenables hpet.
-         */
-        hpet_pit_enable();
-    }
     hpet_cfg.hpet[s->hpet_id].event_timer_block_id = (uint32_t)s->capability;
     hpet_cfg.hpet[s->hpet_id].address = sysbus_from_qdev(d)->mmio[0].addr;
-    count = 1;
+
+    /* to document that the RTC lowers its output on reset as well */
+    s->rtc_irq_level = 0;
 }
 
-static void hpet_handle_rtc_irq(void *opaque, int n, int level)
+static void hpet_handle_legacy_irq(void *opaque, int n, int level)
 {
     HPETState *s = FROM_SYSBUS(HPETState, opaque);
 
-    s->rtc_irq_level = level;
-    if (!hpet_in_legacy_mode(s)) {
-        qemu_set_irq(s->irqs[RTC_ISA_IRQ], level);
+    if (n == HPET_LEGACY_PIT_INT) {
+        if (!hpet_in_legacy_mode(s)) {
+            qemu_set_irq(s->irqs[0], level);
+        }
+    } else {
+        s->rtc_irq_level = level;
+        if (!hpet_in_legacy_mode(s)) {
+            qemu_set_irq(s->irqs[RTC_ISA_IRQ], level);
+        }
     }
 }
 
 static int hpet_init(SysBusDevice *dev)
 {
     HPETState *s = FROM_SYSBUS(HPETState, dev);
-    int i, iomemtype;
+    int i;
     HPETTimer *timer;
 
     if (hpet_cfg.count == UINT8_MAX) {
@@ -713,33 +718,43 @@ static int hpet_init(SysBusDevice *dev)
     s->capability |= (s->num_timers - 1) << HPET_ID_NUM_TIM_SHIFT;
     s->capability |= ((HPET_CLK_PERIOD) << 32);
 
-    qdev_init_gpio_in(&dev->qdev, hpet_handle_rtc_irq, 1);
+    qdev_init_gpio_in(&dev->qdev, hpet_handle_legacy_irq, 2);
+    qdev_init_gpio_out(&dev->qdev, &s->pit_enabled, 1);
 
     /* HPET Area */
-    iomemtype = cpu_register_io_memory(hpet_ram_read,
-                                       hpet_ram_write, s,
-                                       DEVICE_NATIVE_ENDIAN);
-    sysbus_init_mmio(dev, 0x400, iomemtype);
+    memory_region_init_io(&s->iomem, &hpet_ram_ops, s, "hpet", 0x400);
+    sysbus_init_mmio(dev, &s->iomem);
     return 0;
 }
 
-static SysBusDeviceInfo hpet_device_info = {
-    .qdev.name    = "hpet",
-    .qdev.size    = sizeof(HPETState),
-    .qdev.no_user = 1,
-    .qdev.vmsd    = &vmstate_hpet,
-    .qdev.reset   = hpet_reset,
-    .init         = hpet_init,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT8("timers", HPETState, num_timers, HPET_MIN_TIMERS),
-        DEFINE_PROP_BIT("msi", HPETState, flags, HPET_MSI_SUPPORT, false),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static Property hpet_device_properties[] = {
+    DEFINE_PROP_UINT8("timers", HPETState, num_timers, HPET_MIN_TIMERS),
+    DEFINE_PROP_BIT("msi", HPETState, flags, HPET_MSI_SUPPORT, false),
+    DEFINE_PROP_END_OF_LIST(),
 };
 
-static void hpet_register_device(void)
+static void hpet_device_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_withprop(&hpet_device_info);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    k->init = hpet_init;
+    dc->no_user = 1;
+    dc->reset = hpet_reset;
+    dc->vmsd = &vmstate_hpet;
+    dc->props = hpet_device_properties;
 }
 
-device_init(hpet_register_device)
+static TypeInfo hpet_device_info = {
+    .name          = "hpet",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(HPETState),
+    .class_init    = hpet_device_class_init,
+};
+
+static void hpet_register_types(void)
+{
+    type_register_static(&hpet_device_info);
+}
+
+type_init(hpet_register_types)

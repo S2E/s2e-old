@@ -216,7 +216,7 @@ extern unsigned long reserved_va;
 #endif
 
 /* All direct uses of g2h and h2g need to go away for usermode softmmu.  */
-#define g2h(x) ((void *)((unsigned long)(x) + GUEST_BASE))
+#define g2h(x) ((void *)((unsigned long)(target_ulong)(x) + GUEST_BASE))
 
 #if HOST_LONG_BITS <= TARGET_VIRT_ADDR_SPACE_BITS
 #define h2g_valid(x) 1
@@ -462,12 +462,21 @@ _s2e_define_st_raw_be(float64,  fq, 8)
 #define stfl(p, v) stfl_raw(p, v)
 #define stfq(p, v) stfq_raw(p, v)
 
+#ifndef CONFIG_TCG_PASS_AREG0
 #define ldub_code(p) ldub_raw(p)
 #define ldsb_code(p) ldsb_raw(p)
 #define lduw_code(p) lduw_raw(p)
 #define ldsw_code(p) ldsw_raw(p)
 #define ldl_code(p) ldl_raw(p)
 #define ldq_code(p) ldq_raw(p)
+#else
+#define cpu_ldub_code(env1, p) ldub_raw(p)
+#define cpu_ldsb_code(env1, p) ldsb_raw(p)
+#define cpu_lduw_code(env1, p) lduw_raw(p)
+#define cpu_ldsw_code(env1, p) ldsw_raw(p)
+#define cpu_ldl_code(env1, p) ldl_raw(p)
+#define cpu_ldq_code(env1, p) ldq_raw(p)
+#endif
 
 #define ldub_kernel(p) ldub_raw(p)
 #define ldsb_kernel(p) ldsb_raw(p)
@@ -525,21 +534,21 @@ void page_set_flags(target_ulong start, target_ulong end, int flags);
 int page_check_range(target_ulong start, target_ulong len, int flags);
 #endif
 
-CPUState *cpu_copy(CPUState *env);
-CPUState *qemu_get_cpu(int cpu);
+CPUArchState *cpu_copy(CPUArchState *env);
+CPUArchState *qemu_get_cpu(int cpu);
 
 #define CPU_DUMP_CODE 0x00010000
 
-void cpu_dump_state(CPUState *env, FILE *f, fprintf_function cpu_fprintf,
+void cpu_dump_state(CPUArchState *env, FILE *f, fprintf_function cpu_fprintf,
                     int flags);
-void cpu_dump_statistics(CPUState *env, FILE *f, fprintf_function cpu_fprintf,
+void cpu_dump_statistics(CPUArchState *env, FILE *f, fprintf_function cpu_fprintf,
                          int flags);
 
-void QEMU_NORETURN cpu_abort(CPUState *env, const char *fmt, ...)
+void QEMU_NORETURN cpu_abort(CPUArchState *env, const char *fmt, ...)
     GCC_FMT_ATTR(2, 3);
-extern CPUState *first_cpu;
-DECLARE_TLS(CPUState *,cpu_single_env);
-#define cpu_single_env get_tls(cpu_single_env)
+extern CPUArchState *first_cpu;
+DECLARE_TLS(CPUArchState *,cpu_single_env);
+#define cpu_single_env tls_var(cpu_single_env)
 
 /* Flags for use in ENV->INTERRUPT_PENDING.
 
@@ -571,15 +580,16 @@ DECLARE_TLS(CPUState *,cpu_single_env);
 #define CPU_INTERRUPT_TGT_EXT_4   0x1000
 
 /* Several target-specific internal interrupts.  These differ from the
-   preceeding target-specific interrupts in that they are intended to
+   preceding target-specific interrupts in that they are intended to
    originate from within the cpu itself, typically in response to some
    instruction being executed.  These, therefore, are not masked while
    single-stepping within the debugger.  */
 #define CPU_INTERRUPT_TGT_INT_0   0x0100
 #define CPU_INTERRUPT_TGT_INT_1   0x0400
 #define CPU_INTERRUPT_TGT_INT_2   0x0800
+#define CPU_INTERRUPT_TGT_INT_3   0x2000
 
-/* First unused bit: 0x2000.  */
+/* First unused bit: 0x4000.  */
 
 /* The set of all bits that should be masked when single-stepping.  */
 #define CPU_INTERRUPT_SSTEP_MASK \
@@ -591,23 +601,23 @@ DECLARE_TLS(CPUState *,cpu_single_env);
      | CPU_INTERRUPT_TGT_EXT_4)
 
 #ifndef CONFIG_USER_ONLY
-typedef void (*CPUInterruptHandler)(CPUState *, int);
+typedef void (*CPUInterruptHandler)(CPUArchState *, int);
 
 extern CPUInterruptHandler cpu_interrupt_handler;
 
-static inline void cpu_interrupt(CPUState *s, int mask)
+static inline void cpu_interrupt(CPUArchState *s, int mask)
 {
     cpu_interrupt_handler(s, mask);
 }
 #else /* USER_ONLY */
-void cpu_interrupt(CPUState *env, int mask);
+void cpu_interrupt(CPUArchState *env, int mask);
 #endif /* USER_ONLY */
 
-void cpu_reset_interrupt(CPUState *env, int mask);
+void cpu_reset_interrupt(CPUArchState *env, int mask);
 
-void cpu_exit(CPUState *s);
+void cpu_exit(CPUArchState *s);
 
-bool qemu_cpu_has_work(CPUState *env);
+bool qemu_cpu_has_work(CPUArchState *env);
 
 /* Breakpoint/watchpoint flags */
 #define BP_MEM_READ           0x01
@@ -618,26 +628,26 @@ bool qemu_cpu_has_work(CPUState *env);
 #define BP_GDB                0x10
 #define BP_CPU                0x20
 
-int cpu_breakpoint_insert(CPUState *env, target_ulong pc, int flags,
+int cpu_breakpoint_insert(CPUArchState *env, target_ulong pc, int flags,
                           CPUBreakpoint **breakpoint);
-int cpu_breakpoint_remove(CPUState *env, target_ulong pc, int flags);
-void cpu_breakpoint_remove_by_ref(CPUState *env, CPUBreakpoint *breakpoint);
-void cpu_breakpoint_remove_all(CPUState *env, int mask);
-int cpu_watchpoint_insert(CPUState *env, target_ulong addr, target_ulong len,
+int cpu_breakpoint_remove(CPUArchState *env, target_ulong pc, int flags);
+void cpu_breakpoint_remove_by_ref(CPUArchState *env, CPUBreakpoint *breakpoint);
+void cpu_breakpoint_remove_all(CPUArchState *env, int mask);
+int cpu_watchpoint_insert(CPUArchState *env, target_ulong addr, target_ulong len,
                           int flags, CPUWatchpoint **watchpoint);
-int cpu_watchpoint_remove(CPUState *env, target_ulong addr,
+int cpu_watchpoint_remove(CPUArchState *env, target_ulong addr,
                           target_ulong len, int flags);
-void cpu_watchpoint_remove_by_ref(CPUState *env, CPUWatchpoint *watchpoint);
-void cpu_watchpoint_remove_all(CPUState *env, int mask);
+void cpu_watchpoint_remove_by_ref(CPUArchState *env, CPUWatchpoint *watchpoint);
+void cpu_watchpoint_remove_all(CPUArchState *env, int mask);
 
 #define SSTEP_ENABLE  0x1  /* Enable simulated HW single stepping */
 #define SSTEP_NOIRQ   0x2  /* Do not use IRQ while single stepping */
 #define SSTEP_NOTIMER 0x4  /* Do not Timers while single stepping */
 
-void cpu_single_step(CPUState *env, int enabled);
-void cpu_reset(CPUState *s);
-int cpu_is_stopped(CPUState *env);
-void run_on_cpu(CPUState *env, void (*func)(void *data), void *data);
+void cpu_single_step(CPUArchState *env, int enabled);
+void cpu_state_reset(CPUArchState *s);
+int cpu_is_stopped(CPUArchState *env);
+void run_on_cpu(CPUArchState *env, void (*func)(void *data), void *data);
 
 #define CPU_LOG_TB_OUT_ASM (1 << 0)
 #define CPU_LOG_TB_IN_ASM  (1 << 1)
@@ -671,7 +681,7 @@ int cpu_str_to_log_mask(const char *str);
 /* Return the physical page corresponding to a virtual one. Use it
    only for debugging because no protection checks are done. Return -1
    if no page found. */
-target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr);
+target_phys_addr_t cpu_get_phys_page_debug(CPUArchState *env, target_ulong addr);
 
 /* memory API */
 
@@ -682,6 +692,7 @@ extern ram_addr_t ram_size;
 #define RAM_PREALLOC_MASK   (1 << 0)
 
 typedef struct RAMBlock {
+    struct MemoryRegion *mr;
     uint8_t *host;
     ram_addr_t offset;
     ram_addr_t length;
@@ -702,14 +713,6 @@ extern RAMList ram_list;
 extern const char *mem_path;
 extern int mem_prealloc;
 
-/* physical memory access */
-
-/* MMIO pages are identified by a combination of an IO device index and
-   3 flags.  The ROMD code stores the page ram offset in iotlb entry, 
-   so only a limited number of ids are avaiable.  */
-
-#define IO_MEM_NB_ENTRIES  (1 << (TARGET_PAGE_BITS  - IO_MEM_SHIFT))
-
 /* Flags stored in the low bits of the TLB virtual address.  These are
    defined so that fast path ram access is all zeros.  */
 /* Zero if TLB entry is valid.  */
@@ -720,106 +723,12 @@ extern int mem_prealloc;
 /* Set if TLB entry is an IO callback.  */
 #define TLB_MMIO        (1 << 5)
 
-#define VGA_DIRTY_FLAG       0x01
-#define CODE_DIRTY_FLAG      0x02
-#define MIGRATION_DIRTY_FLAG 0x08
-
-/* read dirty bit (return 0 or 1) */
-static inline int cpu_physical_memory_is_dirty(ram_addr_t addr)
-{
-#ifdef CONFIG_S2E
-    return s2e_read_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS]) == 0xff;
-#else
-    return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] == 0xff;
-#endif
-}
-
-static inline int cpu_physical_memory_get_dirty_flags(ram_addr_t addr)
-{
-#ifdef CONFIG_S2E
-    return s2e_read_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS]);
-#else
-    return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS];
-#endif
-}
-
-static inline int cpu_physical_memory_get_dirty(ram_addr_t addr,
-                                                int dirty_flags)
-{
-#ifdef CONFIG_S2E
-    return s2e_read_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS]) & dirty_flags;
-#else
-    return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] & dirty_flags;
-#endif
-}
-
-static inline void cpu_physical_memory_set_dirty(ram_addr_t addr)
-{
-#ifdef CONFIG_S2E
-    s2e_write_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS], 0xff);
-#else
-    ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] = 0xff;
-#endif
-}
-
-static inline int cpu_physical_memory_set_dirty_flags(ram_addr_t addr,
-                                                      int dirty_flags)
-{
-#ifdef CONFIG_S2E
-    int flags = s2e_read_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS]);
-    flags |= dirty_flags;
-    s2e_write_dirty_mask((uint64_t)&ram_list.phys_dirty[addr >> TARGET_PAGE_BITS], flags);
-    return flags;
-#else
-    return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] |= dirty_flags;
-#endif
-}
-
-static inline void cpu_physical_memory_mask_dirty_range(ram_addr_t start,
-                                                        int length,
-                                                        int dirty_flags)
-{
-    int i, mask, len;
-    uint8_t *p;
-
-    len = length >> TARGET_PAGE_BITS;
-    mask = ~dirty_flags;
-    p = ram_list.phys_dirty + (start >> TARGET_PAGE_BITS);
-
-#ifdef CONFIG_S2E
-    for (i = 0; i < len; i++) {
-        int flags = s2e_read_dirty_mask((uint64_t)&p[i]);
-        flags &= mask;
-        s2e_write_dirty_mask((uint64_t)&p[i], flags);
-    }
-#else
-    for (i = 0; i < len; i++) {
-        p[i] &= mask;
-    }
-#endif
-}
-
-void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
-                                     int dirty_flags);
-void cpu_tlb_update_dirty(CPUState *env);
-
-int cpu_physical_memory_set_dirty_tracking(int enable);
-
-int cpu_physical_memory_get_dirty_tracking(void);
-
-int cpu_physical_sync_dirty_bitmap(target_phys_addr_t start_addr,
-                                   target_phys_addr_t end_addr);
-
-int cpu_physical_log_start(target_phys_addr_t start_addr,
-                           ram_addr_t size);
-
-int cpu_physical_log_stop(target_phys_addr_t start_addr,
-                          ram_addr_t size);
+void cpu_tlb_update_dirty(CPUArchState *env);
 
 void dump_exec_info(FILE *f, fprintf_function cpu_fprintf);
 #endif /* !CONFIG_USER_ONLY */
 
-int cpu_memory_rw_debug(CPUState *env, target_ulong addr,
+int cpu_memory_rw_debug(CPUArchState *env, target_ulong addr,
                         uint8_t *buf, int len, int is_write);
 
 #endif /* CPU_ALL_H */

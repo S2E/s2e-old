@@ -283,8 +283,12 @@ static void pflash_write(pflash_t *pfl, target_phys_addr_t offset,
                     TARGET_FMT_plx "\n",
                     __func__, offset, pfl->sector_len);
 
-            memset(p + offset, 0xff, pfl->sector_len);
-            pflash_update(pfl, offset, pfl->sector_len);
+            if (!pfl->ro) {
+                memset(p + offset, 0xff, pfl->sector_len);
+                pflash_update(pfl, offset, pfl->sector_len);
+            } else {
+                pfl->status |= 0x20; /* Block erase error */
+            }
             pfl->status |= 0x80; /* Ready! */
             break;
         case 0x50: /* Clear status bits */
@@ -323,8 +327,12 @@ static void pflash_write(pflash_t *pfl, target_phys_addr_t offset,
         case 0x10: /* Single Byte Program */
         case 0x40: /* Single Byte Program */
             DPRINTF("%s: Single Byte Program\n", __func__);
-            pflash_data_write(pfl, offset, value, width, be);
-            pflash_update(pfl, offset, width);
+            if (!pfl->ro) {
+                pflash_data_write(pfl, offset, value, width, be);
+                pflash_update(pfl, offset, width);
+            } else {
+                pfl->status |= 0x10; /* Programming error */
+            }
             pfl->status |= 0x80; /* Ready! */
             pfl->wcycle = 0;
         break;
@@ -372,7 +380,11 @@ static void pflash_write(pflash_t *pfl, target_phys_addr_t offset,
     case 2:
         switch (pfl->cmd) {
         case 0xe8: /* Block write */
-            pflash_data_write(pfl, offset, value, width, be);
+            if (!pfl->ro) {
+                pflash_data_write(pfl, offset, value, width, be);
+            } else {
+                pfl->status |= 0x10; /* Programming error */
+            }
 
             pfl->status |= 0x80;
 
@@ -382,8 +394,12 @@ static void pflash_write(pflash_t *pfl, target_phys_addr_t offset,
 
                 DPRINTF("%s: block write finished\n", __func__);
                 pfl->wcycle++;
-                /* Flush the entire write buffer onto backing storage.  */
-                pflash_update(pfl, offset & mask, pfl->writeblock_size);
+                if (!pfl->ro) {
+                    /* Flush the entire write buffer onto backing storage.  */
+                    pflash_update(pfl, offset & mask, pfl->writeblock_size);
+                } else {
+                    pfl->status |= 0x10; /* Programming error */
+                }
             }
 
             pfl->counter--;
@@ -589,7 +605,8 @@ pflash_t *pflash_cfi01_register(target_phys_addr_t base,
 
     memory_region_init_rom_device(
         &pfl->mem, be ? &pflash_cfi01_ops_be : &pflash_cfi01_ops_le, pfl,
-        qdev, name, size);
+        name, size);
+    vmstate_register_ram(&pfl->mem, qdev);
     pfl->storage = memory_region_get_ram_ptr(&pfl->mem);
     memory_region_add_subregion(get_system_memory(), base, &pfl->mem);
 
@@ -599,19 +616,20 @@ pflash_t *pflash_cfi01_register(target_phys_addr_t base,
         ret = bdrv_read(pfl->bs, 0, pfl->storage, total_len >> 9);
         if (ret < 0) {
             memory_region_del_subregion(get_system_memory(), &pfl->mem);
+            vmstate_unregister_ram(&pfl->mem, qdev);
             memory_region_destroy(&pfl->mem);
             g_free(pfl);
             return NULL;
         }
         bdrv_attach_dev_nofail(pfl->bs, pfl);
     }
-#if 0 /* XXX: there should be a bit to set up read-only,
-       *      the same way the hardware does (with WP pin).
-       */
-    pfl->ro = 1;
-#else
-    pfl->ro = 0;
-#endif
+
+    if (pfl->bs) {
+        pfl->ro = bdrv_is_read_only(pfl->bs);
+    } else {
+        pfl->ro = 0;
+    }
+
     pfl->timer = qemu_new_timer_ns(vm_clock, pflash_timer, pfl);
     pfl->base = base;
     pfl->sector_len = sector_len;

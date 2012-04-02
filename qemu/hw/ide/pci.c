@@ -71,7 +71,7 @@ static int bmdma_prepare_buf(IDEDMA *dma, int is_write)
             if (bm->cur_prd_last ||
                 (bm->cur_addr - bm->addr) >= BMDMA_PAGE_SIZE)
                 return s->io_buffer_size != 0;
-            pci_dma_read(&bm->pci_dev->dev, bm->cur_addr, (uint8_t *)&prd, 8);
+            pci_dma_read(&bm->pci_dev->dev, bm->cur_addr, &prd, 8);
             bm->cur_addr += 8;
             prd.addr = le32_to_cpu(prd.addr);
             prd.size = le32_to_cpu(prd.size);
@@ -113,7 +113,7 @@ static int bmdma_rw_buf(IDEDMA *dma, int is_write)
             if (bm->cur_prd_last ||
                 (bm->cur_addr - bm->addr) >= BMDMA_PAGE_SIZE)
                 return 0;
-            pci_dma_read(&bm->pci_dev->dev, bm->cur_addr, (uint8_t *)&prd, 8);
+            pci_dma_read(&bm->pci_dev->dev, bm->cur_addr, &prd, 8);
             bm->cur_addr += 8;
             prd.addr = le32_to_cpu(prd.addr);
             prd.size = le32_to_cpu(prd.size);
@@ -309,7 +309,7 @@ void bmdma_cmd_writeb(BMDMAState *bm, uint32_t val)
              * aio operation with preadv/pwritev.
              */
             if (bm->bus->dma->aiocb) {
-                qemu_aio_flush();
+                bdrv_drain_all();
                 assert(bm->bus->dma->aiocb == NULL);
                 assert((bm->status & BM_STATUS_DMAING) == 0);
             }
@@ -327,7 +327,7 @@ void bmdma_cmd_writeb(BMDMAState *bm, uint32_t val)
     bm->cmd = val & 0x09;
 }
 
-static uint64_t bmdma_addr_read(void *opaque, dma_addr_t addr,
+static uint64_t bmdma_addr_read(void *opaque, target_phys_addr_t addr,
                                 unsigned width)
 {
     BMDMAState *bm = opaque;
@@ -336,12 +336,12 @@ static uint64_t bmdma_addr_read(void *opaque, dma_addr_t addr,
 
     data = (bm->addr >> (addr * 8)) & mask;
 #ifdef DEBUG_IDE
-    printf("%s: 0x%08x\n", __func__, (unsigned)*data);
+    printf("%s: 0x%08x\n", __func__, (unsigned)data);
 #endif
     return data;
 }
 
-static void bmdma_addr_write(void *opaque, dma_addr_t addr,
+static void bmdma_addr_write(void *opaque, target_phys_addr_t addr,
                              uint64_t data, unsigned width)
 {
     BMDMAState *bm = opaque;

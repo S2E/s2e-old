@@ -71,11 +71,25 @@ int v9fs_co_fstat(V9fsPDU *pdu, V9fsFidState *fidp, struct stat *stbuf)
     }
     v9fs_co_run_in_worker(
         {
-            err = s->ops->fstat(&s->ctx, &fidp->fs, stbuf);
+            err = s->ops->fstat(&s->ctx, fidp->fid_type, &fidp->fs, stbuf);
             if (err < 0) {
                 err = -errno;
             }
         });
+    /*
+     * Some FS driver (local:mapped-file) can't support fetching attributes
+     * using file descriptor. Use Path name in that case.
+     */
+    if (err == -EOPNOTSUPP) {
+        err = v9fs_co_lstat(pdu, &fidp->path, stbuf);
+        if (err == -ENOENT) {
+            /*
+             * fstat on an unlinked file. Work with partial results
+             * returned from s->ops->fstat
+             */
+            err = 0;
+        }
+    }
     return err;
 }
 
@@ -192,7 +206,7 @@ int v9fs_co_fsync(V9fsPDU *pdu, V9fsFidState *fidp, int datasync)
     }
     v9fs_co_run_in_worker(
         {
-            err = s->ops->fsync(&s->ctx, &fidp->fs, datasync);
+            err = s->ops->fsync(&s->ctx, fidp->fid_type, &fidp->fs, datasync);
             if (err < 0) {
                 err = -errno;
             }

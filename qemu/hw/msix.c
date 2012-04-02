@@ -9,9 +9,13 @@
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "hw.h"
+#include "msi.h"
 #include "msix.h"
 #include "pci.h"
 #include "range.h"
@@ -31,9 +35,6 @@
 #define MSIX_PAGE_PENDING (MSIX_PAGE_SIZE / 2)
 #define MSIX_MAX_ENTRIES 32
 
-
-/* Flag for interrupt controller to declare MSI-X support */
-int msix_supported;
 
 /* Add MSI-X capability to the config space for the device. */
 /* Given a bar and its size, add MSI-X table on top of it
@@ -235,10 +236,11 @@ int msix_init(struct PCIDevice *dev, unsigned short nentries,
               unsigned bar_nr, unsigned bar_size)
 {
     int ret;
-    /* Nothing to do if MSI is not supported by interrupt controller */
-    if (!msix_supported)
-        return -ENOTSUP;
 
+    /* Nothing to do if MSI is not supported by interrupt controller */
+    if (!msi_supported) {
+        return -ENOTSUP;
+    }
     if (nentries > MSIX_MAX_ENTRIES)
         return -EINVAL;
 

@@ -9,7 +9,6 @@
 
 #include "sysbus.h"
 
-#define GIC_NIRQ 96
 #define NCPU 1
 
 /* Only a single "CPU" interface is present.  */
@@ -23,36 +22,13 @@ gic_get_current_cpu(void)
 
 typedef struct {
     gic_state gic;
-    MemoryRegion iomem;
     MemoryRegion container;
 } RealViewGICState;
-
-static uint64_t realview_gic_cpu_read(void *opaque, target_phys_addr_t offset,
-                                      unsigned size)
-{
-    gic_state *s = (gic_state *)opaque;
-    return gic_cpu_read(s, gic_get_current_cpu(), offset);
-}
-
-static void realview_gic_cpu_write(void *opaque, target_phys_addr_t offset,
-                                   uint64_t value, unsigned size)
-{
-    gic_state *s = (gic_state *)opaque;
-    gic_cpu_write(s, gic_get_current_cpu(), offset, value);
-}
-
-static const MemoryRegionOps realview_gic_cpu_ops = {
-    .read = realview_gic_cpu_read,
-    .write = realview_gic_cpu_write,
-    .endianness = DEVICE_NATIVE_ENDIAN,
-};
 
 static void realview_gic_map_setup(RealViewGICState *s)
 {
     memory_region_init(&s->container, "realview-gic-container", 0x2000);
-    memory_region_init_io(&s->iomem, &realview_gic_cpu_ops, &s->gic,
-                          "realview-gic", 0x1000);
-    memory_region_add_subregion(&s->container, 0, &s->iomem);
+    memory_region_add_subregion(&s->container, 0, &s->gic.cpuiomem[0]);
     memory_region_add_subregion(&s->container, 0x1000, &s->gic.iomem);
 }
 
@@ -60,16 +36,33 @@ static int realview_gic_init(SysBusDevice *dev)
 {
     RealViewGICState *s = FROM_SYSBUSGIC(RealViewGICState, dev);
 
-    gic_init(&s->gic);
+    /* The GICs on the RealView boards have a fixed nonconfigurable
+     * number of interrupt lines, so we don't need to expose this as
+     * a qdev property.
+     */
+    gic_init(&s->gic, 96);
     realview_gic_map_setup(s);
-    sysbus_init_mmio_region(dev, &s->container);
+    sysbus_init_mmio(dev, &s->container);
     return 0;
 }
 
-static void realview_gic_register_devices(void)
+static void realview_gic_class_init(ObjectClass *klass, void *data)
 {
-    sysbus_register_dev("realview_gic", sizeof(RealViewGICState),
-                        realview_gic_init);
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = realview_gic_init;
 }
 
-device_init(realview_gic_register_devices)
+static TypeInfo realview_gic_info = {
+    .name          = "realview_gic",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(RealViewGICState),
+    .class_init    = realview_gic_class_init,
+};
+
+static void realview_gic_register_types(void)
+{
+    type_register_static(&realview_gic_info);
+}
+
+type_init(realview_gic_register_types)

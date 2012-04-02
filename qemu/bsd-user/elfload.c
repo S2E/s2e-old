@@ -641,8 +641,7 @@ static abi_ulong copy_elf_strings(int argc,char ** argv, void **page,
                 offset = p % TARGET_PAGE_SIZE;
                 pag = (char *)page[p/TARGET_PAGE_SIZE];
                 if (!pag) {
-                    pag = (char *)malloc(TARGET_PAGE_SIZE);
-                    memset(pag, 0, TARGET_PAGE_SIZE);
+                    pag = g_try_malloc0(TARGET_PAGE_SIZE);
                     page[p/TARGET_PAGE_SIZE] = pag;
                     if (!pag)
                         return 0;
@@ -696,7 +695,7 @@ static abi_ulong setup_arg_pages(abi_ulong p, struct linux_binprm *bprm,
             info->rss++;
             /* FIXME - check return value of memcpy_to_target() for failure */
             memcpy_to_target(stack_base, bprm->page[i], TARGET_PAGE_SIZE);
-            free(bprm->page[i]);
+            g_free(bprm->page[i]);
         }
         stack_base += TARGET_PAGE_SIZE;
     }
@@ -994,12 +993,12 @@ static abi_ulong load_elf_interp(struct elfhdr * interp_elf_ex,
 
 static int symfind(const void *s0, const void *s1)
 {
-    struct elf_sym *key = (struct elf_sym *)s0;
+    target_ulong addr = *(target_ulong *)s0;
     struct elf_sym *sym = (struct elf_sym *)s1;
     int result = 0;
-    if (key->st_value < sym->st_value) {
+    if (addr < sym->st_value) {
         result = -1;
-    } else if (key->st_value > sym->st_value + sym->st_size) {
+    } else if (addr >= sym->st_value + sym->st_size) {
         result = 1;
     }
     return result;
@@ -1014,12 +1013,9 @@ static const char *lookup_symbolxx(struct syminfo *s, target_ulong orig_addr)
 #endif
 
     // binary search
-    struct elf_sym key;
     struct elf_sym *sym;
 
-    key.st_value = orig_addr;
-
-    sym = bsearch(&key, syms, s->disas_num_syms, sizeof(*syms), symfind);
+    sym = bsearch(&orig_addr, syms, s->disas_num_syms, sizeof(*syms), symfind);
     if (sym != NULL) {
         return s->disas_strtab + sym->st_name;
     }

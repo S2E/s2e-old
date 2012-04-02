@@ -59,21 +59,32 @@ virtio_console_chr_event(unsigned int port, int event) "port %u, event %d"
 bdrv_open_common(void *bs, const char *filename, int flags, const char *format_name) "bs %p filename \"%s\" flags %#x format_name \"%s\""
 multiwrite_cb(void *mcb, int ret) "mcb %p ret %d"
 bdrv_aio_multiwrite(void *mcb, int num_callbacks, int num_reqs) "mcb %p num_callbacks %d num_reqs %d"
-bdrv_aio_multiwrite_earlyfail(void *mcb) "mcb %p"
-bdrv_aio_multiwrite_latefail(void *mcb, int i) "mcb %p i %d"
 bdrv_aio_discard(void *bs, int64_t sector_num, int nb_sectors, void *opaque) "bs %p sector_num %"PRId64" nb_sectors %d opaque %p"
 bdrv_aio_flush(void *bs, void *opaque) "bs %p opaque %p"
 bdrv_aio_readv(void *bs, int64_t sector_num, int nb_sectors, void *opaque) "bs %p sector_num %"PRId64" nb_sectors %d opaque %p"
 bdrv_aio_writev(void *bs, int64_t sector_num, int nb_sectors, void *opaque) "bs %p sector_num %"PRId64" nb_sectors %d opaque %p"
 bdrv_lock_medium(void *bs, bool locked) "bs %p locked %d"
 bdrv_co_readv(void *bs, int64_t sector_num, int nb_sector) "bs %p sector_num %"PRId64" nb_sectors %d"
+bdrv_co_copy_on_readv(void *bs, int64_t sector_num, int nb_sector) "bs %p sector_num %"PRId64" nb_sectors %d"
 bdrv_co_writev(void *bs, int64_t sector_num, int nb_sector) "bs %p sector_num %"PRId64" nb_sectors %d"
+bdrv_co_write_zeroes(void *bs, int64_t sector_num, int nb_sector) "bs %p sector_num %"PRId64" nb_sectors %d"
 bdrv_co_io_em(void *bs, int64_t sector_num, int nb_sectors, int is_write, void *acb) "bs %p sector_num %"PRId64" nb_sectors %d is_write %d acb %p"
+bdrv_co_do_copy_on_readv(void *bs, int64_t sector_num, int nb_sectors, int64_t cluster_sector_num, int cluster_nb_sectors) "bs %p sector_num %"PRId64" nb_sectors %d cluster_sector_num %"PRId64" cluster_nb_sectors %d"
+
+# block/stream.c
+stream_one_iteration(void *s, int64_t sector_num, int nb_sectors, int is_allocated) "s %p sector_num %"PRId64" nb_sectors %d is_allocated %d"
+stream_start(void *bs, void *base, void *s, void *co, void *opaque) "bs %p base %p s %p co %p opaque %p"
+
+# blockdev.c
+qmp_block_job_cancel(void *job) "job %p"
+block_stream_cb(void *bs, void *job, int ret) "bs %p job %p ret %d"
+qmp_block_stream(void *bs, void *job) "bs %p job %p"
 
 # hw/virtio-blk.c
 virtio_blk_req_complete(void *req, int status) "req %p status %d"
 virtio_blk_rw_complete(void *req, int ret) "req %p ret %d"
 virtio_blk_handle_write(void *req, uint64_t sector, size_t nsectors) "req %p sector %"PRIu64" nsectors %zu"
+virtio_blk_handle_read(void *req, uint64_t sector, size_t nsectors) "req %p sector %"PRIu64" nsectors %zu"
 
 # posix-aio-compat.c
 paio_submit(void *acb, void *opaque, int64_t sector_num, int nb_sectors, int type) "acb %p opaque %p sector_num %"PRId64" nb_sectors %d type %d"
@@ -96,9 +107,9 @@ cpu_get_apic_base(uint64_t val) "%016"PRIx64
 apic_mem_readl(uint64_t addr, uint32_t val)  "%"PRIx64" = %08x"
 apic_mem_writel(uint64_t addr, uint32_t val) "%"PRIx64" = %08x"
 # coalescing
+apic_report_irq_delivered(int apic_irq_delivered) "coalescing %d"
 apic_reset_irq_delivered(int apic_irq_delivered) "old coalescing %d"
 apic_get_irq_delivered(int apic_irq_delivered) "returning coalescing %d"
-apic_set_irq(int apic_irq_delivered) "coalescing %d"
 
 # hw/cs4231.c
 cs4231_mem_readl_dreg(uint32_t reg, uint32_t ret) "read dreg %d: 0x%02x"
@@ -129,6 +140,10 @@ ecc_mem_readl_ecr0(uint32_t ret) "Read event count 1 %08x"
 ecc_mem_readl_ecr1(uint32_t ret) "Read event count 2 %08x"
 ecc_diag_mem_writeb(uint64_t addr, uint32_t val) "Write diagnostic %"PRId64" = %02x"
 ecc_diag_mem_readb(uint64_t addr, uint32_t ret) "Read diagnostic %"PRId64"= %02x"
+
+# hw/jazz-led.c
+jazz_led_read(uint64_t addr, uint8_t val) "read addr=0x%"PRIx64": 0x%x"
+jazz_led_write(uint64_t addr, uint8_t new) "write addr=0x%"PRIx64": 0x%x"
 
 # hw/lance.c
 lance_mem_readw(uint64_t addr, uint32_t ret) "addr=%"PRIx64"val=0x%04x"
@@ -212,13 +227,17 @@ sun4m_iommu_page_get_flags(uint64_t pa, uint64_t iopte, uint32_t ret) "get flags
 sun4m_iommu_translate_pa(uint64_t addr, uint64_t pa, uint32_t iopte) "xlate dva %"PRIx64" => pa %"PRIx64" iopte = %x"
 sun4m_iommu_bad_addr(uint64_t addr) "bad addr %"PRIx64
 
-# hw/usb-bus.c
+# hw/usb/core.c
+usb_packet_state_change(int bus, const char *port, int ep, void *p, const char *o, const char *n) "bus %d, port %s, ep %d, packet %p, state %s -> %s"
+usb_packet_state_fault(int bus, const char *port, int ep, void *p, const char *o, const char *n) "bus %d, port %s, ep %d, packet %p, state %s, expected %s"
+
+# hw/usb/bus.c
 usb_port_claim(int bus, const char *port) "bus %d, port %s"
 usb_port_attach(int bus, const char *port) "bus %d, port %s"
 usb_port_detach(int bus, const char *port) "bus %d, port %s"
 usb_port_release(int bus, const char *port) "bus %d, port %s"
 
-# hw/usb-ehci.c
+# hw/usb/hcd-ehci.c
 usb_ehci_reset(void) "=== RESET ==="
 usb_ehci_mmio_readl(uint32_t addr, const char *str, uint32_t val) "rd mmio %04x [%s] = %x"
 usb_ehci_mmio_writel(uint32_t addr, const char *str, uint32_t val) "wr mmio %04x [%s] = %x"
@@ -239,6 +258,37 @@ usb_ehci_port_reset(uint32_t port, int enable) "reset port #%d - %d"
 usb_ehci_data(int rw, uint32_t cpage, uint32_t offset, uint32_t addr, uint32_t len, uint32_t bufpos) "write %d, cpage %d, offset 0x%03x, addr 0x%08x, len %d, bufpos %d"
 usb_ehci_queue_action(void *q, const char *action) "q %p: %s"
 
+# hw/usb/hcd-uhci.c
+usb_uhci_reset(void) "=== RESET ==="
+usb_uhci_schedule_start(void) ""
+usb_uhci_schedule_stop(void) ""
+usb_uhci_frame_start(uint32_t num) "nr %d"
+usb_uhci_frame_loop_stop_idle(void) ""
+usb_uhci_frame_loop_stop_bandwidth(void) ""
+usb_uhci_frame_loop_continue(void) ""
+usb_uhci_mmio_readw(uint32_t addr, uint32_t val) "addr %04x, ret 0x04%x"
+usb_uhci_mmio_writew(uint32_t addr, uint32_t val) "addr %04x, val 0x04%x"
+usb_uhci_mmio_readl(uint32_t addr, uint32_t val) "addr %04x, ret 0x08%x"
+usb_uhci_mmio_writel(uint32_t addr, uint32_t val) "addr %04x, val 0x08%x"
+usb_uhci_queue_add(uint32_t token) "token 0x%x"
+usb_uhci_queue_del(uint32_t token) "token 0x%x"
+usb_uhci_packet_add(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_packet_link_async(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_packet_unlink_async(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_packet_cancel(uint32_t token, uint32_t addr, int done) "token 0x%x, td 0x%x, done %d"
+usb_uhci_packet_complete_success(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_packet_complete_shortxfer(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_packet_complete_stall(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_packet_complete_babble(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_packet_complete_error(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_packet_del(uint32_t token, uint32_t addr) "token 0x%x, td 0x%x"
+usb_uhci_qh_load(uint32_t qh) "qh 0x%x"
+usb_uhci_td_load(uint32_t qh, uint32_t td, uint32_t ctrl, uint32_t token) "qh 0x%x, td 0x%x, ctrl 0x%x, token 0x%x"
+usb_uhci_td_queue(uint32_t td, uint32_t ctrl, uint32_t token) "td 0x%x, ctrl 0x%x, token 0x%x"
+usb_uhci_td_nextqh(uint32_t qh, uint32_t td) "qh 0x%x, td 0x%x"
+usb_uhci_td_async(uint32_t qh, uint32_t td) "qh 0x%x, td 0x%x"
+usb_uhci_td_complete(uint32_t qh, uint32_t td) "qh 0x%x, td 0x%x"
+
 # hw/usb-desc.c
 usb_desc_device(int addr, int len, int ret) "dev %d query device, len %d, ret %d"
 usb_desc_device_qualifier(int addr, int len, int ret) "dev %d query device qualifier, len %d, ret %d"
@@ -247,10 +297,11 @@ usb_desc_other_speed_config(int addr, int index, int len, int ret) "dev %d query
 usb_desc_string(int addr, int index, int len, int ret) "dev %d query string %d, len %d, ret %d"
 usb_set_addr(int addr) "dev %d"
 usb_set_config(int addr, int config, int ret) "dev %d, config %d, ret %d"
+usb_set_interface(int addr, int iface, int alt, int ret) "dev %d, interface %d, altsetting %d, ret %d"
 usb_clear_device_feature(int addr, int feature, int ret) "dev %d, feature %d, ret %d"
 usb_set_device_feature(int addr, int feature, int ret) "dev %d, feature %d, ret %d"
 
-# usb-linux.c
+# hw/usb/host-linux.c
 usb_host_open_started(int bus, int addr) "dev %d:%d"
 usb_host_open_success(int bus, int addr) "dev %d:%d"
 usb_host_open_failure(int bus, int addr) "dev %d:%d"
@@ -293,6 +344,31 @@ scsi_request_sense(int target, int lun, int tag) "target %d lun %d tag %d"
 # vl.c
 vm_state_notify(int running, int reason) "running %d reason %d"
 
+# block/qcow2.c
+qcow2_writev_start_req(void *co, int64_t sector, int nb_sectors) "co %p sector %" PRIx64 " nb_sectors %d"
+qcow2_writev_done_req(void *co, int ret) "co %p ret %d"
+qcow2_writev_start_part(void *co) "co %p"
+qcow2_writev_done_part(void *co, int cur_nr_sectors) "co %p cur_nr_sectors %d"
+qcow2_writev_data(void *co, uint64_t offset) "co %p offset %" PRIx64
+
+qcow2_alloc_clusters_offset(void *co, uint64_t offset, int n_start, int n_end) "co %p offet %" PRIx64 " n_start %d n_end %d"
+qcow2_do_alloc_clusters_offset(void *co, uint64_t guest_offset, uint64_t host_offset, int nb_clusters) "co %p guest_offet %" PRIx64 " host_offset %" PRIx64 " nb_clusters %d"
+qcow2_cluster_alloc_phys(void *co) "co %p"
+qcow2_cluster_link_l2(void *co, int nb_clusters) "co %p nb_clusters %d"
+
+qcow2_l2_allocate(void *bs, int l1_index) "bs %p l1_index %d"
+qcow2_l2_allocate_get_empty(void *bs, int l1_index) "bs %p l1_index %d"
+qcow2_l2_allocate_write_l2(void *bs, int l1_index) "bs %p l1_index %d"
+qcow2_l2_allocate_write_l1(void *bs, int l1_index) "bs %p l1_index %d"
+qcow2_l2_allocate_done(void *bs, int l1_index, int ret) "bs %p l1_index %d ret %d"
+
+qcow2_cache_get(void *co, int c, uint64_t offset, bool read_from_disk) "co %p is_l2_cache %d offset %" PRIx64 " read_from_disk %d"
+qcow2_cache_get_replace_entry(void *co, int c, int i) "co %p is_l2_cache %d index %d"
+qcow2_cache_get_read(void *co, int c, int i) "co %p is_l2_cache %d index %d"
+qcow2_cache_get_done(void *co, int c, int i) "co %p is_l2_cache %d index %d"
+qcow2_cache_flush(void *co, int c) "co %p is_l2_cache %d"
+qcow2_cache_entry_flush(void *co, int c, int i) "co %p is_l2_cache %d index %d"
+
 # block/qed-l2-cache.c
 qed_alloc_l2_cache_entry(void *l2_cache, void *entry) "l2_cache %p entry %p"
 qed_unref_l2_cache_entry(void *entry, int ref) "entry %p ref %d"
@@ -309,7 +385,7 @@ qed_need_check_timer_cb(void *s) "s %p"
 qed_start_need_check_timer(void *s) "s %p"
 qed_cancel_need_check_timer(void *s) "s %p"
 qed_aio_complete(void *s, void *acb, int ret) "s %p acb %p ret %d"
-qed_aio_setup(void *s, void *acb, int64_t sector_num, int nb_sectors, void *opaque, int is_write) "s %p acb %p sector_num %"PRId64" nb_sectors %d opaque %p is_write %d"
+qed_aio_setup(void *s, void *acb, int64_t sector_num, int nb_sectors, void *opaque, int flags) "s %p acb %p sector_num %"PRId64" nb_sectors %d opaque %p flags %#x"
 qed_aio_next_io(void *s, void *acb, int ret, uint64_t cur_pos) "s %p acb %p ret %d cur_pos %"PRIu64
 qed_aio_read_data(void *s, void *acb, int ret, uint64_t offset, size_t len) "s %p acb %p ret %d offset %"PRIu64" len %zu"
 qed_aio_write_data(void *s, void *acb, int ret, uint64_t offset, size_t len) "s %p acb %p ret %d offset %"PRIu64" len %zu"
@@ -340,6 +416,7 @@ grlib_irqmp_writel_unknown(uint64_t addr, uint32_t value) "addr 0x%"PRIx64" valu
 # hw/grlib_apbuart.c
 grlib_apbuart_event(int event) "event:%d"
 grlib_apbuart_writel_unknown(uint64_t addr, uint32_t value) "addr 0x%"PRIx64" value 0x%x"
+grlib_apbuart_readl_unknown(uint64_t addr) "addr 0x%"PRIx64""
 
 # hw/leon3.c
 leon3_set_irq(int intno) "Set CPU IRQ %d"
@@ -463,7 +540,7 @@ mipsnet_irq(uint32_t isr, uint32_t intctl) "set irq to %d (%02x)"
 
 # xen-all.c
 xen_ram_alloc(unsigned long ram_addr, unsigned long size) "requested: %#lx, size %#lx"
-xen_client_set_memory(uint64_t start_addr, unsigned long size, unsigned long phys_offset, bool log_dirty) "%#"PRIx64" size %#lx, offset %#lx, log_dirty %i"
+xen_client_set_memory(uint64_t start_addr, unsigned long size, bool log_dirty) "%#"PRIx64" size %#lx, log_dirty %i"
 
 # xen-mapcache.c
 xen_map_cache(uint64_t phys_addr) "want %#"PRIx64
@@ -579,11 +656,11 @@ v9fs_lcreate(uint16_t tag, uint8_t id, int32_t dfid, int32_t flags, int32_t mode
 v9fs_lcreate_return(uint16_t tag, uint8_t id, int8_t type, int32_t version, int64_t path, int32_t iounit) "tag %d id %d qid={type %d version %d path %"PRId64"} iounit %d"
 v9fs_fsync(uint16_t tag, uint8_t id, int32_t fid, int datasync) "tag %d id %d fid %d datasync %d"
 v9fs_clunk(uint16_t tag, uint8_t id, int32_t fid) "tag %d id %d fid %d"
-v9fs_read(uint16_t tag, uint8_t id, int32_t fid, int64_t off, int32_t max_count) "tag %d id %d fid %d off %"PRId64" max_count %d"
+v9fs_read(uint16_t tag, uint8_t id, int32_t fid, uint64_t off, uint32_t max_count) "tag %d id %d fid %d off %"PRIu64" max_count %u"
 v9fs_read_return(uint16_t tag, uint8_t id, int32_t count, ssize_t err) "tag %d id %d count %d err %zd"
-v9fs_readdir(uint16_t tag, uint8_t id, int32_t fid, int64_t offset, int32_t max_count) "tag %d id %d fid %d offset %"PRId64" max_count %d"
-v9fs_readdir_return(uint16_t tag, uint8_t id, int32_t count, ssize_t retval) "tag %d id %d count %d retval %zd"
-v9fs_write(uint16_t tag, uint8_t id, int32_t fid, int64_t off, int32_t count, int cnt) "tag %d id %d fid %d off %"PRId64" count %d cnt %d"
+v9fs_readdir(uint16_t tag, uint8_t id, int32_t fid, uint64_t offset, uint32_t max_count) "tag %d id %d fid %d offset %"PRIu64" max_count %u"
+v9fs_readdir_return(uint16_t tag, uint8_t id, uint32_t count, ssize_t retval) "tag %d id %d count %u retval %zd"
+v9fs_write(uint16_t tag, uint8_t id, int32_t fid, uint64_t off, uint32_t count, int cnt) "tag %d id %d fid %d off %"PRIu64" count %u cnt %d"
 v9fs_write_return(uint16_t tag, uint8_t id, int32_t total, ssize_t err) "tag %d id %d total %d err %zd"
 v9fs_create(uint16_t tag, uint8_t id, int32_t fid, char* name, int32_t perm, int8_t mode) "tag %d id %d fid %d name %s perm %d mode %d"
 v9fs_create_return(uint16_t tag, uint8_t id, int8_t type, int32_t version, int64_t path, int iounit) "tag %d id %d qid={type %d version %d path %"PRId64"} iounit %d"
@@ -631,3 +708,83 @@ win_helper_no_switch_pstate(uint32_t new_pstate_regs) "change_pstate: regs new=%
 win_helper_wrpil(uint32_t psrpil, uint32_t new_pil) "old=%x new=%x"
 win_helper_done(uint32_t tl) "tl=%d"
 win_helper_retry(uint32_t tl) "tl=%d"
+
+# dma-helpers.c
+dma_bdrv_io(void *dbs, void *bs, int64_t sector_num, bool to_dev) "dbs=%p bs=%p sector_num=%" PRId64 " to_dev=%d"
+dma_aio_cancel(void *dbs) "dbs=%p"
+dma_complete(void *dbs, int ret, void *cb) "dbs=%p ret=%d cb=%p"
+dma_bdrv_cb(void *dbs, int ret) "dbs=%p ret=%d"
+dma_map_wait(void *dbs) "dbs=%p"
+
+# console.h
+displaysurface_free(void *display_state, void *display_surface) "state=%p surface=%p"
+displaysurface_resize(void *display_state, void *display_surface, int width, int height) "state=%p surface=%p %dx%d"
+
+# vga.c
+ppm_save(const char *filename, void *display_surface) "%s surface=%p"
+
+# hw/qxl.c
+disable qxl_interface_set_mm_time(int qid, uint32_t mm_time) "%d %d"
+disable qxl_io_write_vga(int qid, const char *mode, uint32_t addr, uint32_t val) "%d %s addr=%u val=%u"
+qxl_create_guest_primary(int qid, uint32_t width, uint32_t height, uint64_t mem, uint32_t format, uint32_t position) "%d %ux%u mem=%" PRIx64 " %u,%u"
+qxl_create_guest_primary_rest(int qid, int32_t stride, uint32_t type, uint32_t flags) "%d %d,%d,%d"
+qxl_destroy_primary(int qid) "%d"
+qxl_enter_vga_mode(int qid) "%d"
+qxl_exit_vga_mode(int qid) "%d"
+qxl_hard_reset(int qid, int64_t loadvm) "%d loadvm=%"PRId64""
+qxl_interface_async_complete_io(int qid, uint32_t current_async, void *cookie) "%d current=%d cookie=%p"
+qxl_interface_attach_worker(int qid) "%d"
+qxl_interface_get_init_info(int qid) "%d"
+qxl_interface_set_compression_level(int qid, int64_t level) "%d %"PRId64
+qxl_interface_update_area_complete(int qid, uint32_t surface_id, uint32_t dirty_left, uint32_t dirty_right, uint32_t dirty_top, uint32_t dirty_bottom) "%d surface=%d [%d,%d,%d,%d]"
+qxl_interface_update_area_complete_rest(int qid, uint32_t num_updated_rects) "%d #=%d"
+qxl_interface_update_area_complete_overflow(int qid, int max) "%d max=%d"
+qxl_interface_update_area_complete_schedule_bh(int qid, uint32_t num_dirty) "%d #dirty=%d"
+qxl_io_destroy_primary_ignored(int qid, const char *mode) "%d %s"
+qxl_io_read_unexpected(int qid) "%d"
+qxl_io_unexpected_vga_mode(int qid, uint32_t io_port, const char *desc) "%d 0x%x (%s)"
+qxl_io_write(int qid, const char *mode, uint64_t addr, uint64_t val, unsigned size, int async) "%d %s addr=%"PRIu64 " val=%"PRIu64" size=%u async=%d"
+qxl_memslot_add_guest(int qid, uint32_t slot_id, uint64_t guest_start, uint64_t guest_end) "%d %u: guest phys 0x%"PRIx64 " - 0x%" PRIx64
+qxl_post_load(int qid, const char *mode) "%d %s"
+qxl_pre_load(int qid) "%d"
+qxl_pre_save(int qid) "%d"
+qxl_reset_surfaces(int qid) "%d"
+qxl_ring_command_check(int qid, const char *mode) "%d %s"
+qxl_ring_command_get(int qid, const char *mode) "%d %s"
+qxl_ring_command_req_notification(int qid) "%d"
+qxl_ring_cursor_check(int qid, const char *mode) "%d %s"
+qxl_ring_cursor_get(int qid, const char *mode) "%d %s"
+qxl_ring_cursor_req_notification(int qid) "%d"
+qxl_ring_res_push(int qid, const char *mode, uint32_t surface_count, uint32_t free_res, void *last_release, const char *notify) "%d %s s#=%d res#=%d last=%p notify=%s"
+qxl_ring_res_push_rest(int qid, uint32_t ring_has, uint32_t ring_size, uint32_t prod, uint32_t cons) "%d ring %d/%d [%d,%d]"
+qxl_ring_res_put(int qid, uint32_t free_res) "%d #res=%d"
+qxl_set_mode(int qid, int modenr, uint32_t x_res, uint32_t y_res, uint32_t bits, uint64_t devmem) "%d mode=%d [ x=%d y=%d @ bpp=%d devmem=0x%" PRIx64 " ]"
+qxl_soft_reset(int qid) "%d"
+qemu_spice_add_memslot(int qid, uint32_t slot_id, unsigned long virt_start, unsigned long virt_end, int async) "%d %u: host virt 0x%lx - 0x%lx async=%d"
+qemu_spice_del_memslot(int qid, uint32_t gid, uint32_t slot_id) "%d gid=%u sid=%u"
+qemu_spice_create_primary_surface(int qid, uint32_t sid, void *surface, int async) "%d sid=%u surface=%p async=%d"
+qemu_spice_destroy_primary_surface(int qid, uint32_t sid, int async) "%d sid=%u async=%d"
+qemu_spice_wakeup(uint32_t qid) "%d"
+qemu_spice_start(uint32_t qid) "%d"
+qemu_spice_stop(uint32_t qid) "%d"
+qemu_spice_create_update(uint32_t left, uint32_t right, uint32_t top, uint32_t bottom) "lr %d -> %d,  tb -> %d -> %d"
+qxl_spice_destroy_surfaces_complete(int qid) "%d"
+qxl_spice_destroy_surfaces(int qid, int async) "%d async=%d"
+qxl_spice_destroy_surface_wait_complete(int qid, uint32_t id) "%d sid=%d"
+qxl_spice_destroy_surface_wait(int qid, uint32_t id, int async) "%d sid=%d async=%d"
+qxl_spice_flush_surfaces_async(int qid, uint32_t surface_count, uint32_t num_free_res) "%d s#=%d, res#=%d"
+qxl_spice_loadvm_commands(int qid, void *ext, uint32_t count) "%d ext=%p count=%d"
+qxl_spice_oom(int qid) "%d"
+qxl_spice_reset_cursor(int qid) "%d"
+qxl_spice_reset_image_cache(int qid) "%d"
+qxl_spice_reset_memslots(int qid) "%d"
+qxl_spice_update_area(int qid, uint32_t surface_id, uint32_t left, uint32_t right, uint32_t top, uint32_t bottom) "%d sid=%d [%d,%d,%d,%d]"
+qxl_spice_update_area_rest(int qid, uint32_t num_dirty_rects, uint32_t clear_dirty_region) "%d #d=%d clear=%d"
+qxl_surfaces_dirty(int qid, int surface, int offset, int size) "%d surface=%d offset=%d size=%d"
+qxl_vga_ioport_while_not_in_vga_mode(int qid) "%d (int qid, reset to VGA mode because of VGA io)"
+
+# hw/qxl-render.c
+qxl_render_blit_guest_primary_initialized(void) ""
+qxl_render_blit(int32_t stride, int32_t left, int32_t right, int32_t top, int32_t bottom) "stride=%d [%d, %d, %d, %d]"
+qxl_render_guest_primary_resized(int32_t width, int32_t height, int32_t stride, int32_t bytes_pp, int32_t bits_pp) "%dx%d, stride %d, bpp %d, depth %d"
+qxl_render_update_area_done(void *cookie) "%p"

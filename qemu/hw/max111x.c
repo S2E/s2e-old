@@ -5,6 +5,9 @@
  * Written by Andrzej Zaborowski <balrog@zabor.org>
  *
  * This code is licensed under the GNU GPLv2.
+ *
+ * Contributions after 2012-01-13 are licensed under the terms of the
+ * GNU GPL, version 2 or (at your option) any later version.
  */
 
 #include "ssi.h"
@@ -150,24 +153,40 @@ void max111x_set_input(DeviceState *dev, int line, uint8_t value)
     s->input[line] = value;
 }
 
-static SSISlaveInfo max1110_info = {
-    .qdev.name = "max1110",
-    .qdev.size = sizeof(MAX111xState),
-    .init = max1110_init,
-    .transfer = max111x_transfer
-};
-
-static SSISlaveInfo max1111_info = {
-    .qdev.name = "max1111",
-    .qdev.size = sizeof(MAX111xState),
-    .init = max1111_init,
-    .transfer = max111x_transfer
-};
-
-static void max111x_register_devices(void)
+static void max1110_class_init(ObjectClass *klass, void *data)
 {
-    ssi_register_slave(&max1110_info);
-    ssi_register_slave(&max1111_info);
+    SSISlaveClass *k = SSI_SLAVE_CLASS(klass);
+
+    k->init = max1110_init;
+    k->transfer = max111x_transfer;
 }
 
-device_init(max111x_register_devices)
+static TypeInfo max1110_info = {
+    .name          = "max1110",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(MAX111xState),
+    .class_init    = max1110_class_init,
+};
+
+static void max1111_class_init(ObjectClass *klass, void *data)
+{
+    SSISlaveClass *k = SSI_SLAVE_CLASS(klass);
+
+    k->init = max1111_init;
+    k->transfer = max111x_transfer;
+}
+
+static TypeInfo max1111_info = {
+    .name          = "max1111",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(MAX111xState),
+    .class_init    = max1111_class_init,
+};
+
+static void max111x_register_types(void)
+{
+    type_register_static(&max1110_info);
+    type_register_static(&max1111_info);
+}
+
+type_init(max111x_register_types)

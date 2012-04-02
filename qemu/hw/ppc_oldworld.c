@@ -34,7 +34,6 @@
 #include "net.h"
 #include "isa.h"
 #include "pci.h"
-#include "usb-ohci.h"
 #include "boards.h"
 #include "fw_cfg.h"
 #include "escc.h"
@@ -66,6 +65,13 @@ static target_phys_addr_t round_page(target_phys_addr_t addr)
     return (addr + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK;
 }
 
+static void ppc_heathrow_reset(void *opaque)
+{
+    CPUPPCState *env = opaque;
+
+    cpu_state_reset(env);
+}
+
 static void ppc_heathrow_init (ram_addr_t ram_size,
                                const char *boot_device,
                                const char *kernel_filename,
@@ -74,7 +80,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
                                const char *cpu_model)
 {
     MemoryRegion *sysmem = get_system_memory();
-    CPUState *env = NULL;
+    CPUPPCState *env = NULL;
     char *filename;
     qemu_irq *pic, **heathrow_irqs;
     int linux_boot, i;
@@ -105,7 +111,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
         }
         /* Set time-base frequency to 16.6 Mhz */
         cpu_ppc_tb_init(env,  16600000UL);
-        qemu_register_reset((QEMUResetHandler*)&cpu_reset, env);
+        qemu_register_reset(ppc_heathrow_reset, env);
     }
 
     /* allocate RAM */
@@ -116,11 +122,13 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
         exit(1);
     }
 
-    memory_region_init_ram(ram, NULL, "ppc_heathrow.ram", ram_size);
+    memory_region_init_ram(ram, "ppc_heathrow.ram", ram_size);
+    vmstate_register_ram_global(ram);
     memory_region_add_subregion(sysmem, 0, ram);
 
     /* allocate and load BIOS */
-    memory_region_init_ram(bios, NULL, "ppc_heathrow.bios", BIOS_SIZE);
+    memory_region_init_ram(bios, "ppc_heathrow.bios", BIOS_SIZE);
+    vmstate_register_ram_global(bios);
     if (bios_name == NULL)
         bios_name = PROM_FILENAME;
     filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
@@ -276,7 +284,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
                dbdma_mem, cuda_mem, nvr, 2, ide_mem, escc_bar);
 
     if (usb_enabled) {
-        usb_ohci_init_pci(pci_bus, -1);
+        pci_create_simple(pci_bus, -1, "pci-ohci");
     }
 
     if (graphic_depth != 15 && graphic_depth != 32 && graphic_depth != 8)

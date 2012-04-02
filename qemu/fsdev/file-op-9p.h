@@ -56,11 +56,27 @@ typedef struct extended_ops {
  * On failure ignore the error.
  */
 #define V9FS_SM_NONE                0x00000010
-#define V9FS_RDONLY                 0x00000020
+/*
+ * uid/gid part of .virtfs_meatadata namespace
+ */
+#define V9FS_SM_MAPPED_FILE         0x00000020
+#define V9FS_RDONLY                 0x00000040
+#define V9FS_PROXY_SOCK_FD          0x00000080
+#define V9FS_PROXY_SOCK_NAME        0x00000100
 
-#define V9FS_SEC_MASK               0x0000001C
+#define V9FS_SEC_MASK               0x0000003C
 
 
+typedef struct FileOperations FileOperations;
+/*
+ * Structure to store the various fsdev's passed through command line.
+ */
+typedef struct FsDriverEntry {
+    char *fsdev_id;
+    char *path;
+    int export_flags;
+    FileOperations *ops;
+} FsDriverEntry;
 
 typedef struct FsContext
 {
@@ -74,7 +90,7 @@ typedef struct FsContext
 } FsContext;
 
 typedef struct V9fsPath {
-    int16_t size;
+    uint16_t size;
     char *data;
 } V9fsPath;
 
@@ -82,8 +98,9 @@ typedef union V9fsFidOpenState V9fsFidOpenState;
 
 void cred_init(FsCred *);
 
-typedef struct FileOperations
+struct FileOperations
 {
+    int (*parse_opts)(QemuOpts *, struct FsDriverEntry *);
     int (*init)(struct FsContext *);
     int (*lstat)(FsContext *, V9fsPath *, struct stat *);
     ssize_t (*readlink)(FsContext *, V9fsPath *, char *, size_t);
@@ -112,10 +129,10 @@ typedef struct FileOperations
     ssize_t (*pwritev)(FsContext *, V9fsFidOpenState *,
                        const struct iovec *, int, off_t);
     int (*mkdir)(FsContext *, V9fsPath *, const char *, FsCred *);
-    int (*fstat)(FsContext *, V9fsFidOpenState *, struct stat *);
+    int (*fstat)(FsContext *, int, V9fsFidOpenState *, struct stat *);
     int (*rename)(FsContext *, const char *, const char *);
     int (*truncate)(FsContext *, V9fsPath *, off_t);
-    int (*fsync)(FsContext *, V9fsFidOpenState *, int);
+    int (*fsync)(FsContext *, int, V9fsFidOpenState *, int);
     int (*statfs)(FsContext *s, V9fsPath *path, struct statfs *stbuf);
     ssize_t (*lgetxattr)(FsContext *, V9fsPath *,
                          const char *, void *, size_t);
@@ -128,6 +145,6 @@ typedef struct FileOperations
                     V9fsPath *newdir, const char *new_name);
     int (*unlinkat)(FsContext *ctx, V9fsPath *dir, const char *name, int flags);
     void *opaque;
-} FileOperations;
+};
 
 #endif
