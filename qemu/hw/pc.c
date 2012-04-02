@@ -1214,9 +1214,9 @@ void pc_pci_device_init(PCIBus *pci_bus)
     }
 
 #ifdef CONFIG_S2E
-    s2e_on_device_activation(g_s2e, pci_bus);
+    //s2e_on_device_activation(g_s2e, pci_bus);
 #else
-    void fake_activate_devices(struct PCIBus *bus);
-    fake_activate_devices(pci_bus);
+    //void fake_activate_devices(struct PCIBus *bus);
+    //fake_activate_devices(pci_bus);
 #endif
 }
