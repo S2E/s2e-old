@@ -259,7 +259,7 @@ struct ObjectClass
 struct Object
 {
     /*< private >*/
-    ObjectClass *class;
+    ObjectClass *klass;
     GSList *interfaces;
     QTAILQ_HEAD(, ObjectProperty) properties;
     uint32_t ref;
@@ -406,14 +406,14 @@ struct InterfaceInfo
 {
     const char *type;
 
-    void (*interface_initfn)(ObjectClass *class, void *data);
+    void (*interface_initfn)(ObjectClass *klass, void *data);
 };
 
 #define TYPE_INTERFACE "interface"
 
 /**
  * object_new:
- * @typename: The name of the type of the object to instantiate.
+ * @_typename: The name of the type of the object to instantiate.
  *
  * This function will initialize a new object using heap allocated memory.  This
  * function should be paired with object_delete() to free the resources
@@ -421,7 +421,7 @@ struct InterfaceInfo
  *
  * Returns: The newly allocated and instantiated object.
  */
-Object *object_new(const char *typename);
+Object *object_new(const char *_typename);
 
 /**
  * object_new_with_type:
@@ -457,12 +457,12 @@ void object_initialize_with_type(void *data, Type type);
 /**
  * object_initialize:
  * @obj: A pointer to the memory to be used for the object.
- * @typename: The name of the type of the object to instantiate.
+ * @_typename: The name of the type of the object to instantiate.
  *
  * This function will initialize an object.  The memory for the object should
  * have already been allocated.
  */
-void object_initialize(void *obj, const char *typename);
+void object_initialize(void *obj, const char *_typename);
 
 /**
  * object_finalize:
@@ -476,14 +476,14 @@ void object_finalize(void *obj);
 /**
  * object_dynamic_cast:
  * @obj: The object to cast.
- * @typename: The @typename to cast to.
+ * @_typename: The @_typename to cast to.
  *
- * This function will determine if @obj is-a @typename.  @obj can refer to an
+ * This function will determine if @obj is-a @_typename.  @obj can refer to an
  * object or an interface associated with an object.
  *
  * Returns: This function returns @obj on success or #NULL on failure.
  */
-Object *object_dynamic_cast(Object *obj, const char *typename);
+Object *object_dynamic_cast(Object *obj, const char *_typename);
 
 /**
  * object_dynamic_cast_assert:
@@ -492,7 +492,7 @@ Object *object_dynamic_cast(Object *obj, const char *typename);
  * function.  The only difference in behavior is that this function asserts
  * instead of returning #NULL on failure.
  */
-Object *object_dynamic_cast_assert(Object *obj, const char *typename);
+Object *object_dynamic_cast_assert(Object *obj, const char *_typename);
 
 /**
  * object_get_class:
@@ -542,10 +542,10 @@ Type type_register(const TypeInfo *info);
  * Returns: This function always returns @klass and asserts on failure.
  */
 ObjectClass *object_class_dynamic_cast_assert(ObjectClass *klass,
-                                              const char *typename);
+                                              const char *_typename);
 
 ObjectClass *object_class_dynamic_cast(ObjectClass *klass,
-                                       const char *typename);
+                                       const char *_typename);
 
 /**
  * object_class_get_name:
@@ -555,7 +555,7 @@ ObjectClass *object_class_dynamic_cast(ObjectClass *klass,
  */
 const char *object_class_get_name(ObjectClass *klass);
 
-ObjectClass *object_class_by_name(const char *typename);
+ObjectClass *object_class_by_name(const char *_typename);
 
 void object_class_foreach(void (*fn)(ObjectClass *klass, void *opaque),
                           const char *implements_type, bool include_abstract,
@@ -818,7 +818,7 @@ Object *object_resolve_path(const char *path, bool *ambiguous);
 /**
  * object_resolve_path_type:
  * @path: the path to resolve
- * @typename: the type to look for.
+ * @_typename: the type to look for.
  * @ambiguous: returns true if the path resolution failed because of an
  *   ambiguous match
  *
@@ -828,12 +828,12 @@ Object *object_resolve_path(const char *path, bool *ambiguous);
  * ambiguous.
  *
  * For both partial and absolute paths, the return value goes through
- * a dynamic cast to @typename.  This is important if either the link,
+ * a dynamic cast to @_typename.  This is important if either the link,
  * or the typename itself are of interface types.
  *
  * Returns: The matched object or NULL on path lookup failure.
  */
-Object *object_resolve_path_type(const char *path, const char *typename,
+Object *object_resolve_path_type(const char *path, const char *_typename,
                                  bool *ambiguous);
 
 /**
