@@ -284,7 +284,7 @@ void object_initialize_with_type(void *data, TypeImpl *type)
     g_assert(type->abstract == false);
 
     memset(obj, 0, type->instance_size);
-    obj->class = type->class;
+    obj->klass = type->class;
     QTAILQ_INIT(&obj->properties);
     object_init_with_type(obj, type);
 }
@@ -354,7 +354,7 @@ static void object_deinit(Object *obj, TypeImpl *type)
 void object_finalize(void *data)
 {
     Object *obj = data;
-    TypeImpl *ti = obj->class->type;
+    TypeImpl *ti = obj->klass->type;
 
     object_deinit(obj, ti);
     object_property_del_all(obj);
@@ -408,7 +408,7 @@ static bool type_is_ancestor(TypeImpl *type, TypeImpl *target_type)
 
 static bool object_is_type(Object *obj, TypeImpl *target_type)
 {
-    return !target_type || type_is_ancestor(obj->class->type, target_type);
+    return !target_type || type_is_ancestor(obj->klass->type, target_type);
 }
 
 Object *object_dynamic_cast(Object *obj, const char *typename)
@@ -519,12 +519,12 @@ ObjectClass *object_class_dynamic_cast_assert(ObjectClass *class,
 
 const char *object_get_typename(Object *obj)
 {
-    return obj->class->type->name;
+    return obj->klass->type->name;
 }
 
 ObjectClass *object_get_class(Object *obj)
 {
-    return obj->class;
+    return obj->klass;
 }
 
 const char *object_class_get_name(ObjectClass *klass)
