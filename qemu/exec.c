@@ -2406,7 +2406,11 @@ void tlb_set_page(CPUArchState *env, target_ulong vaddr,
     }
 
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
-    s2e_update_tlb_entry(g_s2e_state, env, mmu_idx, vaddr, addend);
+    if (addend) {
+        //I/O devices don't need to have an S2E TLB entry because
+        //MMIO goes directly to the device handlers.
+        s2e_update_tlb_entry(g_s2e_state, env, mmu_idx, vaddr, addend);
+    }
 #endif
 
 }

@@ -1672,9 +1672,9 @@ void s2e_read_ram_concrete_check(S2E *s2e, S2EExecutionState *state,
 }
 
 void s2e_read_ram_concrete(S2E *s2e, S2EExecutionState *state,
-                        uint64_t host_address, uint8_t* buf, uint64_t size)
+                        uint64_t host_address, void* buf, uint64_t size)
 {
-    state->readRamConcrete(host_address, buf, size);
+    state->readRamConcrete(host_address, (uint8_t*)buf, size);
 }
 
 void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,

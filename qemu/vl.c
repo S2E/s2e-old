@@ -3818,17 +3818,21 @@ int main(int argc, char **argv, char **envp)
     qemu_register_reset(qbus_reset_all_fn, sysbus_get_default());
     qemu_run_machine_init_done_notifiers();
 
+#ifdef CONFIG_S2E
+    s2e_init_device_state(g_s2e_state);
+    s2e_init_timers(g_s2e);
+
+    s2e_initialize_execution(g_s2e, g_s2e_state, execute_always_klee);
+    s2e_register_dirty_mask(g_s2e, g_s2e_state, (uint64_t)ram_list.phys_dirty, last_ram_offset() >> TARGET_PAGE_BITS);
+    s2e_on_initialization_complete();
+#endif
+
     qemu_system_reset(VMRESET_SILENT);
     if (loadvm) {
         if (load_vmstate(loadvm) < 0) {
             autostart = 0;
         }
     }
-
-#ifdef CONFIG_S2E
-   s2e_init_device_state(g_s2e_state);
-   s2e_init_timers(g_s2e);
-#endif
 
     if (incoming) {
         int ret = qemu_start_incoming_migration(incoming);
@@ -3842,12 +3846,6 @@ int main(int argc, char **argv, char **envp)
     }
 
     os_setup_post();
-
-#ifdef CONFIG_S2E
-    s2e_initialize_execution(g_s2e, g_s2e_state, execute_always_klee);
-    s2e_register_dirty_mask(g_s2e, g_s2e_state, (uint64_t)ram_list.phys_dirty, last_ram_offset() >> TARGET_PAGE_BITS);
-    s2e_on_initialization_complete();
-#endif
 
     resume_all_vcpus();
     main_loop();

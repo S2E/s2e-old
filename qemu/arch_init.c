@@ -44,6 +44,10 @@
 #include "exec-memory.h"
 #include "hw/pcspk.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 #ifdef TARGET_SPARC
 int graphic_width = 1024;
 int graphic_height = 768;
@@ -438,7 +442,14 @@ int ram_load(QEMUFile *f, void *opaque, int version_id)
             }
 
             ch = qemu_get_byte(f);
+
+#ifdef CONFIG_S2E
+            uint8_t buffer[TARGET_PAGE_SIZE];
+            memset(buffer, ch, TARGET_PAGE_SIZE);
+            s2e_write_ram_concrete(g_s2e, g_s2e_state, (uintptr_t)host, buffer, TARGET_PAGE_SIZE);
+#else
             memset(host, ch, TARGET_PAGE_SIZE);
+#endif
 #ifndef _WIN32
             if (ch == 0 &&
                 (!kvm_enabled() || kvm_has_sync_mmu())) {
@@ -450,7 +461,13 @@ int ram_load(QEMUFile *f, void *opaque, int version_id)
 
             host = host_from_stream_offset(f, addr, flags);
 
+#ifdef CONFIG_S2E
+            uint8_t buffer[TARGET_PAGE_SIZE];
+            qemu_get_buffer(f, buffer, TARGET_PAGE_SIZE);
+            s2e_write_ram_concrete(g_s2e, g_s2e_state, (uintptr_t)host, buffer, TARGET_PAGE_SIZE);
+#else
             qemu_get_buffer(f, host, TARGET_PAGE_SIZE);
+#endif
         }
         error = qemu_file_get_error(f);
         if (error) {

@@ -208,7 +208,7 @@ int s2e_is_ram_shared_concrete(struct S2E* s2e,
 
 void s2e_read_ram_concrete(struct S2E* s2e,
         struct S2EExecutionState* state,
-        uint64_t host_address, uint8_t* buf, uint64_t size);
+        uint64_t host_address, void* buf, uint64_t size);
 
 void s2e_write_ram_concrete(struct S2E* s2e,
         struct S2EExecutionState* state,

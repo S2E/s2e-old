@@ -207,7 +207,7 @@ extern "C" {
     int g_s2e_concretize_io_writes = 1;
 }
 
-static bool S2EDebugInstructions = true;
+static bool S2EDebugInstructions = false;
 
 namespace s2e {
 
@@ -696,6 +696,9 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(io_writel_mmu)
     __DEFINE_EXT_FUNCTION(io_writeq_mmu)
     */
+
+    __DEFINE_EXT_FUNCTION(iotlb_to_region)
+
 
     __DEFINE_EXT_FUNCTION(s2e_ensure_symbolic)
 
@@ -1215,7 +1218,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     if(newState) {
         timers_state = *newState->m_timersState;
         //qemu_icount = newState->m_qemuIcount;
-        newState->getDeviceState()->restoreDeviceState();
 
         jmp_buf jmp_env;
         memcpy(&jmp_env, &env->jmp_env, sizeof(jmp_buf));
@@ -1226,6 +1228,12 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         memcpy(&env->jmp_env, &jmp_env, sizeof(jmp_buf));
 
         newState->m_active = true;
+
+        //Devices may need to write to memory, which can be done
+        //after the state is activated
+        //XXX: assigning g_s2e_state here is ugly but is required for restoreDeviceState...
+        g_s2e_state = newState;
+        newState->getDeviceState()->restoreDeviceState();
 
         //XXX: flush is required to keep the m_tlbMap cache in sync
         tlb_flush(env, 1);

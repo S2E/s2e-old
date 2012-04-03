@@ -13,6 +13,10 @@
 #include "kvm.h"
 #include "apic_internal.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 #define APIC_DEFAULT_ADDRESS    0xfee00000
 
 #define VAPIC_IO_PORT           0x7e
@@ -575,7 +579,15 @@ static void vapic_map_rom_writable(VAPICROMState *s)
 
     /* read ROM size from RAM region */
     ram = memory_region_get_ram_ptr(section.mr);
+
+#ifdef CONFIG_S2E
+    uint8_t rs;
+    s2e_read_ram_concrete(g_s2e, g_s2e_state, (uintptr_t)&ram[rom_paddr + 2], &rs, sizeof(*ram));
+    rom_size = rs * ROM_BLOCK_SIZE;
+#else
     rom_size = ram[rom_paddr + 2] * ROM_BLOCK_SIZE;
+#endif
+
     s->rom_size = rom_size;
 
     /* We need to round to avoid creating subpages
