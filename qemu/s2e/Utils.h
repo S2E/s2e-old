@@ -42,11 +42,13 @@
 #include <ostream>
 #include <iomanip>
 #include <sstream>
+#include <deque>
 #include <inttypes.h>
 #include <llvm/Support/raw_ostream.h>
 #include <klee/Expr.h>
 
 namespace s2e {
+
 
 struct hexval {
     uint64_t value;
@@ -69,13 +71,13 @@ inline std::ostream& operator<<(std::ostream& out, const hexval& h)
     return out;
 }
 
-inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const klee::ref<klee::Expr> &expr)
+/*inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const klee::ref<klee::Expr> &expr)
 {
     std::stringstream ss;
     ss << expr;
     out << ss.str();
     return out;
-}
+}*/
 
 /** A macro used to escape "," in an argument to another macro */
 #define S2E_NOOP(...) __VA_ARGS__
@@ -108,6 +110,56 @@ for (_S2EForeachContainer<__typeof__(container)> _container_(container); \
 
 #define foreach2(_i, _b, _e) \
       for(typeof(_b) _i = _b, _i ## end = _e; _i != _i ## end;  ++ _i) 
+
+
+/** A stream that writes both to parent streamf and cerr */
+class raw_tee_ostream : public llvm::raw_ostream {
+    std::deque<llvm::raw_ostream*> m_parentBufs;
+
+    virtual void write_impl(const char *Ptr, size_t size) {
+        foreach(llvm::raw_ostream* buf, m_parentBufs) {
+            buf->write(Ptr, size);
+        }
+    }
+
+    virtual uint64_t current_pos() const {
+        return 0;
+    }
+
+    virtual ~raw_tee_ostream() {
+        flush();
+    }
+
+public:
+    raw_tee_ostream(llvm::raw_ostream* master): m_parentBufs(1, master) {}
+    void addParentBuf(llvm::raw_ostream* buf) { m_parentBufs.push_front(buf); }
+};
+
+class raw_highlight_ostream : public llvm::raw_ostream {
+    llvm::raw_ostream* m_parentBuf;
+
+    virtual void write_impl(const char *Ptr, size_t size) {
+        *m_parentBuf << "\033[31m";
+        m_parentBuf->flush();
+        m_parentBuf->write(Ptr, size);
+        *m_parentBuf << "\033[0m";
+    }
+
+    virtual uint64_t current_pos() const {
+        return 0;
+    }
+
+    virtual ~raw_highlight_ostream() {
+        flush();
+    }
+
+public:
+
+    raw_highlight_ostream(llvm::raw_ostream* master): m_parentBuf(master) {}
+};
+
+
+
 
 } // namespace s2e
 
