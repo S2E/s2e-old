@@ -83,6 +83,7 @@ static void *qemu_st_helpers[5] = {
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Support/IRBuilder.h>
+#include <llvm/Support/Threading.h>
 
 #include <llvm/Support/DynamicLibrary.h>
 #include <llvm/Support/raw_ostream.h>
@@ -1403,6 +1404,10 @@ void TCGLLVMContext::generateCode(TCGContext *s, TranslationBlock *tb)
 
 TCGLLVMContext* tcg_llvm_initialize()
 {
+    if (!llvm_start_multithreaded()) {
+        fprintf(stderr, "Could not initialize LLVM threading\n");
+        exit(-1);
+    }
     return new TCGLLVMContext;
 }
 
