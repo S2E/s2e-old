@@ -152,9 +152,9 @@ void BaseInstructions::killState(S2EExecutionState *state)
             << "ERROR: symbolic argument was passed to s2e_kill_state \n";
     } else {
         message="<NO MESSAGE>";
-        if(!messagePtr || !state->readString(messagePtr, message)) {
+        if(messagePtr && !state->readString(messagePtr, message)) {
             s2e()->getWarningsStream(state)
-                << "Error reading file name string from the guest\n";
+                << "Error reading message string from the guest\n";
         }
     }
 
