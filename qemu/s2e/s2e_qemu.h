@@ -277,6 +277,8 @@ int s2e_qemu_peek_buffer(struct S2EExecutionState *s, uint8_t *buf, int size1);
 void s2e_qemu_put_buffer(struct S2EExecutionState *s, const uint8_t *buf, int size);
 #endif
 
+int s2e_is_zombie(struct S2EExecutionState* state);
+
 void s2e_dump_state(void);
 
 void s2e_execute_cmd(const char *cmd);

@@ -93,7 +93,7 @@ unsigned S2EExecutionState::s_lastSymbolicId = 0;
 S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         klee::ExecutionState(kf), m_stateID(g_s2e->fetchAndIncrementStateId()),
         m_symbexEnabled(true), m_startSymbexAtPC((uint64_t) -1),
-        m_active(true), m_runningConcrete(true),
+        m_active(true), m_zombie(false), m_runningConcrete(true),
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
         m_qemuIcount(0), m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1),
@@ -1695,6 +1695,11 @@ void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
 {
     /** XXX: use CPUX86State */
     state->writeRegisterConcrete(cpuState, offset, buf, size);
+}
+
+int s2e_is_zombie(S2EExecutionState* state)
+{
+    return state->isZombie();
 }
 
 

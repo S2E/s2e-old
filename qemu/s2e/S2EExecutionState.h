@@ -111,6 +111,11 @@ protected:
               in shared locations, for inactive - in ObjectStates. */
     bool m_active;
 
+    /** Set to true when the state is killed. The cpu loop actively checks
+        for such a condition, and, when met, asks the scheduler to get a new
+        state */
+    bool m_zombie;
+
     /** Set to true when the state executes code in concrete mode.
         NOTE: When m_runningConcrete is true, CPU registers that contain
               concrete values are stored in the shared region (env global
@@ -205,6 +210,9 @@ public:
 
     /** Returns true is this is the active state */
     bool isActive() const { return m_active; }
+
+    bool isZombie() const { return m_zombie; }
+    void zombify() { m_zombie = true; }
 
     /** Returns true if this state is currently running in concrete mode */
     bool isRunningConcrete() const { return m_runningConcrete; }
