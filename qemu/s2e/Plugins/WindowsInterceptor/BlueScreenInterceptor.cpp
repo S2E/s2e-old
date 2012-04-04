@@ -161,7 +161,7 @@ void BlueScreenInterceptor::dispatchErrorCodes(S2EExecutionState *state)
         break;
 
     default:
-        s2e()->getDebugStream() << "Unknown BSOD code " << errorCode << '\n';
+        s2e()->getDebugStream(state) << "Unknown BSOD code " << errorCode << '\n';
         break;
     }
 }
