@@ -14,4 +14,9 @@ struct QemuThread {
     pthread_t thread;
 };
 
+struct QemuSpinlock {
+    pthread_spinlock_t lock;
+};
+
+
 #endif

@@ -6,6 +6,7 @@
 typedef struct QemuMutex QemuMutex;
 typedef struct QemuCond QemuCond;
 typedef struct QemuThread QemuThread;
+typedef struct QemuSpinlock QemuSpinlock;
 
 #ifdef _WIN32
 #include "qemu-thread-win32.h"
@@ -44,5 +45,18 @@ void *qemu_thread_join(QemuThread *thread);
 void qemu_thread_get_self(QemuThread *thread);
 int qemu_thread_is_self(QemuThread *thread);
 void qemu_thread_exit(void *retval);
+
+
+void qemu_spinlock_create(QemuSpinlock *lock);
+void qemu_spin_lock(QemuSpinlock *lock);
+void qemu_spin_unlock(QemuSpinlock *lock);
+
+static inline void qemu_atomic_add(uint64_t *address, uint64_t value) {
+    __sync_fetch_and_add(address, value);
+}
+
+static inline void qemu_atomic_sub(uint64_t *address, uint64_t value) {
+    __sync_fetch_and_sub(address, value);
+}
 
 #endif

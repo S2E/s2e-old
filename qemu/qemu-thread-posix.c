@@ -172,3 +172,22 @@ void *qemu_thread_join(QemuThread *thread)
     }
     return ret;
 }
+
+
+void qemu_spinlock_create(QemuSpinlock *lock)
+{
+    int err = pthread_spin_init(&lock->lock, PTHREAD_PROCESS_PRIVATE);
+    if (err) {
+        error_exit(err, __func__);
+    }
+}
+
+void qemu_spin_lock(QemuSpinlock *lock)
+{
+    pthread_spin_lock(&lock->lock);
+}
+
+void qemu_spin_unlock(QemuSpinlock *lock)
+{
+    pthread_spin_unlock(&lock->lock);
+}
