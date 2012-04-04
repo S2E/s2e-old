@@ -238,7 +238,7 @@ QEMUFile *qemu_memfile_open(memfile_get_buffer_t get, memfile_put_buffer_t put)
 {
     QEMUFileMemory *s;
 
-    s = g_malloc0(sizeof(QEMUFileStdio));
+    s = g_malloc0(sizeof(QEMUFileMemory));
 
     s->get = get;
     s->put = put;
