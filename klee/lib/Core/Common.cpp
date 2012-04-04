@@ -35,10 +35,10 @@ FILE* klee::klee_warning_file = NULL;
 FILE* klee::klee_message_file = NULL;
 */
 
-std::ostream* klee::klee_warning_stream = NULL;
-std::ostream* klee::klee_message_stream = NULL;
+llvm::raw_ostream* klee::klee_warning_stream = NULL;
+llvm::raw_ostream* klee::klee_message_stream = NULL;
 
-static void klee_vfmessage(std::ostream *os, const char *pfx, const char *msg,
+static void klee_vfmessage(llvm::raw_ostream *os, const char *pfx, const char *msg,
                            va_list ap) {
   if (!os)
     return;
@@ -49,7 +49,7 @@ static void klee_vfmessage(std::ostream *os, const char *pfx, const char *msg,
 
   char buf[1024];
   vsnprintf(buf, sizeof(buf), msg, ap);
-  (*os) << buf << std::endl;
+  (*os) << buf << '\n';
 }
 
 /* Prints a message/warning.

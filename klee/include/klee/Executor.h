@@ -300,13 +300,13 @@ protected:
   Cell& getArgumentCell(ExecutionState &state,
                         KFunction *kf,
                         unsigned index) {
-      // *klee::klee_warning_stream << std::dec << "arg idx="<< index<< " "  << kf->getArgRegister(index) << std::endl;
+      // *klee::klee_warning_stream << std::dec << "arg idx="<< index<< " "  << kf->getArgRegister(index) << '\n';
       return state.stack.back().locals[kf->getArgRegister(index)];
   }
 
   Cell& getDestCell(ExecutionState &state,
                     KInstruction *target) {
-      // *klee_warning_stream << "dst Td="<< std::dec << target->dest << std::endl;
+      // *klee_warning_stream << "dst Td="<< std::dec << target->dest << '\n';
       return state.stack.back().locals[target->dest];
   }
 

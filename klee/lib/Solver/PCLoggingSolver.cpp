@@ -17,6 +17,7 @@
 #include "klee/Internal/System/Time.h"
 
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_os_ostream.h"
 
 #include <fstream>
 
@@ -45,10 +46,11 @@ class PCLoggingSolver : public SolverImpl {
     os << "# Query " << queryCount++ << " -- "
        << "Type: " << typeName << ", "
        << "Instructions: " << instructions << "\n";
-    printer->printQuery(os, query.constraints, query.expr,
+    llvm::raw_os_ostream ros(os);
+    printer->printQuery(ros, query.constraints, query.expr,
                         evalExprsBegin, evalExprsEnd,
                         evalArraysBegin, evalArraysEnd);
-    os << std::flush;
+    ros.flush();
     startTime = getWallTime();
   }
 
@@ -56,7 +58,7 @@ class PCLoggingSolver : public SolverImpl {
     double delta = getWallTime() - startTime;
     os << "#   " << (success ? "OK" : "FAIL") << " -- "
        << "Elapsed: " << delta << "\n";
-    os << std::flush;
+    os.flush();
   }
   
 public:
@@ -79,7 +81,7 @@ public:
     if (success)
       os << "#   Is Valid: " << (isValid ? "true" : "false") << "\n";
     os << "\n";
-    os << std::flush;
+    os.flush();
     return success;
   }
 
@@ -90,7 +92,7 @@ public:
     if (success)
       os << "#   Validity: " << result << "\n";
     os << "\n";
-    os << std::flush;
+    os.flush();
     return success;
   }
 
@@ -102,7 +104,7 @@ public:
     if (success)
       os << "#   Result: " << result << "\n";
     os << "\n";
-    os << std::flush;
+    os.flush();
     return success;
   }
 

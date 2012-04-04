@@ -85,11 +85,11 @@ class fdoutbuf : public std::streambuf {
     }
 };
 
-class fdostream : public std::ostream {
+class fdostream : public llvm::raw_ostream {
   protected:
     fdoutbuf buf;
   public:
-    fdostream (int fd) : std::ostream(0), buf(fd) {
+    fdostream (int fd) : llvm::raw_ostream(0), buf(fd) {
         rdbuf(&buf);
     }
 };

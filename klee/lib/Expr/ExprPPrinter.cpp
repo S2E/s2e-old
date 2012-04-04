@@ -275,7 +275,7 @@ private:
     // right now, all Reads are byte reads but some
     // transformations might change this
     if (!base || base->getWidth() != Expr::Int8)
-      return false;
+      return NULL;
     
     // Get stride expr in proper index width.
     Expr::Width idxWidth = base->index->getWidth();
@@ -477,37 +477,41 @@ ExprPPrinter *klee::ExprPPrinter::create(std::ostream &os) {
   return new PPrinter(os);
 }
 
-void ExprPPrinter::printOne(std::ostream &os,
+void ExprPPrinter::printOne(llvm::raw_ostream &os,
                             const char *message, 
                             const ref<Expr> &e) {
-  PPrinter p(os);
+  std::stringstream ss;
+  PPrinter p(ss);
   p.scan(e);
 
   // FIXME: Need to figure out what to do here. Probably print as a
   // "forward declaration" with whatever syntax we pick for that.
-  PrintContext PC(os);
+  PrintContext PC(ss);
   PC << message << ": ";
   p.print(e, PC);
   PC.breakLine();
+  os << ss.str();
 }
 
-void ExprPPrinter::printSingleExpr(std::ostream &os, const ref<Expr> &e) {
-  PPrinter p(os);
+void ExprPPrinter::printSingleExpr(llvm::raw_ostream &os, const ref<Expr> &e) {
+  std::stringstream ss;
+  PPrinter p(ss);
   p.scan(e);
 
   // FIXME: Need to figure out what to do here. Probably print as a
   // "forward declaration" with whatever syntax we pick for that.
-  PrintContext PC(os);
+  PrintContext PC(ss);
   p.print(e, PC);
+  os << ss.str();
 }
 
-void ExprPPrinter::printConstraints(std::ostream &os,
+void ExprPPrinter::printConstraints(llvm::raw_ostream &os,
                                     const ConstraintManager &constraints) {
   printQuery(os, constraints, ConstantExpr::alloc(false, Expr::Bool));
 }
 
 
-void ExprPPrinter::printQuery(std::ostream &os,
+void ExprPPrinter::printQuery(llvm::raw_ostream &os,
                               const ConstraintManager &constraints,
                               const ref<Expr> &q,
                               const ref<Expr> *evalExprsBegin,
@@ -515,7 +519,8 @@ void ExprPPrinter::printQuery(std::ostream &os,
                               const Array * const *evalArraysBegin,
                               const Array * const *evalArraysEnd,
                               bool printArrayDecls) {
-  PPrinter p(os);
+  std::stringstream ss;
+  PPrinter p(ss);
   
   for (ConstraintManager::const_iterator it = constraints.begin(),
          ie = constraints.end(); it != ie; ++it)
@@ -525,7 +530,7 @@ void ExprPPrinter::printQuery(std::ostream &os,
   for (const ref<Expr> *it = evalExprsBegin; it != evalExprsEnd; ++it)
     p.scan(*it);
 
-  PrintContext PC(os);
+  PrintContext PC(ss);
   
   // Print array declarations.
   if (printArrayDecls) {
@@ -598,4 +603,6 @@ void ExprPPrinter::printQuery(std::ostream &os,
 
   PC << ')';
   PC.breakLine();
+
+  os << ss.str();
 }

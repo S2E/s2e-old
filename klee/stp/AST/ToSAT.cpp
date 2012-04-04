@@ -808,7 +808,7 @@ namespace BEEV {
    * through the CounterExampleMap data structure and print it to
    * stdout
    */
-  void BeevMgr::PrintCounterExample(bool t, std::ostream& os) {
+  void BeevMgr::PrintCounterExample(bool t, llvm::raw_ostream& os) {
     //global command-line option
     // FIXME: This should always print the counterexample.  If you want
     // to turn it off, check the switch at the point of call.

@@ -674,7 +674,7 @@ static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
                                        &buffer, &length, false);
             vc_pop(vc);
 
-            *klee_message_stream << buffer << std::endl;
+            *klee_message_stream << buffer << '\n';
             free(buffer);
         }
 
@@ -682,7 +682,7 @@ static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
         throw std::exception();
     }
 
-//    klee_message_stream << "solver returned " << *result << std::endl;
+//    klee_message_stream << "solver returned " << *result << '\n';
     hasSolution = !result;
 
     if (hasSolution) {
@@ -817,7 +817,7 @@ static bool runAndGetCexForked(::VC vc,
 #endif
 }
 static bool __stp_printstate = true;
-extern std::ostream *g_solverLog;
+extern llvm::raw_ostream *g_solverLog;
 
 bool
 STPSolverImpl::computeInitialValues(const Query &query,
@@ -845,9 +845,10 @@ STPSolverImpl::computeInitialValues(const Query &query,
     char *buf;
     buf = vc_printSMTLIB(vc, stp_e);
     if (g_solverLog) {
-        *g_solverLog << "==============START=============" << std::endl;
-        *g_solverLog << buf << std::endl << std::flush;
-        *g_solverLog << "==============END=============" << std::endl;
+        *g_solverLog << "==============START=============" << '\n';
+        *g_solverLog << buf << '\n';
+        g_solverLog->flush();
+        *g_solverLog << "==============END=============" << '\n';
     }
     //fprintf(stderr, "note: STP query: %.*s\n", (unsigned) len, buf);
     free(buf);

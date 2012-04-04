@@ -15,6 +15,7 @@
 #include "klee/Internal/Support/IntEvaluation.h"
 
 #include "klee/util/ExprPPrinter.h"
+#include <llvm/Support/raw_os_ostream.h>
 
 #include <iostream>
 #include <sstream>
@@ -101,7 +102,7 @@ int Expr::compare(const Expr &b) const {
   return 0;
 }
 
-void Expr::printKind(std::ostream &os, Kind k) {
+void Expr::printKind(llvm::raw_ostream &os, Kind k) {
   switch(k) {
 #define X(C) case C: os << #C; break
     X(Constant);
@@ -267,7 +268,7 @@ ref<Expr> Expr::createFromKind(Kind k, std::vector<CreateArg> args) {
 }
 
 
-void Expr::printWidth(std::ostream &os, Width width) {
+void Expr::printWidth(llvm::raw_ostream &os, Width width) {
   switch(width) {
   case Expr::Bool: os << "Expr::Bool"; break;
   case Expr::Int8: os << "Expr::Int8"; break;
@@ -286,13 +287,14 @@ ref<Expr> Expr::createIsZero(ref<Expr> e) {
   return EqExpr::create(e, ConstantExpr::create(0, e->getWidth()));
 }
 
-void Expr::print(std::ostream &os) const {
+void Expr::print(llvm::raw_ostream &os) const {
   ExprPPrinter::printSingleExpr(os, const_cast<Expr*>(this));
 }
 
 void Expr::dump() const {
-  this->print(std::cerr);
-  std::cerr << std::endl;
+  llvm::raw_os_ostream os(std::cerr);
+  this->print(os);
+  os << '\n';
 }
 
 /***/

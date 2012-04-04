@@ -421,8 +421,8 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // around a kcachegrind parsing bug (it puts them on new lines), so
   // that source browsing works.
   if (OutputSource) {
-    std::ostream *os = ih->openOutputFile("assembly.ll");
-    assert(os && os->good() && "unable to open source output");
+    llvm::raw_ostream *os = ih->openOutputFile("assembly.ll");
+    assert(os && "unable to open source output");
 
 #if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 6)
     // We have an option for this in case the user wants a .ll they
@@ -456,7 +456,7 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
       }
     }
 #else
-    llvm::raw_os_ostream *ros = new llvm::raw_os_ostream(*os);
+    llvm::raw_ostream *ros = os;
 
     // We have an option for this in case the user wants a .ll they
     // can compile.
@@ -488,17 +488,14 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
         }
       }
     }
-    delete ros;
 #endif
 
     delete os;
   }
 
   if (OutputModule) {
-    std::ostream *f = ih->openOutputFile("final.bc");
-    llvm::raw_os_ostream* rfs = new llvm::raw_os_ostream(*f);
-    WriteBitcodeToFile(module, *rfs);
-    delete rfs;
+    llvm::raw_ostream *f = ih->openOutputFile("final.bc");
+    WriteBitcodeToFile(module, *f);
     delete f;
   }
 

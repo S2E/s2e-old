@@ -32,7 +32,7 @@ namespace klee {
   class PTreeNode;
   struct InstructionInfo;
 
-std::ostream &operator<<(std::ostream &os, const MemoryMap &mm);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
 
 struct StackFrame {
   KInstIterator caller;

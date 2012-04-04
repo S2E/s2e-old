@@ -139,7 +139,7 @@ void TreeStreamWriter::readStream(TreeStreamID streamID,
   }
 #if 0
   std::cout << "roots: ";
-  std::copy(roots.begin(), roots.end(), std::ostream_iterator<unsigned>(std::cout, " "));
+  std::copy(roots.begin(), roots.end(), llvm::raw_ostream_iterator<unsigned>(std::cout, " "));
   std::cout << "\n"; 
 #endif
   is.seekg(0, std::ios::beg);

@@ -11,7 +11,7 @@
 #define KLEE_STATSTRACKER_H
 
 #include "klee/CallPathManager.h"
-
+#include <llvm/Support/raw_ostream.h>
 #include <iostream>
 #include <set>
 
@@ -37,7 +37,7 @@ namespace klee {
     Executor &executor;
     std::string objectFilename;
 
-    std::ostream *statsFile, *istatsFile;
+    llvm::raw_ostream *statsFile, *istatsFile;
     double startWallTime;
     
     unsigned numBranches;

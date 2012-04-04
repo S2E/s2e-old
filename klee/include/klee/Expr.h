@@ -15,9 +15,11 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/raw_os_ostream.h"
 
 #include <set>
 #include <vector>
+#include <sstream>
 #include <iosfwd> // FIXME: Remove this!!!
 
 namespace llvm {
@@ -178,7 +180,7 @@ public:
   virtual unsigned getNumKids() const = 0;
   virtual ref<Expr> getKid(unsigned i) const = 0;
     
-  virtual void print(std::ostream &os) const;
+  virtual void print(llvm::raw_ostream &os) const;
 
   /// dump - Print the expression to stderr.
   void dump() const;
@@ -211,8 +213,8 @@ public:
 
   /* Static utility methods */
 
-  static void printKind(std::ostream &os, Kind k);
-  static void printWidth(std::ostream &os, Expr::Width w);
+  static void printKind(llvm::raw_ostream &os, Kind k);
+  static void printWidth(llvm::raw_ostream &os, Expr::Width w);
 
   /// returns the smallest number of bytes in which the given width fits
   static inline unsigned getMinBytesForWidth(Width w) {
@@ -280,14 +282,29 @@ inline bool operator>=(const Expr &lhs, const Expr &rhs) {
 
 // Printing operators
 
-inline std::ostream &operator<<(std::ostream &os, const Expr &e) {
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Expr &e) {
   e.print(os);
   return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os, const Expr::Kind kind) {
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Expr::Kind kind) {
   Expr::printKind(os, kind);
   return os;
+}
+
+inline std::ostream& operator<<(std::ostream& out, const klee::ref<klee::Expr> &expr)
+{
+    std::string ss;
+    llvm::raw_string_ostream ros(ss);
+    ros << expr;
+    out << ros.str();
+    return out;
+}
+
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const klee::ref<klee::Expr> &expr)
+{
+    expr.get()->print(out);
+    return out;
 }
 
 // Terminal Exprs

@@ -37,6 +37,8 @@
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/PathV2.h"
+#include "llvm/Support/FileSystem.h"
 
 #include <iostream>
 #include <fstream>
@@ -168,10 +170,10 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
   KModule *km = executor.kmodule;
 
   sys::Path module(objectFilename);
-  if (!sys::Path(objectFilename).isAbsolute()) {
+  if (!sys::path::is_absolute(objectFilename)) {
     sys::Path current = sys::Path::GetCurrentDirectory();
     current.appendComponent(objectFilename);
-    if (current.exists())
+    if (sys::fs::exists(current.c_str()))
       objectFilename = current.c_str();
   }
 
@@ -409,11 +411,11 @@ void StatsTracker::updateStateStatistics(uint64_t addend) {
 void StatsTracker::writeIStats() {
   Module *m = executor.kmodule->module;
   uint64_t istatsMask = 0;
-  std::ostream &of = *istatsFile;
-  
-  of.seekp(0, std::ios::end);
+  llvm::raw_ostream &of = *istatsFile;
+
+  /*of.seekp(0, std::ios::end);
   unsigned istatsSize = of.tellp();
-  of.seekp(0);
+  of.seekp(0);*/
 
   of << "version: 1\n";
   of << "creator: klee\n";
@@ -541,9 +543,9 @@ void StatsTracker::writeIStats() {
     updateStateStatistics((uint64_t)-1);
   
   // Clear then end of the file if necessary (no truncate op?).
-  unsigned pos = of.tellp();
+  /*unsigned pos = of.tellp();
   for (unsigned i=pos; i<istatsSize; ++i)
-    of << '\n';
+    of << '\n';*/
   
   of.flush();
 }

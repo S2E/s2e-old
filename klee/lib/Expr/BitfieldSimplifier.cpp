@@ -111,7 +111,7 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
     }
 
     if (DebugSimplifier)
-        *klee_message_stream << "Considering " << e << std::endl;
+        *klee_message_stream << "Considering " << e << '\n';
 
     /* Apply kind-specific knowledge to obtain knownBits for e and
        ignoredBits for kids of e, then to optimize e */
@@ -329,7 +329,7 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
           (~(rbits.knownOneBits | rbits.knownZeroBits | ignoredBits)) == 0) {
 
         if (DebugSimplifier) {
-            *klee_message_stream << "CS Replacing " << e << " with constant 0x" << std::hex << rbits.knownOneBits << std::endl;
+            *klee_message_stream << "CS Replacing " << e << " with constant " << hexval(rbits.knownOneBits) << '\n';
         }
 
         e = replaceWithConstant(e, rbits.knownOneBits);
@@ -342,7 +342,7 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
                 // NOTE: we do it here on order to take into account
                 //       kind-specific adjustements to knownBits
                 if (DebugSimplifier) {
-                    *klee_message_stream << "NC Replacing " << kids[i] << " with constant 0x" << std::hex << bits[i].knownOneBits << std::endl;
+                    *klee_message_stream << "NC Replacing " << kids[i] << " with constant 0x" << hexval(bits[i].knownOneBits) << '\n';
                 }
 
                 kids[i] = replaceWithConstant(kids[i], bits[i].knownOneBits);
@@ -374,12 +374,12 @@ ref<Expr> BitfieldSimplifier::simplify(ref<Expr> e)
 {
     bool cste = isa<ConstantExpr>(e);
     if (PrintSimplifier && !cste && klee_message_stream)
-        *klee_message_stream << std::hex << "BEFORE SIMPL: " << e << std::endl;
+        *klee_message_stream << "BEFORE SIMPL: " << e << '\n';
 
     ref<Expr> ret = doSimplifyBits(e, 0).first;
 
     if (PrintSimplifier && !cste && klee_message_stream)
-        *klee_message_stream << std::hex << "AFTER  SIMPL: " << ret << std::endl;
+        *klee_message_stream << "AFTER  SIMPL: " << ret << '\n';
 
     return ret;
 }

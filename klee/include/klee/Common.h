@@ -17,7 +17,8 @@
 #endif
 
 #include <stdio.h>
-#include <ostream>
+#include <iostream>
+#include <llvm/Support/raw_ostream.h>
 
 // XXX ugh
 namespace klee {
@@ -27,8 +28,8 @@ namespace klee {
   extern FILE* klee_warning_file;
   extern FILE* klee_message_file;
   */
-  extern std::ostream* klee_warning_stream;
-  extern std::ostream* klee_message_stream;
+  extern llvm::raw_ostream* klee_warning_stream;
+  extern llvm::raw_ostream* klee_message_stream;
 
   /// Print "KLEE: ERROR" followed by the msg in printf format and a
   /// newline on stderr and to warnings.txt, then exit with an error.
@@ -64,6 +65,27 @@ namespace klee {
   void klee_warning_external(const void *id,
                              const char *msg, ...)
     __attribute__ ((format (printf, 2, 3)));
+
+  struct hexval {
+      uint64_t value;
+      int width;
+
+      hexval(uint64_t _value, int _width=0) : value(_value), width(_width) {}
+      hexval(void* _value, int _width=0): value((uint64_t)_value), width(_width) {}
+  };
+
+  inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const hexval& h)
+  {
+      out << "0x";
+      out.write_hex(h.value);
+      return out;
+  }
+
+  inline std::ostream& operator<<(std::ostream& out, const hexval& h)
+  {
+      out << std::hex << (h.value);
+      return out;
+  }
 }
 
 #endif /* __KLEE_COMMON_H__ */

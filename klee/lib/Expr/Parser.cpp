@@ -1593,7 +1593,7 @@ void QueryCommand::dump() {
     ObjectsBegin = &Objects[0];
     ObjectsEnd = ObjectsBegin + Objects.size();
   }
-  ExprPPrinter::printQuery(std::cout, ConstraintManager(Constraints), 
+  ExprPPrinter::printQuery(llvm::outs(), ConstraintManager(Constraints),
                            Query, ValuesBegin, ValuesEnd,
                            ObjectsBegin, ObjectsEnd,
                            false);

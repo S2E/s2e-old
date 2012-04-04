@@ -60,7 +60,7 @@ public:
     return false;
   }
 
-  void print(std::ostream &os) const {
+  void print(llvm::raw_ostream &os) const {
     bool first = true;
     os << "{";
     for (typename set_ty::iterator it = s.begin(), ie = s.end(); 
@@ -77,7 +77,7 @@ public:
 };
 
 template<class T>
-inline std::ostream &operator<<(std::ostream &os, const DenseSet<T> &dis) {
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const DenseSet<T> &dis) {
   dis.print(os);
   return os;
 }
@@ -124,7 +124,7 @@ public:
     return *this;
   }
 
-  void print(std::ostream &os) const {
+  void print(llvm::raw_ostream &os) const {
     os << "{";
     bool first = true;
     for (std::set<const Array*>::iterator it = wholeObjects.begin(), 
@@ -214,7 +214,7 @@ public:
   }
 };
 
-inline std::ostream &operator<<(std::ostream &os, const IndependentElementSet &ies) {
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const IndependentElementSet &ies) {
   ies.print(os);
   return os;
 }
@@ -249,17 +249,17 @@ IndependentElementSet getIndependentConstraints(const Query& query,
 
   if (0) {
     std::set< ref<Expr> > reqset(result.begin(), result.end());
-    std::cerr << "--\n";
-    std::cerr << "Q: " << query.expr << "\n";
-    std::cerr << "\telts: " << IndependentElementSet(query.expr) << "\n";
+    llvm::errs() << "--\n";
+    llvm::errs() << "Q: " << query.expr << "\n";
+    llvm::errs() << "\telts: " << IndependentElementSet(query.expr) << "\n";
     int i = 0;
   for (ConstraintManager::const_iterator it = query.constraints.begin(), 
          ie = query.constraints.end(); it != ie; ++it) {
-      std::cerr << "C" << i++ << ": " << *it;
-      std::cerr << " " << (reqset.count(*it) ? "(required)" : "(independent)") << "\n";
-      std::cerr << "\telts: " << IndependentElementSet(*it) << "\n";
+      llvm::errs() << "C" << i++ << ": " << *it;
+      llvm::errs() << " " << (reqset.count(*it) ? "(required)" : "(independent)") << "\n";
+      llvm::errs() << "\telts: " << IndependentElementSet(*it) << "\n";
     }
-    std::cerr << "elts closure: " << eltsClosure << "\n";
+    llvm::errs() << "elts closure: " << eltsClosure << "\n";
   }
 
   return eltsClosure;

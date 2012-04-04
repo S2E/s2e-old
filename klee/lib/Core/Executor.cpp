@@ -429,9 +429,9 @@ ref<Expr> Executor::simplifyExpr(const ExecutionState &s, ref<Expr> e)
             bool result = solver->mustBeTrue(s, eq, isEqual);
             assert(result);
             if(!isEqual) {
-                std::cerr << "Error in expression simplifier:" << std::endl;
+                llvm::errs() << "Error in expression simplifier:" << '\n';
                 e->dump();
-                std::cerr << "!=" << std::endl;
+                llvm::errs() << "!=" << '\n';
                 simplified->dump();
                 assert(false);
             }
@@ -1070,7 +1070,7 @@ const Cell& Executor::eval(KInstruction *ki, unsigned index,
   } else {
     unsigned index = vnumber;
     StackFrame &sf = state.stack.back();
-    //*klee_warning_stream << "op idx=" << std::dec << index << std::endl;
+    //*klee_warning_stream << "op idx=" << std::dec << index << '\n';
     return sf.locals[index];
   }
 }
@@ -1198,7 +1198,7 @@ void Executor::executeGetValue(ExecutionState &state,
 void Executor::stepInstruction(ExecutionState &state) {
   if (DebugPrintInstructions) {
     printFileLine(state, state.pc);
-    std::cerr << std::setw(10) << stats::instructions << " ";
+    llvm::errs() << stats::instructions << " ";
     llvm::errs() << *(state.pc->inst)  << "\n";
   }
 
@@ -1383,9 +1383,9 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
 void Executor::printFileLine(ExecutionState &state, KInstruction *ki) {
   const InstructionInfo &ii = *ki->info;
   if (ii.file != "") 
-    std::cerr << "     " << ii.file << ":" << ii.line << ":";
+    llvm::errs() << "     " << ii.file << ":" << ii.line << ":";
   else
-    std::cerr << "     [no debug info]:";
+    llvm::errs() << "     [no debug info]:";
 }
 
 
@@ -2584,7 +2584,7 @@ void Executor::run(ExecutionState &initialState) {
   
  dump:
   if (DumpStatesOnHalt && !states.empty()) {
-    std::cerr << "KLEE: halting execution, dumping remaining states\n";
+    llvm::errs() << "KLEE: halting execution, dumping remaining states\n";
     for (std::set<ExecutionState*>::iterator
            it = states.begin(), ie = states.end();
          it != ie; ++it) {
@@ -2776,7 +2776,7 @@ void Executor::callExternalFunction(ExecutionState &state,
     return;
   
   if (NoExternals && !okExternals.count(function->getName())) {
-    std::cerr << "KLEE:ERROR: Calling not-OK external function : " 
+    llvm::errs() << "KLEE:ERROR: Calling not-OK external function : "
                << function->getNameStr() << "\n";
     terminateStateOnError(state, "externals disallowed", "user.err");
     return;
@@ -2809,7 +2809,7 @@ void Executor::callExternalFunction(ExecutionState &state,
             ss << "[";
             for (std::vector<ref<Expr> >::iterator ai1 = arguments.begin();
                    ai1!=ae; ++ai1, ++j) {
-                ss << "arg" << j << ": " << *ai1 << std::endl;
+                ss << "arg" << j << ": " << *ai1 << '\n';
             }
             ss << "]";
 
@@ -2883,7 +2883,7 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
                                  Expr::getMinBytesForWidth(e->getWidth()));
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
   ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
-  std::cerr << "Making symbolic: " << eq << "\n";
+  llvm::errs() << "Making symbolic: " << eq << "\n";
   state.addConstraint(eq);
   return res;
 }
@@ -2995,7 +2995,8 @@ void Executor::executeAlloc(ExecutionState &state,
         }
         
         if (hugeSize.second) {
-          std::ostringstream info;
+          std::string ss;
+            llvm::raw_string_ostream info(ss);
           ExprPPrinter::printOne(info, "  size expr", size);
           info << "  concretization : " << example << "\n";
           info << "  unbound example: " << tmp << "\n";
@@ -3443,16 +3444,17 @@ unsigned Executor::getSymbolicPathStreamID(const ExecutionState &state) {
 void Executor::getConstraintLog(const ExecutionState &state,
                                 std::string &res,
                                 bool asCVC) {
-  if (asCVC) {
-    Query query(state.constraints, ConstantExpr::alloc(0, Expr::Bool));
-    char *log = solver->stpSolver->getConstraintLog(query);
-    res = std::string(log);
-    free(log);
-  } else {
-    std::ostringstream info;
-    ExprPPrinter::printConstraints(info, state.constraints);
-    res = info.str();    
-  }
+    if (asCVC) {
+        Query query(state.constraints, ConstantExpr::alloc(0, Expr::Bool));
+        char *log = solver->stpSolver->getConstraintLog(query);
+        res = std::string(log);
+        free(log);
+    } else {
+        std::string ss;
+        llvm::raw_string_ostream info(ss);
+        ExprPPrinter::printConstraints(info, state.constraints);
+        res = info.str();
+    }
 }
 
 bool Executor::getSymbolicSolution(const ExecutionState &state,
@@ -3488,7 +3490,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
   solver->setTimeout(0);
   if (!success) {
     klee_warning("unable to compute initial values (invalid constraints?)!");
-    ExprPPrinter::printQuery(std::cerr,
+    ExprPPrinter::printQuery(llvm::errs(),
                              state.constraints, 
                              ConstantExpr::alloc(0, Expr::Bool));
     return false;

@@ -1626,7 +1626,7 @@ namespace BEEV {
     void ConstructCounterExample(MINISAT::Solver& S);
 
     //Prints the counterexample to stdout
-    void PrintCounterExample(bool t,std::ostream& os=cout);
+    void PrintCounterExample(bool t,llvm::raw_ostream& os=cout);
 
     //Prints the counterexample to stdout
     void PrintCounterExample_InOrder(bool t);
