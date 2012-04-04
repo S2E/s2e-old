@@ -106,7 +106,8 @@ void s2e_tcg_execution_handler(void* signal, uint64_t pc)
 
 void s2e_tcg_custom_instruction_handler(uint64_t arg)
 {
-    assert(!g_s2e->getCorePlugin()->onCustomInstruction.empty());
+    assert(!g_s2e->getCorePlugin()->onCustomInstruction.empty() &&
+           "You must activate a plugin that uses custom instructions.");
 
     try {
         g_s2e->getCorePlugin()->onCustomInstruction.emit(g_s2e_state, arg);
