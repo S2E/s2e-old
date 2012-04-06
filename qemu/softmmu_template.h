@@ -226,7 +226,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
 
     env->mem_io_vaddr = addr;
 #if SHIFT <= 2
-    if (s2e_ismemfunc(mr->ops->read)) {
+    if (s2e_ismemfunc(mr, 0)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         if (isSymb) {
             return glue(io_read_chk_symb_, SUFFIX)(ENV_VAR label, naddr, (uintptr_t)(pa));
@@ -236,7 +236,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
     }
 #else
 #ifdef TARGET_WORDS_BIGENDIAN
-    if (s2e_ismemfunc(mr->ops->read)) {
+    if (s2e_ismemfunc(mr, 0)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
 
         if (isSymb) {
@@ -250,7 +250,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
         return res;
     }
 #else
-    if (s2e_ismemfunc(mr->ops->read)) {
+    if (s2e_ismemfunc(mr, 0)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         if (isSymb) {
             res = glue(io_read_chk_symb_, SUFFIX)(label, naddr, (uintptr_t)(pa));
@@ -512,21 +512,21 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_ad
     env->mem_io_vaddr = addr;
     env->mem_io_pc = (uintptr_t)retaddr;
 #if SHIFT <= 2
-    if (s2e_ismemfunc(mr->ops->write)) {
+    if (s2e_ismemfunc(mr, 1)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(pa), val);
         return;
     }
 #else
 #ifdef TARGET_WORDS_BIGENDIAN
-    if (s2e_ismemfunc(s2e_ismemfunc(mr->ops->write)) {
+    if (s2e_ismemfunc(s2e_ismemfunc(mr, 1)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         stl_raw((uint8_t *)(intptr_t)(pa), val>>32);
         stl_raw((uint8_t *)(intptr_t)(pa+4), val);
         return;
     }
 #else
-    if (s2e_ismemfunc(mr->ops->write)) {
+    if (s2e_ismemfunc(mr, 1)) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         stl_raw((uint8_t *)(intptr_t)(pa), val);
         stl_raw((uint8_t *)(intptr_t)(pa+4), val>>32);
@@ -604,7 +604,6 @@ void glue(glue(glue(HELPER_PREFIX, st), SUFFIX), MMUSUFFIX)(ENV_PARAM
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
-
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
             S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if(likely((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE)))

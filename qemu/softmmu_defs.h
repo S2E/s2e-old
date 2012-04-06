@@ -137,8 +137,7 @@ uint64_t io_readq_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void 
 void io_writeq_mmu_symb(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
 uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr);
-int s2e_ismemfunc(void *f);
-
+int s2e_ismemfunc(struct MemoryRegion *mr, int isWrite);
 
 #endif
 
@@ -146,7 +145,7 @@ int s2e_ismemfunc(void *f);
 #ifdef CONFIG_S2E
 
 uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr);
-int s2e_ismemfunc(void *f);
+int s2e_ismemfunc(struct MemoryRegion *mr, int isWrite);
 
 
 #endif

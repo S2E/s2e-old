@@ -3471,10 +3471,13 @@ static uint64_t s2edma_mem_read(void *opaque, target_phys_addr_t ram_addr, unsig
     return 0;
 }
 
-int s2e_ismemfunc(void *f)
+int s2e_ismemfunc(MemoryRegion *mr, int isWrite)
 {
-    //XXX: this must be fixed
-    return f == notdirty_mem_write || f == s2edma_mem_read;
+    if (isWrite) {
+        return mr->ops->write == notdirty_mem_write;
+    } else {
+        return mr->ops->read == s2edma_mem_read;
+    }
 }
 
 #endif
