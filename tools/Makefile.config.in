@@ -13,9 +13,6 @@ LLVM_OBJ_ROOT = @LLVM_OBJ@
 
 S2E_SRC_ROOT = @S2E_SRC@
 
-SIGCPP_LIB = @SIGCPP_LIB@
-SIGCPP_INC = @SIGCPP_INC@
-
 TOOL_LIBS = @TOOL_LIBS@
 
 # Set the directory root of this project's source files

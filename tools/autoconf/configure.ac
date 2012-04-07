@@ -91,21 +91,6 @@ AC_SUBST(TOOL_LIBS,$tool_libs)
 
 
 dnl **************************************************************************
-dnl Verify that we can find libsigc++
-
-if test "x$OS" = "xmingw" ; then
-sigcpp_lib="-lsigc-2.0.dll"
-sigcpp_inc=
-else
-sigcpp_lib=`pkg-config sigc++-2.0 --libs 2> /dev/null`
-sigcpp_inc=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
-fi
-
-AC_SUBST(SIGCPP_LIB,$sigcpp_lib)
-AC_SUBST(SIGCPP_INC,$sigcpp_inc)
-
-	
-dnl **************************************************************************
 dnl Verify that we can find llvm
 
 dnl --with-llvm is a shortcut for setting srcdir and objdir.

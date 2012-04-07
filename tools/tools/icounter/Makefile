@@ -12,5 +12,5 @@ LINK_COMPONENTS = support
 include $(LEVEL)/Makefile.common
 
 
-LIBS += $(SIGCPP_LIB) $(TOOL_LIBS)
+LIBS += $(TOOL_LIBS)
 #-ltcmalloc
