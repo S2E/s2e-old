@@ -39,7 +39,7 @@
 #define __STDC_FORMAT_MACROS 1
 
 #include <llvm/Support/CommandLine.h>
-#include <llvm/System/Path.h>
+#include <llvm/Support/Path.h>
 
 #include <lib/ExecutionTracer/ModuleParser.h>
 #include <lib/ExecutionTracer/Path.h>
@@ -93,9 +93,9 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &moduleDir,
     llvm::sys::Path basicBlockListFile(moduleDir);
     basicBlockListFile.appendComponent(moduleName + ".bblist");
 
-    FILE *fp = fopen(basicBlockListFile.toString().c_str(), "r");
+    FILE *fp = fopen(basicBlockListFile.str().c_str(), "r");
     if (!fp) {
-        std::cerr << "Could not open file " << basicBlockListFile << std::endl;
+        std::cerr << "Could not open file " << basicBlockListFile.str() << std::endl;
         return;
     }
 
@@ -141,9 +141,9 @@ void BasicBlockCoverage::parseExcludeFile(const std::string &moduleDir,
     llvm::sys::Path excludeFileName(moduleDir);
     excludeFileName.appendComponent(moduleName + ".excl");
 
-    FILE *fp = fopen(excludeFileName.toString().c_str(), "r");
+    FILE *fp = fopen(excludeFileName.str().c_str(), "r");
     if (!fp) {
-        std::cerr << "Could not open file " << excludeFileName.toString() << std::endl;
+        std::cerr << "Could not open file " << excludeFileName.str() << std::endl;
         return;
     }
 
@@ -436,7 +436,7 @@ void Coverage::onItem(unsigned traceIndex,
         if (m_library->findLibrary(mi->Name, path)) {
             llvm::sys::Path modPath(path);
             modPath.eraseComponent();
-            BasicBlockCoverage *bb = new BasicBlockCoverage(modPath.toString(), mi->Name);
+            BasicBlockCoverage *bb = new BasicBlockCoverage(modPath.str(), mi->Name);
             m_bbCov[mi->Name] = bb;
             bbcov = bb;
         }
