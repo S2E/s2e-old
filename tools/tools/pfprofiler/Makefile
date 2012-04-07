@@ -6,7 +6,7 @@
 
 LEVEL=../..
 TOOLNAME = pfprofiler
-USEDLIBS = executiontracer.a binaryreaders.a
+USEDLIBS = executiontracer.a binaryreaders.a utils.a
 LINK_COMPONENTS = support
 
 include $(LEVEL)/Makefile.common

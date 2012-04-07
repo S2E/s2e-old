@@ -6,8 +6,8 @@
 
 LEVEL=../..
 TOOLNAME = icounter
-USEDLIBS = executiontracer.a binaryreaders.a
-LINK_COMPONENTS = support system
+USEDLIBS = executiontracer.a binaryreaders.a utils.a
+LINK_COMPONENTS = support
 
 include $(LEVEL)/Makefile.common
 
