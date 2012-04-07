@@ -38,7 +38,7 @@
 #define S2ETOOLS_EXECTRACER_LOGPARSER_H
 
 #include <string>
-#include <sigc++/sigc++.h>
+#include <lib/Utils/Signals/Signals.h>
 #include <s2e/Plugins/ExecutionTracers/TraceEntries.h>
 #include <stdio.h>
 #include <vector>
