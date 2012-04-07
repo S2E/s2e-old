@@ -242,6 +242,7 @@ public:
     uint64_t getPc() const;
     uint64_t getPid() const;
     uint64_t getSp() const;
+    uint64_t getFlags();
 
     void setPc(uint64_t pc);
     void setSp(uint64_t sp);

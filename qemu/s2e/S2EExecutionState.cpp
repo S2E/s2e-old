@@ -454,6 +454,14 @@ uint64_t S2EExecutionState::getPc() const
     return readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
 }
 
+uint64_t S2EExecutionState::getFlags()
+{
+    /* restore flags in standard format */
+    WR_cpu(env, cc_src, cpu_cc_compute_all(env, CC_OP));
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    return cpu_get_eflags(env);
+}
+
 void S2EExecutionState::setPc(uint64_t pc)
 {
     writeCpuState(CPU_OFFSET(eip), pc, sizeof(target_ulong)*8);
