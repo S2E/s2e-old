@@ -151,7 +151,7 @@ bool WindowsCrashDumpGenerator::saveContext(S2EExecutionState *state, s2e::windo
     ctx.SegSs = state->readCpuState(offsetof(CPUX86State, segs[R_SS].selector), 8*sizeof(uint32_t));
 
 
-    ctx.EFlags = cpu_get_eflags(env);
+    ctx.EFlags = state->getFlags();
 
     //Take the return address of the bugcheck call
     uint64_t pc;
