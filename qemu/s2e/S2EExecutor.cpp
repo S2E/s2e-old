@@ -329,7 +329,7 @@ S2EHandler::S2EHandler(S2E* s2e)
 {
 }
 
-std::ostream &S2EHandler::getInfoStream() const
+llvm::raw_ostream &S2EHandler::getInfoStream() const
 {
     return m_s2e->getInfoStream();
 }
@@ -339,7 +339,7 @@ std::string S2EHandler::getOutputFilename(const std::string &fileName)
     return m_s2e->getOutputFilename(fileName);
 }
 
-std::ostream *S2EHandler::openOutputFile(const std::string &fileName)
+llvm::raw_ostream *S2EHandler::openOutputFile(const std::string &fileName)
 {
     return m_s2e->openOutputFile(fileName);
 }

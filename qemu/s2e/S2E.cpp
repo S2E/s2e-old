@@ -52,6 +52,7 @@
 #include <llvm/Support/Path.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/raw_os_ostream.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <llvm/Module.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
@@ -180,55 +181,6 @@ namespace s2e {
 
 using namespace std;
 
-/** A streambuf that writes both to parent streambuf and cerr */
-class TeeStreamBuf : public streambuf
-{
-    deque<streambuf*> m_parentBufs;
-public:
-    TeeStreamBuf(streambuf* master): m_parentBufs(1, master) {}
-    void addParentBuf(streambuf* buf) { m_parentBufs.push_front(buf); }
-
-    streamsize xsputn(const char* s, streamsize n) {
-        streamsize res = 0;
-        foreach(streambuf* buf, m_parentBufs)
-            res = buf->sputn(s, n);
-        return res;
-    }
-    int overflow(int c = EOF ) {
-        foreach(streambuf* buf, m_parentBufs)
-            buf->sputc(c);
-        return 1;
-    }
-    int sync() {
-        int res = 0;
-        foreach(streambuf* buf, m_parentBufs)
-            res = buf->pubsync();
-        return res;
-    }
-};
-
-class HighlightStreamBuf : public streambuf
-{
-    streambuf* m_parentBuf;
-public:
-    HighlightStreamBuf(streambuf* master): m_parentBuf(master) {}
-
-    streamsize xsputn(const char* s, streamsize n) {
-        m_parentBuf->sputn("\033[31m", 5);
-        streamsize res = m_parentBuf->sputn(s, n);
-        m_parentBuf->sputn("\033[0m", 4);
-        return res;
-    }
-    int overflow(int c = EOF) {
-        m_parentBuf->sputn("\033[31m", 5);
-        m_parentBuf->sputc(c);
-        m_parentBuf->sputn("\033[0m", 4);
-        return 1;
-    }
-    int sync() {
-        return m_parentBuf->pubsync();
-    }
-};
 
 S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     const std::string &configFileName, const std::string &outputDirectory,
@@ -272,7 +224,7 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
 
     /* Copy the config file into the output directory */
     {
-        ostream *out = openOutputFile("s2e.config.lua");
+        llvm::raw_ostream *out = openOutputFile("s2e.config.lua");
         ifstream in(configFileName.c_str());
         if(in.good()) {
             (*out) << in.rdbuf();
@@ -282,7 +234,7 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
 
     /* Save command line arguments */
     {
-        ostream *out = openOutputFile("s2e.cmdline");
+        llvm::raw_ostream *out = openOutputFile("s2e.cmdline");
         for(int i = 0; i < argc; ++i) {
             if(i != 0)
                 (*out) << " ";
@@ -358,19 +310,13 @@ S2E::~S2E()
 
     delete m_configFile;
 
+    delete m_warningStream;
+    delete m_messageStream;
+
     delete m_infoFileRaw;
-    delete m_infoFile;
-
     delete m_warningsFileRaw;
-    delete m_warningsFile;
-    delete m_warningsStreamBuf;
-
     delete m_messagesFileRaw;
-    delete m_messagesFile;
-    delete m_messagesStreamBuf;
-
     delete m_debugFileRaw;
-    delete m_debugFile;
 }
 
 Plugin* S2E::getPlugin(const std::string& name) const
@@ -389,19 +335,15 @@ std::string S2E::getOutputFilename(const std::string &fileName)
     return filePath.str();
 }
 
-std::ostream* S2E::openOutputFile(const std::string &fileName)
+llvm::raw_ostream* S2E::openOutputFile(const std::string &fileName)
 {
-    std::ios::openmode io_mode = std::ios::out | std::ios::trunc
-                                  | std::ios::binary;
-
     std::string path = getOutputFilename(fileName);
-    std::ostream *f = new std::ofstream(path.c_str(), io_mode);
-    if (!f) {
-        std::cerr << "ERROR: out of memory" << '\n';
-        exit(1);
-    } else if (!f->good()) {
-        std::cerr << "ERROR: can not open file '" << path << "'" << '\n';
-        exit(1);
+    std::string error;
+    llvm::raw_fd_ostream *f = new llvm::raw_fd_ostream(path.c_str(), error, llvm::raw_fd_ostream::F_Binary);
+
+    if (!f || error.size()>0) {
+        llvm::errs() << "Error opening " << path << ": " << error << "\n";
+        exit(-1);
     }
 
     return f;
@@ -495,26 +437,29 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
     cout.setf(ios_base::unitbuf);
     cerr.setf(ios_base::unitbuf);
 
-    m_infoFile = openOutputFile("info");
-    m_infoFile->setf(ios_base::unitbuf);
-    m_infoFileRaw = new llvm::raw_os_ostream(*m_infoFile);
+    m_infoFileRaw = openOutputFile("info.txt");
+    m_debugFileRaw = openOutputFile("debug.txt");
+    m_messagesFileRaw = openOutputFile("messages.txt");
+    m_warningsFileRaw = openOutputFile("warnings.txt");
 
-    m_debugFile = openOutputFile("debug.txt");
-    m_debugFile->setf(ios_base::unitbuf);
-    streambuf* debugFileBuf = m_debugFile->rdbuf();
-    m_debugFileRaw = new llvm::raw_os_ostream(*m_debugFile);
+    // Messages appear in messages.txt, debug.txt and on stdout
+    raw_tee_ostream *messageStream = new raw_tee_ostream(m_messagesFileRaw);
+    messageStream->addParentBuf(m_debugFileRaw);
+    if (verbose) {
+        messageStream->addParentBuf(&llvm::outs());
+    }
+    m_messageStream = messageStream;
 
-    m_messagesFile = openOutputFile("messages.txt");
-    m_messagesFile->setf(ios_base::unitbuf);
-    streambuf* messagesFileBuf = m_messagesFile->rdbuf();
-    m_messagesFileRaw = new llvm::raw_os_ostream(*m_messagesFile);
-
-    m_warningsFile = openOutputFile("warnings.txt");
-    m_warningsFile->setf(ios_base::unitbuf);
-    streambuf* warningsFileBuf = m_warningsFile->rdbuf();
-    m_warningsFileRaw = new llvm::raw_os_ostream(*m_warningsFile);
+    // Warnings appear in warnings.txt, messages.txt, debug.txt
+    // and on stderr in red color
+    raw_tee_ostream *warningsStream = new raw_tee_ostream(m_warningsFileRaw);
+    warningsStream->addParentBuf(m_debugFileRaw);
+    warningsStream->addParentBuf(m_messagesFileRaw);
+    warningsStream->addParentBuf(new raw_highlight_ostream(&llvm::errs()));
+    m_warningStream = warningsStream;
 
 
+#if 0
     // Messages appear in messages.txt, debug.txt and on stdout
     m_messagesStreamBuf = new TeeStreamBuf(messagesFileBuf);
     static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(debugFileBuf);
@@ -535,9 +480,10 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
         static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(cerr.rdbuf());
     m_warningsFile->rdbuf(m_warningsStreamBuf);
     m_warningsFile->setf(ios_base::unitbuf);
+#endif
 
-    klee::klee_message_stream = m_messagesFile;
-    klee::klee_warning_stream = m_warningsFile;
+    klee::klee_message_stream = m_messageStream;
+    klee::klee_warning_stream = m_warningStream;
 }
 
 void S2E::initKleeOptions()
@@ -645,7 +591,7 @@ llvm::raw_ostream& S2E::getStream(llvm::raw_ostream &stream,
 
     if(state) {
         llvm::sys::TimeValue curTime = llvm::sys::TimeValue::now();
-        stream << (curTime.seconds() - m_startTimeSeconds) << " ";
+        stream << (curTime.seconds() - m_startTimeSeconds) << ' ';
 
         if (m_maxProcesses > 1) {
             stream  << "[Node " << m_currentProcessIndex <<

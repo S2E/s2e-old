@@ -112,14 +112,9 @@ protected:
     llvm::raw_ostream*   m_messagesFileRaw;
     llvm::raw_ostream*   m_warningsFileRaw;
 
-    std::ostream*   m_infoFile;
-    std::ostream*   m_debugFile;
-    std::ostream*   m_messagesFile;
-    std::ostream*   m_warningsFile;
+    llvm::raw_ostream*   m_messageStream;
+    llvm::raw_ostream*   m_warningStream;
 
-
-    std::streambuf* m_messagesStreamBuf;
-    std::streambuf* m_warningsStreamBuf;
 
     TCGLLVMContext *m_tcgLLVMContext;
 
@@ -180,12 +175,11 @@ public:
     std::string getOutputFilename(const std::string& fileName);
 
     /** Create output file in an output directory */
-    std::ostream* openOutputFile(const std::string &filename);
+    llvm::raw_ostream* openOutputFile(const std::string &filename);
 
     /** Get info stream (used only by KLEE internals) */
-    std::ostream& getInfoStream(const S2EExecutionState* state = 0) const {
-        getStream(*m_infoFileRaw, state);
-        return *m_infoFile;
+    llvm::raw_ostream& getInfoStream(const S2EExecutionState* state = 0) const {
+        return getStream(*m_infoFileRaw, state);
     }
 
     /** Get debug stream (used for non-important debug info) */
@@ -195,12 +189,12 @@ public:
 
     /** Get messages stream (used for non-critical information) */
     llvm::raw_ostream& getMessagesStream(const S2EExecutionState* state = 0) const {
-        return getStream(*m_messagesFileRaw, state);
+        return getStream(*m_messageStream, state);
     }
 
     /** Get warnings stream (used for warnings, duplicated on the screen) */
     llvm::raw_ostream& getWarningsStream(const S2EExecutionState* state = 0) const {
-        return getStream(*m_warningsFileRaw, state);
+        return getStream(*m_warningStream, state);
     }
 
     static void printf(llvm::raw_ostream &os, const char *fmt, ...);

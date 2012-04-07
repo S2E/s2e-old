@@ -38,6 +38,7 @@
 #define S2E_EXECUTOR_H
 
 #include <klee/Executor.h>
+#include <llvm/Support/raw_ostream.h>
 
 class TCGLLVMContext;
 
@@ -69,9 +70,9 @@ private:
 public:
     S2EHandler(S2E* s2e);
 
-    std::ostream &getInfoStream() const;
+    llvm::raw_ostream &getInfoStream() const;
     std::string getOutputFilename(const std::string &fileName);
-    std::ostream *openOutputFile(const std::string &fileName);
+    llvm::raw_ostream *openOutputFile(const std::string &fileName);
 
     /* klee-related function */
     void incPathsExplored();
