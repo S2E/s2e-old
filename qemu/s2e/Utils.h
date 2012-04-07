@@ -130,8 +130,14 @@ class raw_tee_ostream : public llvm::raw_ostream {
         flush();
     }
 
+    size_t preferred_buffer_size() const {
+        return 0;
+    }
+
 public:
-    raw_tee_ostream(llvm::raw_ostream* master): m_parentBufs(1, master) {}
+    raw_tee_ostream(llvm::raw_ostream* master): m_parentBufs(1, master) {
+
+    }
     void addParentBuf(llvm::raw_ostream* buf) { m_parentBufs.push_front(buf); }
 };
 
@@ -151,6 +157,10 @@ class raw_highlight_ostream : public llvm::raw_ostream {
 
     virtual ~raw_highlight_ostream() {
         flush();
+    }
+
+    size_t preferred_buffer_size() const {
+        return 0;
     }
 
 public:
