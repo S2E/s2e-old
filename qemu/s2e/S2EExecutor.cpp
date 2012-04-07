@@ -2165,6 +2165,7 @@ void S2EExecutor::terminateState(ExecutionState &s)
 {
     S2EExecutionState& state = static_cast<S2EExecutionState&>(s);
     terminateStateAtFork(state);
+    state.zombify();
 
     //No need for exiting the loop if we kill another state.
     if (&state == g_s2e_state) {
