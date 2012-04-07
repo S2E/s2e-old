@@ -1155,7 +1155,9 @@ void S2EExecutor::stateSwitchTimerCallback(void *opaque)
     S2EExecutor *c = (S2EExecutor*)opaque;
 
     if (g_s2e_state) {
+        vm_stop(RUN_STATE_SAVE_VM);
         g_s2e_state = c->selectNextState(g_s2e_state);
+        vm_start();
     }
 
     qemu_mod_timer(c->m_stateSwitchTimer, qemu_get_clock_ms(rt_clock) + 100);
@@ -1188,7 +1190,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     const MemoryObject* cpuMo = oldState ? oldState->m_cpuSystemState :
                                             newState->m_cpuSystemState;
-    vm_stop(RUN_STATE_SAVE_VM);
 
     if(oldState) {
         if(oldState->m_runningConcrete)
@@ -1270,10 +1271,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     if(FlushTBsOnStateSwitch)
         tb_flush(env);
-
-    vm_start();
-
-
 
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
 }
