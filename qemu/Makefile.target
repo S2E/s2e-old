@@ -125,7 +125,7 @@ tcg/tcg.o: cpu.h
 # HELPER_CFLAGS is used for all the legacy code compiled with static register
 # variables
 ifneq ($(TARGET_BASE_ARCH), sparc)
-op_helper.o: QEMU_CFLAGS += $(HELPER_CFLAGS)
+op_helper.o: QEMU_CFLAGS += $(HELPER_CFLAGS) -Wno-array-bounds
 endif
 user-exec.o: QEMU_CFLAGS += $(HELPER_CFLAGS)
 
@@ -560,6 +560,8 @@ ARLIBS += libs2e.a
 
 s2e_llvmobj-y =
 s2e_llvmobj-y += op_helper.bc
+
+op_helper.bc: LLVM_CXXFLAGS+=-Wno-array-bounds
 
 $(s2e_llvmobj-y): %.bc: %.c %.o $(GENERATED_HEADERS)
 
