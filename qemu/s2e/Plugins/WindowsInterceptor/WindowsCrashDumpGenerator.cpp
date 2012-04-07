@@ -183,7 +183,7 @@ void WindowsCrashDumpGenerator::generateCrashDump(S2EExecutionState *state,
 
     std::stringstream filename;
     filename << prefix << state->getID() << ".dump";
-    std::ostream &d = *s2e()->openOutputFile(filename.str());
+    llvm::raw_ostream &d = *s2e()->openOutputFile(filename.str());
 
     rawhdr = new uint8_t[0x1000];
     hdr = (DUMP_HEADER32*)rawhdr;
