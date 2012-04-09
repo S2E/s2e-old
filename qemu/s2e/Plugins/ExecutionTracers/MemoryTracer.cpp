@@ -156,7 +156,7 @@ void MemoryTracer::onDataMemoryAccess(S2EExecutionState *state,
 {
     //XXX: This is a hack.
     //Sometimes the onModuleTransition is not fired properly...
-    if (m_execDetector && !m_execDetector->getCurrentDescriptor(state)) {
+    if (m_execDetector && m_monitorModules && !m_execDetector->getCurrentDescriptor(state)) {
         m_memoryMonitor.disconnect();
         return;
     }
