@@ -373,6 +373,16 @@ static QEMUMachine pc_machine_v1_1 = {
     .init = pc_init_pci,
     .max_cpus = 255,
     .is_default = 1,
+
+    //XXX: S2E has problems with vapic for now, so we disable it.
+    .compat_props = (GlobalProperty[]) {
+        {
+            .driver   = "apic",
+            .property = "vapic",
+            .value    = "off",
+        },
+        { /* end of list */ }
+    },
 };
 
 static QEMUMachine pc_machine_v1_0 = {
