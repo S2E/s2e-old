@@ -277,7 +277,7 @@ void X86ExceptionInterceptor::handleTaskGate(S2EExecutionState *state, const Han
     //XXX: generalize this
     uint32_t pfhdlr = X86Parser::getOffset(m_idt[14]) ;
     llvm::raw_ostream &os = s2e()->getDebugStream();
-    os << "PF handler is at 0x" << hexval(pfhdlr) << '\n';
+    os << "PF handler is at " << hexval(pfhdlr) << '\n';
 
     uint8_t chr;
     if (!state->readMemoryConcrete(pfhdlr, &chr, sizeof(chr))) {

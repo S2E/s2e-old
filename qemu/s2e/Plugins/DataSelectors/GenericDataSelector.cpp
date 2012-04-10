@@ -392,7 +392,7 @@ void GenericDataSelector::injectMemory(S2EExecutionState *state, uint64_t pc,
     assert (size <= 8);
 
     if (concrete) {
-        os << "Injecting concrete value 0x" << hexval(val) << " in memory " << hexval(base)
+        os << "Injecting concrete value " << hexval(val) << " in memory " << hexval(base)
                 << " at pc " << hexval(state->getPc()) << '\n';
         //state->dumpStack(20);
         assert (reg < 8);

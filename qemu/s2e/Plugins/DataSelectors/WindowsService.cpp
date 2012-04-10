@@ -123,7 +123,7 @@ void WindowsService::onTranslateBlockStart(ExecutionSignal *signal,
         return;
     }
 
-    s2e()->getWarningsStream() << "Found ServiceMain at 0x" << hexval((*eit).second) << '\n';
+    s2e()->getWarningsStream() << "Found ServiceMain at " << hexval((*eit).second) << '\n';
 
     //XXX: cache the export table for reuse.
     if (pc != (*eit).second) {

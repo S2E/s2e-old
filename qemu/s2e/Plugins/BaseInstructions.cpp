@@ -304,7 +304,7 @@ void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
     std::string str="";
     if(!address || !state->readString(address, str)) {
         s2e()->getWarningsStream(state)
-                << "Error reading string message from the guest at address 0x"
+                << "Error reading string message from the guest at address "
                 << hexval(address) << '\n';
     } else {
         llvm::raw_ostream *stream;
@@ -312,7 +312,7 @@ void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
             stream = &s2e()->getWarningsStream(state);
         else
             stream = &s2e()->getMessagesStream(state);
-        (*stream) << "Message from guest (0x" << hexval(address) <<
+        (*stream) << "Message from guest (" << hexval(address) <<
                      "): " <<  str << '\n';
     }
 }

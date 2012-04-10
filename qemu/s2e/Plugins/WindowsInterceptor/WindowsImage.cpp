@@ -39,6 +39,7 @@
 #include "WindowsImage.h"
 
 #include <s2e/Utils.h>
+#include <s2e/s2e_qemu.h>
 
 #include <algorithm>
 
@@ -105,22 +106,22 @@ WindowsImage::WindowsImage(S2EExecutionState *state, uint64_t Base)
     m_ImageBase = 0;
 
     if (!state->readMemoryConcrete(m_Base, &DosHeader, sizeof(DosHeader))) {
-        DPRINTF("Could not load IMAGE_DOS_HEADER structure (m_Base=%#"PRIx64")\n", m_Base);
+        s2e_debug_print("Could not load IMAGE_DOS_HEADER structure (m_Base=%#"PRIx64")\n", m_Base);
         return;
     }
 
     if (DosHeader.e_magic != s2e::windows::IMAGE_DOS_SIGNATURE)  {
-        DPRINTF("PE image has invalid magic\n");
+        s2e_debug_print("PE image has invalid magic\n");
         return;
     }
 
     if (!state->readMemoryConcrete(m_Base+DosHeader.e_lfanew, &NtHeader, sizeof(NtHeader))) {
-        DPRINTF("Could not load IMAGE_NT_HEADER structure (m_Base=%#"PRIx64")\n", m_Base+(unsigned)DosHeader.e_lfanew);
+        s2e_debug_print("Could not load IMAGE_NT_HEADER structure (m_Base=%#"PRIx64")\n", m_Base+(unsigned)DosHeader.e_lfanew);
         return;
     }
 
     if (NtHeader.Signature != s2e::windows::IMAGE_NT_SIGNATURE) {
-        DPRINTF("NT header has invalid magic\n");
+        s2e_debug_print("NT header has invalid magic\n");
         return;
     }
 
@@ -184,7 +185,7 @@ int WindowsImage::InitExports(S2EExecutionState *state)
     ExportDataDir =  &NtHeader.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
     ExportTableAddress = ExportDataDir->VirtualAddress + m_Base;
     ExportTableSize = ExportDataDir->Size;
-    DPRINTF("ExportTableAddress=%#x ExportTableSize=%#x\n", ExportDataDir->VirtualAddress, ExportDataDir->Size);
+    s2e_debug_print("ExportTableAddress=%#x ExportTableSize=%#x\n", ExportDataDir->VirtualAddress, ExportDataDir->Size);
 
     if (!ExportDataDir->VirtualAddress || !ExportTableSize) {
         return -1;
@@ -193,7 +194,7 @@ int WindowsImage::InitExports(S2EExecutionState *state)
     ExportDir = (s2e::windows::PIMAGE_EXPORT_DIRECTORY)malloc(ExportTableSize);
 
     if (!state->readMemoryConcrete(ExportTableAddress, (uint8_t*)ExportDir, ExportTableSize)) {
-        DPRINTF("Could not load PIMAGE_EXPORT_DIRECTORY structures (m_Base=%#x)\n", ExportTableAddress);
+        s2e_debug_print("Could not load PIMAGE_EXPORT_DIRECTORY structures (m_Base=%#x)\n", ExportTableAddress);
         res = -5;
         goto err2;
     }
@@ -211,13 +212,13 @@ int WindowsImage::InitExports(S2EExecutionState *state)
     }
 
     if (!state->readMemoryConcrete(m_Base + ExportDir->AddressOfNames, Names, TblSz)) {
-        DPRINTF("Could not load names of exported functions");
+        s2e_debug_print("Could not load names of exported functions");
         res = -6;
         goto err2;
     }
 
     if (!state->readMemoryConcrete(m_Base + ExportDir->AddressOfFunctions, FcnPtrs, TblSz)) {
-        DPRINTF("Could not load addresses of  exported functions");
+        s2e_debug_print("Could not load addresses of  exported functions");
         res = -7;
         goto err3;
     }
@@ -235,7 +236,7 @@ int WindowsImage::InitExports(S2EExecutionState *state)
             continue;
         }
 
-        //DPRINTF("Export %s @%#"PRIx64"\n", FunctionName.c_str(), FcnPtrs[i]+m_Base);
+        //s2e_debug_print("Export %s @%#"PRIx64"\n", FunctionName.c_str(), FcnPtrs[i]+m_Base);
         m_Exports[FunctionName] = FcnPtrs[i] + m_Base;
     }
 
@@ -270,12 +271,12 @@ int WindowsImage::InitImports(S2EExecutionState *state)
     ImportDescCount = ImportTableSize / sizeof(s2e::windows::IMAGE_IMPORT_DESCRIPTOR);
     ImportDescriptors = (s2e::windows::PIMAGE_IMPORT_DESCRIPTOR)malloc(ImportTableSize);
     if (!ImportDescriptors) {
-        DPRINTF("Could not allocate memory for import descriptors\n");
+        s2e_debug_print("Could not allocate memory for import descriptors\n");
         return -5;
     }
 
     if (!state->readMemoryConcrete(ImportTableAddress, ImportDescriptors, ImportTableSize)) {
-        DPRINTF("Could not load IMAGE_IMPORT_DESCRIPTOR structures (base=%#"PRIx64")\n", ImportTableAddress);
+        s2e_debug_print("Could not load IMAGE_IMPORT_DESCRIPTOR structures (base=%#"PRIx64")\n", ImportTableAddress);
         free(ImportDescriptors);
         return -6;
     }
@@ -291,7 +292,7 @@ int WindowsImage::InitImports(S2EExecutionState *state)
             continue;
         }
 
-        DPRINTF("%s\n", DllName.c_str());
+        s2e_debug_print("%s\n", DllName.c_str());
 
         ImportAddressTable = m_Base + ImportDescriptors[i].FirstThunk;
         ImportNameTable = m_Base + ImportDescriptors[i].OriginalFirstThunk;
@@ -307,7 +308,7 @@ int WindowsImage::InitImports(S2EExecutionState *state)
                 &INaT, sizeof(INaT));
 
             if (!res1 || !res2) {
-                DPRINTF("Could not load IAT entries\n");
+                s2e_debug_print("Could not load IAT entries\n");
                 free(ImportDescriptors);
                 return -7;
             }
@@ -319,7 +320,7 @@ int WindowsImage::InitImports(S2EExecutionState *state)
                 uint32_t Tmp = INaT.u1.AddressOfData & ~0xFFFF;
                 Tmp &= ~IMAGE_ORDINAL_FLAG;
                 if (!Tmp) {
-                    DPRINTF("Does not support import by ordinals\n");
+                    s2e_debug_print("Does not support import by ordinals\n");
                     break;
                 }
             }else {
@@ -343,7 +344,7 @@ int WindowsImage::InitImports(S2EExecutionState *state)
                 j++;
                 continue;
             }
-            //DPRINTF("  %s @%#x\n", FunctionName.c_str(), IAT.u1.Function);
+            //s2e_debug_print("  %s @%#x\n", FunctionName.c_str(), IAT.u1.Function);
 
             std::transform(DllName.begin(), DllName.end(), DllName.begin(),
                            ::tolower);

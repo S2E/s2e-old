@@ -594,17 +594,17 @@ void PciDeviceDescriptor::print(llvm::raw_ostream &os) const
 {
     os << "PCI Device Descriptor id=" << m_id << '\n';
     os << "VID=" << hexval(m_vid) <<
-            " PID=0x" << m_pid <<
+            " PID=" << hexval(m_pid) <<
             " RevID=" << hexval(m_revisionId) << '\n';
 
     os << "Class=" << hexval(m_classCode) <<
-            " INT=0x" << hexval(m_interruptPin) << '\n';
+            " INT=" << hexval(m_interruptPin) << '\n';
 
     unsigned i=0;
     foreach2(it, m_resources.begin(), m_resources.end()) {
         const PciResource &res = *it;
         os << "R[" << i << "]: " <<
-                "Size=0x" << res.size << " IsIO=" << (int)res.isIo <<
+                "Size=" << hexval(res.size) << " IsIO=" << (int)res.isIo <<
                 " IsPrefetchable=" << hexval(res.prefetchable) << '\n';
         ++i;
     }

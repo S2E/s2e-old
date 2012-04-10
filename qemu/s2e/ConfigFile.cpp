@@ -473,7 +473,7 @@ int S2ELUAExecutionState::writeMemory(lua_State *L)
     }
 
     if (!m_state->writeMemoryConcrete(address, &value, size)) {
-        g_s2e->getDebugStream() << "writeMemory: Could not write to memory at address 0x" << hexval(address);
+        g_s2e->getDebugStream() << "writeMemory: Could not write to memory at address " << hexval(address);
         return 0;
     }
 

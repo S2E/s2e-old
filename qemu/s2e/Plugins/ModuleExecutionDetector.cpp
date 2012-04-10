@@ -487,9 +487,9 @@ void ModuleExecutionDetector::onExecution(
     if (plgState->m_PreviousModule != currentModule) {
 #if 0
         if (currentModule) {
-            DPRINTF("Entered module %s\n", currentModule->descriptor.Name.c_str());
+            s2e_debug_print("Entered module %s\n", currentModule->descriptor.Name.c_str());
         }else {
-            DPRINTF("Entered unknown module\n");
+            s2e_debug_print("Entered unknown module\n");
         }
 #endif
         onModuleTransition.emit(state, plgState->m_PreviousModule, currentModule);

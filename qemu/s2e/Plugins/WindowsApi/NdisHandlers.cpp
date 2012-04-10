@@ -938,7 +938,7 @@ void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uin
     }
 
     if(eax) {
-        s2e()->getDebugStream() << __FUNCTION__ << " failed with 0x" << hexval(eax) << '\n';
+        s2e()->getDebugStream() << __FUNCTION__ << " failed with " << hexval(eax) << '\n';
         incrementFailures(state);
         return;
     }
@@ -1230,8 +1230,8 @@ void NdisHandlers::NdisMInitializeTimer(S2EExecutionState* state, FunctionMonito
         return;
     }
 
-    s2e()->getDebugStream(state) << "NdisMInitializeTimer pc=0x" << hexval(TimerFunction) <<
-            " priv=0x" << priv << '\n';
+    s2e()->getDebugStream(state) << "NdisMInitializeTimer pc=" << hexval(TimerFunction) <<
+            " priv=" << hexval(priv) << '\n';
 
     m_timerEntryPoints.insert(std::make_pair(TimerFunction, priv));
 
@@ -2185,7 +2185,7 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
         return;
     }
 
-    s2e()->getMessagesStream() << "NDIS_MINIPORT_CHARACTERISTICS @0x" << pMiniport << '\n';
+    s2e()->getMessagesStream() << "NDIS_MINIPORT_CHARACTERISTICS @" << hexval(pMiniport) << '\n';
 
     s2e::windows::NDIS_MINIPORT_CHARACTERISTICS32 Miniport;
     if (!state->readMemoryConcrete(pMiniport, &Miniport, sizeof(Miniport))) {

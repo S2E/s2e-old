@@ -157,7 +157,7 @@ void HalHandlers::HalpValidPciSlot(S2EExecutionState* state, FunctionMonitorStat
      BUS_HANDLER32 BusHandler;
      ok = state->readMemoryConcrete(pBusHandler, &BusHandler, sizeof(BusHandler));
      if (!ok) {
-         s2e()->getDebugStream() << "Could not read BUS_HANDLER32 at address 0x" << hexval(pBusHandler) <<  '\n';
+         s2e()->getDebugStream() << "Could not read BUS_HANDLER32 at address " << hexval(pBusHandler) <<  '\n';
          return;
      }
 

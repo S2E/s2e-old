@@ -125,7 +125,7 @@ bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
 
     do {
         if (!state->readMemoryConcrete(CurLib, &LdrEntry, sizeof(s2e::windows::LDR_DATA_TABLE_ENTRY32))) {
-            DPRINTF("Could not read LDR_DATA_TABLE_ENTRY (%#x)\n", CurLib);
+            s2e_debug_print("Could not read LDR_DATA_TABLE_ENTRY (%#x)\n", CurLib);
             return false;
         }
 
@@ -152,7 +152,7 @@ bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
 
         //XXX: this must be state-local
         if (m_LoadedLibraries.find(Desc) == m_LoadedLibraries.end()) {
-            DPRINTF("  MODULE %s Base=%#x Size=%#x\n", s.c_str(), LdrEntry.DllBase, LdrEntry.SizeOfImage);
+            s2e_debug_print("  MODULE %s Base=%#x Size=%#x\n", s.c_str(), LdrEntry.DllBase, LdrEntry.SizeOfImage);
             m_LoadedLibraries.insert(Desc);
             NotifyModuleLoad(state, Desc);
         }
@@ -227,7 +227,7 @@ bool WindowsUmInterceptor::WaitForProcessInit(S2EExecutionState* state)
     m_LdrAddr = PebBlock.Ldr;
     m_ProcBase = PebBlock.ImageBaseAddress;
 
-    DPRINTF("Process %#"PRIx64" %#x %#x\n", m_ProcBase, LdrData.Initialized, LdrData.EntryInProgress);
+    s2e_debug_print("Process %#"PRIx64" %#x %#x\n", m_ProcBase, LdrData.Initialized, LdrData.EntryInProgress);
     return true;
 
 }
@@ -263,7 +263,7 @@ bool WindowsUmInterceptor::CatchProcessTerminationXp(S2EExecutionState *State)
         return false;
     }
 
-    DPRINTF("Process %#"PRIx32" %16s unloaded\n", EProcess.Pcb.DirectoryTableBase,
+    s2e_debug_print("Process %#"PRIx32" %16s unloaded\n", EProcess.Pcb.DirectoryTableBase,
         EProcess.ImageFileName);
     m_Os->onProcessUnload.emit(State, EProcess.Pcb.DirectoryTableBase);
 
@@ -292,7 +292,7 @@ bool WindowsUmInterceptor::CatchProcessTerminationServer2008(S2EExecutionState *
         return false;
     }
 
-    DPRINTF("Process %#"PRIx32" %16s unloaded\n", EProcess.Pcb.DirectoryTableBase,
+    s2e_debug_print("Process %#"PRIx32" %16s unloaded\n", EProcess.Pcb.DirectoryTableBase,
         EProcess.ImageFileName);
     m_Os->onProcessUnload.emit(State, EProcess.Pcb.DirectoryTableBase);
 
@@ -330,7 +330,7 @@ bool WindowsUmInterceptor::CatchModuleUnloadBase(S2EExecutionState *State, uint6
     Desc.LoadBase = LdrEntry.DllBase;
     Desc.Size = LdrEntry.SizeOfImage;
 
-    DPRINTF("Detected module unload %s pid=%#"PRIx64" LoadBase=%#"PRIx64"\n",
+    s2e_debug_print("Detected module unload %s pid=%#"PRIx64" LoadBase=%#"PRIx64"\n",
         Desc.Name.c_str(), Desc.Pid, Desc.LoadBase);
 
     m_Os->onModuleUnload.emit(State, Desc);

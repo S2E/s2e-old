@@ -233,7 +233,7 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
 
     if (!NtSuccess(s2e(), state, eax)) {
         std::stringstream ss;
-        ss << "Entry point failed with 0x" << std::hex << eax;
+        ss << "Entry point failed with " << std::hex << eax;
         incrementFailures(state);
         detectLeaks(state, *module);
 

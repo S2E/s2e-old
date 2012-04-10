@@ -67,7 +67,7 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
     }
 
 
-    s2e()->getMessagesStream() << "NDIS_PROTOCOL_CHARACTERISTICS @0x" << pProtocol << '\n';
+    s2e()->getMessagesStream() << "NDIS_PROTOCOL_CHARACTERISTICS @" << hexval(pProtocol) << '\n';
 
     s2e::windows::NDIS_PROTOCOL_CHARACTERISTICS32 Protocol;
     if (!state->readMemoryConcrete(pProtocol, &Protocol, sizeof(Protocol))) {

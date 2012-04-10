@@ -288,13 +288,10 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
         }
 
         if (pc == GetLdrpCallInitRoutine() && m_MonitorModuleLoad) {
-            DPRINTF("Basic block for LdrpCallInitRoutine %#"PRIx64"\n", pc);
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchModuleLoad));
         }else if (pc == GetNtTerminateProcessEProcessPoint() && m_MonitorProcessUnload) {
-            DPRINTF("Basic block for NtTerminateProcess %#"PRIx64"\n", pc);
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchProcessTermination));
         }else if (pc == GetDllUnloadPc() && m_MonitorModuleUnload) {
-            DPRINTF("Basic block for Dll unload %#"PRIx64"\n", pc);
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchModuleUnload));
         }
     }
@@ -351,31 +348,31 @@ void WindowsMonitor::onPageDirectoryChange(S2EExecutionState *state, uint64_t pr
 
 void WindowsMonitor::slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc)
 {
-    DPRINTF("User mode module load at %#"PRIx64"\n", pc);
+    s2e()->getDebugStream(state) << "User mode module load at " << hexval(pc) << '\n';
     m_UserModeInterceptor->CatchModuleLoad(state);
 }
 
 void WindowsMonitor::slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc)
 {
-    DPRINTF("User mode module unload at %#"PRIx64"\n", pc);
+    s2e()->getDebugStream(state) << "User mode module unload at " << hexval(pc) << '\n';
     m_UserModeInterceptor->CatchModuleUnload(state);
 }
 
 void WindowsMonitor::slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc)
 {
-    DPRINTF("Caught process termination\n");
+    s2e()->getDebugStream(state) << "Caught process termination\n";
     m_UserModeInterceptor->CatchProcessTermination(state);
 }
 
 void WindowsMonitor::slotKmModuleLoad(S2EExecutionState *state, uint64_t pc)
 {
-    DPRINTF("Kernel mode module load at %#"PRIx64"\n", pc);
+    s2e()->getDebugStream(state) << "Kernel mode module load at " << hexval(pc) << '\n';
     m_KernelModeInterceptor->CatchModuleLoad(state);
 }
 
 void WindowsMonitor::slotKmModuleUnload(S2EExecutionState *state, uint64_t pc)
 {
-    DPRINTF("Kernel mode module unload at %#"PRIx64"\n", pc);
+    s2e()->getDebugStream(state) << "Kernel mode module unload at " << hexval(pc) << '\n';
     m_KernelModeInterceptor->CatchModuleUnload(state);
 }
 
@@ -423,7 +420,7 @@ void WindowsMonitor::slotKmThreadExit(S2EExecutionState *state, uint64_t pc)
  */
 void WindowsMonitor::slotKmUpdateModuleList(S2EExecutionState *state, uint64_t pc)
 {
-    DPRINTF("Kernel mode module update at %#"PRIx64"\n", pc);
+    s2e()->getDebugStream(state) << "Kernel mode module update at " << hexval(pc) << '\n';
     if (m_KernelModeInterceptor->ReadModuleList(state)) {
         //List updated, unregister
         m_SyscallConnection.disconnect();

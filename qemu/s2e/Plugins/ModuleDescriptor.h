@@ -198,7 +198,7 @@ struct ModuleDescriptor
 
   void Print(llvm::raw_ostream &os) const {
     os << "Name=" << Name  <<
-      " NativeBase=" << hexval(NativeBase) << " LoadBase=0x" << LoadBase <<
+      " NativeBase=" << hexval(NativeBase) << " LoadBase=" << hexval(LoadBase) <<
       " Size=" << hexval(Size) <<
       " EntryPoint=" << hexval(EntryPoint) << '\n';
   }

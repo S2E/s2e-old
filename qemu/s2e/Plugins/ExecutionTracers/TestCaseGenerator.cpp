@@ -67,7 +67,7 @@ void TestCaseGenerator::processTestCase(const S2EExecutionState &state,
 {
     s2e()->getMessagesStream()
             << "TestCaseGenerator: processTestCase of state " << state.getID()
-            << " at address 0x" << hexval(state.getPc())
+            << " at address " << hexval(state.getPc())
             << '\n';
 
     ConcreteInputs out;

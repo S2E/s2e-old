@@ -223,7 +223,7 @@ void NtoskrnlHandlers::DebugPrint(S2EExecutionState* state, FunctionMonitorState
      std::string message;
      ok = state->readString(strptr, message, 255);
      if (!ok) {
-         s2e()->getDebugStream() << "Could not read string in DebugPrint at address 0x" << hexval(strptr) <<  '\n';
+         s2e()->getDebugStream() << "Could not read string in DebugPrint at address " << hexval(strptr) <<  '\n';
          return;
      }
 
@@ -326,7 +326,7 @@ void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state, uint32_t pDev
     incrementSuccesses(state);
 
     if (m_memoryChecker) {
-        s2e()->getDebugStream() << "IoCreateDeviceRet pDeviceObject=0x" << hexval(pDeviceObject) << '\n';
+        s2e()->getDebugStream() << "IoCreateDeviceRet pDeviceObject=" << hexval(pDeviceObject) << '\n';
 
         uint32_t DeviceObject;
 

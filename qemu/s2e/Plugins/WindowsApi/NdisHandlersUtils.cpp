@@ -62,7 +62,7 @@ bool NdisHandlers::makePacketSymbolic(S2EExecutionState *s, uint32_t pPacket, bo
     }
 
     if (!Packet.Private.Head) {
-        s2e()->getDebugStream() << "NDIS_PACKET 0x" << pPacket << " is empty." << '\n';
+        s2e()->getDebugStream() << "NDIS_PACKET " << hexval(pPacket) << " is empty." << '\n';
         return false;
     }
 
