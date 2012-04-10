@@ -685,7 +685,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(tlb_flush_page)
     __DEFINE_EXT_FUNCTION(tlb_flush)
 
-    /*XXX: Disable for now
     __DEFINE_EXT_FUNCTION(io_readb_mmu)
     __DEFINE_EXT_FUNCTION(io_readw_mmu)
     __DEFINE_EXT_FUNCTION(io_readl_mmu)
@@ -695,7 +694,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(io_writew_mmu)
     __DEFINE_EXT_FUNCTION(io_writel_mmu)
     __DEFINE_EXT_FUNCTION(io_writeq_mmu)
-    */
 
     __DEFINE_EXT_FUNCTION(iotlb_to_region)
 
@@ -1182,7 +1180,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     //This is the same mechanism as used by load/save_vmstate, so it should work reliably
     qemu_aio_flush();
     bdrv_flush_all();
-
 
     m_s2e->getMessagesStream(oldState)
             << "Switching from state " << (oldState ? oldState->getID() : -1)
