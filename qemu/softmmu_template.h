@@ -205,6 +205,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
                                           void *retaddr)
 {
     DATA_TYPE res;
+    target_phys_addr_t origaddr = physaddr;
     MemoryRegion *mr = iotlb_to_region(physaddr);
 
     target_ulong naddr = (physaddr & TARGET_PAGE_MASK)+addr;
@@ -265,7 +266,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
 #endif /* SHIFT > 2 */
 
     //By default, call the original io_read function, which is external
-    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(ENV_VAR physaddr, addr, retaddr);
+    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(ENV_VAR origaddr, addr, retaddr);
 }
 
 
@@ -498,6 +499,7 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_ad
                                           target_ulong addr,
                                           void *retaddr)
 {
+    target_phys_addr_t origaddr = physaddr;
     MemoryRegion *mr = iotlb_to_region(physaddr);
 
     physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
@@ -548,7 +550,7 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_ad
     }
 
     //By default, call the original io_write function, which is external
-    glue(glue(io_write, SUFFIX), MMUSUFFIX)(ENV_VAR physaddr, val, addr, retaddr);
+    glue(glue(io_write, SUFFIX), MMUSUFFIX)(ENV_VAR origaddr, val, addr, retaddr);
 }
 
 #endif
