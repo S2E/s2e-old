@@ -62,7 +62,10 @@ void s2e_do_interrupt_all(int intno, int is_int, int error_code,
                              target_ulong next_eip, int is_hw);
 uint64_t helper_set_cc_op_eflags(void);
 }
+
+#ifndef __APPLE__
 #include <malloc.h>
+#endif
 
 #include "S2EExecutor.h"
 #include <s2e/s2e_config.h>

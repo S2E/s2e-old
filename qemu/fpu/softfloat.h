@@ -54,6 +54,11 @@ these four paragraphs for those parts of this code that are retained.
 | to the same as `int'.
 *----------------------------------------------------------------------------*/
 typedef uint8_t flag;
+
+#ifdef __APPLE__
+#define uint16 qemu_uint16
+#endif
+
 typedef uint8_t uint8;
 typedef int8_t int8;
 #ifndef _AIX
