@@ -1,16 +1,16 @@
 S2ESRC:=$(CURDIR)/../s2e
 S2EBUILD:=$(CURDIR)
 
-<<<<<<< HEAD
-JOBS:=4
-=======
+OS := $(shell uname)
 JOBS:=2
 
 CP=cp
-ifeq ($(shell uname -s),Darwin)
+ifeq ($(OS),Darwin)
 CP=gcp
+JOBS := $(patsubst hw.ncpu:%,%,$(shell sysctl hw.ncpu))
+else ifeq ($(OS),Linux)
+JOBS := $(shell grep -c ^processor /proc/cpuinfo)
 endif
->>>>>>> internal
 
 all: all-release
 
@@ -105,6 +105,7 @@ CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 #First build it with the system's compiler
 stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack
 	mkdir -p llvm-native
+	echo $(S2EBUILD) $(S2ESRC)
 	cd llvm-native && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--target=x86_64 --enable-targets=x86 --enable-jit \
@@ -260,13 +261,9 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e \
-<<<<<<< HEAD
-		--enable-debug --compile-all-with-clang
-
-=======
-		--enable-debug \
+		--enable-debug --compile-all-with-clang \
                 $(EXTRA_QEMU_FLAGS)
->>>>>>> internal
+
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
@@ -279,12 +276,9 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
-<<<<<<< HEAD
-		--enable-s2e --compile-all-with-clang
-=======
-		--enable-s2e \
+		--enable-s2e --compile-all-with-clang \
                 $(EXTRA_QEMU_FLAGS)
->>>>>>> internal
+
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS
