@@ -297,7 +297,7 @@ CXXFLAGS="-Wno-mismatched-tags -g $CXXFLAGS"
 LDFLAGS="-g $LDFLAGS"
 
 QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
-QEMU_CFLAGS="-Wno-initializer-overrides -Wall -Wundef -Wwrite-strings -Wmissing-prototypes $QEMU_CFLAGS"
+QEMU_CFLAGS="-Wall -Wundef -Wwrite-strings -Wmissing-prototypes $QEMU_CFLAGS"
 QEMU_CFLAGS="-Wstrict-prototypes -Wredundant-decls $QEMU_CFLAGS"
 QEMU_CFLAGS="-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE $QEMU_CFLAGS"
 QEMU_CFLAGS="-D_FORTIFY_SOURCE=2 $QEMU_CFLAGS"
@@ -4292,6 +4292,10 @@ fi
 echo "LDFLAGS+=$ldflags" >> $config_target_mak
 echo "QEMU_CFLAGS+=$cflags" >> $config_target_mak
 echo "QEMU_INCLUDES+=$includes" >> $config_target_mak
+
+if test "$compileallwithclang" = "yes"; then
+    echo "QEMU_CFLAGS+=-Wno-initializer-overrides" >> $config_target_mak
+fi
 
 done # for target in $targets
 
