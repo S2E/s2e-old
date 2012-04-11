@@ -59,6 +59,7 @@ private:
 
 public:
     Binary(BFDInterface *bfd);
+    virtual ~Binary();
 
     static bool isValid(llvm::MemoryBuffer *file);
     virtual const Imports &getImports() const = 0;

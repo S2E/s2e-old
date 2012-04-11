@@ -42,4 +42,10 @@ Binary::Binary(BFDInterface *bfd)
 {
     m_bfd = bfd;
 }
+
+Binary::~Binary()
+{
+
+}
+
 }
