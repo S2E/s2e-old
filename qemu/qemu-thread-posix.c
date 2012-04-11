@@ -173,6 +173,7 @@ void *qemu_thread_join(QemuThread *thread)
     return ret;
 }
 
+#ifndef CONFIG_DARWIN
 
 void qemu_spinlock_create(QemuSpinlock *lock)
 {
@@ -191,3 +192,5 @@ void qemu_spin_unlock(QemuSpinlock *lock)
 {
     pthread_spin_unlock(&lock->lock);
 }
+
+#endif
