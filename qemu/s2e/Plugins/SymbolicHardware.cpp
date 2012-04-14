@@ -76,7 +76,7 @@ struct SymbolicPciDeviceState {
 };
 
 struct SymbolicIsaDeviceState {
-    SysBusDevice dev;
+    ISADevice dev;
     IsaDeviceDescriptor *desc;
     qemu_irq qirq;
     MemoryRegion io;
@@ -332,7 +332,7 @@ void IsaDeviceDescriptor::initializeQemuDevice()
     static TypeInfo fakeisa_info = {
         /* The name is changed at registration time */
         .name          = m_id.c_str(),
-        .parent        = TYPE_SYS_BUS_DEVICE,
+        .parent        = TYPE_ISA_DEVICE,
         .instance_size = sizeof(SymbolicIsaDeviceState),
         .class_init    = isa_symbhw_class_init,
         .class_data    = this,
@@ -371,7 +371,7 @@ void IsaDeviceDescriptor::initializeQemuDevice()
 
 void IsaDeviceDescriptor::activateQemuDevice(void *bus)
 {
-    sysbus_create_simple(m_id.c_str(), -1, (qemu_irq)m_qemuIrq);
+    isa_create_simple((ISABus*)bus, m_id.c_str());
 
     if (!isActive()) {
         g_s2e->getWarningsStream() << "ISA device " <<
@@ -706,7 +706,7 @@ static const MemoryRegionOps symbhw_io_ops = {
 
 
 /////////////////////////////////////////////////////////////////////
-static int isa_symbhw_init(SysBusDevice *dev)
+static int isa_symbhw_init(ISADevice *dev)
 {
     s2e_debug_print("isa_symbhw_init\n");
 
@@ -715,7 +715,8 @@ static int isa_symbhw_init(SysBusDevice *dev)
     SymbolicHardware *hw = static_cast<SymbolicHardware*>(g_s2e->getPlugin("SymbolicHardware"));
     assert(hw);
 
-    IsaDeviceDescriptor *isa_device_desc = static_cast<IsaDeviceDescriptor*>(hw->findDevice(dev->qdev.id));
+    const char *devName = object_class_get_name(dev->qdev.parent_obj.klass);
+    IsaDeviceDescriptor *isa_device_desc = static_cast<IsaDeviceDescriptor*>(hw->findDevice(devName));
     assert(isa_device_desc);
 
     symb_isa_state->desc = isa_device_desc;
@@ -732,9 +733,7 @@ static int isa_symbhw_init(SysBusDevice *dev)
     memory_region_init_io(&symb_isa_state->io, &symbhw_io_ops, symb_isa_state, ss.str().c_str(), size);
 
     hw->setSymbolicPortRange(addr, size, true);
-
-    sysbus_init_irq(dev, &symb_isa_state->qirq);
-    sysbus_connect_irq(dev, irq, symb_isa_state->qirq);
+    isa_init_irq(dev, &symb_isa_state->qirq, irq);
     isa_device_desc->assignIrq(&symb_isa_state->qirq);
 
     return 0;
@@ -744,7 +743,7 @@ static int isa_symbhw_init(SysBusDevice *dev)
 static void isa_symbhw_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
-    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+    ISADeviceClass *k = ISA_DEVICE_CLASS(klass);
 
     IsaDeviceDescriptor *isa_desc = static_cast<IsaDeviceDescriptor*>(data);
 
