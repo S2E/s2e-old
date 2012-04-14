@@ -162,9 +162,18 @@ private:
     uint64_t m_pathCount;
 
     typedef std::map<std::string, BasicBlockCoverage*> BbCoverageMap;
-
     BbCoverageMap m_bbCov;
 
+    /* Occurence count of program counters not in any known module */
+    uint64_t m_unknownModuleCount;
+
+    /* Module names for which the tool could not find the executable image. */
+    std::set<std::string> m_notFoundModuleImages;
+
+    /* BB lists that were not found. */
+    std::set<std::string> m_notFoundBbList;
+
+    BasicBlockCoverage *loadCoverage(const ModuleInstance *mi);
 
     void onItem(unsigned traceIndex,
                 const s2e::plugins::ExecutionTraceItemHeader &hdr,
@@ -179,6 +188,8 @@ public:
     uint64_t getPathCount() const {
         return m_pathCount;
     }
+
+    void printErrors() const;
 
 };
 

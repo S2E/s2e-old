@@ -392,6 +392,7 @@ Coverage::Coverage(Library *lib, ModuleCache *cache, LogEvents *events)
     m_cache = cache;
     m_library = lib;
     m_pathCount = 1;
+    m_unknownModuleCount = 0;
 }
 
 Coverage::~Coverage()
@@ -402,6 +403,31 @@ Coverage::~Coverage()
     for (it = m_bbCov.begin(); it != m_bbCov.end(); ++it) {
         delete (*it).second;
     }
+}
+
+BasicBlockCoverage *Coverage::loadCoverage(const ModuleInstance *mi)
+{
+    BasicBlockCoverage *bbcov = NULL;
+    assert(mi);
+
+    BbCoverageMap::iterator it = m_bbCov.find(mi->Name);
+    if (it == m_bbCov.end()) {
+        //Look for the file containing the bbs.
+        std::string path;
+        if (m_library->findLibrary(mi->Name, path)) {
+            llvm::sys::Path modPath(path);
+            modPath.eraseComponent();
+            BasicBlockCoverage *bb = new BasicBlockCoverage(modPath.str(), mi->Name);
+            m_bbCov[mi->Name] = bb;
+            bbcov = bb;
+        } else {
+            m_notFoundModuleImages.insert(mi->Name);
+        }
+    }else {
+        bbcov = (*it).second;
+    }
+
+    return bbcov;
 }
 
 void Coverage::onItem(unsigned traceIndex,
@@ -424,33 +450,18 @@ void Coverage::onItem(unsigned traceIndex,
 
     const ModuleInstance *mi = mcs->getInstance(hdr.pid, te->pc);
     if (!mi) {
-        std::cerr << "Could not find module for pc=0x" << std::hex << te->pc << std::endl;
+        ++m_unknownModuleCount;
         return;
     }
 
-    BasicBlockCoverage *bbcov = NULL;
-    BbCoverageMap::iterator it = m_bbCov.find(mi->Name);
-    if (it == m_bbCov.end()) {
-        //Look for the file containing the bbs.
-        std::string path;
-        if (m_library->findLibrary(mi->Name, path)) {
-            llvm::sys::Path modPath(path);
-            modPath.eraseComponent();
-            BasicBlockCoverage *bb = new BasicBlockCoverage(modPath.str(), mi->Name);
-            m_bbCov[mi->Name] = bb;
-            bbcov = bb;
-        }
-    }else {
-        bbcov = (*it).second;
+    BasicBlockCoverage *bbcov = loadCoverage(mi);
+    if (!bbcov) {
+        return;
     }
 
     uint64_t relPc = te->pc - mi->LoadBase + mi->ImageBase;
 
-    if (!bbcov) {
-        std::cerr << "The block 0x" << std::hex << relPc << " could not be found in any module. " <<
-                "Make sure the path to the lists of basic blocks for module " << mi->Name << " is correct." << std::endl;
-        return;
-    }
+
 
     bbcov->addTranslationBlock(hdr.timeStamp, relPc, relPc+te->size-1);
 }
@@ -492,6 +503,24 @@ void Coverage::outputCoverage(const std::string &path) const
     }
 }
 
+void Coverage::printErrors() const
+{
+    if (m_unknownModuleCount) {
+        std::cerr << "There were " << m_unknownModuleCount << " trace entries whose "
+                << "program counter was not in any known module.\n"
+                << "Make sure you enabled ModuleTracer in the S2E configuration file\n";
+    }
+
+    if (m_notFoundModuleImages.size() > 0) {
+        std::cerr << "Could not find executable images of the following modules.\n"
+                << "Please check your module path settings.\n";
+
+        std::set<std::string>::const_iterator it;
+        for (it = m_notFoundModuleImages.begin(); it != m_notFoundModuleImages.end(); ++it) {
+            std::cerr << *it << "\n";
+        }
+    }
+}
 
 CoverageTool::CoverageTool()
 {
@@ -512,6 +541,7 @@ void CoverageTool::flatTrace()
     Coverage cov(&m_binaries, &mc, &pb);
 
     pb.processTree();
+    cov.printErrors();
 
     cov.outputCoverage(LogDir);
 }
