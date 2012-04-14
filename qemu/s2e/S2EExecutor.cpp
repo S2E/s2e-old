@@ -1482,6 +1482,7 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
     //Handle the case where we killed the current state inside processFork
     if (m_forkProcTerminateCurrentState) {
         state->writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
+        state->zombify();
         m_forkProcTerminateCurrentState = false;
         throw CpuExitException();
     }
