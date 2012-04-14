@@ -380,9 +380,9 @@ void s2e_on_device_registration(S2E *s2e)
     s2e->getCorePlugin()->onDeviceRegistration.emit();
 }
 
-void s2e_on_device_activation(S2E *s2e, struct PCIBus *bus)
+void s2e_on_device_activation(S2E *s2e, int bus_type, void *bus)
 {
-    s2e->getCorePlugin()->onDeviceActivation.emit(bus);
+    s2e->getCorePlugin()->onDeviceActivation.emit(bus_type, bus);
 }
 
 

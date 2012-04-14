@@ -40,6 +40,9 @@ extern "C"
 #include "hw/hw.h"
 #include "hw/pci.h"
 #include "hw/isa.h"
+#include "hw/fakepci.h"
+#include "hw/sysbus.h"
+#include "qemu/object.h"
 }
 
 #include "SymbolicHardware.h"
@@ -65,6 +68,7 @@ namespace {
 namespace s2e {
 namespace plugins {
 
+//XXX: This should be the same as PCIFakeState?
 struct SymbolicPciDeviceState {
     PCIDevice dev;
     PciDeviceDescriptor *desc;
@@ -72,7 +76,7 @@ struct SymbolicPciDeviceState {
 };
 
 struct SymbolicIsaDeviceState {
-    ISADevice dev;
+    SysBusDevice dev;
     IsaDeviceDescriptor *desc;
     qemu_irq qirq;
     MemoryRegion io;
@@ -85,23 +89,9 @@ extern "C" {
 
     static bool symbhw_is_mmio_symbolic(uint64_t physaddr, uint64_t size, void *opaque);
     static bool symbhw_is_mmio_symbolic_none(uint64_t physaddr, uint64_t size, void *opaque);
-#if 0
-    static int pci_symbhw_init(PCIDevice *pci_dev);
-    static int pci_symbhw_uninit(PCIDevice *pci_dev);
-    static int isa_symbhw_init(ISADevice *dev);
 
-
-    static void symbhw_write8(void *opaque, uint32_t address, uint32_t data);
-    static void symbhw_write16(void *opaque, uint32_t address, uint32_t data);
-    static void symbhw_write32(void *opaque, uint32_t address, uint32_t data);
-
-    static void symbhw_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val);
-    static void symbhw_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val);
-    static void symbhw_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val);
-    static uint32_t symbhw_mmio_readb(void *opaque, target_phys_addr_t addr);
-    static uint32_t symbhw_mmio_readw(void *opaque, target_phys_addr_t addr);
-    static uint32_t symbhw_mmio_readl(void *opaque, target_phys_addr_t addr);
-#endif
+    static void pci_symbhw_class_init(ObjectClass *klass, void *data);
+    static void isa_symbhw_class_init(ObjectClass *klass, void *data);
 }
 
 
@@ -253,11 +243,16 @@ void SymbolicHardware::onDeviceRegistration()
     }
 }
 
-void SymbolicHardware::onDeviceActivation(struct PCIBus* pci)
+void SymbolicHardware::onDeviceActivation(int bus_type, void *bus)
 {
     s2e()->getMessagesStream() << "Activating symbolic devices..." << '\n';
     foreach2(it, m_devices.begin(), m_devices.end()) {
-        (*it)->activateQemuDevice(pci);
+        if (bus_type == PCI && (*it)->isPci()) {
+            (*it)->activateQemuDevice(bus);
+        }
+        if (bus_type == ISA && (*it)->isIsa()) {
+            (*it)->activateQemuDevice(bus);
+        }
     }
 }
 
@@ -273,11 +268,26 @@ DeviceDescriptor::DeviceDescriptor(const std::string &id){
    m_id = id;
    m_qemuIrq = NULL;
    m_qemuDev = NULL;
+
+   m_devInfo = NULL;
+   m_devInfoProperties = NULL;
+   m_vmState = NULL;
+   m_vmStateFields = NULL;
 }
 
 DeviceDescriptor::~DeviceDescriptor()
 {
+    if (m_devInfo)
+        delete m_devInfo;
 
+    if (m_devInfoProperties)
+        delete [] m_devInfoProperties;
+
+    if (m_vmState)
+        delete m_vmState;
+
+    if (m_vmStateFields)
+        delete m_vmStateFields;
 }
 
 DeviceDescriptor *DeviceDescriptor::create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key)
@@ -317,39 +327,64 @@ IsaDeviceDescriptor::IsaDeviceDescriptor(const std::string &id, const IsaResourc
 
 void IsaDeviceDescriptor::initializeQemuDevice()
 {
-#if 0
-    m_isaInfo = new ISADeviceInfo();
+    g_s2e->getDebugStream() << "IsaDeviceDescriptor::initializeQemuDevice()" << '\n';
+
+    static TypeInfo fakeisa_info = {
+        /* The name is changed at registration time */
+        .name          = m_id.c_str(),
+        .parent        = TYPE_SYS_BUS_DEVICE,
+        .instance_size = sizeof(SymbolicIsaDeviceState),
+        .class_init    = isa_symbhw_class_init,
+        .class_data    = this,
+    };
+
+    m_isaInfo = new TypeInfo(fakeisa_info);
+
     m_isaProperties = new Property[1];
-    memset(m_isaProperties, 0, sizeof(Property));
+    memset(m_isaProperties, 0, sizeof(Property)*1);
 
-    m_isaInfo->qdev.name = m_id.c_str();
-    m_isaInfo->qdev.size = sizeof(SymbolicIsaDeviceState);
-    m_isaInfo->init = isa_symbhw_init;
-    m_isaInfo->qdev.props = m_isaProperties;
+    /*
+    static const VMStateDescription vmstate_isa_fake = {
+        .name = "...",
+        .version_id = 3,
+        .minimum_version_id = 3,
+        .minimum_version_id_old = 3,
+        .fields      = (VMStateField []) {
+            VMSTATE_END_OF_LIST()
+        }
+    };*/
 
-    isa_qdev_register(m_isaInfo);
-#endif
+    m_vmStateFields = new VMStateField[1];
+    memset(m_vmStateFields, 0, sizeof(VMStateField)*1);
+
+    m_vmState = new VMStateDescription();
+    memset(m_vmState, 0, sizeof(VMStateDescription));
+
+    m_vmState->name = m_id.c_str();
+    m_vmState->version_id = 3,
+    m_vmState->minimum_version_id = 3,
+    m_vmState->minimum_version_id_old = 3,
+    m_vmState->fields = m_vmStateFields;
+
+    type_register_static(m_isaInfo);
 }
 
-void IsaDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
+void IsaDeviceDescriptor::activateQemuDevice(void *bus)
 {
-#if 0
-    isa_create_simple(m_id.c_str());
+    sysbus_create_simple(m_id.c_str(), -1, (qemu_irq)m_qemuIrq);
+
     if (!isActive()) {
         g_s2e->getWarningsStream() << "ISA device " <<
                 m_id << " is not active. Check that its ID does not collide with native QEMU devices." << '\n';
         exit(-1);
     }
-#endif
 }
 
 IsaDeviceDescriptor::~IsaDeviceDescriptor()
 {
-#if 0
     if (m_isaInfo) {
         delete m_isaInfo;
     }
-#endif
     if (m_isaProperties) {
         delete [] m_isaProperties;
     }
@@ -515,10 +550,38 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 void PciDeviceDescriptor::initializeQemuDevice()
 {
     g_s2e->getDebugStream() << "PciDeviceDescriptor::initializeQemuDevice()" << '\n';
-#if 0
+
+    TypeInfo fakepci_info = {
+        /* The name is changed at registration time */
+        .name          = m_id.c_str(),
+
+        .parent        = TYPE_PCI_DEVICE,
+        .instance_size = sizeof(SymbolicPciDeviceState),
+        .class_init    = pci_symbhw_class_init,
+        .class_data    = this,
+    };
+
+    m_devInfo = new TypeInfo(fakepci_info);
+
+    m_devInfoProperties = new Property[1];
+    memset(m_devInfoProperties, 0, sizeof(Property));
+
+    /*
+    static  VMStateDescription vmstate_pci_fake = {
+        .name = "fakepci",
+        .version_id = 3,
+        .minimum_version_id = 3,
+        .minimum_version_id_old = 3,
+        .fields      = (VMStateField []) {
+            VMSTATE_PCI_DEVICE(dev, PCIFakeState),
+            VMSTATE_END_OF_LIST()
+        }
+    }; */
+
     m_vmStateFields = new VMStateField[2];
     memset(m_vmStateFields, 0, sizeof(VMStateField)*2);
-    m_vmStateFields[0].name = "dev";
+    //Replaces VMSTATE_PCI_DEVICE()
+    m_vmStateFields[0].name = m_id.c_str();
     m_vmStateFields[0].size = sizeof(PCIDevice);
     m_vmStateFields[0].vmsd = &vmstate_pci_device;
     m_vmStateFields[0].flags = VMS_STRUCT;
@@ -533,25 +596,12 @@ void PciDeviceDescriptor::initializeQemuDevice()
     m_vmState->minimum_version_id_old = 3,
     m_vmState->fields = m_vmStateFields;
 
-
-    m_pciInfo = new PCIDeviceInfo();
-    m_pciInfo->qdev.name = m_id.c_str();
-    m_pciInfo->qdev.size = sizeof(SymbolicPciDeviceState);
-    m_pciInfo->qdev.vmsd = m_vmState;
-    m_pciInfo->init = pci_symbhw_init;
-    m_pciInfo->exit = pci_symbhw_uninit;
-
-    m_pciInfoProperties = new Property[1];
-    memset(m_pciInfoProperties, 0, sizeof(Property));
-
-    m_pciInfo->qdev.props = m_pciInfoProperties;
-    pci_qdev_register(m_pciInfo);
-#endif
+    type_register_static(m_devInfo);
 }
 
-void PciDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
+void PciDeviceDescriptor::activateQemuDevice(void *bus)
 {
-    void *res = pci_create_simple(bus, -1, m_id.c_str());
+    void *res = pci_create_simple((struct PCIBus*)bus, -1, m_id.c_str());
     assert(res);
 
     if (!isActive()) {
@@ -576,18 +626,18 @@ bool PciDeviceDescriptor::readPciAddressSpace(void *buffer, uint32_t offset, uin
 
 PciDeviceDescriptor::PciDeviceDescriptor(const std::string &id):DeviceDescriptor(id)
 {
-    m_pciInfo = NULL;
-    m_pciInfoProperties = NULL;
-    m_vmState = NULL;
+    m_vid = 0;
+    m_pid = 0;
+    m_ss_id = 0;
+    m_ss_vid = 0;
+    m_classCode = 0;
+    m_revisionId = 0;
+    m_interruptPin = 0;
 }
 
 PciDeviceDescriptor::~PciDeviceDescriptor()
 {
-#if 0
-    if (m_pciInfo) delete m_pciInfo;
-    if (m_pciInfoProperties) delete [] m_pciInfoProperties;
-    if (m_vmState) delete m_vmState;
-#endif
+
 }
 
 void PciDeviceDescriptor::print(llvm::raw_ostream &os) const
@@ -656,72 +706,81 @@ static const MemoryRegionOps symbhw_io_ops = {
 
 
 /////////////////////////////////////////////////////////////////////
-#if 0
-static int isa_symbhw_init(ISADevice *dev)
+static int isa_symbhw_init(SysBusDevice *dev)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << " called" << '\n';
+    s2e_debug_print("isa_symbhw_init\n");
 
-    SymbolicIsaDeviceState *isa = DO_UPCAST(SymbolicIsaDeviceState, dev, dev);
+    SymbolicIsaDeviceState *symb_isa_state = DO_UPCAST(SymbolicIsaDeviceState, dev, dev);
 
-    SymbolicHardware *hw = (SymbolicHardware*)g_s2e->getPlugin("SymbolicHardware");
+    SymbolicHardware *hw = static_cast<SymbolicHardware*>(g_s2e->getPlugin("SymbolicHardware"));
     assert(hw);
 
-    IsaDeviceDescriptor *dd = (IsaDeviceDescriptor*)hw->findDevice(dev->qdev.info->name);
-    assert(dd);
+    IsaDeviceDescriptor *isa_device_desc = static_cast<IsaDeviceDescriptor*>(hw->findDevice(dev->qdev.id));
+    assert(isa_device_desc);
 
-    isa->desc = dd;
-    dd->setActive(true);
-    dd->setDevice(dev);
+    symb_isa_state->desc = isa_device_desc;
+    isa_device_desc->setActive(true);
+    isa_device_desc->setDevice(dev);
 
-    IsaDeviceDescriptor *s = isa->desc;
-
-    uint32_t size = s->getResource().portSize;
-    uint32_t addr = s->getResource().portBase;
-    uint32_t irq = s->getResource().irq;
+    uint32_t size = isa_device_desc->getResource().portSize;
+    uint32_t addr = isa_device_desc->getResource().portBase;
+    uint32_t irq = isa_device_desc->getResource().irq;
 
     std::stringstream ss;
-    ss << "fakeisa-" << dev->qdev.info->name;
+    ss << dev->qdev.id << "-io";
 
-    memory_region_init_io(&isa->io, &symbhw_io_ops, isa, ss.str().c_str(), size);
-    isa_register_ioport(dev, &isa->io, addr);
+    memory_region_init_io(&symb_isa_state->io, &symbhw_io_ops, symb_isa_state, ss.str().c_str(), size);
 
     hw->setSymbolicPortRange(addr, size, true);
 
-    isa_init_irq(dev, &isa->qirq, irq);
-    dd->assignIrq(&isa->qirq);
+    sysbus_init_irq(dev, &symb_isa_state->qirq);
+    sysbus_connect_irq(dev, irq, symb_isa_state->qirq);
+    isa_device_desc->assignIrq(&symb_isa_state->qirq);
 
     return 0;
 }
 
 
+static void isa_symbhw_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
+
+    IsaDeviceDescriptor *isa_desc = static_cast<IsaDeviceDescriptor*>(data);
+
+    k->init = isa_symbhw_init;
+
+    dc->vmsd = isa_desc->getVmStateDescription();
+    dc->props = isa_desc->getProperties();
+}
+
+/////////////////////////////////////////////////////////////////////
+
 static int pci_symbhw_init(PCIDevice *pci_dev)
 {
-    SymbolicPciDeviceState *d = DO_UPCAST(SymbolicPciDeviceState, dev, pci_dev);
+    SymbolicPciDeviceState *symb_pci_state = DO_UPCAST(SymbolicPciDeviceState, dev, pci_dev);
     uint8_t *pci_conf;
 
     s2e_debug_print("pci_symbhw_init\n");
 
     //Retrive the configuration
-    SymbolicHardware *hw = (SymbolicHardware*)g_s2e->getPlugin("SymbolicHardware");
+    SymbolicHardware *hw = static_cast<SymbolicHardware*>(g_s2e->getPlugin("SymbolicHardware"));
     assert(hw);
 
-    PciDeviceDescriptor *dd = (PciDeviceDescriptor*)hw->findDevice(pci_dev->name);
-    assert(dd);
+    PciDeviceDescriptor *pci_device_desc = static_cast<PciDeviceDescriptor*>(hw->findDevice(pci_dev->name));
+    assert(pci_device_desc);
 
-    dd->setActive(true);
+    pci_device_desc->setActive(true);
 
-    d->desc = dd;
-    dd->setDevice(&d->dev);
+    symb_pci_state->desc = pci_device_desc;
+    pci_device_desc->setDevice(&symb_pci_state->dev);
 
-    pci_conf = d->dev.config;
-    pci_config_set_vendor_id(pci_conf, dd->getVid());
-    pci_config_set_device_id(pci_conf, dd->getPid());
-    pci_config_set_class(pci_conf, dd->getClassCode());
+    pci_conf = symb_pci_state->dev.config;
     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
-    pci_conf[0x3d] = dd->getInterruptPin(); // interrupt pin 0
+    pci_conf[0x3d] = pci_device_desc->getInterruptPin(); // interrupt pin 0
 
     const PciDeviceDescriptor::PciResources &resources =
-            dd->getResources();
+            pci_device_desc->getResources();
 
     unsigned i=0;
     foreach2(it, resources.begin(), resources.end()) {
@@ -732,14 +791,20 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
         type |= res.prefetchable ? PCI_BASE_ADDRESS_MEM_PREFETCH : 0;
 
         std::stringstream ss;
-        ss << "fakepci-" << pci_dev->qdev.info->name;
+        ss << pci_device_desc->getId();
 
-        memory_region_init_io(&d->io[i], &symbhw_io_ops, d, ss.str().c_str(), res.size);
-        pci_register_bar(&d->dev, i, type, &d->io[i]);
+        if (type & PCI_BASE_ADDRESS_SPACE_IO) {
+            ss << "-io";
+        } else if (type & PCI_BASE_ADDRESS_SPACE_MEMORY) {
+            ss << "-mmio";
+        }
+
+        memory_region_init_io(&symb_pci_state->io[i], &symbhw_io_ops, symb_pci_state, ss.str().c_str(), res.size);
+        pci_register_bar(&symb_pci_state->dev, i, type, &symb_pci_state->io[i]);
         ++i;
     }
 
-    dd->assignIrq(&d->dev.irq[0]);
+    pci_device_desc->assignIrq(&symb_pci_state->dev.irq[0]);
 
     return 0;
 }
@@ -748,12 +813,33 @@ static int pci_symbhw_uninit(PCIDevice *pci_dev)
 {
     SymbolicPciDeviceState *d = DO_UPCAST(SymbolicPciDeviceState, dev, pci_dev);
 
-    cpu_unregister_io_memory(d->desc->mmio_io_addr);
+    for (int i=0; i<d->desc->getResources().size(); ++i) {
+        memory_region_destroy(&d->io[i]);
+    }
+
     return 0;
 }
 
-#endif
+static void  pci_symbhw_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
+    PciDeviceDescriptor *pci_desc = static_cast<PciDeviceDescriptor*>(data);
+
+    k->init = pci_symbhw_init;
+    k->exit = pci_symbhw_uninit;
+
+    k->vendor_id = pci_desc->getVid();
+    k->device_id = pci_desc->getPid();
+    k->revision = pci_desc->getRevisionId();
+    k->class_id = pci_desc->getClassCode();
+    k->subsystem_vendor_id = pci_desc->getSsVid();
+    k->subsystem_id = pci_desc->getSsId();
+
+    dc->vmsd = pci_desc->getVmStateDescription();
+    dc->props = pci_desc->getProperties();
+}
 
 //////////////////////////////////////////////////////////////
 //Holds per-state information.
@@ -785,29 +871,29 @@ bool SymbolicHardwareState::setMmioRange(uint64_t physbase, uint64_t size, bool 
 {
     uint64_t addr = physbase;
     while(size > 0) {
-        MemoryRanges::iterator it = m_MmioMemory.find(addr & ~0xFFF);
+        MemoryRanges::iterator it = m_MmioMemory.find(addr & TARGET_PAGE_MASK);
         if (it == m_MmioMemory.end()) {
             if (!b) {
                 //No need to reset anything,
                 //Go to the next page
-                uint64_t leftover = 0x1000 - (addr & 0xFFF);
+                uint64_t leftover = TARGET_PAGE_SIZE - (addr & (TARGET_PAGE_SIZE-1));
                 addr += leftover;
                 size -= leftover > size ? size : leftover;
                 continue;
             }else {
                 //Need to create a new page
-                m_MmioMemory[addr & ~0xFFF] = PageBitmap();
-                it = m_MmioMemory.find(addr & ~0xFFF);
+                m_MmioMemory[addr & TARGET_PAGE_MASK] = PageBitmap();
+                it = m_MmioMemory.find(addr & TARGET_PAGE_MASK);
             }
         }
 
-        uint32_t offset = addr & 0xFFF;
-        uint32_t mysize = offset + size > 0x1000 ? 0x1000 - offset : size;
+        uint32_t offset = addr & (TARGET_PAGE_SIZE-1);
+        uint32_t mysize = offset + size > TARGET_PAGE_SIZE ? TARGET_PAGE_SIZE - offset : size;
 
         bool fc = (*it).second.set(offset, mysize, b);
         if (fc) {
             //The entire page is concrete, do not need to keep it in the map
-            m_MmioMemory.erase(addr & ~0xFFF);
+            m_MmioMemory.erase(addr & TARGET_PAGE_MASK);
         }
 
         size -= mysize;
@@ -819,24 +905,24 @@ bool SymbolicHardwareState::setMmioRange(uint64_t physbase, uint64_t size, bool 
 bool SymbolicHardwareState::isMmio(uint64_t physaddr, uint64_t size) const
 {
     while (size > 0) {
-        MemoryRanges::const_iterator it = m_MmioMemory.find(physaddr & ~0xFFF);
+        MemoryRanges::const_iterator it = m_MmioMemory.find(physaddr & TARGET_PAGE_MASK);
         if (it == m_MmioMemory.end()) {
-            uint64_t leftover = 0x1000 - (physaddr & 0xFFF);
+            uint64_t leftover = TARGET_PAGE_SIZE - (physaddr & (TARGET_PAGE_SIZE-1));
             physaddr += leftover;
             size -= leftover > size ? size : leftover;
             continue;
         }
 
-        if (((physaddr & 0xFFF) == 0) && size>=0x1000) {
+        if (((physaddr & (TARGET_PAGE_SIZE-1)) == 0) && size>=TARGET_PAGE_SIZE) {
             if ((*it).second.hasSymbolic()) {
                 return true;
             }
-            size-=0x1000;
-            physaddr+=0x1000;
+            size-=TARGET_PAGE_SIZE;
+            physaddr+=TARGET_PAGE_SIZE;
             continue;
         }
 
-        bool b = (*it).second.get(physaddr & 0xFFF);
+        bool b = (*it).second.get(physaddr & (TARGET_PAGE_SIZE-1));
         if (b) {
             return true;
         }
@@ -855,9 +941,9 @@ bool SymbolicHardwareState::PageBitmap::hasSymbolic() const
 
 void SymbolicHardwareState::PageBitmap::allocateBitmap(klee::BitArray *source) {
     if (source) {
-        bitmap = new klee::BitArray(*source, 0x1000);
+        bitmap = new klee::BitArray(*source, TARGET_PAGE_SIZE);
     } else {
-        bitmap = new klee::BitArray(0x1000, false);
+        bitmap = new klee::BitArray(TARGET_PAGE_SIZE, false);
     }
 }
 
@@ -871,7 +957,7 @@ bool SymbolicHardwareState::PageBitmap::isFullyConcrete() const {
         if (!bitmap) {
             return true;
         }
-        return bitmap->isAllZeros(0x1000);
+        return bitmap->isAllZeros(TARGET_PAGE_SIZE);
     }
     return false;
 }
@@ -898,16 +984,16 @@ SymbolicHardwareState::PageBitmap::~PageBitmap() {
 
 //Returns true if the resulting range is fully concrete
 bool SymbolicHardwareState::PageBitmap::set(unsigned offset, unsigned length, bool b) {
-    assert(offset <= 0x1000 && offset + length <= 0x1000);
+    assert(offset <= TARGET_PAGE_SIZE && offset + length <= TARGET_PAGE_SIZE);
     allocateBitmap(NULL);
 
     for (unsigned i=offset; i<offset + length; ++i) {
         bitmap->set(i, b);
     }
 
-    fullySymbolic = bitmap->isAllOnes(0x1000);
+    fullySymbolic = bitmap->isAllOnes(TARGET_PAGE_SIZE);
     bool fc = false;
-    if (fullySymbolic || (fc = bitmap->isAllZeros(0x1000))) {
+    if (fullySymbolic || (fc = bitmap->isAllZeros(TARGET_PAGE_SIZE))) {
         delete bitmap;
         bitmap = NULL;
         return fc;
@@ -916,7 +1002,7 @@ bool SymbolicHardwareState::PageBitmap::set(unsigned offset, unsigned length, bo
 }
 
 bool SymbolicHardwareState::PageBitmap::get(unsigned offset) const {
-    assert(offset < 0x1000);
+    assert(offset < TARGET_PAGE_SIZE);
     if (isFullySymbolic()) {
         return true;
     }

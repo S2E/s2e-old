@@ -78,7 +78,7 @@ enum VMStateFlags {
     VMS_VARRAY_UINT32    = 0x800,  /* Array with size in uint32_t field*/
 };
 
-typedef struct {
+typedef struct _VMStateField {
     const char *name;
     size_t offset;
     size_t size;

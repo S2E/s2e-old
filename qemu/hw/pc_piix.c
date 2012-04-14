@@ -45,6 +45,12 @@
 #  include <xen/hvm/hvm_info_table.h>
 #endif
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
+#include "fakepci.h"
+
 #define MAX_IDE_BUS 2
 
 static const int ide_iobase[MAX_IDE_BUS] = { 0x1f0, 0x170 };
@@ -302,6 +308,13 @@ static void pc_init1(MemoryRegion *system_memory,
     if (pci_enabled) {
         pc_pci_device_init(pci_bus);
     }
+
+#ifdef CONFIG_S2E
+    s2e_on_device_activation(g_s2e, PCI, pci_bus);
+    s2e_on_device_activation(g_s2e, ISA, isa_bus);
+#else
+    fakepci_activate_device(PCI, pci_bus);
+#endif
 }
 
 static void pc_init_pci(ram_addr_t ram_size,

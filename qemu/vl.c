@@ -2469,56 +2469,56 @@ int main(int argc, char **argv, char **envp)
               break;
 #else
             case QEMU_OPTION_fake_pci_name:
-              g_fake_pci.fake_pci_name = optarg;
+              g_fake_pci.name = optarg;
               break;
             case QEMU_OPTION_fake_pci_vendor_id:
-              g_fake_pci.fake_pci_vendor_id = strtol(optarg, NULL, 0);
+              g_fake_pci.vendor_id = strtol(optarg, NULL, 0);
               break;
             case QEMU_OPTION_fake_pci_device_id:
-              g_fake_pci.fake_pci_device_id = strtol(optarg, NULL, 0);
+              g_fake_pci.device_id = strtol(optarg, NULL, 0);
               break;
             case QEMU_OPTION_fake_pci_revision_id:
-              g_fake_pci.fake_pci_revision_id = strtol(optarg, NULL, 0);
+              g_fake_pci.revision_id = strtol(optarg, NULL, 0);
               break;
             case QEMU_OPTION_fake_pci_class_code:
-              g_fake_pci.fake_pci_class_code = strtol(optarg, NULL, 0);
+              g_fake_pci.class_code = strtol(optarg, NULL, 0);
               break;
             case QEMU_OPTION_fake_pci_ss_vendor_id:
-              g_fake_pci.fake_pci_ss_vendor_id = strtol(optarg, NULL, 0);
+              g_fake_pci.ss_vendor_id = strtol(optarg, NULL, 0);
               break;
             case QEMU_OPTION_fake_pci_ss_id:
-              g_fake_pci.fake_pci_ss_id = strtol(optarg, NULL, 0);
+              g_fake_pci.ss_id = strtol(optarg, NULL, 0);
               break;
             case QEMU_OPTION_fake_pci_resource_io:
               {
                 PCIIORegion region =
                   { -1, strtol(optarg, NULL, 0), PCI_BASE_ADDRESS_SPACE_IO, NULL, NULL};
-                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
-                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+                if (g_fake_pci.num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.resources[g_fake_pci.num_resources++] = region;
               }
               break;
             case QEMU_OPTION_fake_pci_resource_mem:
               {
                 PCIIORegion region =
                   { -1, strtol(optarg, NULL, 0), PCI_BASE_ADDRESS_SPACE_MEMORY, NULL, NULL };
-                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
-                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+                if (g_fake_pci.num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.resources[g_fake_pci.num_resources++] = region;
               }
               break;
             case QEMU_OPTION_fake_pci_resource_mem_prefetch:
               {
                 PCIIORegion region =
                   { -1, strtol(optarg, NULL, 0), PCI_BASE_ADDRESS_MEM_PREFETCH, NULL, NULL };
-                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
-                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+                if (g_fake_pci.num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.resources[g_fake_pci.num_resources++] = region;
               }
               break;
             case QEMU_OPTION_fake_pci_resource_rom:
               {
                 PCIIORegion region =
                   { -1, strtol(optarg, NULL, 0), PCI_ROM_ADDRESS, NULL, NULL};
-                g_fake_pci.fake_pci_num_resources = PCI_NUM_REGIONS;
-                g_fake_pci.fake_pci_resources[PCI_ROM_SLOT] = region;
+                g_fake_pci.num_resources = PCI_NUM_REGIONS;
+                g_fake_pci.resources[PCI_ROM_SLOT] = region;
               }
               break;
 
@@ -3687,11 +3687,9 @@ int main(int argc, char **argv, char **envp)
     }
 
 #ifdef CONFIG_S2E
-    //XXX: sort this out
-    //s2e_on_device_registration(g_s2e);
+    s2e_on_device_registration(g_s2e);
 #else
-    //void fake_register_devices(fake_pci_t *fake);
-    //fake_register_devices(&g_fake_pci);
+    fakepci_register_device(&g_fake_pci);
 #endif
 
     if (qemu_opts_foreach(qemu_find_opts("device"), device_help_func, NULL, 0) != 0)

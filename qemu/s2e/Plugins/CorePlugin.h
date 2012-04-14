@@ -227,7 +227,9 @@ public:
     sigc::signal<void> onDeviceRegistration;
 
     /** Signal emitted when QEMU is ready to activate registered devices */
-    sigc::signal<void, struct PCIBus*> onDeviceActivation;
+    sigc::signal<void, int /* bus type */,
+                 void *> /* bus */
+            onDeviceActivation;
 
     /**
      * The current execution privilege level was changed (e.g., kernel-mode=>user-mode)

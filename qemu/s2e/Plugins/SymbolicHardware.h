@@ -60,6 +60,11 @@ protected:
     void *m_qemuDev;
     bool m_active;
 
+    struct TypeInfo *m_devInfo;
+    struct Property *m_devInfoProperties;
+    struct VMStateDescription *m_vmState;
+    struct _VMStateField *m_vmStateFields;
+
 public:
     DeviceDescriptor(const std::string &id);
 
@@ -84,14 +89,22 @@ public:
         m_qemuDev = qemuDev;
     }
 
+    const std::string &getId() const { return m_id; }
+
     virtual void print(llvm::raw_ostream &os) const {}
     virtual void initializeQemuDevice() {assert(false);}
-    virtual void activateQemuDevice(struct PCIBus *bus) { assert(false);}
+    virtual void activateQemuDevice(void *bus) { assert(false);}
     virtual void setInterrupt(bool state) {assert(false);};
     virtual void assignIrq(void *irq) {assert(false);}
     virtual bool readPciAddressSpace(void *buffer, uint32_t offset, uint32_t size) {
         return false;
     }
+
+    struct VMStateDescription* getVmStateDescription() const { return m_vmState; }
+    struct Property* getProperties() const { return m_devInfoProperties; }
+
+    virtual bool isPci() const { return false; }
+    virtual bool isIsa() const { return false; }
 };
 
 class IsaDeviceDescriptor:public DeviceDescriptor {
@@ -105,8 +118,11 @@ public:
 private:
     IsaResource m_isaResource;
 
-    struct ISADeviceInfo *m_isaInfo;
+    struct TypeInfo *m_isaInfo;
     struct Property *m_isaProperties;
+    struct VMStateDescription *m_vmState;
+    struct _VMStateField *m_vmStateFields;
+
 public:
     IsaDeviceDescriptor(const std::string &id, const IsaResource &res);
 
@@ -114,7 +130,7 @@ public:
     virtual ~IsaDeviceDescriptor();
     virtual void print(llvm::raw_ostream &os) const;
     virtual void initializeQemuDevice();
-    virtual void activateQemuDevice(struct PCIBus *bus);
+    virtual void activateQemuDevice(void *bus);
 
     const IsaResource& getResource() const {
         return m_isaResource;
@@ -122,6 +138,9 @@ public:
 
     virtual void setInterrupt(bool state);
     virtual void assignIrq(void *irq);
+
+    virtual bool isPci() const { return false; }
+    virtual bool isIsa() const { return true; }
 };
 
 class PciDeviceDescriptor:public DeviceDescriptor {
@@ -136,24 +155,23 @@ public:
 private:
     uint16_t m_vid;
     uint16_t m_pid;
+    uint16_t m_ss_id;
+    uint16_t m_ss_vid;
     uint32_t m_classCode;
     uint8_t m_revisionId;
     uint8_t m_interruptPin;
     PciResources m_resources;
 
-    struct _PCIDeviceInfo *m_pciInfo;
-    struct Property *m_pciInfoProperties;
-    struct VMStateDescription *m_vmState;
-    struct _VMStateField *m_vmStateFields;
-
     PciDeviceDescriptor(const std::string &id);
     virtual void print(llvm::raw_ostream &os) const;
 
 public:
-    int mmio_io_addr;
+    virtual ~PciDeviceDescriptor();
 
     uint16_t getVid() const { return m_vid; }
     uint16_t getPid() const { return m_pid; }
+    uint16_t getSsVid() const { return m_ss_vid; }
+    uint16_t getSsId() const { return m_ss_id; }
     uint32_t getClassCode() const { return m_classCode; }
     uint8_t getRevisionId() const { return m_revisionId; }
     uint8_t getInterruptPin() const { return m_interruptPin; }
@@ -162,14 +180,17 @@ public:
     static PciDeviceDescriptor* create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key);
 
     virtual void initializeQemuDevice();
-    virtual void activateQemuDevice(struct PCIBus *bus);
+    virtual void activateQemuDevice(void *bus);
 
     virtual void setInterrupt(bool state);
     virtual void assignIrq(void *irq);
 
     virtual bool readPciAddressSpace(void *buffer, uint32_t offset, uint32_t size);
 
-    virtual ~PciDeviceDescriptor();
+
+
+    virtual bool isPci() const { return true; }
+    virtual bool isIsa() const { return false; }
 };
 
 class SymbolicHardware : public Plugin
@@ -198,7 +219,7 @@ private:
     DeviceDescriptors m_devices;
 
     void onDeviceRegistration();
-    void onDeviceActivation(struct PCIBus* pci);
+    void onDeviceActivation(int bus_type, void *bus);
 
 };
 

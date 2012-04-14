@@ -65,6 +65,8 @@
 #include <s2e/s2e_qemu.h>
 #endif
 
+#include "fakepci.h"
+
 
 /* output Bochs bios info messages */
 //#define DEBUG_BIOS
@@ -1212,11 +1214,4 @@ void pc_pci_device_init(PCIBus *pci_bus)
     for (bus = 0; bus <= max_bus; bus++) {
         pci_create_simple(pci_bus, -1, "lsi53c895a");
     }
-
-#ifdef CONFIG_S2E
-    //s2e_on_device_activation(g_s2e, pci_bus);
-#else
-    //void fake_activate_devices(struct PCIBus *bus);
-    //fake_activate_devices(pci_bus);
-#endif
 }

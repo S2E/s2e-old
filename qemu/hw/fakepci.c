@@ -45,9 +45,6 @@
 #include "hw/hw.h"
 #include "hw/pci.h"
 #include "fakepci.h"
-#undef CONFIG_S2E
-
-#ifndef CONFIG_S2E
 
 
 static fake_pci_t *s_fake_pci=NULL;
@@ -74,8 +71,10 @@ static const MemoryRegionOps fake_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
+
 typedef struct _PCIFakeState {
     PCIDevice dev;
+    fake_pci_t fake_pci;
     MemoryRegion io[PCI_NUM_REGIONS];
 }PCIFakeState;
 
@@ -85,31 +84,52 @@ static int pci_fake_init(PCIDevice *pci_dev)
     uint8_t *pci_conf;
     int i;
 
+    d->fake_pci = *s_fake_pci;
+
     pci_conf = d->dev.config;
-    pci_config_set_vendor_id(pci_conf, s_fake_pci->fake_pci_vendor_id);
-    pci_config_set_device_id(pci_conf, s_fake_pci->fake_pci_device_id);
-    pci_config_set_class(pci_conf, s_fake_pci->fake_pci_class_code);
     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
     pci_conf[0x3d] = 1; // interrupt pin 0
 
-    for(i=0; i<s_fake_pci->fake_pci_num_resources; ++i) {
-        int type = s_fake_pci->fake_pci_resources[i].type;
+    char *name_io = malloc(strlen(d->fake_pci.name) + 20);
+    char *name_mmio = malloc(strlen(d->fake_pci.name) + 20);
+    sprintf(name_io, "%s-io", d->fake_pci.name);
+    sprintf(name_mmio, "%s-mmio", d->fake_pci.name);
 
-        memory_region_init_io(&d->io[i], &fake_ops, d, "fake", s_fake_pci->fake_pci_resources[i].size);
+    for(i=0; i<d->fake_pci.num_resources; ++i) {
+        int type = d->fake_pci.resources[i].type;
+        int size = d->fake_pci.resources[i].size;
+        char *name;
+
+        if (type == PCI_BASE_ADDRESS_SPACE_IO) {
+            name = name_io;
+        } else if (type == PCI_BASE_ADDRESS_SPACE_MEMORY) {
+            name = name_mmio;
+        }
+
+        memory_region_init_io(&d->io[i], &fake_ops, d, name, size);
         pci_register_bar(&d->dev, i, type, &d->io[i]); //, pci_fake_map
+    }
+
+    free(name_io);
+    free(name_mmio);
+
+    return 0;
+}
+
+static int pci_fake_uninit(PCIDevice *dev)
+{
+    PCIFakeState *d = DO_UPCAST(PCIFakeState, dev, dev);
+
+    for (int i=0; i<d->fake_pci.num_resources; ++i) {
+        memory_region_destroy(&d->io[i]);
     }
 
     return 0;
 }
 
 
-static int pci_fake_exit(PCIDevice *pci_dev)
-{
-    return 0;
-}
-
 static  VMStateDescription vmstate_pci_fake = {
-    .name = "fake",
+    .name = "fakepci",
     .version_id = 3,
     .minimum_version_id = 3,
     .minimum_version_id_old = 3,
@@ -130,34 +150,64 @@ static void fakepci_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = pci_fake_init;
-    k->exit = pci_fake_exit;
+    k->exit = pci_fake_uninit;
 
-#if 0
-    k->vendor_id = s_fake_pci->fake_pci_vendor_id;
-    k->device_id = s_fake_pci->fake_pci_device_id;
-    k->revision = s_fake_pci->fake_pci_revision_id;
-    k->class_id = s_fake_pci->fake_pci_class_code;
-    k->subsystem_vendor_id = s_fake_pci->fake_pci_ss_vendor_id;
-    k->subsystem_id = s_fake_pci->fake_pci_ss_id;
-#endif
+    k->vendor_id = s_fake_pci->vendor_id;
+    k->device_id = s_fake_pci->device_id;
+    k->revision = s_fake_pci->revision_id;
+    k->class_id = s_fake_pci->class_code;
+    k->subsystem_vendor_id = s_fake_pci->ss_vendor_id;
+    k->subsystem_id = s_fake_pci->ss_id;
 
     dc->vmsd = &vmstate_pci_fake;
     dc->props = fakepci_properties;
 }
 
 static TypeInfo fakepci_info = {
+    /* The name is changed at registration time */
     .name          = "fakepci",
+
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCIFakeState),
     .class_init    = fakepci_class_init,
 };
 
-static void pci_fakepci_register_types(void)
+/**
+ * Both vanilla QEMU and S2E must register the devices at the exact
+ * same point during VM startup, in order to ensure that the device is
+ * connected the same in the PCI subsystem (same slots, etc.).
+ * Failing to do so may prevent the VM snapshots from resuming.
+ */
+void fakepci_register_device(fake_pci_t *fake)
 {
+    /* Check whether the user enabled a PCI device */
+    if (!fake->name) {
+        return;
+    }
+
+    /* Clone the passed structure */
+    s_fake_pci = malloc(sizeof(fake_pci_t));
+    if (!s_fake_pci) {
+        perror("Could not allocate fake pci device\n");
+    }
+
+    *s_fake_pci = *fake;
+    s_fake_pci->name = strdup(fake->name);
+
+    if (!s_fake_pci->name) {
+        perror("Could not allocate fake pci device name string\n");
+    }
+
+
+    fakepci_info.name = s_fake_pci->name;
+    vmstate_pci_fake.name = s_fake_pci->name;
     type_register_static(&fakepci_info);
 }
 
-type_init(pci_fakepci_register_types)
 
+void fakepci_activate_device(enum fake_bus_type_t type, void *bus)
+{
+    assert(type == PCI);
+    pci_create_simple((struct PCIBus*) bus, -1, s_fake_pci->name);
+}
 
-#endif

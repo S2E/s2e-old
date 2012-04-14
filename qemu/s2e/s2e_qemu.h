@@ -284,7 +284,7 @@ void s2e_dump_state(void);
 void s2e_execute_cmd(const char *cmd);
 
 void s2e_on_device_registration(struct S2E *s2e);
-void s2e_on_device_activation(struct S2E *s2e, struct PCIBus *bus);
+void s2e_on_device_activation(struct S2E *s2e, int bus_type, void *bus);
 
 
 //Used by port IO for now
