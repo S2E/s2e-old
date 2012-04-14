@@ -27,7 +27,7 @@ using namespace klee::util;
 
 ///
 
-std::ostream *g_solverLog = NULL;
+llvm::raw_ostream *g_solverLog = NULL;
 
 class PCLoggingSolver : public SolverImpl {
   Solver *solver;
@@ -67,11 +67,13 @@ public:
     os(path.c_str(), std::ios::trunc),
     printer(ExprPPrinter::create(os)),
     queryCount(0) {
-      g_solverLog = &os;
+      g_solverLog = new llvm::raw_os_ostream(os);
   }                                                      
   ~PCLoggingSolver() {
     delete printer;
     delete solver;
+    delete g_solverLog;
+    g_solverLog = NULL;
   }
   
   bool computeTruth(const Query& query, bool &isValid) {
