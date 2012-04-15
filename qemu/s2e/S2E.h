@@ -132,6 +132,11 @@ protected:
     S2EHandler* m_s2eHandler;
     S2EExecutor* m_s2eExecutor;
 
+    /* Indicates that forking is in progress.
+       Queried by QEMU in order to avoid unnecessary resource initializations.
+       Such resources are inherited from the parent process. */
+    bool m_forking;
+
     /* forked indicates whether the current S2E process was forked from a parent S2E process */
     void initOutputDirectory(const std::string& outputDirectory, int verbose, bool forked);
 
@@ -210,6 +215,10 @@ public:
     void writeBitCodeToFile();
 
     int fork();
+    bool isForking() const {
+        return m_forking;
+    }
+
     unsigned fetchAndIncrementStateId();
     unsigned getMaxProcesses() const {
         return m_maxProcesses;
@@ -227,6 +236,7 @@ public:
     unsigned getCurrentProcessCount();
 
     bool checkDeadProcesses();
+
 };
 
 } // namespace s2e

@@ -35,6 +35,14 @@
  */
 
 // XXX: qemu stuff should be included before anything from KLEE or LLVM !
+extern "C" {
+#include <qemu-common.h>
+#include <cpus.h>
+#include <main-loop.h>
+#include <sysemu.h>
+extern CPUX86State *env;
+}
+
 #include <tcg-llvm.h>
 
 #include "S2E.h"
@@ -206,6 +214,8 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
 #endif
 
     m_startTimeSeconds = llvm::sys::TimeValue::now().seconds();
+
+    m_forking = false;
 
     m_maxProcesses = s2e_max_processes;
     m_currentProcessIndex = 0;
@@ -674,10 +684,28 @@ int S2E::fork()
         //And the solver output
         m_s2eExecutor->initializeSolver();
 
-        if (init_timer_alarm()<0) {
+        m_forking = true;
+
+        qemu_init_cpu_loop();
+        if (main_loop_init()) {
+            fprintf(stderr, "qemu_init_main_loop failed\n");
+            exit(1);
+        }
+
+        if (init_timer_alarm(0)<0) {
             getDebugStream() << "Could not initialize timers" << '\n';
             exit(-1);
         }
+
+        qemu_init_vcpu(env);
+        cpu_synchronize_all_post_init();
+        os_setup_signal_handling();
+        vm_start();
+        os_setup_post();
+        resume_all_vcpus();
+        vm_stop(RUN_STATE_SAVE_VM);
+
+        m_forking = false;
     }
 
     return pid == 0 ? 1 : 0;
@@ -763,6 +791,11 @@ void s2e_close(S2E *s2e)
     delete s2e;
     tcg_llvm_close(tcg_llvm_ctx);
     tcg_llvm_ctx = NULL;
+}
+
+int s2e_is_forking()
+{
+    return g_s2e->isForking();
 }
 
 void s2e_debug_print(const char *fmtstr, ...)
