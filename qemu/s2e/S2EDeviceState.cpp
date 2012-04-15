@@ -252,20 +252,18 @@ void S2EDeviceState::restoreDeviceState()
 void S2EDeviceState::allocateBuffer(unsigned int Sz)
 {
     if (!m_state) {
-        unsigned int NewSize = Sz < 256 ? 256 : Sz;
-        m_state = (unsigned char *)malloc(NewSize);
+        m_state = (unsigned char *)malloc(Sz);
         if (!m_state) {
             cerr << "Cannot allocate memory for device state snapshot" << endl;
             exit(-1);
         }
-        m_stateSize = NewSize;
+        m_stateSize = Sz;
         return;
     }
 
     if (Sz >= m_stateSize) {
         /* Need to expand the buffer */
-        unsigned int NewSize = Sz < 256 ? 256 : Sz;
-        m_stateSize += NewSize;
+        m_stateSize = Sz;
         m_state = (unsigned char*)realloc(m_state, m_stateSize);
         if (!m_state) {
             cerr << "Cannot reallocate memory for device state snapshot" << endl;
