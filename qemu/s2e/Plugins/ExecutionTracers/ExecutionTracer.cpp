@@ -67,7 +67,9 @@ void ExecutionTracer::initialize()
 
 ExecutionTracer::~ExecutionTracer()
 {
-    fclose(m_LogFile);
+    if (m_LogFile) {
+        fclose(m_LogFile);
+    }
 }
 
 void ExecutionTracer::createNewTraceFile(bool append)
