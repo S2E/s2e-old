@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>How to Write an S2E plugin?</title>
 <link rel="stylesheet" href="../s2e.css" type="text/css" />
 </head>
@@ -64,28 +64,6 @@ You can copy/paste the <tt class="docutils literal">Example</tt> plugin that shi
 <span class="p">}</span> <span class="c1">// namespace plugins</span>
 <span class="p">}</span> <span class="c1">// namespace s2e</span>
 </pre></div>
-<p>Now, we need to tell S2E to initialize the plugin at startup.
-For this, we add the following references to <tt class="docutils literal">InstructionTracker</tt> in <tt class="docutils literal">/qemu/s2e/Plugins.cpp</tt>:</p>
-<div class="highlight"><pre><span class="cp">#include &lt;s2e/Plugins/ModuleExecutionDetector.h&gt;</span>
-<span class="cp">#include &lt;s2e/Plugins/CodeSelector.h&gt;</span>
-<span class="cp">#include &lt;s2e/Plugins/BaseInstructions.h&gt;</span>
-<span class="c1">//...other include files...</span>
-<span class="cp">#include &lt;s2e/Plugins/IntructionTracker.h&gt;</span>
-<span class="c1">//...other include files...</span>
-
-<span class="c1">//....</span>
-
-<span class="n">PluginsFactory</span><span class="o">::</span><span class="n">PluginsFactory</span><span class="p">()</span>
-<span class="p">{</span>
-    <span class="c1">//....</span>
-    <span class="n">__S2E_REGISTER_PLUGIN</span><span class="p">(</span><span class="n">CorePlugin</span><span class="p">);</span>
-    <span class="n">__S2E_REGISTER_PLUGIN</span><span class="p">(</span><span class="n">plugins</span><span class="o">::</span><span class="n">RawMonitor</span><span class="p">);</span>
-    <span class="n">__S2E_REGISTER_PLUGIN</span><span class="p">(</span><span class="n">plugins</span><span class="o">::</span><span class="n">FunctionMonitor</span><span class="p">);</span>
-    <span class="c1">//....</span>
-    <span class="n">__S2E_REGISTER_PLUGIN</span><span class="p">(</span><span class="n">plugins</span><span class="o">::</span><span class="n">InstructionTracker</span><span class="p">);</span>
-    <span class="c1">//....</span>
-<span class="p">}</span>
-</pre></div>
 <p>Finally, we need  to compile the plugin with the rest of S2E.
 For this, add the following line to <tt class="docutils literal">/qemu/Makefile.target</tt>, near other plugin declarations:</p>
 <pre class="literal-block">
@@ -96,8 +74,8 @@ s2eobj-y += s2e/Plugins/ExecutionTracers/ModuleTracer.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/EventTracer.o
 </pre>
 </div>
-<div class="section" id="reading-the-configuration">
-<h1>Reading the Configuration</h1>
+<div class="section" id="reading-configuration-parameters">
+<h1>Reading Configuration Parameters</h1>
 <p>We would like to let the user specify which instruction to monitor. For this, we create a configuration variable
 that stores the address of that instruction.
 Every plugin can have an entry in the S2E configuration file. The entry for our plugin would look like this:</p>
@@ -121,8 +99,8 @@ In S2E, plugins can retrieve the configuration at any time. In our case, we do i
 </pre></div>
 <p>Do not forget to add <tt class="docutils literal">uint64_t m_address;</tt>  to the private members of <tt class="docutils literal">InstructionTracker.h</tt>.</p>
 </div>
-<div class="section" id="instrumenting-the-instruction">
-<h1>Instrumenting the Instruction</h1>
+<div class="section" id="instrumenting-instructions">
+<h1>Instrumenting Instructions</h1>
 <p>To instrument an instruction, an S2E plugins registers to the <tt class="docutils literal">onTranslateInstructionStart</tt>  core event.
 There are many other core events to which a plugin can register. These events are defined in  <tt class="docutils literal">CorePlugin.h</tt>.</p>
 <p>Extend your code as follows. Do not forget to add all new member functions to the (private) section of the class declaration.</p>

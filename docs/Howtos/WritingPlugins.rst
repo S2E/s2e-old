@@ -66,32 +66,6 @@ Then, create the corresponding ``InstructionTracker.cpp`` file in the same direc
     } // namespace s2e
 
 
-Now, we need to tell S2E to initialize the plugin at startup.
-For this, we add the following references to ``InstructionTracker`` in ``/qemu/s2e/Plugins.cpp``:
-
-.. code-block:: c
-
-    #include <s2e/Plugins/ModuleExecutionDetector.h>
-    #include <s2e/Plugins/CodeSelector.h>
-    #include <s2e/Plugins/BaseInstructions.h>
-    //...other include files...
-    #include <s2e/Plugins/IntructionTracker.h>
-    //...other include files...
-
-    //....
-
-    PluginsFactory::PluginsFactory()
-    {
-        //....
-        __S2E_REGISTER_PLUGIN(CorePlugin);
-        __S2E_REGISTER_PLUGIN(plugins::RawMonitor);
-        __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
-        //....
-        __S2E_REGISTER_PLUGIN(plugins::InstructionTracker);
-        //....
-    }
-
-
 Finally, we need  to compile the plugin with the rest of S2E.
 For this, add the following line to ``/qemu/Makefile.target``, near other plugin declarations:
 
@@ -104,8 +78,8 @@ For this, add the following line to ``/qemu/Makefile.target``, near other plugin
     s2eobj-y += s2e/Plugins/ExecutionTracers/EventTracer.o
 
 
-Reading the Configuration
-=========================
+Reading Configuration Parameters
+================================
 
 We would like to let the user specify which instruction to monitor. For this, we create a configuration variable
 that stores the address of that instruction.
@@ -136,8 +110,8 @@ In S2E, plugins can retrieve the configuration at any time. In our case, we do i
 Do not forget to add ``uint64_t m_address;``  to the private members of ``InstructionTracker.h``.
 
 
-Instrumenting the Instruction
-=============================
+Instrumenting Instructions
+==========================
 
 To instrument an instruction, an S2E plugins registers to the ``onTranslateInstructionStart``  core event.
 There are many other core events to which a plugin can register. These events are defined in  ``CorePlugin.h``.
