@@ -271,7 +271,7 @@ int cpu_exec(CPUArchState *env)
 #endif
 #ifdef CONFIG_S2E
     if (s2e_is_zombie(g_s2e_state)) {
-        return 0;
+        return EXCP_S2E;
     }
 #endif
 
@@ -281,6 +281,7 @@ int cpu_exec(CPUArchState *env)
     for(;;) {
         if (s2e_setjmp(env->jmp_env) == 0) {
             #ifdef CONFIG_S2E
+            assert(g_s2e_state);
             assert (env->exception_index != EXCP_S2E);
             s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
             #endif
@@ -660,9 +661,10 @@ int cpu_exec(CPUArchState *env)
             } /* for(;;) */
         } else {
             #ifdef CONFIG_S2E
+            assert(g_s2e_state);
             if (s2e_is_zombie(g_s2e_state)) {
                 cpu_single_env = NULL;
-                return 0;
+                return EXCP_S2E;
             }
             #endif
 
@@ -674,7 +676,7 @@ int cpu_exec(CPUArchState *env)
             s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, NULL);
             if (s2e_is_zombie(g_s2e_state)) {
                 cpu_single_env = NULL;
-                return 0;
+                return EXCP_S2E;
             }
 #endif
 
