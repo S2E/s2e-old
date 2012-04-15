@@ -86,7 +86,7 @@ void qemu_clock_warp(QEMUClock *clock)
 int qemu_init_main_loop(void)
 {
     init_clocks();
-    init_timer_alarm();
+    init_timer_alarm(1);
     qemu_clock_enable(vm_clock, false);
     return main_loop_init();
 }

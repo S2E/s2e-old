@@ -786,7 +786,7 @@ static void quit_timers(void)
     t->stop(t);
 }
 
-int init_timer_alarm(void)
+int init_timer_alarm(int register_exit_handler)
 {
     struct qemu_alarm_timer *t = NULL;
     int i, err = -1;
@@ -805,7 +805,10 @@ int init_timer_alarm(void)
     }
 
     /* first event is at time 0 */
-    atexit(quit_timers);
+    if (register_exit_handler) {
+        atexit(quit_timers);
+    }
+
     t->pending = 1;
     alarm_timer = t;
 

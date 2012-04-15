@@ -3568,7 +3568,7 @@ int main(int argc, char **argv, char **envp)
 
     os_set_line_buffering();
 
-    if (init_timer_alarm() < 0) {
+    if (init_timer_alarm(1) < 0) {
         fprintf(stderr, "could not initialize alarm timer\n");
         exit(1);
     }
