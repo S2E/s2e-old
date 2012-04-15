@@ -3,8 +3,7 @@ Building the S2E Platform
 ==========================
 
 The following steps describe the installation process in detail. We assume the installation
-is performed on an Ubuntu 10.10 64-bit host system (S2E also works on 64-bit
-Linux, Mac, and Windows systems).
+is performed on an Ubuntu 10.10 64-bit host system (S2E also works on 64-bit Mac systems).
 
 Build instructions for Windows x64 can be found `here <BuildingS2EWindows.html>`_.
 
@@ -27,10 +26,10 @@ Required Packages
     $ sudo apt-get install python-pygments
     $ sudo apt-get install nasm
 
-The following commands ask apt-get to install build dependencies for llvm-2.7
-and qemu. We install the build dependencies for llvm-2.7 instead of llvm-2.6
+The following commands ask ``apt-get`` to install build dependencies for llvm-2.7
+and qemu. We install the build dependencies for llvm-2.7 instead of llvm-3.0
 (which is used by S2E) because both of them have almost identical build
-dependencies but llvm-2.6 is not available on Ubuntu 10.10::
+dependencies but llvm-3.0 is not available on Ubuntu 10.10::
 
     $ sudo apt-get build-dep llvm-2.7
     $ sudo apt-get build-dep qemu
@@ -75,12 +74,13 @@ The recommended method of building S2E is using the S2E Makefile::
    $ mkdir $S2EDIR/build
    $ cd $S2EDIR/build
    $ ln -s ../s2e/Makefile .
-   $ make JOBS=4 # Replace 4 with your number of cores
+   $ make
    > Go make some coffee, this will take a lot of time
 
 By default, the ``make`` command compiles S2E in release mode. The resulting
 binary is placed in ``$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu``.
-To compile in Debug mode, use ``make all-debug JOBS=4``.
+To compile in Debug mode, use ``make all-debug``. The makefile automatically
+uses the maximum number of available processors in order to speed up compilation.
 
 You can also build each component of S2E manually, as described in `Building
 the S2E Framework Manually <BuildingS2EManually.html>`_.
@@ -93,7 +93,7 @@ yourself or when pulling new versions through ``git``. Note that the makefile
 will not automatically reconfigure the packages; for deep changes you might need
 to either start from scratch by issuing ``make clean`` or to force
 the reconfiguration of specific modules by deleting  the corresponding files from
-``stamps`` subdirectory.
+the ``stamps`` subdirectory.
 
 Rebuilding S2E Documentation
 =============================

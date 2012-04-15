@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>Compiling the Linux Kernel</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -11,9 +11,9 @@
 <div class="document" id="compiling-the-linux-kernel">
 <h1 class="title">Compiling the Linux Kernel</h1>
 
-<p>Although S2E can run any Linux kernel, it is often convenient to recompile it to suit particular needs.
-E.g., enabling Kprobes, adding debug information, etc.</p>
-<p>This sections explains how to do it on a Debian system using a <tt class="docutils literal">chroot</tt> environment.
+<p>Although S2E can run any Linux kernel, it is often convenient to recompile it to suit particular needs,
+e.g., to enable Kprobes, add debug information, etc.</p>
+<p>This sections explains how to compile S2E on a Debian system using a <tt class="docutils literal">chroot</tt> environment.
 Using chroot makes it easy to compile a 32-bit kernel package on a 64-bit host.
 It is important to compile the guest kernel in 32-bit mode, as S2E does not support 64-bit
 guests for now.</p>

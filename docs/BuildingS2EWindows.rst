@@ -2,6 +2,8 @@
 Building S2E on Windows
 =======================
 
+**DEPRECATED. This document refers to S2E-QEMU 0.12. Latest versions of S2E were not tested on Windows.**
+
 In this document, we explain how to build S2E on 64-bit versions of Windows.
 S2E works on Windows XP x64 and Windows 7.
 

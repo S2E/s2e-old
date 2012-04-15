@@ -2,10 +2,10 @@
 Compiling the Linux Kernel
 ==========================
 
-Although S2E can run any Linux kernel, it is often convenient to recompile it to suit particular needs.
-E.g., enabling Kprobes, adding debug information, etc.
+Although S2E can run any Linux kernel, it is often convenient to recompile it to suit particular needs,
+e.g., to enable Kprobes, add debug information, etc.
 
-This sections explains how to do it on a Debian system using a ``chroot`` environment.
+This sections explains how to compile S2E on a Debian system using a ``chroot`` environment.
 Using chroot makes it easy to compile a 32-bit kernel package on a 64-bit host.
 It is important to compile the guest kernel in 32-bit mode, as S2E does not support 64-bit
 guests for now.
