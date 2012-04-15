@@ -681,6 +681,9 @@ static void flush_queued_work(CPUArchState *env)
 static void qemu_wait_io_event_common(CPUArchState *env)
 {
     if (env->stop) {
+#if defined(CONFIG_S2E_DEBUG)
+        s2e_debug_print("CPU: qemu_wait_io_event_common stop\n");
+#endif
         env->stop = 0;
         env->stopped = 1;
         qemu_cond_signal(&qemu_pause_cond);
@@ -694,13 +697,19 @@ static void qemu_tcg_wait_io_event(void)
     CPUArchState *env;
 
     while (all_cpu_threads_idle()) {
-       /* Start accounting real time to the virtual clock if the CPUs
+#ifdef CONFIG_S2E_DEBUG
+        s2e_debug_print("CPU: qemu_tcg_wait_io_event: waiting for awaken cpu %p\n", tcg_halt_cond);
+#endif
+        /* Start accounting real time to the virtual clock if the CPUs
           are idle.  */
         qemu_clock_warp(vm_clock);
         qemu_cond_wait(tcg_halt_cond, &qemu_global_mutex);
     }
 
     while (iothread_requesting_mutex) {
+#ifdef CONFIG_S2E_DEBUG
+        s2e_debug_print("CPU: qemu_tcg_wait_io_event iothread_requesting_mutex\n");
+#endif
         qemu_cond_wait(&qemu_io_proceeded_cond, &qemu_global_mutex);
     }
 
@@ -856,6 +865,9 @@ static void qemu_cpu_kick_thread(CPUArchState *env)
 void qemu_cpu_kick(void *_env)
 {
     CPUArchState *env = _env;
+#ifdef CONFIG_S2E_DEBUG
+    s2e_debug_print("MAIN: qemu_cpu_kick: qemu_cond_broadcast(env->halt_cond) %p\n", env->halt_cond);
+#endif
 
     qemu_cond_broadcast(env->halt_cond);
     if (!tcg_enabled() && !env->thread_kicked) {
@@ -925,6 +937,9 @@ void pause_all_vcpus(void)
 
     qemu_clock_enable(vm_clock, false);
     while (penv) {
+#ifdef CONFIG_S2E_DEBUG
+        s2e_debug_print("MAIN: pause_all_vcpus kiking cpus\n");
+#endif
         penv->stop = 1;
         qemu_cpu_kick(penv);
         penv = penv->next_cpu;
@@ -943,6 +958,9 @@ void pause_all_vcpus(void)
     }
 
     while (!all_vcpus_paused()) {
+#ifdef CONFIG_S2E_DEBUG
+        s2e_debug_print("MAIN: pause_all_vcpus waiting for qemu_pause_cond\n");
+#endif
         qemu_cond_wait(&qemu_pause_cond, &qemu_global_mutex);
         penv = first_cpu;
         while (penv) {
@@ -960,6 +978,9 @@ void resume_all_vcpus(void)
     while (penv) {
         penv->stop = 0;
         penv->stopped = 0;
+#ifdef CONFIG_S2E_DEBUG
+        s2e_debug_print("MAIN: resume_all_vcpus kicking\n");
+#endif
         qemu_cpu_kick(penv);
         penv = penv->next_cpu;
     }
@@ -1127,7 +1148,6 @@ static void tcg_exec_all(void)
             }
 #ifdef CONFIG_S2E
             else if (r == EXCP_S2E) {
-                env->halted = 1;
                 break;
             }
 #endif
