@@ -622,6 +622,11 @@ static QemuCond qemu_work_cond;
 
 void qemu_init_cpu_loop(void)
 {
+#ifdef CONFIG_S2E
+    tcg_cpu_thread = NULL;
+    tcg_halt_cond = NULL;
+#endif
+
     qemu_init_sigbus();
     qemu_cond_init(&qemu_cpu_cond);
     qemu_cond_init(&qemu_pause_cond);
@@ -992,8 +997,17 @@ static void qemu_tcg_init_vcpu(void *_env)
 
     /* share a single thread for all cpus with TCG */
     if (!tcg_cpu_thread) {
+#ifdef CONFIG_S2E
+        /* Forks inherit parent's memory, therefore we do not want
+           to allocate new memory regions, just overwrite them. */
+        if (!s2e_is_forking()) {
+            env->thread = g_malloc0(sizeof(QemuThread));
+            env->halt_cond = g_malloc0(sizeof(QemuCond));
+        }
+#else
         env->thread = g_malloc0(sizeof(QemuThread));
         env->halt_cond = g_malloc0(sizeof(QemuCond));
+#endif
         qemu_cond_init(env->halt_cond);
         tcg_halt_cond = env->halt_cond;
         qemu_thread_create(env->thread, qemu_tcg_cpu_thread_fn, env,
@@ -1013,8 +1027,18 @@ static void qemu_tcg_init_vcpu(void *_env)
 
 static void qemu_kvm_start_vcpu(CPUArchState *env)
 {
+#ifdef CONFIG_S2E
+    /* Forks inherit parent's memory, therefore we do not want
+       to allocate new memory regions, just overwrite them. */
+    if (!s2e_is_forking()) {
+        env->thread = g_malloc0(sizeof(QemuThread));
+        env->halt_cond = g_malloc0(sizeof(QemuCond));
+    }
+#else
     env->thread = g_malloc0(sizeof(QemuThread));
     env->halt_cond = g_malloc0(sizeof(QemuCond));
+#endif
+
     qemu_cond_init(env->halt_cond);
     qemu_thread_create(env->thread, qemu_kvm_cpu_thread_fn, env,
                        QEMU_THREAD_JOINABLE);
@@ -1025,8 +1049,18 @@ static void qemu_kvm_start_vcpu(CPUArchState *env)
 
 static void qemu_dummy_start_vcpu(CPUArchState *env)
 {
+#ifdef CONFIG_S2E
+    /* Forks inherit parent's memory, therefore we do not want
+       to allocate new memory regions, just overwrite them. */
+    if (!s2e_is_forking()) {
+        env->thread = g_malloc0(sizeof(QemuThread));
+        env->halt_cond = g_malloc0(sizeof(QemuCond));
+    }
+#else
     env->thread = g_malloc0(sizeof(QemuThread));
     env->halt_cond = g_malloc0(sizeof(QemuCond));
+#endif
+
     qemu_cond_init(env->halt_cond);
     qemu_thread_create(env->thread, qemu_dummy_cpu_thread_fn, env,
                        QEMU_THREAD_JOINABLE);
