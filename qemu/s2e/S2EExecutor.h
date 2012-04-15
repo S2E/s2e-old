@@ -109,6 +109,8 @@ protected:
 
     bool m_forkProcTerminateCurrentState;
 
+    bool m_inLoadBalancing;
+
     struct QEMUTimer *m_stateSwitchTimer;
 
 public:
@@ -206,6 +208,10 @@ public:
 
     void updateStats(S2EExecutionState *state);
 
+    bool isLoadBalancing() const {
+        return m_inLoadBalancing;
+    }
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,
@@ -250,6 +256,7 @@ protected:
     void doProcessFork(S2EExecutionState *originalState,
                        const std::vector<S2EExecutionState*>& newStates);
 
+    void doLoadBalancing();
 
     /** Copy concrete values to their proper location, concretizing
         if necessary (most importantly it will concretize CPU registers.

@@ -357,8 +357,8 @@ void S2EHandler::incPathsExplored()
 void S2EHandler::processTestCase(const klee::ExecutionState &state,
                      const char *err, const char *suffix)
 {
-    assert(dynamic_cast<const S2EExecutionState*>(&state) != 0);
-    const S2EExecutionState* s = dynamic_cast<const S2EExecutionState*>(&state);
+    assert(static_cast<const S2EExecutionState*>(&state) != 0);
+    const S2EExecutionState* s = static_cast<const S2EExecutionState*>(&state);
 
     m_s2e->getWarningsStream(s)
            << "Terminating state " << s->getID()
@@ -371,6 +371,7 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
     if (tc) {
         tc->processTestCase(*s, err, suffix);
     }
+
 }
 
 void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
@@ -622,7 +623,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                             InterpreterHandler *ie)
         : Executor(opts, ie, tcgLLVMContext->getExecutionEngine()),
           m_s2e(s2e), m_tcgLLVMContext(tcgLLVMContext),
-          m_executeAlwaysKlee(false), m_forkProcTerminateCurrentState(false)
+          m_executeAlwaysKlee(false), m_forkProcTerminateCurrentState(false),
+          m_inLoadBalancing(false)
 {
     delete externalDispatcher;
     externalDispatcher = new S2EExternalDispatcher(
@@ -1151,13 +1153,72 @@ bool S2EExecutor::copyInConcretes(klee::ExecutionState &state)
     return true;
 }
 
+void S2EExecutor::doLoadBalancing()
+{
+    if (states.size() < 2) {
+        return;
+    }
+
+    //Don't bother copying stuff if it's obvious that it'll very likely fail
+    if (m_s2e->getCurrentProcessCount() == m_s2e->getMaxProcesses()) {
+        return;
+    }
+
+    std::vector<ExecutionState*> allStates;
+
+    foreach2(it, states.begin(), states.end()) {
+        S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(*it);
+        if (!s2estate->isZombie()) {
+            allStates.push_back(s2estate);
+        }
+    }
+
+    if (allStates.size() < 2) {
+        return;
+    }
+
+    g_s2e->getDebugStream() << "LoadBalancing: starting\n";
+
+    m_inLoadBalancing = true;
+
+    unsigned parentId = m_s2e->getCurrentProcessIndex();
+    m_s2e->getCorePlugin()->onProcessFork.emit(true, false, -1);
+    int child = m_s2e->fork();
+    if (child < 0) {
+        //Fork did not succeed
+        m_s2e->getCorePlugin()->onProcessFork.emit(false, false, -1);
+        return;
+    }
+
+    unsigned size = allStates.size();
+    unsigned n = size / 2;
+    unsigned lower = child ? 0 : n;
+    unsigned upper = child ? n : size;
+
+    m_s2e->getCorePlugin()->onProcessFork.emit(false, child, parentId);
+
+    g_s2e->getDebugStream() << "LoadBalancing: terminating states\n";
+
+    for (unsigned i=lower; i<upper; ++i) {
+        S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(allStates[i]);
+        terminateStateAtFork(*s2estate);
+    }
+
+    m_s2e->getCorePlugin()->onProcessForkComplete.emit(child);
+
+    m_inLoadBalancing = false;
+}
+
 void S2EExecutor::stateSwitchTimerCallback(void *opaque)
 {
     S2EExecutor *c = (S2EExecutor*)opaque;
 
     if (g_s2e_state) {
         vm_stop(RUN_STATE_SAVE_VM);
+
+        c->doLoadBalancing();
         g_s2e_state = c->selectNextState(g_s2e_state);
+
         vm_start();
     }
 
@@ -1295,6 +1356,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     }
 
     if(states.empty()) {
+        g_s2e_state = NULL;
         m_s2e->getWarningsStream() << "All states were terminated" << '\n';
         foreach(S2EExecutionState* s, m_deletedStates) {
             unrefS2ETb(s->m_lastS2ETb);
@@ -2074,7 +2136,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,
                                              newStates, newConditions);
 
-    doProcessFork(originalState, newStates);
+    //doProcessFork(originalState, newStates);
 }
 
 S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
@@ -2165,8 +2227,11 @@ void S2EExecutor::terminateState(ExecutionState &s)
     terminateStateAtFork(state);
     state.zombify();
 
+    g_s2e->getWarningsStream().flush();
+    g_s2e->getDebugStream().flush();
+
     //No need for exiting the loop if we kill another state.
-    if (&state == g_s2e_state) {
+    if (!m_inLoadBalancing && (&state == g_s2e_state)) {
         state.writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
         throw CpuExitException();
     }
@@ -2511,6 +2576,10 @@ void s2e_flush_tlb_cache_page(void *objectState, int mmu_idx, int index)
     g_s2e_state->flushTlbCachePage(static_cast<klee::ObjectState*>(objectState), mmu_idx, index);
 }
 
+int s2e_is_load_balancing()
+{
+    return g_s2e->getExecutor()->isLoadBalancing();
+}
 
 #ifdef S2E_DEBUG_MEMORY
 #ifdef __linux__
