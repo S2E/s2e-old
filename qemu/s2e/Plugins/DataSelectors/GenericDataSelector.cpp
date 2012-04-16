@@ -360,7 +360,7 @@ void GenericDataSelector::injectRegister(S2EExecutionState *state, uint64_t pc, 
 
         assert (reg < 8);
         //state->dumpStack(20);
-        klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        klee::ref<klee::Expr> symb = state->createSymbolicValue(__FUNCTION__, klee::Expr::Int32);
         state->writeCpuRegister(CPU_OFFSET(regs) + reg * sizeof(target_ulong), symb);
     }
 }
@@ -403,7 +403,7 @@ void GenericDataSelector::injectMemory(S2EExecutionState *state, uint64_t pc,
 
         assert (reg < 8);
         //state->dumpStack(20);
-        klee::ref<klee::Expr> symb = state->createSymbolicValue(size*8, __FUNCTION__);
+        klee::ref<klee::Expr> symb = state->createSymbolicValue(__FUNCTION__, size*8);
         state->writeMemory(base, symb);
     }
 }

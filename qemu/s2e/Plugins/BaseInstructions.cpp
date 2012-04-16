@@ -102,7 +102,7 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state)
             << " of size " << hexval(size)
             << " with name '" << nameStr << "'\n";
 
-    vector<ref<Expr> > symb = state->createSymbolicArray(size, nameStr);
+    vector<ref<Expr> > symb = state->createSymbolicArray(nameStr, size);
     for(unsigned i = 0; i < size; ++i) {
         if(!state->writeMemory8(address + i, symb[i])) {
             s2e()->getWarningsStream(state)

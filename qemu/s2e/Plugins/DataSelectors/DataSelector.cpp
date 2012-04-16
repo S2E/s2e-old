@@ -80,13 +80,13 @@ void DataSelector::initialize()
 
 ref<Expr> DataSelector::getNonNullCharacter(S2EExecutionState *s, Expr::Width w)
 {
-    ref<Expr> symbVal = s->createSymbolicValue(w);
+    ref<Expr> symbVal = s->createSymbolicValue("", w);
     return NeExpr::create(symbVal, ConstantExpr::create(0,w));
 }
 
 ref<Expr> DataSelector::getUpperBound(S2EExecutionState *s, uint64_t upperBound, Expr::Width w)
 {
-    ref<Expr> symbVal = s->createSymbolicValue(w);
+    ref<Expr> symbVal = s->createSymbolicValue("", w);
     return UltExpr::create(symbVal, ConstantExpr::create(upperBound,w));
 }
 
@@ -130,7 +130,7 @@ bool DataSelector::makeStringSymbolic(S2EExecutionState *s, uint64_t address)
 
 klee::ref<klee::Expr> DataSelector::getOddValue(S2EExecutionState *s, klee::Expr::Width w)
 {
-    ref<Expr> symbVal = s->createSymbolicValue(w);
+    ref<Expr> symbVal = s->createSymbolicValue("", w);
     ref<Expr> e1 = MulExpr::create(ConstantExpr::create(2,w), symbVal);
     ref<Expr> e2 = AddExpr::create(e1, ConstantExpr::create(1,w));
     return e2;

@@ -196,7 +196,7 @@ bool WindowsApi::NtFailure(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr>
 
 klee::ref<klee::Expr> WindowsApi::createFailure(S2EExecutionState *state, const std::string &varName)
 {
-    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, varName);
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(varName, klee::Expr::Int32);
     klee::ref<klee::Expr> constr = klee::SgtExpr::create(klee::ConstantExpr::create(0, symb.get()->getWidth()), symb);
     state->addConstraint(constr);
     return symb;
@@ -205,7 +205,7 @@ klee::ref<klee::Expr> WindowsApi::createFailure(S2EExecutionState *state, const 
 klee::ref<klee::Expr> WindowsApi::addDisjunctionToConstraints(S2EExecutionState *state, const std::string &varName,
                                                     std::vector<uint32_t> values)
 {
-    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, varName);
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(varName, klee::Expr::Int32);
     klee::ref<klee::Expr> constr;
 
     bool first = true;
@@ -272,7 +272,7 @@ S2EExecutionState* WindowsApi::forkSuccessFailure(S2EExecutionState *state, bool
                                                          unsigned argCount,
                                                          const std::string &varName)
 {
-    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, varName);
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(varName, klee::Expr::Int32);
     klee::ref<klee::Expr> cond = klee::SgtExpr::create(klee::ConstantExpr::create(STATUS_SUCCESS, klee::Expr::Int32), symb);
     klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
 
@@ -300,7 +300,7 @@ bool WindowsApi::forkRange(S2EExecutionState *state,
     bool oldForkStatus = state->isForkingEnabled();
     state->enableForking();
 
-    klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, msg);
+    klee::ref<klee::Expr> success = state->createSymbolicValue(msg, klee::Expr::Int32);
 
     S2EExecutionState *curState = state;
 
@@ -338,7 +338,7 @@ klee::ref<klee::Expr> WindowsApi::forkStates(S2EExecutionState *state, std::vect
     bool oldForkStatus = state->isForkingEnabled();
     state->enableForking();
 
-    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, varName);
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(varName, klee::Expr::Int32);
     std::vector<klee::Expr> conditions;
 
     S2EExecutionState *curState = state;

@@ -90,7 +90,7 @@ bool NdisHandlers::makePacketSymbolic(S2EExecutionState *s, uint32_t pPacket, bo
             //Need to keep track of these buffers somehow.
             if (!keepSymbolicData || isa<klee::ConstantExpr>(data)) {
                 std::string varName = getVariableName(s, __FUNCTION__);
-                data = s->createSymbolicValue(klee::Expr::Int8, varName);
+                data = s->createSymbolicValue(varName, klee::Expr::Int8);
                 s->writeMemory(CurrentMdl.StartVa + i, data);
             }
         }

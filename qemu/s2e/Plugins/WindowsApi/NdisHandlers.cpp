@@ -1471,7 +1471,7 @@ void NdisHandlers::NdisMMapIoSpaceRet(S2EExecutionState* state)
         values.push_back(NDIS_STATUS_FAILURE);
         forkRange(state, __FUNCTION__, values);
     }else  {
-        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        klee::ref<klee::Expr> success = state->createSymbolicValue(__FUNCTION__, klee::Expr::Int32);
         state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
     }
 }
@@ -1513,7 +1513,7 @@ void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
         values.push_back(NDIS_STATUS_RESOURCES);
         forkRange(state, __FUNCTION__, values);
     }else {
-        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        klee::ref<klee::Expr> success = state->createSymbolicValue(__FUNCTION__, klee::Expr::Int32);
         state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
     }
 }
@@ -1685,7 +1685,7 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state,
                 uint32_t valueOffset = offsetof(NDIS_CONFIGURATION_PARAMETER, ParameterData);
                 std::stringstream ss;
                 ss << __FUNCTION__ << "_" << configString << "_value";
-                klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+                klee::ref<klee::Expr> val = state->createSymbolicValue(ss.str(), klee::Expr::Int32);
                 state->writeMemory(pConfigParam + valueOffset, val);
             }
         }
@@ -1838,7 +1838,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
         }else {
             std::stringstream ss;
             ss << __FUNCTION__ << "_0x" << std::hex << retaddr << "_"  << i;
-            klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int8, ss.str());
+            klee::ref<klee::Expr> symb = state->createSymbolicValue(ss.str(), klee::Expr::Int8);
             state->writeMemory(buffer+i, symb);
         }
     }
@@ -1846,7 +1846,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     //Symbolic return value
     std::stringstream ss;
     ss << __FUNCTION__ << "_" <<  std::hex << (retaddr) << "_retval";
-    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(ss.str(), klee::Expr::Int32);
     klee::ref<klee::Expr> expr = klee::UleExpr::create(symb, klee::ConstantExpr::create(length, klee::Expr::Int32));
     state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
     state->addConstraint(expr);
@@ -1886,7 +1886,7 @@ void NdisHandlers::NdisWritePciSlotInformation(S2EExecutionState* state, Functio
     //Symbolic return value
     std::stringstream ss;
     ss << __FUNCTION__ << "_" << std::hex << retaddr << "_retval";
-    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(ss.str(), klee::Expr::Int32);
     klee::ref<klee::Expr> expr = klee::UleExpr::create(symb, klee::ConstantExpr::create(length, klee::Expr::Int32));
     state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), symb);
     state->addConstraint(expr);
@@ -1938,7 +1938,7 @@ void NdisHandlers::NdisMQueryAdapterResourcesRet(S2EExecutionState* state)
         return;
     }
 
-    klee::ref<klee::Expr> SymbStatus = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+    klee::ref<klee::Expr> SymbStatus = state->createSymbolicValue(__FUNCTION__, klee::Expr::Int32);
     state->writeMemory(plgState->pStatus, SymbStatus);
 
     return;
@@ -1989,7 +1989,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
     }
 
     if (consistency == OVERAPPROX) {
-        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        klee::ref<klee::Expr> success = state->createSymbolicValue(__FUNCTION__, klee::Expr::Int32);
         state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
     }else
 
@@ -2039,7 +2039,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
     }
 
     if (consistency == OVERAPPROX) {
-        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        klee::ref<klee::Expr> success = state->createSymbolicValue(__FUNCTION__, klee::Expr::Int32);
         state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), success);
     }else
 
@@ -2158,7 +2158,7 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state, uint32_t 
         }else {
             std::stringstream ss;
             ss << __FUNCTION__ << "_" << i;
-            klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int8, ss.str());
+            klee::ref<klee::Expr> val = state->createSymbolicValue(ss.str(), klee::Expr::Int8);
             state->writeMemory(NetworkAddress + i, val);
         }
     }
@@ -2232,7 +2232,7 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
     if (consistency == OVERAPPROX) {
         //Replace the return value with a symbolic value
         if ((int)eax>=0) {
-            klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+            klee::ref<klee::Expr> ret = state->createSymbolicValue(__FUNCTION__, klee::Expr::Int32);
             state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), ret);
         }
     }
@@ -2378,10 +2378,10 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
             for (unsigned i=0; i<MediumArraySize; i++) {
                 std::stringstream ss;
                 ss << "MediumArray" << std::dec << "_" << i;
-                state->writeMemory(pMediumArray + i * 4, state->createSymbolicValue(klee::Expr::Int32, ss.str()));
+                state->writeMemory(pMediumArray + i * 4, state->createSymbolicValue(ss.str(), klee::Expr::Int32));
             }
 
-            klee::ref<klee::Expr> SymbSize = state->createSymbolicValue(klee::Expr::Int32, "MediumArraySize");
+            klee::ref<klee::Expr> SymbSize = state->createSymbolicValue("MediumArraySize", klee::Expr::Int32);
 
             klee::ref<klee::Expr> Constr = klee::UleExpr::create(SymbSize,
                                                                klee::ConstantExpr::create(MediumArraySize, klee::Expr::Int32));
@@ -2497,7 +2497,7 @@ void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *f
     state->enableForking();
 
     //Fork the states. In one of them run the shutdown handler
-    klee::ref<klee::Expr> isFake = state->createSymbolicValue(klee::Expr::Int8, "FakeShutdown");
+    klee::ref<klee::Expr> isFake = state->createSymbolicValue("FakeShutdown", klee::Expr::Int8);
     klee::ref<klee::Expr> cond = klee::EqExpr::create(isFake, klee::ConstantExpr::create(1, klee::Expr::Int8));
 
     klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
@@ -2646,9 +2646,9 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
 
     std::stringstream ss;
     ss << __FUNCTION__ << "_OID";
-    klee::ref<klee::Expr> symbOid = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+    klee::ref<klee::Expr> symbOid = state->createSymbolicValue(ss.str(), klee::Expr::Int32);
 
-    klee::ref<klee::Expr> isFakeOid = state->createSymbolicValue(klee::Expr::Int8, "IsFakeOid");
+    klee::ref<klee::Expr> isFakeOid = state->createSymbolicValue("IsFakeOid", klee::Expr::Int8);
     klee::ref<klee::Expr> cond = klee::EqExpr::create(isFakeOid, klee::ConstantExpr::create(1, klee::Expr::Int8));
 /*    klee::ref<klee::Expr> outcome =
             klee::SelectExpr::create(cond, symbOid,
@@ -2662,7 +2662,7 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
     //Create space for the new buffer
     //This will also be present in the original call.
     uint32_t newBufferSize = 64;
-    klee::ref<klee::Expr> symbBufferSize = state->createSymbolicValue(klee::Expr::Int32, "QuerySetInfoBufferSize");
+    klee::ref<klee::Expr> symbBufferSize = state->createSymbolicValue("QuerySetInfoBufferSize", klee::Expr::Int32);
     current_sp -= newBufferSize;
     uint32_t newBufferPtr = current_sp;
 
@@ -2670,7 +2670,7 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
     for (unsigned i=0; i<newBufferSize; ++i) {
         std::stringstream ssb;
         ssb << __FUNCTION__ << "_buffer_" << i;
-        klee::ref<klee::Expr> symbByte = state->createSymbolicValue(klee::Expr::Int8, ssb.str());
+        klee::ref<klee::Expr> symbByte = state->createSymbolicValue(ssb.str(), klee::Expr::Int8);
         state->writeMemory(current_sp + i, symbByte);
     }
 

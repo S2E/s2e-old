@@ -514,7 +514,7 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
     }
 
 
-    klee::ref<klee::Expr> val = m_state->createSymbolicValue(width, name);
+    klee::ref<klee::Expr> val = m_state->createSymbolicValue(name, width);
     if (!m_state->writeMemory(address, val)) {
         std::stringstream ss;
         g_s2e->getDebugStream() << "writeMemorySymb: Could not write to memory at address " << hexval(address);
@@ -528,7 +528,7 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
         g_s2e->getDebugStream() <<  "writeMemorySymb: " << val3 << '\n';
         m_state->addConstraint(val3);
     }else {
-        val = m_state->createSymbolicValue(width, name);
+        val = m_state->createSymbolicValue(name, width);
     }
 
     return 0;
@@ -605,7 +605,7 @@ int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
         lua_error(L);
     }
 
-    klee::ref<klee::Expr> val = m_state->createSymbolicValue(klee::Expr::Int32, namestr);
+    klee::ref<klee::Expr> val = m_state->createSymbolicValue(namestr, klee::Expr::Int32);
     m_state->writeCpuRegister(offsetof(CPUX86State, regs) + regIndex*4, val);
 
     return 0;                   /* number of results */

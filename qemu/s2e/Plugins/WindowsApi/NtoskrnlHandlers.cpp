@@ -421,7 +421,7 @@ void NtoskrnlHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitor
 
     s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << '\n';
 
-    klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, getVariableName(state, __FUNCTION__));
+    klee::ref<klee::Expr> ret = state->createSymbolicValue(getVariableName(state, __FUNCTION__), klee::Expr::Int32);
 
     uint32_t valPtr;
     if (readConcreteParameter(state, 0, &valPtr)) {
@@ -458,7 +458,7 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
     //XXX: local consistency is broken, because each time gets a new symbolic value,
     //disregarding the string.
     if (consistency == OVERAPPROX || consistency == LOCAL) {
-        klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        klee::ref<klee::Expr> eax = state->createSymbolicValue(__FUNCTION__, klee::Expr::Int32);
         state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]), eax);
         state->bypassFunction(3);
     }
@@ -865,8 +865,9 @@ void NtoskrnlHandlers::DispatchIoctl(S2EExecutionState* state,
         S2EExecutionState *realState = states[0] == state ? states[1] : states[0];
         S2EExecutionState *fakeState = state;
 
-        klee::ref<klee::Expr> symb = fakeState->createSymbolicValue(klee::Expr::Int32,
-                                                                getVariableName(state, __FUNCTION__) + "_IoctlCode");
+        klee::ref<klee::Expr> symb = fakeState->createSymbolicValue(
+                    getVariableName(state, __FUNCTION__) + "_IoctlCode", klee::Expr::Int32);
+
         symb = klee::OrExpr::create(symb, klee::ConstantExpr::create(ioctl & 3, klee::Expr::Int32));
         fakeState->writeMemory(pStackLocation + ioctlOffset, symb);
 
