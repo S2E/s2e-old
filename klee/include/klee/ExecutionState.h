@@ -18,6 +18,8 @@
 #include "../../lib/Core/AddressSpace.h"
 #include "klee/Internal/Module/KInstIterator.h"
 
+#include "klee/util/Assignment.h"
+
 #include <map>
 #include <set>
 #include <vector>
@@ -100,6 +102,10 @@ public:
   //
   // FIXME: Move to a shared list structure (not critical).
   std::vector< std::pair<const MemoryObject*, const Array*> > symbolics;
+
+  Assignment concolics;
+  bool speculative;
+
 
   // Used by the checkpoint/rollback methods for fake objects.
   // FIXME: not freeing things on branch deletion.
