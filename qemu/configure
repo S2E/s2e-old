@@ -4295,6 +4295,7 @@ echo "QEMU_INCLUDES+=$includes" >> $config_target_mak
 
 if test "$compileallwithclang" = "yes"; then
     echo "QEMU_CFLAGS+=-Wno-initializer-overrides" >> $config_target_mak
+    echo "QEMU_CFLAGS+=-Wno-initializer-overrides" >> $config_host_mak
 fi
 
 done # for target in $targets
