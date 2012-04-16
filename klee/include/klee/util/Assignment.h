@@ -47,6 +47,10 @@ namespace klee {
     ref<Expr> evaluate(const Array *mo, unsigned index) const;
     ref<Expr> evaluate(ref<Expr> e);
 
+    void add(const Array *object, std::vector<unsigned char> value) {
+        bindings.insert(std::make_pair(object, value));
+    }
+
     template<typename InputIterator>
     bool satisfies(InputIterator begin, InputIterator end);
   };
