@@ -1079,35 +1079,51 @@ std::string S2EExecutionState::getUniqueVarName(const std::string &name)
     return ss.str();
 }
 
-
-ref<Expr> S2EExecutionState::createSymbolicValue(
-            Expr::Width width, const std::string& name)
+ref<Expr> S2EExecutionState::createConcolicValue(
+          const std::string& name, Expr::Width width,
+          std::vector<unsigned char> &buffer)
 {
-
     std::string sname = getUniqueVarName(name);
 
-    const Array *array = new Array(sname, Expr::getMinBytesForWidth(width));
+    unsigned bytes = Expr::getMinBytesForWidth(width);
 
-    //Add it to the set of symbolic expressions, to be able to generate
-    //test cases later.
-    //Dummy memory object
-    MemoryObject *mo = new MemoryObject(0, Expr::getMinBytesForWidth(width), false, false, false, NULL);
+    assert(bytes == buffer.size() &&
+           "Concrete buffer must have the same size as the expression");
+
+    const Array *array = new Array(sname, bytes);
+
+    MemoryObject *mo = new MemoryObject(0, bytes, false, false, false, NULL);
     mo->setName(sname);
 
     symbolics.push_back(std::make_pair(mo, array));
+    concolics.add(array, buffer);
 
     return  Expr::createTempRead(array, width);
 }
 
-std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
-            unsigned size, const std::string& name)
+
+ref<Expr> S2EExecutionState::createSymbolicValue(
+            const std::string& name, Expr::Width width)
+{
+
+    std::vector<unsigned char> concreteValues;
+    unsigned bytes = Expr::getMinBytesForWidth(width);
+    concreteValues.reserve(bytes);
+    return createConcolicValue(name, width, concreteValues);
+}
+
+std::vector<ref<Expr> > S2EExecutionState::createConcolicArray(
+            const std::string& name, std::vector<unsigned char> &concreteBuffer)
 {
     std::string sname = getUniqueVarName(name);
-    const Array *array = new Array(sname, size);
+    const Array *array = new Array(sname, concreteBuffer.size());
 
     UpdateList ul(array, 0);
 
-    std::vector<ref<Expr> > result; result.reserve(size);
+    unsigned size = concreteBuffer.size();
+    std::vector<ref<Expr> > result;
+    result.reserve(size);
+
     for(unsigned i = 0; i < size; ++i) {
         result.push_back(ReadExpr::create(ul,
                     ConstantExpr::alloc(i,Expr::Int32)));
@@ -1120,8 +1136,17 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
     mo->setName(sname);
 
     symbolics.push_back(std::make_pair(mo, array));
+    concolics.add(array, concreteBuffer);
 
     return result;
+}
+
+std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
+            const std::string& name, unsigned size)
+{
+    std::vector<unsigned char> concreteBuffer;
+    concreteBuffer.reserve(size);
+    return createConcolicArray(name, concreteBuffer);
 }
 
 //Must be called right after the machine call instruction is executed.

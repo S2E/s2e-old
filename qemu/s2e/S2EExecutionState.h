@@ -378,11 +378,20 @@ public:
     virtual void addConstraint(klee::ref<klee::Expr> e);
 
     /** Creates new unconstrained symbolic value */
-    klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
-                              const std::string& name = std::string());
+    klee::ref<klee::Expr> createSymbolicValue(
+                const std::string& name = std::string(), klee::Expr::Width width = klee::Expr::Int32);
 
     std::vector<klee::ref<klee::Expr> > createSymbolicArray(
-            unsigned size, const std::string& name = std::string());
+                const std::string& name = std::string(), unsigned size = 4);
+
+    /** Create a symbolic value tied to an example concrete value */
+    klee::ref<klee::Expr> createConcolicValue(
+            const std::string& name,
+            klee::Expr::Width width,
+            std::vector<unsigned char> &buffer);
+
+    std::vector<klee::ref<klee::Expr> > createConcolicArray(
+                const std::string& name, std::vector<unsigned char> &concreteBuffer);
 
     /** Debug functions **/
     void dumpX86State(llvm::raw_ostream &os) const;
