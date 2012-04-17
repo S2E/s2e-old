@@ -251,22 +251,9 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
     }
 
     for(unsigned i = 0; i < size; ++i) {
-        ref<Expr> expr = state->readMemory8(address + i);
-        if(!expr.isNull()) {
-            if(addConstraint) { /* concretize */
-                expr = s2e()->getExecutor()->toConstant(*state, expr, "request from guest");
-            } else { /* example */
-                expr = s2e()->getExecutor()->toConstantSilent(*state, expr);
-            }
-
-            if(!state->writeMemory(address + i, expr)) {
-                s2e()->getWarningsStream(state)
-                    << "Can not write to memory"
-                    << " at " << hexval(address + i) << '\n';
-            }
-        } else {
+        if (!state->readMemoryConcrete8(address + i)) {
             s2e()->getWarningsStream(state)
-                << "Can not read from memory"
+                << "Can not concretize memory"
                 << " at " << hexval(address + i) << '\n';
         }
     }

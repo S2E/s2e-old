@@ -734,6 +734,35 @@ ref<Expr> S2EExecutionState::readMemory8(uint64_t address,
     return op.second->read8(hostAddress & ~S2E_RAM_OBJECT_MASK);
 }
 
+bool S2EExecutionState::readMemoryConcrete8(uint64_t address,
+                                            uint8_t *result,
+                                            AddressType addressType,
+                                            bool addConstraint)
+{
+    ref<Expr> expr = readMemory8(address, addressType);
+    if(!expr.isNull()) {
+        if(addConstraint) { /* concretize */
+            expr = g_s2e->getExecutor()->toConstant(*this, expr, "readMemoryConcrete8");
+        } else { /* example */
+            expr = g_s2e->getExecutor()->toConstantSilent(*this, expr);
+        }
+
+        if (result) {
+            ConstantExpr *ce = dyn_cast<ConstantExpr>(expr);
+            if (!ce) {
+                return false;
+            }
+
+            *result = ce->getZExtValue();
+        }
+
+        return writeMemory(address, expr);
+    }
+
+    return false;
+}
+
+
 bool S2EExecutionState::writeMemory(uint64_t address,
                                     ref<Expr> value,
                                     AddressType addressType)

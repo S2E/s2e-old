@@ -343,6 +343,11 @@ public:
     klee::ref<klee::Expr> readMemory8(uint64_t address,
                               AddressType addressType = VirtualAddress) const;
 
+    bool readMemoryConcrete8(uint64_t address,
+                             uint8_t *result = NULL,
+                             AddressType addressType = VirtualAddress,
+                             bool addConstraint = true);
+
     bool writeMemory(uint64_t address,
                      klee::ref<klee::Expr> value,
                      AddressType addressType = VirtualAddress);
