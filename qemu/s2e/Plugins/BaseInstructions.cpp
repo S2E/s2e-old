@@ -73,7 +73,7 @@ void BaseInstructions::initialize()
 
 }
 
-void BaseInstructions::makeSymbolic(S2EExecutionState *state)
+void BaseInstructions::makeSymbolic(S2EExecutionState *state, bool makeConcolic)
 {
     uint32_t address, size, name; // XXX
     bool ok = true;
@@ -102,7 +102,26 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state)
             << " of size " << hexval(size)
             << " with name '" << nameStr << "'\n";
 
-    vector<ref<Expr> > symb = state->createSymbolicArray(nameStr, size);
+    std::vector<unsigned char> concreteData;
+    vector<ref<Expr> > symb;
+
+    if (makeConcolic) {
+        for (unsigned i = 0; i< size; ++i) {
+            uint8_t byte = 0;
+            if (!state->readMemoryConcrete8(address + i, &byte)) {
+                s2e()->getWarningsStream(state)
+                    << "Can not concretize/read symbolic value"
+                    << " at " << hexval(address + i) << ". System state not modified.\n";
+                return;
+            }
+            concreteData.push_back(byte);
+        }
+        symb = state->createConcolicArray(nameStr, concreteData);
+    } else {
+        symb = state->createSymbolicArray(nameStr, size);
+    }
+
+
     for(unsigned i = 0; i < size; ++i) {
         if(!state->writeMemory8(address + i, symb[i])) {
             s2e()->getWarningsStream(state)
@@ -320,7 +339,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 2: state->disableSymbolicExecution(); break;
 
         case 3: { /* s2e_make_symbolic */
-            makeSymbolic(state);
+            makeSymbolic(state, false);
             break;
         }
 
@@ -360,6 +379,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
         case 0x10: { /* s2e_print_message */
             printMessage(state, opcode >> 16);
+            break;
+        }
+
+        case 0x11: { /* s2e_make_concolic */
+            makeSymbolic(state, true);
             break;
         }
 

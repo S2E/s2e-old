@@ -155,6 +155,22 @@ static inline void s2e_make_symbolic(void* buf, int size, const char* name)
     );
 }
 
+/** Fill buffer with unconstrained symbolic values without discarding concrete data. */
+static inline void s2e_make_concolic(void* buf, int size, const char* name)
+{
+    __s2e_touch_string(name);
+    __s2e_touch_buffer(buf, size);
+    __asm__ __volatile__(
+        "pushl %%ebx\n"
+        "movl %%edx, %%ebx\n"
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x11, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        "popl %%ebx\n"
+        : : "a" (buf), "d" (size), "c" (name) : "memory"
+    );
+}
+
 /** Returns true if ptr points to a symbolic value */
 static inline int s2e_is_symbolic(void* ptr)
 {

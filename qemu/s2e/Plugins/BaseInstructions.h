@@ -60,7 +60,7 @@ private:
     void onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode);
 
-    void makeSymbolic(S2EExecutionState *state);
+    void makeSymbolic(S2EExecutionState *state, bool makeConcolic);
     void isSymbolic(S2EExecutionState *state);
     void killState(S2EExecutionState *state);
     void printExpression(S2EExecutionState *state);
