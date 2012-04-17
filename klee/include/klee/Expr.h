@@ -292,6 +292,14 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const Expr::Kind kin
   return os;
 }
 
+inline std::ostream &operator<<(std::ostream &out, const Expr::Kind kind) {
+    std::string ss;
+    llvm::raw_string_ostream ros(ss);
+    Expr::printKind(ros, kind);
+    out << ros.str();
+    return out;
+}
+
 inline std::ostream& operator<<(std::ostream& out, const klee::ref<klee::Expr> &expr)
 {
     std::string ss;
