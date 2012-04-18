@@ -835,6 +835,31 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
     return StatePair(trueState, falseState);
 }
 
+bool Executor::resolveSpeculativeState(ExecutionState &state)
+{
+    assert(state.speculative);
+
+    //Try to compute the values that would satisfy the
+    //speculative path constraint.
+    std::vector<const Array*> symbObjects;
+    std::vector<std::vector<unsigned char> > concreteObjects;
+    findSymbolicObjects(state.speculativeCondition, symbObjects);
+
+    if (!solver->getInitialValues(state, symbObjects, concreteObjects)) {
+        return false;
+    }
+
+    //Add the concrete values to the current state
+    for (unsigned i=0; i<symbObjects.size(); ++i) {
+        state.concolics.add(symbObjects[i], concreteObjects[i]);
+    }
+
+    state.speculative = false;
+
+    return true;
+}
+
+
 Executor::StatePair 
 Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
   condition = simplifyExpr(current, condition);

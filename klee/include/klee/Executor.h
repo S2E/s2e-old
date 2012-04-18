@@ -392,6 +392,8 @@ public:
   virtual StatePair concolicFork(ExecutionState &current,
                          ref<Expr> condition, bool isInternal);
 
+  bool resolveSpeculativeState(ExecutionState &state);
+
   virtual bool merge(ExecutionState &base, ExecutionState &other);
 
   // remove state from queue and delete
