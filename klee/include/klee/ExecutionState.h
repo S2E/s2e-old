@@ -149,6 +149,10 @@ public:
   }
 
   virtual bool merge(const ExecutionState &b);
+
+  bool isSpeculative() const {
+      return speculative;
+  }
 };
 
 }

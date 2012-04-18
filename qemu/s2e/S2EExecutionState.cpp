@@ -1764,5 +1764,15 @@ int s2e_is_zombie(S2EExecutionState* state)
     return state->isZombie();
 }
 
+int s2e_is_speculative(S2EExecutionState *state)
+{
+    return state->isSpeculative();
+}
+
+int s2e_is_runnable(S2EExecutionState *state)
+{
+    return !s2e_is_zombie(state) && !s2e_is_speculative(state);
+}
+
 
 } // extern "C"

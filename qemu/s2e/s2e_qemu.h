@@ -278,6 +278,8 @@ void s2e_qemu_put_buffer(struct S2EExecutionState *s, const uint8_t *buf, int si
 #endif
 
 int s2e_is_zombie(struct S2EExecutionState* state);
+int s2e_is_speculative(struct S2EExecutionState *state);
+int s2e_is_runnable(struct S2EExecutionState* state);
 
 void s2e_dump_state(void);
 
