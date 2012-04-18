@@ -4,7 +4,7 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_concolic_2
+    call s2e_concolic_3
     ;call s2e_test_memspeed
     ;call s2e_sm_test
     ;call s2e_sm_succeed_test
@@ -59,6 +59,95 @@ sc21:
     push msg_ok
     push 1
     call s2e_kill_state
+    ret
+
+bubble_sort:
+        push	ebp
+        mov	ebp, esp
+        sub	esp, 16
+L5:
+        mov	DWORD  [ebp-4], 0
+        mov	DWORD  [ebp-8], 1
+        jmp	L2
+L4:
+        mov	eax, DWORD  [ebp-8]
+        sub	eax, 1
+        add	eax, DWORD  [ebp+8]
+        movzx	edx, BYTE  [eax]
+        mov	eax, DWORD  [ebp-8]
+        mov	ecx, DWORD  [ebp+8]
+        lea	eax, [ecx+eax]
+        movzx	eax, BYTE  [eax]
+        cmp	dl, al
+        jle	L3
+        mov	eax, DWORD  [ebp-8]
+        sub	eax, 1
+        add	eax, DWORD  [ebp+8]
+        movzx	eax, BYTE  [eax]
+        movsx	eax, al
+        mov	DWORD  [ebp-12], eax
+        mov	eax, DWORD  [ebp-8]
+        sub	eax, 1
+        add	eax, DWORD  [ebp+8]
+        mov	edx, DWORD  [ebp-8]
+        mov	ecx, DWORD  [ebp+8]
+        lea	edx, [ecx+edx]
+        movzx	edx, BYTE  [edx]
+        mov	BYTE  [eax], dl
+        mov	eax, DWORD  [ebp-8]
+        mov	edx, DWORD  [ebp+8]
+        add	edx, eax
+        mov	eax, DWORD  [ebp-12]
+        mov	BYTE  [edx], al
+        mov	DWORD  [ebp-4], 1
+L3:
+        add	DWORD  [ebp-8], 1
+L2:
+        mov	eax, DWORD  [ebp-8]
+        cmp	eax, DWORD  [ebp+12]
+        jb	L4
+        cmp	DWORD  [ebp-4], 0
+        jne	L5
+        leave
+        ret
+
+
+
+s2e_concolic_3:
+    push ebp
+    mov ebp, esp
+    sub esp, 0x20*4
+
+    call s2e_fork_enable
+
+    ;Initialize the buffer with decreasing sequence of numbers
+    lea edi, [ebp - 0x20*4]
+    mov ecx, 0x10
+sc31:
+    mov [edi], ecx
+    add edi, 4
+    loop sc31
+
+    lea esi, [ebp - 0x20*4]
+    push 0
+    push 0x10
+    push esi
+    call s2e_make_concolic
+    add esp, 0x4*3
+
+
+    ;Do a bubble sort
+    lea esi, [ebp - 0x20*4]
+    push 0x10
+    push esi
+    call bubble_sort
+    add esp, 8
+
+    push msg_ok
+    push 0
+    call s2e_kill_state
+
+    leave
     ret
 
 
