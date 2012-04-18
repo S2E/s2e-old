@@ -113,6 +113,10 @@ L2:
 
 
 
+%define SORT_STRING_SIZE 25
+sort_string: db "This is some text to sort", 0
+
+
 s2e_concolic_3:
     push ebp
     mov ebp, esp
@@ -120,17 +124,21 @@ s2e_concolic_3:
 
     call s2e_fork_enable
 
-    ;Initialize the buffer with decreasing sequence of numbers
+    ;Initialize the buffer with the text to sort
     lea edi, [ebp - 0x20*4]
-    mov ecx, 0x10
-sc31:
-    mov [edi], ecx
-    add edi, 4
-    loop sc31
+    mov esi, sort_string
+    mov ecx, SORT_STRING_SIZE
+    cld
+    rep movsb
+
+    lea edi, [ebp - 0x20*4]
+    push edi
+    call s2e_print_message
+
 
     lea esi, [ebp - 0x20*4]
     push 0
-    push 0x10
+    push SORT_STRING_SIZE
     push esi
     call s2e_make_concolic
     add esp, 0x4*3
@@ -138,12 +146,12 @@ sc31:
 
     ;Do a bubble sort
     lea esi, [ebp - 0x20*4]
-    push 0x10
+    push SORT_STRING_SIZE
     push esi
     call bubble_sort
     add esp, 8
 
-    push msg_ok
+    push esi
     push 0
     call s2e_kill_state
 
