@@ -388,6 +388,10 @@ public:
   virtual StatePair fork(ExecutionState &current,
                          ref<Expr> condition, bool isInternal);
 
+
+  virtual StatePair concolicFork(ExecutionState &current,
+                         ref<Expr> condition, bool isInternal);
+
   virtual bool merge(ExecutionState &base, ExecutionState &other);
 
   // remove state from queue and delete

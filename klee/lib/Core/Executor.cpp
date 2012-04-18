@@ -756,6 +756,85 @@ void Executor::branch(ExecutionState &state,
       addConstraint(*result[i], conditions[i]);
 }
 
+Executor::StatePair
+Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
+    condition = simplifyExpr(current, condition);
+
+    //If we are passed a constant, no need to do anything,
+    //revert to normal fork (which won't branch).
+    if (dyn_cast<ConstantExpr>(condition)) {
+        return Executor::fork(current, condition, isInternal);
+    }
+
+    *klee_message_stream << "Concolic fork for expression " << condition << "\n";
+
+    //The current state is guaranteed to be consistent with whatever
+    //assignment is stored in the concolics variable.
+    assert(!current.speculative);
+
+    //Evaluate the expression using the current variable assignment.
+    ref<Expr> evalResult = current.concolics.evaluate(condition);
+    ConstantExpr *ce = dyn_cast<ConstantExpr>(evalResult);
+    if (!ce) {
+        //Some variable assignments are missing,
+        //try to compute them using the solver.
+
+        std::vector<const Array*> symbObjects;
+        std::vector<std::vector<unsigned char> > concreteObjects;
+        findSymbolicObjects(evalResult, symbObjects);
+
+        if (!solver->getInitialValues(current, symbObjects, concreteObjects)) {
+            current.pc = current.prevPC;
+            std::stringstream ss;
+            ss << "Could not get initial values on expression " << evalResult
+               << " for condition " << condition;
+            terminateStateEarly(current, ss.str());
+            return StatePair(0, 0);
+        }
+
+        //Add them to the current state
+        for (unsigned i=0; i<symbObjects.size(); ++i) {
+            current.concolics.add(symbObjects[i], concreteObjects[i]);
+        }
+
+        //Redo the evaluation
+        evalResult = current.concolics.evaluate(condition);
+        ce = dyn_cast<ConstantExpr>(evalResult);
+        assert(ce && "Expression must be constant here!");
+    }
+
+    ExecutionState *trueState, *falseState, *branchedState;
+    branchedState = current.branch();
+    addedStates.insert(branchedState);
+
+
+    trueState = &current;
+    falseState = branchedState;
+
+    //We don't know if the branched state could be valid
+    //or not, so we mark it speculative and defer the
+    //actual determination of the speculative status to later.
+    if (ce->isTrue()) {
+        //Condition is true in the current state
+        falseState->speculative = true;
+        falseState->speculativeCondition = Expr::createIsZero(condition);
+        addConstraint(*trueState, condition);
+    } else {
+        //Condition is false in the current state
+        trueState->speculative = true;
+        trueState->speculativeCondition = condition;
+        addConstraint(*falseState, Expr::createIsZero(condition));
+    }
+
+    current.ptreeNode->data = 0;
+    std::pair<PTree::Node*, PTree::Node*> res =
+      processTree->split(current.ptreeNode, falseState, trueState);
+    falseState->ptreeNode = res.first;
+    trueState->ptreeNode = res.second;
+
+    return StatePair(trueState, falseState);
+}
+
 Executor::StatePair 
 Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
   condition = simplifyExpr(current, condition);

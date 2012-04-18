@@ -188,6 +188,11 @@ namespace {
     ConcretizeIoWrites("concretize-io-writes",
             cl::desc("Concretize symbolic I/O writes"),
             cl::init(true));
+
+    cl::opt<bool>
+    ConcolicMode("use-concolic-execution",
+                   cl::desc("Concolic execution mode"),  cl::init(false));
+
 }
 
 //The logs may be flooded with messages when switching execution mode.
@@ -2145,7 +2150,14 @@ S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
     assert(dynamic_cast<S2EExecutionState*>(&current));
     assert(!static_cast<S2EExecutionState*>(&current)->m_runningConcrete);
 
-    StatePair res = Executor::fork(current, condition, isInternal);
+    StatePair res;
+
+    if (ConcolicMode) {
+        res = Executor::concolicFork(current, condition, isInternal);
+    } else {
+        res = Executor::fork(current, condition, isInternal);
+    }
+
     if(res.first && res.second) {
 
         assert(dynamic_cast<S2EExecutionState*>(res.first));
