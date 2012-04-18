@@ -4,7 +4,7 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_concolic_1
+    call s2e_concolic_2
     ;call s2e_test_memspeed
     ;call s2e_sm_test
     ;call s2e_sm_succeed_test
@@ -40,6 +40,26 @@ sc11:
     call s2e_kill_state
     ret
 
+
+;Check that the engine can
+;assign default concrete values in case
+;s2e_make_symbolic is used.
+s2e_concolic_2:
+    call s2e_fork_enable
+
+    call s2e_int
+
+    cmp eax, 0
+    ja sc21
+
+    push msg_ok
+    push 0
+    call s2e_kill_state
+sc21:
+    push msg_ok
+    push 1
+    call s2e_kill_state
+    ret
 
 
 s2e_fork_test2:
