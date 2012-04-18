@@ -270,7 +270,7 @@ int cpu_exec(CPUArchState *env)
 #error unsupported target CPU
 #endif
 #ifdef CONFIG_S2E
-    if (s2e_is_zombie(g_s2e_state)) {
+    if (!s2e_is_runnable(g_s2e_state)) {
         return EXCP_S2E;
     }
 #endif
@@ -662,7 +662,7 @@ int cpu_exec(CPUArchState *env)
         } else {
             #ifdef CONFIG_S2E
             assert(g_s2e_state);
-            if (s2e_is_zombie(g_s2e_state)) {
+            if (!s2e_is_runnable(g_s2e_state)) {
                 cpu_single_env = NULL;
                 return EXCP_S2E;
             }
@@ -674,7 +674,7 @@ int cpu_exec(CPUArchState *env)
 #ifdef CONFIG_S2E
             //cpu_restore_icount(env);
             s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, NULL);
-            if (s2e_is_zombie(g_s2e_state)) {
+            if (!s2e_is_runnable(g_s2e_state)) {
                 cpu_single_env = NULL;
                 return EXCP_S2E;
             }
