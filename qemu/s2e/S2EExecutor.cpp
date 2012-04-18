@@ -1233,6 +1233,11 @@ void S2EExecutor::stateSwitchTimerCallback(void *opaque)
                     c->terminateState(*g_s2e_state);
                     continue;
                 }
+
+                //Give a chance to the searcher to update
+                //the status of the state.
+                std::set<ExecutionState*> empty;
+                c->searcher->update(g_s2e_state, empty, empty);
             }
         } while (g_s2e_state->isSpeculative());
 
