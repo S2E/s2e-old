@@ -807,23 +807,23 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
     branchedState = current.branch();
     addedStates.insert(branchedState);
 
-
-    trueState = &current;
-    falseState = branchedState;
+    branchedState->speculative = true;
 
     //We don't know if the branched state could be valid
     //or not, so we mark it speculative and defer the
     //actual determination of the speculative status to later.
     if (ce->isTrue()) {
         //Condition is true in the current state
-        falseState->speculative = true;
-        falseState->speculativeCondition = Expr::createIsZero(condition);
-        addConstraint(*trueState, condition);
+        branchedState->speculativeCondition = Expr::createIsZero(condition);
+        addConstraint(current, condition);
+        trueState = &current;
+        falseState = branchedState;
     } else {
         //Condition is false in the current state
-        trueState->speculative = true;
-        trueState->speculativeCondition = condition;
-        addConstraint(*falseState, Expr::createIsZero(condition));
+        branchedState->speculativeCondition = condition;
+        addConstraint(current, Expr::createIsZero(condition));
+        falseState = &current;
+        trueState = branchedState;
     }
 
     current.ptreeNode->data = 0;
