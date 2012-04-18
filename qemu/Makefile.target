@@ -497,6 +497,7 @@ s2eobj-y += s2e/Plugins/StateManager.o
 s2eobj-y += s2e/Plugins/Annotation.o
 s2eobj-y += s2e/Plugins/Searchers/MaxTbSearcher.o
 s2eobj-y += s2e/Plugins/Searchers/CooperativeSearcher.o
+s2eobj-y += s2e/Plugins/Searchers/ConcolicDFSSearcher.o
 s2eobj-y += s2e/Plugins/HostFiles.o
 
 s2eobj-y += s2e/Plugins/MemoryChecker.o
