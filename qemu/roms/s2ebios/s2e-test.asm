@@ -4,9 +4,10 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
+    call s2e_concolic_1
     ;call s2e_test_memspeed
     ;call s2e_sm_test
-    call s2e_sm_succeed_test
+    ;call s2e_sm_succeed_test
     ;call s2e_test2
     ;call s2e_test_memobj
     ;call s2e_fork_test2
@@ -18,6 +19,26 @@ s2e_test:
     ;call s2e_isa_dev
     cli
     hlt
+
+
+;Both states are feasible
+s2e_concolic_1:
+    call s2e_fork_enable
+
+    push 0xdeadbeef
+    call s2e_concolic_int
+
+    cmp eax, 0
+    ja sc11
+
+    push msg_ok
+    push 0
+    call s2e_kill_state
+sc11:
+    push msg_ok
+    push 1
+    call s2e_kill_state
+    ret
 
 
 
