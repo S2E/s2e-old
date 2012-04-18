@@ -1222,7 +1222,19 @@ void S2EExecutor::stateSwitchTimerCallback(void *opaque)
         vm_stop(RUN_STATE_SAVE_VM);
 
         c->doLoadBalancing();
-        g_s2e_state = c->selectNextState(g_s2e_state);
+
+        do {
+            g_s2e_state = c->selectNextState(g_s2e_state);
+            if (g_s2e_state->isSpeculative()) {
+                //The searcher wants us to execute a speculative state.
+                //The engine must make sure that such a state
+                //satisfies all the path constraints.
+                if (!c->resolveSpeculativeState(*g_s2e_state)) {
+                    c->terminateState(*g_s2e_state);
+                    continue;
+                }
+            }
+        } while (g_s2e_state->isSpeculative());
 
         vm_start();
     }
@@ -1554,6 +1566,11 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         throw CpuExitException();
     }
 
+    //S2E doesn't know if the current state can be run
+    //if concolic fork marks it as speculative.
+    if (state->isSpeculative()) {
+        throw CpuExitException();
+    }
 
     if(shouldExitCpu)
         throw CpuExitException();
