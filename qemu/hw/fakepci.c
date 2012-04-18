@@ -207,6 +207,10 @@ void fakepci_register_device(fake_pci_t *fake)
 
 void fakepci_activate_device(enum fake_bus_type_t type, void *bus)
 {
+    if (!s_fake_pci) {
+        return;
+    }
+
     assert(type == PCI);
     pci_create_simple((struct PCIBus*) bus, -1, s_fake_pci->name);
 }
