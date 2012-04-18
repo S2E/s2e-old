@@ -125,6 +125,28 @@ s2e_make_symbolic:
     leave
     ret
 
+s2e_make_concolic:
+    push ebp
+    mov ebp, esp
+    push ebx
+
+    mov eax, [ebp + 0x8] ;address
+    mov ebx, [ebp + 0xC] ;size
+    mov ecx, [ebp + 0x10] ;asciiz
+
+    db 0x0f
+    db 0x3f ; S2EOP
+
+    db 0x00 ; Built-in instructions
+    db 0x11 ; Make concolic
+    db 0x00
+    db 0x00
+    dd 0x0
+
+    pop ebx
+    leave
+    ret
+
 
 s2e_kill_state:
     push ebp
@@ -217,7 +239,29 @@ s2e_int:
     leave
     ret
 
-    s2e_print_message:
+s2e_concolic_int:
+    push ebp
+    mov ebp, esp
+    sub esp, 4
+
+    ;Initialize the memory location
+    ;we want to make symbolic with
+    ;the passed concrete value
+    mov eax, [ebp + 8]
+    mov [ebp - 4], eax
+
+    push 0
+    push 4
+    lea eax, [ebp-4]
+    push eax
+    call s2e_make_concolic
+    add esp, 4*3
+    mov eax, [ebp-4]
+
+    leave
+ret
+
+s2e_print_message:
     push ebp
     mov ebp, esp
 
