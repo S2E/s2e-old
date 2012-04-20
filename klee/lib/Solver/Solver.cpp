@@ -532,7 +532,7 @@ static int shared_memory_id;
 
 static void stp_error_handler(const char* err_msg) {
   fprintf(stderr, "error: STP Error: %s\n", err_msg);
-  abort();
+  exit(-1);
 }
 
 STPSolverImpl::STPSolverImpl(STPSolver *_solver, bool _useForkedSTP)
