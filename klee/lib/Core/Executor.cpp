@@ -852,7 +852,10 @@ bool Executor::resolveSpeculativeState(ExecutionState &state)
     //Compute the values that satisfy the new set of path constraints.
     std::vector<const Array*> symbObjects;
     std::vector<std::vector<unsigned char> > concreteObjects;
-    findSymbolicObjects(state.speculativeCondition, symbObjects);
+
+    for (unsigned i=0; i<state.symbolics.size(); ++i) {
+        symbObjects.push_back(state.symbolics[i].second);
+    }
 
     if (!solver->getInitialValues(state, symbObjects, concreteObjects)) {
         return false;
