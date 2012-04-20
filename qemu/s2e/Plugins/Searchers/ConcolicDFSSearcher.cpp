@@ -76,11 +76,15 @@ void ConcolicDFSSearcher::initialize()
 
 klee::ExecutionState& ConcolicDFSSearcher::selectState()
 {
+    klee::ExecutionState *state;
     if (!m_normalStates.empty()) {
-        return **m_normalStates.begin();
+        state = *m_normalStates.begin();
+    } else {
+        assert(!m_speculativeStates.empty());
+        state = *m_speculativeStates.begin();
     }
-    assert(!m_speculativeStates.empty());
-    return **m_speculativeStates.begin();
+
+    return *state;
 }
 
 
@@ -88,31 +92,40 @@ void ConcolicDFSSearcher::update(klee::ExecutionState *current,
                     const std::set<klee::ExecutionState*> &addedStates,
                     const std::set<klee::ExecutionState*> &removedStates)
 {
-    if (current) {
-        if (current->isSpeculative()) {
-            m_normalStates.erase(current);
-            m_speculativeStates.insert(current);
-        } else  {
-            m_speculativeStates.erase(current);
-            m_normalStates.insert(current);
+    if (current && addedStates.empty() && removedStates.empty()) {
+        S2EExecutionState *s2estate = dynamic_cast<S2EExecutionState*>(current);
+        if (!s2estate->isZombie()) {
+            if (current->isSpeculative()) {
+                m_normalStates.erase(current);
+                m_speculativeStates.insert(current);
+            } else  {
+                m_speculativeStates.erase(current);
+                m_normalStates.insert(current);
+            }
         }
     }
 
     foreach2(it, removedStates.begin(), removedStates.end()) {
         S2EExecutionState *es = dynamic_cast<S2EExecutionState*>(*it);
+        //s2e()->getDebugStream() << "update remove id=" << es->getID() << '\n';
         if (es->isSpeculative()) {
-            m_speculativeStates.erase(es);
+            size_t count = m_speculativeStates.erase(es);
+            assert(count > 0);
+            assert(m_normalStates.find(es) == m_normalStates.end());
         } else {
-            m_speculativeStates.insert(es);
+            size_t count = m_normalStates.erase(es);
+            assert(count > 0);
+            assert(m_speculativeStates.find(es) == m_speculativeStates.end());
         }
     }
 
     foreach2(it, addedStates.begin(), addedStates.end()) {
         S2EExecutionState *es = dynamic_cast<S2EExecutionState*>(*it);
+        //s2e()->getDebugStream() << "update add id=" << es->getID() << '\n';
         if (es->isSpeculative()) {
-            m_speculativeStates.erase(es);
-        } else {
             m_speculativeStates.insert(es);
+        } else {
+            m_normalStates.insert(es);
         }
     }
 }
