@@ -778,7 +778,6 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
     if (!ce) {
         //Some variable assignments are missing,
         //try to compute them using the solver.
-
         std::vector<const Array*> symbObjects;
         std::vector<std::vector<unsigned char> > concreteObjects;
         findSymbolicObjects(evalResult, symbObjects);
@@ -808,6 +807,7 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
     addedStates.insert(branchedState);
 
     branchedState->speculative = true;
+    branchedState->concolics.clear();
 
     //We don't know if the branched state could be valid
     //or not, so we mark it speculative and defer the
@@ -839,8 +839,17 @@ bool Executor::resolveSpeculativeState(ExecutionState &state)
 {
     assert(state.speculative);
 
-    //Try to compute the values that would satisfy the
-    //speculative path constraint.
+    //The speculative condition must satisfy the current path constraints
+    Query query(state.constraints,state.speculativeCondition);
+    bool truth;
+    bool res = solver->solver->mustBeTrue(query.negateExpr(), truth);
+    if (!res || truth) {
+       return false;
+    }
+
+    state.addConstraint(state.speculativeCondition);
+
+    //Compute the values that satisfy the new set of path constraints.
     std::vector<const Array*> symbObjects;
     std::vector<std::vector<unsigned char> > concreteObjects;
     findSymbolicObjects(state.speculativeCondition, symbObjects);
@@ -855,7 +864,7 @@ bool Executor::resolveSpeculativeState(ExecutionState &state)
     }
 
     state.speculative = false;
-    state.addConstraint(state.speculativeCondition);
+
     return true;
 }
 
