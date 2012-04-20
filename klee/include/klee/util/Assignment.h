@@ -51,6 +51,10 @@ namespace klee {
         bindings.insert(std::make_pair(object, value));
     }
 
+    void clear() {
+        bindings.clear();
+    }
+
     template<typename InputIterator>
     bool satisfies(InputIterator begin, InputIterator end);
   };
