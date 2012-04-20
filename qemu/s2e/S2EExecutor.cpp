@@ -480,7 +480,9 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
         expr = s2eExecutor->simplifyExpr(*state, expr);
     }
 
+    expr = state->concolics.evaluate(expr);
     expr = state->constraints.simplifyExpr(expr);
+
 
     if(isa<klee::ConstantExpr>(expr)) {
 #ifndef NDEBUG
