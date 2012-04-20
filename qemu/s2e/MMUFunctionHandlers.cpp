@@ -48,6 +48,8 @@ extern struct CPUX86State *env;
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/s2e_qemu.h>
 
+#include <llvm/Module.h>
+
 using namespace klee;
 
 namespace s2e {
@@ -159,13 +161,31 @@ static ref<Expr> io_read_chk(S2EExecutionState *state,
     }
 }
 
+void S2EExecutor::handle_ldb_mmu(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 2);
+    handle_ldst_mmu(executor, state, target, args, false, 1, false, false);
+}
+
+void S2EExecutor::handle_stb_mmu(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 3);
+    handle_ldst_mmu(executor, state, target, args, true, 1, false, false);
+}
+
 void S2EExecutor::handle_ldl_mmu(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
                                      std::vector< ref<Expr> > &args)
 {
     assert(args.size() == 2);
-    handle_ldstl_mmu(executor, state, target, args, false);
+    handle_ldst_mmu(executor, state, target, args, false, 4, false, false);
 }
 
 void S2EExecutor::handle_stl_mmu(Executor* executor,
@@ -174,17 +194,18 @@ void S2EExecutor::handle_stl_mmu(Executor* executor,
                                      std::vector< ref<Expr> > &args)
 {
     assert(args.size() == 3);
-    handle_ldstl_mmu(executor, state, target, args, true);
+    handle_ldst_mmu(executor, state, target, args, true, 4, false, false);
 }
 
 /* Replacement for __ldl_mmu / __stl_mmu */
 /* Params: ldl: addr, mmu_idx */
 /* Params: stl: addr, val, mmu_idx */
-void S2EExecutor::handle_ldstl_mmu(Executor* executor,
+void S2EExecutor::handle_ldst_mmu(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
                                      std::vector< ref<Expr> > &args,
-                                     bool isWrite)
+                                     bool isWrite, unsigned data_size,
+                                     bool signExtend, bool zeroExtend)
 {
     S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(state);
     S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
@@ -201,7 +222,6 @@ void S2EExecutor::handle_ldstl_mmu(Executor* executor,
     }
 
     //XXX: determine this by looking at the instruction that called us
-    unsigned data_size = 4;
     Expr::Width width = data_size * 8;
 
     target_ulong addr = constantAddress->getZExtValue();
@@ -213,6 +233,7 @@ void S2EExecutor::handle_ldstl_mmu(Executor* executor,
 
     if (isWrite) {
         value = args[1];
+        assert(value->getWidth() == width);
     }
 
     object_index = addr >> S2E_RAM_OBJECT_BITS;
@@ -262,10 +283,10 @@ void S2EExecutor::handle_ldstl_mmu(Executor* executor,
                 traceArgs.push_back(value);
 
             traceArgs.push_back(ConstantExpr::create(mmu_idx, Expr::Int64));
-            handle_ldstl_mmu(executor, state, target, args, isWrite);
+            handle_ldst_mmu(executor, state, target, args, isWrite, data_size, signExtend, zeroExtend);
 
             traceArgs[0] = ConstantExpr::create(addr2, Expr::Int64);
-            handle_ldstl_mmu(executor, state, target, args, isWrite);
+            handle_ldst_mmu(executor, state, target, args, isWrite, data_size, signExtend, zeroExtend);
        } else {
             /* unaligned/aligned access in the same page */
 #ifdef ALIGNED_ONLY
@@ -302,6 +323,10 @@ void S2EExecutor::handle_ldstl_mmu(Executor* executor,
     }
 
     if (!isWrite) {
+        if (zeroExtend) {
+            assert(data_size == 2);
+            value = ZExtExpr::create(value, Expr::Int32);
+        }
         s2eExecutor->bindLocal(target, *state, value);
     }
 }
@@ -313,9 +338,21 @@ void S2EExecutor::handle_ldl_kernel(Executor* executor,
                                      std::vector< ref<Expr> > &args)
 {
     assert(args.size() == 1);
-    handle_ldstl_kernel(executor, state, target, args, false);
+    handle_ldst_kernel(executor, state, target, args, false, 4, false, false);
 
 }
+
+void S2EExecutor::handle_lduw_kernel(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 1);
+    handle_ldst_kernel(executor, state, target, args, false, 2, false, true);
+
+}
+
+
 
 /* Replacement for stl_kernel */
 void S2EExecutor::handle_stl_kernel(Executor* executor,
@@ -324,14 +361,15 @@ void S2EExecutor::handle_stl_kernel(Executor* executor,
                                      std::vector< ref<Expr> > &args)
 {
     assert(args.size() == 2);
-    handle_ldstl_kernel(executor, state, target, args, true);
+    handle_ldst_kernel(executor, state, target, args, true, 4, false, false);
 }
 
-void S2EExecutor::handle_ldstl_kernel(Executor* executor,
+void S2EExecutor::handle_ldst_kernel(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
                                      std::vector< ref<Expr> > &args,
-                                     bool isWrite)
+                                     bool isWrite, unsigned data_size,
+                                     bool signExtend, bool zeroExtend)
 {
     S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(state);
     S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
@@ -346,8 +384,6 @@ void S2EExecutor::handle_ldstl_kernel(Executor* executor,
         assert(!constantAddress.isNull());
     }
 
-    //XXX: determine this by looking at the instruction that called us
-    unsigned data_size = 4;
     Expr::Width width = data_size * 8;
 
     target_ulong addr = constantAddress->getZExtValue();
@@ -374,11 +410,11 @@ void S2EExecutor::handle_ldstl_kernel(Executor* executor,
             slowArgs.push_back(constantAddress);
             slowArgs.push_back(value);
             slowArgs.push_back(ConstantExpr::create(mmu_idx, Expr::Int64));
-            handle_stl_mmu(executor, state, target, slowArgs);
+            handle_ldst_mmu(executor, state, target, slowArgs, isWrite, data_size, signExtend, zeroExtend);
         } else {
             slowArgs.push_back(constantAddress);
             slowArgs.push_back(ConstantExpr::create(mmu_idx, Expr::Int64));
-            handle_ldl_mmu(executor, state, target, slowArgs);
+            handle_ldst_mmu(executor, state, target, slowArgs, isWrite, data_size, signExtend, zeroExtend);
         }
         return;
 
@@ -392,7 +428,6 @@ void S2EExecutor::handle_ldstl_kernel(Executor* executor,
             s2estate->writeMemory(physaddr, value, S2EExecutionState::HostAddress);
         } else {
             value = s2estate->readMemory(physaddr, width, S2EExecutionState::HostAddress);
-            s2eExecutor->bindLocal(target, *state, value);
         }
 
         //Trace the access
@@ -403,7 +438,52 @@ void S2EExecutor::handle_ldstl_kernel(Executor* executor,
         traceArgs.push_back(ConstantExpr::create(0, Expr::Int64)); //isWrite
         traceArgs.push_back(ConstantExpr::create(0, Expr::Int64)); //isIO
         handlerTraceMemoryAccess(executor, state, target, args);
+
+        if (!isWrite) {
+            if (zeroExtend) {
+                assert(data_size == 2);
+                value = ZExtExpr::create(value, Expr::Int32);
+            }
+            s2eExecutor->bindLocal(target, *state, value);
+        }
     }
+}
+
+
+S2EExecutor::HandlerInfo S2EExecutor::s_handlerInfo[] = {
+#define add(name, handler) { name, \
+                                  &S2EExecutor::handler }
+add("__ldb_mmu", handle_ldb_mmu),
+add("__ldl_mmu", handle_ldl_mmu),
+add("__stb_mmu", handle_stb_mmu),
+add("__stl_mmu", handle_stl_mmu),
+add("lduw_kernel", handle_lduw_kernel),
+add("ldl_kernel", handle_ldl_kernel),
+//add("stb_kernel", handle_stb_kernel),
+add("stl_kernel", handle_stl_kernel),
+
+#undef add
+};
+
+
+void S2EExecutor::replaceExternalFunctionsWithSpecialHandlers()
+{
+    unsigned N = sizeof(s_handlerInfo)/sizeof(s_handlerInfo[0]);
+
+    for (unsigned i=0; i<N; ++i) {
+        HandlerInfo &hi = s_handlerInfo[i];
+        Function *f = kmodule->module->getFunction(hi.name);
+        assert(f);
+        addSpecialFunctionHandler(f, hi.handler);
+        overridenInternalFunctions.insert(f);
+    }
+}
+
+void S2EExecutor::disableConcreteLLVMHelpers()
+{
+    Function *f = kmodule->module->getFunction("helper_load_seg");
+    assert(f && "Could not find required helper");
+    kmodule->removeFunction(f, true);
 }
 
 }

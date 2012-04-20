@@ -297,7 +297,17 @@ protected:
     static void stateSwitchTimerCallback(void *opaque);
 
     /** The following are special handlers for MMU functions **/
+    static void handle_ldb_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
     static void handle_ldl_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
+    static void handle_stb_mmu(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
@@ -307,11 +317,16 @@ protected:
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
 
-    static void handle_ldstl_mmu(klee::Executor* executor,
+    static void handle_ldst_mmu(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args,
-                        bool isWrite);
+                        bool isWrite, unsigned data_size, bool signExtend, bool zeroExtend);
+
+    static void handle_lduw_kernel(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
 
     static void handle_ldl_kernel(klee::Executor* executor,
                         klee::ExecutionState* state,
@@ -323,11 +338,21 @@ protected:
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
 
-    static void handle_ldstl_kernel(klee::Executor* executor,
+    static void handle_ldst_kernel(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args,
-                        bool isWrite);
+                        bool isWrite, unsigned data_size, bool signExtend, bool zeroExtend);
+
+    void replaceExternalFunctionsWithSpecialHandlers();
+    void disableConcreteLLVMHelpers();
+
+    struct HandlerInfo {
+      const char *name;
+      S2EExecutor::FunctionHandler handler;
+    };
+
+    static HandlerInfo s_handlerInfo[];
 };
 
 struct S2ETranslationBlock

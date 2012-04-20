@@ -778,14 +778,17 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     }
 
     /* This catches obvious LLVM misconfigurations */
-    const Module *M = m_tcgLLVMContext->getModule();
+    Module *M = m_tcgLLVMContext->getModule();
     TargetData TD(M);
     assert(M->getPointerSize() == Module::Pointer64 && "Something is broken in your LLVM build: LLVM thinks pointers are 32-bits!");
 
     s2e->getDebugStream() << "Current data layout: " << m_tcgLLVMContext->getModule()->getDataLayout() << '\n';
     s2e->getDebugStream() << "Current target triple: " << m_tcgLLVMContext->getModule()->getTargetTriple() << '\n';
 
+
     setModule(m_tcgLLVMContext->getModule(), MOpts, false);
+
+    disableConcreteLLVMHelpers();
 
     /* Add dummy TB function declaration */
     PointerType* tbFunctionArgTy =
@@ -817,7 +820,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     kmodule->updateModuleWithFunction(dummyMain);
     m_dummyMain = kmodule->functionMap[dummyMain];
 
-
     if (!execute_llvm) {
         Function* function;
 
@@ -837,25 +839,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
         assert(function);
         addSpecialFunctionHandler(function, handleForkAndConcretize);
 
-        function = kmodule->module->getFunction("__ldl_mmu");
-        assert(function);
-        addSpecialFunctionHandler(function, handle_ldl_mmu);
-        overridenInternalFunctions.insert(function);
-
-        function = kmodule->module->getFunction("__stl_mmu");
-        assert(function);
-        addSpecialFunctionHandler(function, handle_stl_mmu);
-        overridenInternalFunctions.insert(function);
-
-        function = kmodule->module->getFunction("ldl_kernel");
-        assert(function);
-        addSpecialFunctionHandler(function, handle_ldl_kernel);
-        overridenInternalFunctions.insert(function);
-
-        function = kmodule->module->getFunction("stl_kernel");
-        assert(function);
-        addSpecialFunctionHandler(function, handle_stl_kernel);
-        overridenInternalFunctions.insert(function);
+        replaceExternalFunctionsWithSpecialHandlers();
 
         m_tcgLLVMContext->initializeHelpers();
     }
