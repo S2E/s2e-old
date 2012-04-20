@@ -1330,6 +1330,11 @@ void Executor::executeCall(ExecutionState &state,
                            Function *f,
                            std::vector< ref<Expr> > &arguments) {
   Instruction *i = ki->inst;
+
+  if (f && overridenInternalFunctions.find(f) != overridenInternalFunctions.end()) {
+      callExternalFunction(state, ki, f, arguments);
+  } else
+
   if (f && f->isDeclaration()) {
     switch(f->getIntrinsicID()) {
     case Intrinsic::not_intrinsic:

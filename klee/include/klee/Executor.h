@@ -146,6 +146,10 @@ protected:
   /// pointers. We use the actual Function* address as the function address.
   std::set<uint64_t> legalFunctions;
 
+  /// The set of functions that must be handled via custom function handlers
+  /// instead of being called directly.
+  std::set<llvm::Function*> overridenInternalFunctions;
+
   /// When non-null the bindings that will be used for calls to
   /// klee_make_symbolic in order replay.
   const struct KTest *replayOut;
