@@ -11,6 +11,7 @@
 #define KLEE_CONSTRAINTS_H
 
 #include "klee/Expr.h"
+#include <llvm/Support/raw_ostream.h>
 
 // FIXME: Currently we use ConstraintManager for two things: to pass
 // sets of constraints around, and to optimize constraints. We should
@@ -65,6 +66,13 @@ public:
     return constraints == other.constraints;
   }
   
+  void print(llvm::raw_ostream &os) {
+      const_iterator it;
+      for (it = begin(); it != end(); ++it) {
+          os << "Constraint " << *it << "\n";
+      }
+  }
+
 private:
   std::vector< ref<Expr> > constraints;
 
