@@ -193,6 +193,10 @@ namespace {
     ConcolicMode("use-concolic-execution",
                    cl::desc("Concolic execution mode"),  cl::init(false));
 
+    cl::opt<bool>
+    S2EDebugInstructions("print-llvm-instructions",
+                   cl::desc("Traces all LLVM instructions sent to KLEE"),  cl::init(false));
+
 }
 
 //The logs may be flooded with messages when switching execution mode.
@@ -215,7 +219,6 @@ extern "C" {
     int g_s2e_concretize_io_writes = 1;
 }
 
-static bool S2EDebugInstructions = false;
 
 namespace s2e {
 
