@@ -564,7 +564,7 @@ ARLIBS += libs2e.a
 s2e_llvmobj-y =
 s2e_llvmobj-y += op_helper.bc
 
-op_helper.bc: LLVM_CXXFLAGS+=-Wno-array-bounds
+op_helper.bc: QEMU_CFLAGS+=-Wno-unused-function
 
 $(s2e_llvmobj-y): %.bc: %.c %.o $(GENERATED_HEADERS)
 

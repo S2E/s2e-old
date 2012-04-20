@@ -98,12 +98,14 @@
 #include <s2e/s2e_config.h>
 
 #ifdef S2E_LLVM_LIB
+#define S2EINLINE
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
     tcg_llvm_trace_memory_access(vaddr, haddr, \
                                  value, 8*sizeof(value), isWrite, isIO);
 #define S2E_FORK_AND_CONCRETIZE(val, max) \
     tcg_llvm_fork_and_concretize(val, 0, max)
 #else // S2E_LLVM_LIB
+#define S2EINLINE inline
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
     s2e_trace_memory_access(vaddr, haddr, \
                             (uint8_t*) &value, sizeof(value), isWrite, isIO);
@@ -116,7 +118,7 @@
 #define S2E_RAM_OBJECT_DIFF (TARGET_PAGE_BITS - S2E_RAM_OBJECT_BITS)
 
 #else // CONFIG_S2E
-
+#define S2EINLINE inline
 #define S2E_TRACE_MEMORY(...)
 #define S2E_FORK_AND_CONCRETIZE(val, max) (val)
 #define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) (val)
@@ -158,7 +160,7 @@ void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE v);
 
 /* generic load/store macros */
 
-static inline RES_TYPE
+static S2EINLINE RES_TYPE
 glue(glue(glue(CPU_PREFIX, ld), USUFFIX), MEMSUFFIX)(ENV_PARAM
                                                      target_ulong ptr)
 {
@@ -200,7 +202,7 @@ glue(glue(glue(CPU_PREFIX, ld), USUFFIX), MEMSUFFIX)(ENV_PARAM
 }
 
 #if DATA_SIZE <= 2
-static inline int
+static S2EINLINE int
 glue(glue(glue(CPU_PREFIX, lds), SUFFIX), MEMSUFFIX)(ENV_PARAM
                                                      target_ulong ptr)
 {
@@ -240,7 +242,7 @@ glue(glue(glue(CPU_PREFIX, lds), SUFFIX), MEMSUFFIX)(ENV_PARAM
 
 /* generic store macro */
 
-static inline void
+static S2EINLINE void
 glue(glue(glue(CPU_PREFIX, st), SUFFIX), MEMSUFFIX)(ENV_PARAM target_ulong ptr,
                                                     RES_TYPE v)
 {
@@ -281,7 +283,7 @@ glue(glue(glue(CPU_PREFIX, st), SUFFIX), MEMSUFFIX)(ENV_PARAM target_ulong ptr,
 #if ACCESS_TYPE != (NB_MMU_MODES + 1)
 
 #if DATA_SIZE == 8
-static inline float64 glue(glue(CPU_PREFIX, ldfq), MEMSUFFIX)(ENV_PARAM
+static S2EINLINE float64 glue(glue(CPU_PREFIX, ldfq), MEMSUFFIX)(ENV_PARAM
                                                               target_ulong ptr)
 {
     union {
@@ -292,7 +294,7 @@ static inline float64 glue(glue(CPU_PREFIX, ldfq), MEMSUFFIX)(ENV_PARAM
     return u.d;
 }
 
-static inline void glue(glue(CPU_PREFIX, stfq), MEMSUFFIX)(ENV_PARAM
+static S2EINLINE void glue(glue(CPU_PREFIX, stfq), MEMSUFFIX)(ENV_PARAM
                                                            target_ulong ptr,
                                                            float64 v)
 {
@@ -306,7 +308,7 @@ static inline void glue(glue(CPU_PREFIX, stfq), MEMSUFFIX)(ENV_PARAM
 #endif /* DATA_SIZE == 8 */
 
 #if DATA_SIZE == 4
-static inline float32 glue(glue(CPU_PREFIX, ldfl), MEMSUFFIX)(ENV_PARAM
+static S2EINLINE float32 glue(glue(CPU_PREFIX, ldfl), MEMSUFFIX)(ENV_PARAM
                                                               target_ulong ptr)
 {
     union {
@@ -317,7 +319,7 @@ static inline float32 glue(glue(CPU_PREFIX, ldfl), MEMSUFFIX)(ENV_PARAM
     return u.f;
 }
 
-static inline void glue(glue(CPU_PREFIX, stfl), MEMSUFFIX)(ENV_PARAM
+static S2EINLINE void glue(glue(CPU_PREFIX, stfl), MEMSUFFIX)(ENV_PARAM
                                                            target_ulong ptr,
                                                            float32 v)
 {
