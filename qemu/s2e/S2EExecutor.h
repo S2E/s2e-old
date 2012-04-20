@@ -302,10 +302,32 @@ protected:
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
 
+    static void handle_stl_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
+    static void handle_ldstl_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args,
+                        bool isWrite);
+
     static void handle_ldl_kernel(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
+
+    static void handle_stl_kernel(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
+    static void handle_ldstl_kernel(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args,
+                        bool isWrite);
 };
 
 struct S2ETranslationBlock
