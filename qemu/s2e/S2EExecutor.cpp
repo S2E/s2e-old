@@ -842,6 +842,11 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
         addSpecialFunctionHandler(function, handle_ldl_mmu);
         overridenInternalFunctions.insert(function);
 
+        function = kmodule->module->getFunction("ldl_kernel");
+        assert(function);
+        addSpecialFunctionHandler(function, handle_ldl_kernel);
+        overridenInternalFunctions.insert(function);
+
         m_tcgLLVMContext->initializeHelpers();
     }
 

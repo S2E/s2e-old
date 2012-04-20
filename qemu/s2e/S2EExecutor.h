@@ -301,6 +301,11 @@ protected:
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
+
+    static void handle_ldl_kernel(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
 };
 
 struct S2ETranslationBlock

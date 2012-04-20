@@ -61,6 +61,9 @@ namespace s2e {
 #define ADDR_READ addr_read
 #endif
 
+//XXX: Fix this
+#define CPU_MMU_INDEX 0
+
 //This is an io_read_chkX_mmu function
 static ref<Expr> io_read_chk(S2EExecutionState *state,
                              target_phys_addr_t physaddr,
@@ -106,7 +109,6 @@ static ref<Expr> io_read_chk(S2EExecutionState *state,
         default: assert(false);
     }
 }
-
 
 /* Replacement for __ldl_mmu */
 void S2EExecutor::handle_ldl_mmu(Executor* executor,
@@ -186,7 +188,7 @@ void S2EExecutor::handle_ldl_mmu(Executor* executor,
    #endif
                addend = env->tlb_table[mmu_idx][index].addend;
 
-               res = s2estate->readMemory(addr + addend, Expr::Int32, S2EExecutionState::HostAddress);
+               res = s2estate->readMemory(addr + addend, width, S2EExecutionState::HostAddress);
 
                //Trace the access
                std::vector<ref<Expr> > traceArgs;
@@ -209,6 +211,70 @@ void S2EExecutor::handle_ldl_mmu(Executor* executor,
        }
 
        s2eExecutor->bindLocal(target, *state, res);
+}
+
+/* Replacement for ldl_kernel */
+void S2EExecutor::handle_ldl_kernel(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 1);
+    S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(state);
+    S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
+    ref<Expr> symbAddress = args[0];
+    unsigned mmu_idx = CPU_MMU_INDEX;
+
+    //XXX: for now, concretize symbolic addresses
+    ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
+    if (constantAddress.isNull()) {
+        constantAddress = executor->toConstant(*state, symbAddress, "handle_ldl_mmu symbolic address");
+        constantAddress = dyn_cast<ConstantExpr>(args[0]);
+        assert(!constantAddress.isNull());
+    }
+
+    //XXX: determine this by looking at the instruction that called us
+    unsigned data_size = 4;
+    Expr::Width width = data_size * 8;
+
+    target_ulong addr = constantAddress->getZExtValue();
+    int object_index, page_index;
+    ref<Expr> res;
+    uintptr_t physaddr;
+
+    object_index = addr >> S2E_RAM_OBJECT_BITS;
+    page_index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
+
+    //////////////////////////////////////////
+
+    if (unlikely(env->tlb_table[mmu_idx][page_index].ADDR_READ !=
+                 (addr & (TARGET_PAGE_MASK | (data_size - 1))))) {
+
+        std::vector<ref<Expr> > slowArgs;
+        slowArgs.push_back(constantAddress);
+        slowArgs.push_back(ConstantExpr::create(mmu_idx, Expr::Int64));
+        handle_ldl_mmu(executor, state, target, slowArgs);
+        return;
+
+    } else {
+        //When we get here, the address is aligned with the size of the access,
+        //which by definition means that it will fall inside the small page, without overflowing.
+        physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+
+        //XXX: handle little-endian stuff
+        res = s2estate->readMemory(physaddr, width, S2EExecutionState::HostAddress);
+
+        //Trace the access
+        std::vector<ref<Expr> > traceArgs;
+        traceArgs.push_back(constantAddress);
+        traceArgs.push_back(ConstantExpr::create(physaddr, Expr::Int64));
+        traceArgs.push_back(res);
+        traceArgs.push_back(ConstantExpr::create(0, Expr::Int64)); //isWrite
+        traceArgs.push_back(ConstantExpr::create(0, Expr::Int64)); //isIO
+        handlerTraceMemoryAccess(executor, state, target, args);
+
+        s2eExecutor->bindLocal(target, *state, res);
+    }
 }
 
 }
