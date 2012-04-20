@@ -603,7 +603,7 @@ ref<Expr> ExtractExpr::create(ref<Expr> expr, unsigned off, Width w) {
             if (ew <= zew && ew >= xw && off == 0) {
                 return ZExtExpr::create(x, ew);
             }
-        }
+        } else
 
         // Extract(Concat)
         if (ConcatExpr *ce = dyn_cast<ConcatExpr>(expr)) {
@@ -619,6 +619,16 @@ ref<Expr> ExtractExpr::create(ref<Expr> expr, unsigned off, Width w) {
             // E(C(x,y)) = C(E(x), E(y))
             return ConcatExpr::create(ExtractExpr::create(ce->getKid(0), 0, w - ce->getKid(1)->getWidth() + off),
                                       ExtractExpr::create(ce->getKid(1), off, ce->getKid(1)->getWidth() - off));
+        } else
+
+        //Extract w8 0 (SExt w32 (xxx w8))
+        if (SExtExpr *se = dyn_cast<SExtExpr>(expr)) {
+            ref<Expr> x = se->getKid(0);
+            Width xw = x->getWidth();
+
+            if (off == 0 && w == Int8 && xw == Int8) {
+                return x;
+            }
         }
     }
 
