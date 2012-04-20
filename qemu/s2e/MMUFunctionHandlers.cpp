@@ -217,7 +217,6 @@ void S2EExecutor::handle_ldst_mmu(Executor* executor,
     ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
     if (constantAddress.isNull()) {
         constantAddress = executor->toConstant(*state, symbAddress, "handle_ldl_mmu symbolic address");
-        constantAddress = dyn_cast<ConstantExpr>(args[0]);
         assert(!constantAddress.isNull());
     }
 
@@ -380,7 +379,6 @@ void S2EExecutor::handle_ldst_kernel(Executor* executor,
     ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
     if (constantAddress.isNull()) {
         constantAddress = executor->toConstant(*state, symbAddress, "handle_ldl_mmu symbolic address");
-        constantAddress = dyn_cast<ConstantExpr>(args[0]);
         assert(!constantAddress.isNull());
     }
 
