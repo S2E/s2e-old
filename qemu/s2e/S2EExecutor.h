@@ -295,6 +295,12 @@ protected:
     void setupTimersHandler();
     void initializeStateSwitchTimer();
     static void stateSwitchTimerCallback(void *opaque);
+
+    /** The following are special handlers for MMU functions **/
+    static void handle_ldl_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
 };
 
 struct S2ETranslationBlock
