@@ -1223,23 +1223,7 @@ void S2EExecutor::stateSwitchTimerCallback(void *opaque)
 
         c->doLoadBalancing();
 
-        do {
-            g_s2e_state = c->selectNextState(g_s2e_state);
-            if (g_s2e_state->isSpeculative()) {
-                //The searcher wants us to execute a speculative state.
-                //The engine must make sure that such a state
-                //satisfies all the path constraints.
-                if (!c->resolveSpeculativeState(*g_s2e_state)) {
-                    c->terminateState(*g_s2e_state);
-                    continue;
-                }
-
-                //Give a chance to the searcher to update
-                //the status of the state.
-                std::set<ExecutionState*> empty;
-                c->searcher->update(g_s2e_state, empty, empty);
-            }
-        } while (g_s2e_state->isSpeculative());
+        g_s2e_state = c->selectNextState(g_s2e_state);
 
         vm_start();
     }
@@ -1358,6 +1342,33 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
 }
 
+ExecutionState* S2EExecutor::selectNonSpeculativeState(S2EExecutionState *state)
+{
+    ExecutionState *newState;
+    std::set<ExecutionState*> empty;
+
+    do {
+        newState = &searcher->selectState();
+
+        if (newState->isSpeculative()) {
+            //The searcher wants us to execute a speculative state.
+            //The engine must make sure that such a state
+            //satisfies all the path constraints.
+            if (!resolveSpeculativeState(*newState)) {
+                terminateState(*newState);
+                updateStates(state);
+                continue;
+            }
+
+            //Give a chance to the searcher to update
+            //the status of the state.
+            searcher->update(newState, empty, empty);
+        }
+    } while(newState->isSpeculative());
+
+    return newState;
+}
+
 S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 {
     assert(state->m_active);
@@ -1389,7 +1400,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         exit(0);
     }
 
-    ExecutionState& newKleeState = searcher->selectState();
+    ExecutionState& newKleeState = *selectNonSpeculativeState(state);
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
 
     S2EExecutionState* newState =

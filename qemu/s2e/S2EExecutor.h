@@ -151,6 +151,7 @@ public:
     /* Functions to be called mainly from QEMU */
 
     S2EExecutionState* selectNextState(S2EExecutionState* state);
+    klee::ExecutionState* selectNonSpeculativeState(S2EExecutionState *state);
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
                                       TranslationBlock *tb);
