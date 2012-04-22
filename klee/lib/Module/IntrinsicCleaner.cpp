@@ -158,42 +158,108 @@ static void ReplaceFPIntrinsicWithCall(CallInst *CI, const char *Fname,
     }
 }
 
-static void ReplaceIntIntrinsicWithCall(CallInst *CI, const char *Fname,
-                                       const char *Dname,
-                                       const char *LDname)
+
+void IntrinsicCleanerPass::replaceIntrinsicAdd(Module &M, CallInst *CI)
 {
-    CallSite CS(CI);
-    switch (CI->getArgOperand(0)->getType()->getTypeID()) {
-        default: assert(false && "Invalid type in intrinsic");
-        case Type::IntegerTyID:
-            IntegerType* itype = (IntegerType*)CI->getArgOperand(0)->getType();
-            IntegerType* btype = IntegerType::get(CI->getContext(), 1);
-            Type* types[2] = {itype, btype};
-            ArrayRef<Type*> typeArray(types, 2);
+    Value *arg0 = CI->getArgOperand(0);
+    Value *arg1 = CI->getArgOperand(1);
 
-            switch(itype->getBitWidth()) {
-                case 16:
-                    ReplaceCallWith(Fname, CI, CS.arg_begin(), CS.arg_end(),
-                        StructType::get(CI->getContext(), typeArray));
-                    break;
+    IntegerType *itype = static_cast<IntegerType*>(arg0->getType());
+    assert(itype);
 
-                case 32:
-                    ReplaceCallWith(Dname, CI, CS.arg_begin(), CS.arg_end(),
-                        StructType::get(CI->getContext(), typeArray));
-                    break;
-
-                case 64:
-                    ReplaceCallWith(LDname, CI, CS.arg_begin(), CS.arg_end(),
-                        StructType::get(CI->getContext(), typeArray));
-                    break;
-            }
-            break;
+    Function *f;
+    switch(itype->getBitWidth()) {
+        case 16: f = M.getFunction("uadds"); break;
+        case 32: f = M.getFunction("uadd"); break;
+        case 64: f = M.getFunction("uaddl"); break;
+        default: assert(false && "Invalid intrinsic type");
     }
+
+    assert(f && "Could not find intrinsic replacements for add with overflow");
+
+    StructType *aggregate = static_cast<StructType*>(CI->getCalledFunction()->getReturnType());
+
+    std::vector<Value*> args;
+
+    Value *alloca = new AllocaInst(itype, NULL, "", CI);
+    args.push_back(alloca);
+    args.push_back(arg0);
+    args.push_back(arg1);
+    Value *overflow = CallInst::Create(f, args, "", CI);
+
+    //Store the values in the aggregated type
+    Value *aggrValPtr = new AllocaInst(aggregate, NULL, "", CI);
+    Value *aggrVal = new LoadInst(aggrValPtr, "", CI);
+    Value *addResult = new LoadInst(alloca, "", CI);
+    InsertValueInst *insRes = InsertValueInst::Create(aggrVal, addResult, 0, "", CI);
+    InsertValueInst *insOverflow = InsertValueInst::Create(insRes, overflow, 1, "", CI);
+    CI->replaceAllUsesWith(insOverflow);
+    CI->eraseFromParent();
+}
+
+/**
+ * Inject a function of the following form:
+ * define i1 @uadds(i16*, i16, i16) {
+ *   %4 = add i16 %1, %2
+ *   store i16 %4, i16* %0
+ *   %5 = icmp ugt i16 %1, %2
+ *   %6 = select i1 %5, i16 %1, i16 %2
+ *   %7 = icmp ult i16 %4, %6
+ *   ret i1 %7
+ *  }
+ *
+ * These functions replace the add with overflow intrinsics
+ * used by LLVM. These intrinsics have a {iXX, i1} return type,
+ * which causes problems if the size of the type is less than 64 bits.
+ * clang basically packs such a type into a 64-bits integer, which causes
+ * a silent type mismatch and data corruptions when KLEE tries
+ * to interpret such a value with its extract instructions.
+ * We therefore manually implement the functions here, to avoid using clang.
+ */
+
+void IntrinsicCleanerPass::injectIntrinsicAddImplementation(Module &M, const std::string &name, unsigned bits)
+{
+    Function *f = M.getFunction(name);
+    if (f) {
+        assert(!f->isDeclaration());
+        return;
+    }
+
+    LLVMContext &ctx = M.getContext();
+    std::vector<Type*> argTypes;
+    argTypes.push_back(Type::getIntNPtrTy(ctx, bits)); //Result
+    argTypes.push_back(Type::getIntNTy(ctx, bits)); //a
+    argTypes.push_back(Type::getIntNTy(ctx, bits)); //b
+
+    FunctionType *type = FunctionType::get(Type::getInt1Ty(ctx), ArrayRef<Type*>(argTypes), false);
+    f = dynamic_cast<Function*>(M.getOrInsertFunction(name, type));
+    assert(f);
+
+    BasicBlock *bb = BasicBlock::Create(ctx, "", f);
+    IRBuilder<> builder(bb);
+
+    std::vector<Value*>args;
+    Function::arg_iterator it = f->arg_begin();
+    args.push_back(it++);
+    args.push_back(it++);
+    args.push_back(it++);
+
+    Value *res = builder.CreateAdd(args[1], args[2]);
+    builder.CreateStore(res, args[0]);
+    Value *cmp = builder.CreateICmpUGT(args[1], args[2]);
+    Value *cond = builder.CreateSelect(cmp, args[1], args[2]);
+    Value *cmp1 = builder.CreateICmpULT(res, cond);
+    builder.CreateRet(cmp1);
 }
 
 bool IntrinsicCleanerPass::runOnModule(Module &M)
 {
-    bool dirty = false;
+    bool dirty = true;
+
+    injectIntrinsicAddImplementation(M, "uadds", 16);
+    injectIntrinsicAddImplementation(M, "uadd", 32);
+    injectIntrinsicAddImplementation(M, "uaddl", 64);
+
     for (Module::iterator f = M.begin(), fe = M.end(); f != fe; ++f)
         for (Function::iterator b = f->begin(), be = f->end(); b != be;)
             dirty |= runOnBasicBlock(*(b++));
@@ -280,7 +346,7 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b)
                     break;
 
                 case Intrinsic::uadd_with_overflow:
-                    ReplaceIntIntrinsicWithCall(ii, "uadds", "uadd", "uaddl");
+                    replaceIntrinsicAdd(*b.getParent()->getParent(), ii);
                     dirty = true;
                     break;
 

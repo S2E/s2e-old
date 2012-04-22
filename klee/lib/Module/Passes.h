@@ -59,6 +59,9 @@ class IntrinsicCleanerPass : public llvm::ModulePass {
 
     bool runOnBasicBlock(llvm::BasicBlock &b);
 
+    void injectIntrinsicAddImplementation(llvm::Module &M, const std::string &name, unsigned bits);
+    void replaceIntrinsicAdd(llvm::Module &M, llvm::CallInst *CI);
+
 public:
     IntrinsicCleanerPass(const llvm::TargetData &TD,
                          bool LI=true)
