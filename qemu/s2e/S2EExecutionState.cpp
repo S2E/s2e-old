@@ -1501,17 +1501,24 @@ void S2EExecutionState::dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned siz
         }
         assert(op.first && op.second && op.first->address == hostPage);
         ObjectState *os = const_cast<ObjectState*>(op.second);
-        uint8_t *concreteStore = os->getConcreteStore(true);
+        uint8_t *concreteStore;
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
 
-        for (unsigned i=0; i<length; ++i) {
-            if (_s2e_check_concrete(os, offset+i, 1)) {
-                buf[i] = concreteStore[offset+i];
-            }else {
-                readRamConcrete(hostAddress+i, &buf[i], sizeof(buf[i]));
+        if (op.first->isSharedConcrete) {
+            concreteStore = (uint8_t*)op.first->address;
+            memcpy(buf, concreteStore + offset, length);
+        } else {
+            concreteStore = os->getConcreteStore(true);
+            for (unsigned i=0; i<length; ++i) {
+                if (_s2e_check_concrete(os, offset+i, 1)) {
+                    buf[i] = concreteStore[offset+i];
+                }else {
+                    readRamConcrete(hostAddress+i, &buf[i], sizeof(buf[i]));
+                }
             }
         }
+
         buf+=length;
         hostAddress+=length;
         size -= length;
@@ -1536,15 +1543,22 @@ void S2EExecutionState::dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned si
 
         assert(op.first && op.second && op.first->address == hostPage);
         ObjectState *os = addressSpace.getWriteable(op.first, op.second);
-        uint8_t *concreteStore = os->getConcreteStore(true);
+        uint8_t *concreteStore;
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
 
-        for (unsigned i=0; i<length; ++i) {
-            if (_s2e_check_concrete(os, offset+i, 1)) {
-                concreteStore[offset+i] = buf[i];
-            }else {
-                writeRamConcrete(hostAddress+i, &buf[i], sizeof(buf[i]));
+        if (op.first->isSharedConcrete) {
+            concreteStore = (uint8_t*)op.first->address;
+            memcpy(concreteStore + offset, buf, length);
+        } else {
+            concreteStore = os->getConcreteStore(true);
+
+            for (unsigned i=0; i<length; ++i) {
+                if (_s2e_check_concrete(os, offset+i, 1)) {
+                    concreteStore[offset+i] = buf[i];
+                }else {
+                    writeRamConcrete(hostAddress+i, &buf[i], sizeof(buf[i]));
+                }
             }
         }
         buf+=length;
