@@ -234,6 +234,7 @@ tools/tools/scripts/ida
 tools/tools/tbtrace
 windows-toolchain
 ../llvm-2.6/include
+../build-3.0/llvm-3.0.src/include
 ../llvm-build/include
 ../stp-build/include
 ../klee-build/include
