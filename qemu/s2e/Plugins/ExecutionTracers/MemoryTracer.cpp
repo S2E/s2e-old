@@ -82,6 +82,8 @@ void MemoryTracer::initialize()
     m_timeTrigger = s2e()->getConfig()->getInt(getConfigKey() + ".timeTrigger", 0, &hasTimeTrigger);
     m_elapsedTics = 0;
 
+    bool manualMode = s2e()->getConfig()->getBool(getConfigKey() + ".manualTrigger");
+
     m_monitorMemory = s2e()->getConfig()->getBool(getConfigKey() + ".monitorMemory");
     m_monitorPageFaults = s2e()->getConfig()->getBool(getConfigKey() + ".monitorPageFaults");
     m_monitorTlbMisses  = s2e()->getConfig()->getBool(getConfigKey() + ".monitorTlbMisses");
@@ -89,18 +91,15 @@ void MemoryTracer::initialize()
     s2e()->getDebugStream() << "MonitorMemory: " << m_monitorMemory << 
     " PageFaults: " << m_monitorPageFaults << " TlbMisses: " << m_monitorTlbMisses << '\n';
 
-    if (!m_elapsedTics) {
-        if (hasTimeTrigger) {
-            enableTracing();
-        }
-    }else {
+    if (hasTimeTrigger) {
         m_timerConnection = s2e()->getCorePlugin()->onTimer.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onTimer));
+    } else if (manualMode) {
+        s2e()->getCorePlugin()->onCustomInstruction.connect(
+                sigc::mem_fun(*this, &MemoryTracer::onCustomInstruction));
+    } else {
+        enableTracing();
     }
-
-    s2e()->getCorePlugin()->onCustomInstruction.connect(
-            sigc::mem_fun(*this, &MemoryTracer::onCustomInstruction));
-
 }
 
 void MemoryTracer::traceDataMemoryAccess(S2EExecutionState *state,
