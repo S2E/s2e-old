@@ -317,7 +317,7 @@ protected:
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
 
-    static void handle_ldst_mmu(klee::Executor* executor,
+    static klee::ref<klee::Expr> handle_ldst_mmu(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args,
