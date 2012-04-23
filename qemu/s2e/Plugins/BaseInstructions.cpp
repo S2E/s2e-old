@@ -116,7 +116,7 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state, bool makeConcolic)
             }
             concreteData.push_back(byte);
         }
-        symb = state->createConcolicArray(nameStr, concreteData);
+        symb = state->createConcolicArray(nameStr, size, concreteData);
     } else {
         symb = state->createSymbolicArray(nameStr, size);
     }
@@ -270,7 +270,7 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
     }
 
     for(unsigned i = 0; i < size; ++i) {
-        if (!state->readMemoryConcrete8(address + i)) {
+        if (!state->readMemoryConcrete8(address + i, NULL, S2EExecutionState::VirtualAddress, addConstraint)) {
             s2e()->getWarningsStream(state)
                 << "Can not concretize memory"
                 << " at " << hexval(address + i) << '\n';
