@@ -1683,6 +1683,7 @@ void S2EExecutionState::writeDirtyMask(uint64_t host_address, uint8_t val)
 
 void S2EExecutionState::addConstraint(klee::ref<klee::Expr> e)
 {
+#if 0
     //Check that the added constraint is consistent with
     //the existing path constraints
     bool truth;
@@ -1696,6 +1697,7 @@ void S2EExecutionState::addConstraint(klee::ref<klee::Expr> e)
        //g_s2e->getExecutor()->terminateStateEarly(*this, "State has invalid constraint set");
     }
     assert(res && !truth  &&  "state has invalid constraint set");
+#endif
 
     constraints.addConstraint(e);
 }
