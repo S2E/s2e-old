@@ -9,6 +9,7 @@ void swap(int *a, int *b)
 {
   int t=*a; *a=*b; *b=t;
 }
+
 void sort(int arr[], int beg, int end)
 {
   if (end > beg + 1)
@@ -27,25 +28,20 @@ void sort(int arr[], int beg, int end)
   }
 }
 
-
 int main(void)
 {
-  int num_list[]={5,4,3,2,1};
+  int num_list[]={5,4,5,6,7};
 
   s2e_enable_forking();
   s2e_make_concolic(&num_list, sizeof(num_list), "array");
 
   int len=sizeof(num_list)/sizeof(num_list[0]);
-  char *sep="";
-  int i;
   sort(num_list,0, len);
 
-  printf("sorted_num_list={");
-  for(i=0; i<len; i++){
-    printf("%s%d",sep,num_list[i]);
-    sep=", ";
+  for(int i=0; i<len; i++){
+    printf("%d ", s2e_get_example_uint(num_list[i]));
   }
-  printf("};\n");
+  printf("\n");
 
   s2e_kill_state(0, "Sort completed");
 
