@@ -219,6 +219,12 @@ protected:
                                     klee::KInstruction* target,
                                     std::vector<klee::ref<klee::Expr> > &args);
 
+    //Traces every single LLVM instruction in dyngend code
+    static void handlerTraceInstruction(klee::Executor* executor,
+                                    klee::ExecutionState* state,
+                                    klee::KInstruction* target,
+                                    std::vector<klee::ref<klee::Expr> > &args);
+
     static void handlerTracePortAccess(klee::Executor* executor,
                                          klee::ExecutionState* state,
                                          klee::KInstruction* target,

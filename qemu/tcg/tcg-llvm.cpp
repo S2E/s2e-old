@@ -107,39 +107,6 @@ extern "C" {
 #endif
     };
 
-#ifdef CONFIG_S2E
-    uint64_t tcg_llvm_fork_and_concretize(uint64_t value,
-                                          uint64_t knownMin,
-                                          uint64_t knownMax);
-    void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
-                                      uint64_t value, uint32_t bits,
-                                      uint8_t isWrite, uint8_t isIo);
-    void tcg_llvm_trace_port_access(uint64_t port, uint64_t value,
-                                    unsigned bits, int isWrite);
-
-    uint64_t tcg_llvm_fork_and_concretize(uint64_t value,
-                                          uint64_t knownMin,
-                                          uint64_t knownMax)
-    {
-        return value;
-    }
-
-    void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
-                                      uint64_t value, uint32_t bits,
-                                      uint8_t isWrite, uint8_t isIo)
-    {
-
-    }
-
-    void tcg_llvm_trace_port_access(uint64_t port, uint64_t value,
-                                    unsigned bits, int isWrite)
-    {
-
-    }
-
-#else
-    void tcg_llvm_helper_wrapper(void);
-#endif
 }
 
 using namespace llvm;
@@ -163,6 +130,7 @@ struct TCGLLVMContextPrivate {
 #ifdef CONFIG_S2E
     /* Declaration of a wrapper function for helpers */
     Function *m_helperTraceMemoryAccess;
+    Function *m_helperTraceInstruction;
     Function *m_helperForkAndConcretize;
     Function* m_qemu_ld_helpers[5];
     Function* m_qemu_st_helpers[5];
@@ -283,6 +251,7 @@ public:
     Value* generateQemuMemOp(bool ld, Value *value, Value *addr,
                              int mem_index, int bits);
 
+    void generateTraceCall(uintptr_t pc);
     int generateOperation(int opc, const TCGArg *args);
 
     void generateCode(TCGContext *s, TranslationBlock *tb);
@@ -419,6 +388,9 @@ void TCGLLVMContextPrivate::initializeHelpers()
 {
     m_helperTraceMemoryAccess =
             m_module->getFunction("tcg_llvm_trace_memory_access");
+
+    m_helperTraceInstruction =
+            m_module->getFunction("tcg_llvm_trace_instruction");
 
     m_helperForkAndConcretize =
             m_module->getFunction("tcg_llvm_fork_and_concretize");
@@ -730,6 +702,17 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
         return NULL;
     }
 #endif // CONFIG_SOFTMMU
+}
+
+void TCGLLVMContextPrivate::generateTraceCall(uintptr_t pc)
+{
+#ifdef CONFIG_S2E
+#if 0
+    if (pc == 0x000f56e7 || pc == 0x000f52ff || pc == 0xf530c) {
+         m_builder.CreateCall(m_helperTraceInstruction);
+    }
+#endif
+#endif
 }
 
 int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
@@ -1297,6 +1280,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
 #endif
         }
 
+        generateTraceCall(tb->pc);
         args += generateOperation(opc, args);
         //llvm::errs() << *m_tbFunction << "\n";
     }
@@ -1320,6 +1304,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
     verifyFunction(*m_tbFunction);
 #endif
 
+    //KLEE will optimize the function later
     //m_functionPassManager->run(*m_tbFunction);
 
     tb->llvm_function = m_tbFunction;

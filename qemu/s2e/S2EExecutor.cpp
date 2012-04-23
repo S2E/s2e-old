@@ -407,6 +407,21 @@ void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
     }
 }
 
+void S2EExecutor::handlerTraceInstruction(klee::Executor* executor,
+                                klee::ExecutionState* state,
+                                klee::KInstruction* target,
+                                std::vector<klee::ref<klee::Expr> > &args)
+{
+    S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
+    g_s2e->getDebugStream()
+            << "pc=" << hexval(s2eState->getPc())
+            << " EAX: " << s2eState->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32)
+            << " ECX: " << s2eState->readCpuRegister(offsetof(CPUX86State, regs[R_ECX]), klee::Expr::Int32)
+            << " CCSRC: " << s2eState->readCpuRegister(offsetof(CPUX86State, cc_src), klee::Expr::Int32)
+            << " CCDST: " << s2eState->readCpuRegister(offsetof(CPUX86State, cc_dst), klee::Expr::Int32)
+            << " CCOP: " << s2eState->readCpuRegister(offsetof(CPUX86State, cc_op), klee::Expr::Int32) << '\n';
+}
+
 void S2EExecutor::handlerOnTlbMiss(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
@@ -443,6 +458,7 @@ void S2EExecutor::handlerTracePortAccess(Executor* executor,
     assert(dynamic_cast<S2EExecutor*>(executor));
 
     S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
+
     if(!s2eExecutor->m_s2e->getCorePlugin()->onPortAccess.empty()) {
         assert(dynamic_cast<S2EExecutionState*>(state));
         S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
@@ -745,11 +761,15 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(ldq_phys)
     __DEFINE_EXT_FUNCTION(stq_phys)
 
+#if 0
+    //Implementing these functions prevents special function handler
+    //from being called...
     if (execute_llvm) {
         __DEFINE_EXT_FUNCTION(tcg_llvm_fork_and_concretize)
         __DEFINE_EXT_FUNCTION(tcg_llvm_trace_memory_access)
         __DEFINE_EXT_FUNCTION(tcg_llvm_trace_port_access)
     }
+#endif
 
     if(UseSelectCleaner) {
         m_tcgLLVMContext->getFunctionPassManager()->add(new SelectRemovalPass());
@@ -838,6 +858,11 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
         function = kmodule->module->getFunction("tcg_llvm_fork_and_concretize");
         assert(function);
         addSpecialFunctionHandler(function, handleForkAndConcretize);
+
+        FunctionType *traceInstTy = FunctionType::get(Type::getVoidTy(M->getContext()), false);
+        function = dynamic_cast<Function*>(kmodule->module->getOrInsertFunction("tcg_llvm_trace_instruction", traceInstTy));
+        assert(function);
+        addSpecialFunctionHandler(function, handlerTraceInstruction);
 
         replaceExternalFunctionsWithSpecialHandlers();
 
@@ -1195,12 +1220,16 @@ void S2EExecutor::doLoadBalancing()
 
     m_inLoadBalancing = true;
 
+    vm_stop(RUN_STATE_SAVE_VM);
+
     unsigned parentId = m_s2e->getCurrentProcessIndex();
     m_s2e->getCorePlugin()->onProcessFork.emit(true, false, -1);
     int child = m_s2e->fork();
     if (child < 0) {
         //Fork did not succeed
         m_s2e->getCorePlugin()->onProcessFork.emit(false, false, -1);
+        m_inLoadBalancing = false;
+        vm_start();
         return;
     }
 
@@ -1221,6 +1250,7 @@ void S2EExecutor::doLoadBalancing()
     m_s2e->getCorePlugin()->onProcessForkComplete.emit(child);
 
     m_inLoadBalancing = false;
+    vm_start();
 }
 
 void S2EExecutor::stateSwitchTimerCallback(void *opaque)
@@ -1228,13 +1258,8 @@ void S2EExecutor::stateSwitchTimerCallback(void *opaque)
     S2EExecutor *c = (S2EExecutor*)opaque;
 
     if (g_s2e_state) {
-        vm_stop(RUN_STATE_SAVE_VM);
-
         c->doLoadBalancing();
-
         g_s2e_state = c->selectNextState(g_s2e_state);
-
-        vm_start();
     }
 
     qemu_mod_timer(c->m_stateSwitchTimer, qemu_get_clock_ms(rt_clock) + 100);
@@ -1423,7 +1448,9 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 
     if(newState != state) {
         g_s2e->getCorePlugin()->onStateSwitch.emit(state, newState);
+        vm_stop(RUN_STATE_SAVE_VM);
         doStateSwitch(state, newState);
+        vm_start();
     }
 
     //We can't free the state immediately if it is the current state.
@@ -1766,8 +1793,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 sigprocmask(SIG_SETMASK, &oldset, NULL);
 #endif
             }
-        }
 
+        }
         state->prevPC = 0;
         state->pc = m_dummyMain->instructions;
 
@@ -2140,6 +2167,9 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
             << " at pc = " << hexval(originalState->getPc())
         << " into states:" << '\n';
 
+    tlb_flush(env, 1);
+    qemu_aio_flush();
+    bdrv_flush_all();
 
     for(unsigned i = 0; i < newStates.size(); ++i) {
         S2EExecutionState* newState = newStates[i];
@@ -2150,7 +2180,11 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
         if(newState != originalState) {
             newState->m_needFinalizeTBExec = true;
 
+            //XXX: How do we make this stuff atomic? Disable all signals?
+            //vm_stop(RUN_STATE_SAVE_VM);
             newState->getDeviceState()->saveDeviceState();
+            //vm_start();
+
             //newState->m_qemuIcount = qemu_icount;
             *newState->m_timersState = timers_state;
 
