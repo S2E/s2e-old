@@ -125,6 +125,8 @@ struct KModulePrivate {
 
     pm4.add(new PhiCleanerPass());
     pm4.add(new IntrinsicCleanerPass(*targetData));
+
+    fpm4.add(new IntrinsicCleanerPass(*targetData));
     fpm4.add(new PhiCleanerPass());
 
     CreateOptimizePasses(pmOptimize, module);
