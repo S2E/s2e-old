@@ -390,13 +390,16 @@ public:
                 const std::string& name = std::string(), unsigned size = 4);
 
     /** Create a symbolic value tied to an example concrete value */
+    /** If the concrete buffer is empty, creates a purely symbolic value */
     klee::ref<klee::Expr> createConcolicValue(
             const std::string& name,
             klee::Expr::Width width,
             std::vector<unsigned char> &buffer);
 
     std::vector<klee::ref<klee::Expr> > createConcolicArray(
-                const std::string& name, std::vector<unsigned char> &concreteBuffer);
+                const std::string& name,
+                unsigned size,
+                std::vector<unsigned char> &concreteBuffer);
 
     /** Debug functions **/
     void dumpX86State(llvm::raw_ostream &os) const;

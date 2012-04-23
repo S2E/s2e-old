@@ -1125,7 +1125,10 @@ ref<Expr> S2EExecutionState::createConcolicValue(
     mo->setName(sname);
 
     symbolics.push_back(std::make_pair(mo, array));
-    concolics.add(array, buffer);
+
+    if (buffer.size() * 8 == width) {
+        concolics.add(array, buffer);
+    }
 
     return  Expr::createTempRead(array, width);
 }
@@ -1136,20 +1139,21 @@ ref<Expr> S2EExecutionState::createSymbolicValue(
 {
 
     std::vector<unsigned char> concreteValues;
-    unsigned bytes = Expr::getMinBytesForWidth(width);
-    concreteValues.resize(bytes);
     return createConcolicValue(name, width, concreteValues);
 }
 
 std::vector<ref<Expr> > S2EExecutionState::createConcolicArray(
-            const std::string& name, std::vector<unsigned char> &concreteBuffer)
+            const std::string& name,
+            unsigned size,
+            std::vector<unsigned char> &concreteBuffer)
 {
+    assert(concreteBuffer.size() == size || concreteBuffer.size() == 0);
+
     std::string sname = getUniqueVarName(name);
-    const Array *array = new Array(sname, concreteBuffer.size());
+    const Array *array = new Array(sname, size);
 
     UpdateList ul(array, 0);
 
-    unsigned size = concreteBuffer.size();
     std::vector<ref<Expr> > result;
     result.reserve(size);
 
@@ -1165,7 +1169,10 @@ std::vector<ref<Expr> > S2EExecutionState::createConcolicArray(
     mo->setName(sname);
 
     symbolics.push_back(std::make_pair(mo, array));
-    concolics.add(array, concreteBuffer);
+
+    if (concreteBuffer.size() == size) {
+        concolics.add(array, concreteBuffer);
+    }
 
     return result;
 }
@@ -1174,8 +1181,7 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
             const std::string& name, unsigned size)
 {
     std::vector<unsigned char> concreteBuffer;
-    concreteBuffer.resize(size);
-    return createConcolicArray(name, concreteBuffer);
+    return createConcolicArray(name, size, concreteBuffer);
 }
 
 //Must be called right after the machine call instruction is executed.
