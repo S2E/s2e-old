@@ -348,7 +348,7 @@ ref<Expr> S2EExecutor::handle_ldst_mmu(Executor* executor,
             do_unaligned_access(ENV_VAR addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
 #endif
         tlb_fill(env, addr, object_index << S2E_RAM_OBJECT_BITS,
-                 READ_ACCESS_TYPE, mmu_idx, retaddr);
+                 isWrite, mmu_idx, retaddr);
         goto redo;
     }
 
