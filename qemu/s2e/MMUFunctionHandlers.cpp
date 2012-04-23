@@ -219,6 +219,9 @@ ref<Expr> S2EExecutor::handle_ldst_mmu(Executor* executor,
     unsigned mmu_idx = dyn_cast<ConstantExpr>(args[isWrite ? 2 : 1])->getZExtValue();
 
     //XXX: for now, concretize symbolic addresses
+    if (!dyn_cast<ConstantExpr>(symbAddress)) {
+        symbAddress = state->concolics.evaluate(symbAddress);
+    }
     ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
     if (constantAddress.isNull()) {
         constantAddress = executor->toConstant(*state, symbAddress, "handle_ldl_mmu symbolic address");
@@ -409,6 +412,9 @@ void S2EExecutor::handle_ldst_kernel(Executor* executor,
     ref<Expr> symbAddress = args[0];
     unsigned mmu_idx = CPU_MMU_INDEX;
 
+    if (!dyn_cast<ConstantExpr>(symbAddress)) {
+        symbAddress = state->concolics.evaluate(symbAddress);
+    }
     //XXX: for now, concretize symbolic addresses
     ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
     if (constantAddress.isNull()) {
