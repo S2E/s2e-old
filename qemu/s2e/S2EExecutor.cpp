@@ -1382,6 +1382,11 @@ ExecutionState* S2EExecutor::selectNonSpeculativeState(S2EExecutionState *state)
     std::set<ExecutionState*> empty;
 
     do {
+        if (searcher->empty()) {
+            newState = NULL;
+            break;
+        }
+
         newState = &searcher->selectState();
 
         if (newState->isSpeculative()) {
@@ -1399,6 +1404,18 @@ ExecutionState* S2EExecutor::selectNonSpeculativeState(S2EExecutionState *state)
             searcher->update(newState, empty, empty);
         }
     } while(newState->isSpeculative());
+
+    if (!newState) {
+        g_s2e_state = NULL;
+        m_s2e->getWarningsStream() << "All states were terminated" << '\n';
+        foreach(S2EExecutionState* s, m_deletedStates) {
+            unrefS2ETb(s->m_lastS2ETb);
+            s->m_lastS2ETb = NULL;
+            delete s;
+        }
+        m_deletedStates.clear();
+        exit(0);
+    }
 
     return newState;
 }
@@ -1420,18 +1437,6 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         //The state manager can kill additional states, we must update the set of states,
         //otherwise, the searcher might select killed states.
         updateStates(state);
-    }
-
-    if(states.empty()) {
-        g_s2e_state = NULL;
-        m_s2e->getWarningsStream() << "All states were terminated" << '\n';
-        foreach(S2EExecutionState* s, m_deletedStates) {
-            unrefS2ETb(s->m_lastS2ETb);
-            s->m_lastS2ETb = NULL;
-            delete s;
-        }
-        m_deletedStates.clear();
-        exit(0);
     }
 
     ExecutionState& newKleeState = *selectNonSpeculativeState(state);
