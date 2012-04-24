@@ -52,6 +52,7 @@ extern "C" {
 #include <fcntl.h>
 
 #include <llvm/Support/Path.h>
+#include <llvm/Support/FileSystem.h>
 
 namespace s2e {
 namespace plugins {
@@ -62,10 +63,21 @@ void HostFiles::initialize()
 {
     //m_allowWrite = s2e()->getConfig()->getBool(
     //            getConfigKey() + ".allowWrite");
-    m_baseDir = s2e()->getConfig()->getString(
-                getConfigKey() + ".baseDir");
-    if(m_baseDir.empty())
-        m_baseDir = s2e()->getOutputDirectory();
+    ConfigFile::string_list dirs = s2e()->getConfig()->getStringList(getConfigKey() + ".baseDirs");
+    foreach2(it, dirs.begin(), dirs.end()) {
+        m_baseDirectories.push_back(*it);
+    }
+
+    foreach2(it, m_baseDirectories.begin(), m_baseDirectories.end()) {
+        if (!llvm::sys::fs::exists((*it))) {
+            s2e()->getWarningsStream() << "Path " << (*it) << " does not exist\n";
+            exit(-1);
+        }
+    }
+
+    if (m_baseDirectories.empty()) {
+        m_baseDirectories.push_back(s2e()->getOutputDirectory());
+    }
 
     s2e()->getCorePlugin()->onCustomInstruction.connect(
             sigc::mem_fun(*this, &HostFiles::onCustomInstruction));
@@ -103,8 +115,16 @@ void HostFiles::open(S2EExecutionState *state)
         return;
     }
 
-    llvm::sys::Path path(m_baseDir);
-    path.appendComponent(fname);
+    llvm::sys::Path path;
+
+    /* Find the path prefix for the given relative file */
+    foreach2(it, m_baseDirectories.begin(), m_baseDirectories.end()) {
+        path = llvm::sys::Path(*it);
+        path.appendComponent(fname);
+        if (llvm::sys::fs::exists(path.str())) {
+            break;
+        }
+    }
 
     int oflags = O_RDONLY;
 #ifdef CONFIG_WIN32

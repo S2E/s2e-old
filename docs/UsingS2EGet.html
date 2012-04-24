@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>Quicky Uploading Programs to the Guest with s2eget</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -32,11 +32,11 @@ Add the following lines to your <tt class="docutils literal">config.lua</tt> fil
 <span class="p">}</span>
 
 <span class="n">pluginsConfig</span><span class="p">.</span><span class="n">HostFiles</span> <span class="o">=</span> <span class="p">{</span>
-  <span class="n">baseDir</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">/path/to/host/dir&quot;</span>
+  <span class="n">baseDirs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;</span><span class="s">/path/to/host/dir1&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">/path/to/host/dir2&quot;</span><span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
-<p>The <tt class="docutils literal">pluginsConfig.HostFiles.baseDir</tt> configuration option specifies what
-directory on the host should be exported to the guest. The path can be either
+<p>The <tt class="docutils literal">pluginsConfig.HostFiles.baseDirs</tt> configuration option specifies what
+directories on the host should be exported to the guest. The paths can be either
 absolute, relative, or empty in which case the s2e output directory
 will be exported.</p>
 </div>

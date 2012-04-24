@@ -23,11 +23,11 @@ Add the following lines to your ``config.lua`` file:
    }
 
    pluginsConfig.HostFiles = {
-     baseDir = "/path/to/host/dir"
+     baseDirs = {"/path/to/host/dir1", "/path/to/host/dir2"}
    }
 
-The ``pluginsConfig.HostFiles.baseDir`` configuration option specifies what
-directory on the host should be exported to the guest. The path can be either
+The ``pluginsConfig.HostFiles.baseDirs`` configuration option specifies what
+directories on the host should be exported to the guest. The paths can be either
 absolute, relative, or empty in which case the s2e output directory
 will be exported.
 

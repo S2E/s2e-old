@@ -40,6 +40,8 @@
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
+#include <set>
+#include <string>
 
 namespace s2e {
 namespace plugins {
@@ -54,7 +56,7 @@ public:
 
 private:
     //bool m_allowWrite;
-    std::string m_baseDir;
+    std::vector<std::string> m_baseDirectories;
     std::vector<int> m_openFiles;
 
     void open(S2EExecutionState *state);
