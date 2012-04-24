@@ -37,43 +37,60 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <libgen.h>
 #include <string.h>
+
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include "s2e.h"
 
-int main(int argc, const char** argv)
+
+const char *g_target_dir = NULL;
+const char *g_file = NULL;
+
+/* file is a path relative to the HostFile's base directory */
+int copy_file(const char *directory, const char *guest_file)
 {
-    if(argc != 2) {
-        fprintf(stderr, "Usage: %s file_name\n", argv[0]);
+    char *path = malloc(strlen(directory) + strlen(guest_file) + 1 + 1);
+    if (!path) {
+        fprintf(stderr, "Could not allocate memory for file path\n");
         exit(1);
     }
 
-    printf("Waiting for S2E mode...\n");
-    while(s2e_version() == 0) /* nothing */;
-    printf("... S2E mode detected\n");
+    const char *file = basename((char*)guest_file);
+    if (!file) {
+        fprintf(stderr, "Could not allocate memory for file basename\n");
+        exit(1);
+    }
 
-    printf("Copying file %s from the host...\n", argv[1]);
+    sprintf(path, "%s/%s", directory, file);
 
-    unlink(argv[1]);
+    unlink(path);
+
+    if (mkdir(directory, S_IRWXU)<0 && (errno != EEXIST)) {
+        fprintf(stderr, "Could not create directory %s (%s)\n", directory,
+                strerror(errno));
+        exit(-1);
+    }
 
 #ifdef _WIN32
-    int fd = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, S_IRWXU);
+    int fd = open(path, O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, S_IRWXU);
 #else
-    int fd = creat(argv[1], S_IRWXU);
+    int fd = creat(path, S_IRWXU);
 #endif
 
     if(fd == -1) {
-        fprintf(stderr, "cannot create file %s\n", argv[1]);
+        fprintf(stderr, "cannot create file %s\n", path);
         exit(1);
     }
 
-    int s2e_fd = s2e_open(argv[1]);
+    int s2e_fd = s2e_open(guest_file);
     if(s2e_fd == -1) {
-        fprintf(stderr, "s2e_open of %s failed\n", argv[1]);
+        fprintf(stderr, "s2e_open of %s failed\n", guest_file);
         exit(1);
     }
 
@@ -99,11 +116,75 @@ int main(int argc, const char** argv)
         fsize += ret;
     }
 
+    printf("... file %s of size %d was transfered successfully\n",
+            file, fsize);
+
     s2e_close(s2e_fd);
     close(fd);
+    free(path);
 
-    printf("... file %s of size %d was transfered successfully\n",
-            argv[1], fsize);
+    return 0;
+}
+
+int parse_arguments(int argc, const char **argv)
+{
+    unsigned i = 1;
+    while(i < argc) {
+        if (!strcmp(argv[i], "--target-dir")) {
+            if (++i >= argc) { return -1; }
+            g_target_dir = argv[i++];
+            continue;
+        } else {
+            g_file = argv[i++];
+        }
+    }
+
+    return 0;
+}
+
+int validate_arguments()
+{
+    if (!g_target_dir) {
+        g_target_dir = getcwd(NULL, 0);
+        if (!g_target_dir) {
+            fprintf(stderr, "Could not allocate memory for current directory\n");
+            exit(1);
+        }
+    }
+
+    if (!g_file) {
+        return -1;
+    }
+
+    return 0;
+}
+
+void print_usage(const char *prog_name)
+{
+    fprintf(stderr, "Usage: %s [options] file_name\n\n", prog_name);
+
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  --target-dir : where to place the downloaded file [default: working directory]\n");
+}
+
+int main(int argc, const char** argv)
+{
+    if(parse_arguments(argc, argv) < 0) {
+        print_usage(argv[0]);
+        exit(1);
+    }
+
+    if(validate_arguments() < 0) {
+        print_usage(argv[0]);
+        exit(1);
+    }
+
+
+    printf("Waiting for S2E mode...\n");
+    while(s2e_version() == 0) /* nothing */;
+    printf("... S2E mode detected\n");
+
+    copy_file(g_target_dir, g_file);
 
     return 0;
 }
