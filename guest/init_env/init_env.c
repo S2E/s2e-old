@@ -120,6 +120,7 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     char sym_arg_name[5] = "arg";
     unsigned sym_arg_num = 0;
     int k=0, i;
+    int concolic_mode = 0;
 
     sym_arg_name[4] = '\0';
 
@@ -132,6 +133,7 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
                          current process only\n\
                          -select-process-code      - Enable forking in the code section of the\n\
                          current binary only\n\
+                         -concolic                 - Augment existing concrete arguments with symbolic values\n\
                          -sym-arg <N>              - Replace by a symbolic argument with length N\n\
                          -sym-arg <N>              - Replace by a symbolic argument with length N\n\
                          -sym-args <MIN> <MAX> <N> - Replace by at least MIN arguments and at most\n\
@@ -141,7 +143,11 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     s2e_enable_forking();
 
     while (k < argc) {
-        if (__streq(argv[k], "--sym-arg") || __streq(argv[k], "-sym-arg")) {
+        if (__streq(argv[k], "--concolic") || __streq(argv[k], "-concolic")) {
+            concolic_mode = 1;
+            ++k;
+        }
+        else if (__streq(argv[k], "--sym-arg") || __streq(argv[k], "-sym-arg")) {
             const char *msg = "--sym-arg expects an integer argument <max-len>";
             if (++k == argc)
                 __emit_error(msg);
@@ -198,6 +204,10 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
         }
         else {
             /* simply copy arguments */
+            if (concolic_mode) {
+                sym_arg_name[3] = '0' + k;
+                s2e_make_concolic(argv[k], strlen(argv[k]), sym_arg_name);
+            }
             __add_arg(&new_argc, new_argv, argv[k++], 1024);
         }
     }

@@ -1,4 +1,4 @@
-CFLAGS=-m32 -Wall -g -O0 -I../include
+CFLAGS=-m32 -Wall -g -O0 -I../include -std=c99
 CXXFLAGS=-m32 -Wall -g -O0 -I../include
 LDLIBS=-ldl
 CC=gcc
