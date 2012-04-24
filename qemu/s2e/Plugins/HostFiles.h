@@ -57,6 +57,10 @@ private:
     std::string m_baseDir;
     std::vector<int> m_openFiles;
 
+    void open(S2EExecutionState *state);
+    void close(S2EExecutionState *state);
+    void read(S2EExecutionState *state);
+
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
 };
 

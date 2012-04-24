@@ -71,6 +71,128 @@ void HostFiles::initialize()
             sigc::mem_fun(*this, &HostFiles::onCustomInstruction));
 }
 
+void HostFiles::open(S2EExecutionState *state)
+{
+    uint32_t fnamePtr, flags;
+    uint32_t guestFd = (uint32_t) -1;
+    bool ok = true;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &fnamePtr, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &flags, 4);
+
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd, 4);
+
+    if (!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op HostFiles "
+            << '\n';
+        return;
+    }
+
+    std::string fname;
+    if(!state->readString(fnamePtr, fname) || fname.size() == 0) {
+        s2e()->getWarningsStream(state)
+            << "Error reading file name string from the guest" << '\n';
+        return;
+    }
+
+    /* Check that there aren't any ../ in the path */
+    if (fname.find("..") != std::string::npos) {
+        s2e()->getWarningsStream(state)
+                << "HostFiles: file name must not contain .. sequences ("
+                << fname << ")\n;";
+        return;
+    }
+
+    llvm::sys::Path path(m_baseDir);
+    path.appendComponent(fname);
+
+    int oflags = O_RDONLY;
+#ifdef CONFIG_WIN32
+    oflags |= O_BINARY;
+#endif
+
+    int fd = ::open(path.c_str(), oflags);
+    if(fd != -1) {
+        m_openFiles.push_back(fd);
+        guestFd = m_openFiles.size()-1;
+        state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd, 4);
+    }else {
+        s2e()->getWarningsStream(state) <<
+                "HostFiles could not open " << path.c_str() << "(errno " << errno << ")" << '\n';
+    }
+}
+
+void HostFiles::read(S2EExecutionState *state)
+{
+    uint32_t guestFd, bufAddr, count;
+    uint32_t ret = (uint32_t) -1;
+
+    bool ok = true;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &bufAddr, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EDX]), &count, 4);
+
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
+
+    if (!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op HostFiles" << '\n';
+        return;
+    }
+
+    if(count > 1024*64) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: count passed to HostFiles is too big" << '\n';
+        return;
+    }
+
+    if(guestFd > m_openFiles.size() || m_openFiles[guestFd] == -1) {
+        return;
+    }
+
+    int fd = m_openFiles[guestFd];
+    char buf[count];
+
+    ret = ::read(fd, buf, count);
+    if(ret == (uint32_t) -1)
+        return;
+
+    ok = state->writeMemoryConcrete(bufAddr, buf, ret);
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: HostFiles can not write to guest buffer\n";
+        return;
+    }
+
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
+}
+
+void HostFiles::close(S2EExecutionState *state)
+{
+    uint32_t guestFd;
+    uint32_t ret = (uint32_t) -1;
+
+    bool ok = true;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd, 4);
+
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
+
+    if (!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to HostFiles\n";
+        return;
+    }
+
+    if(guestFd < m_openFiles.size() && m_openFiles[guestFd] != -1) {
+        ret = ::close(m_openFiles[guestFd]);
+        m_openFiles[guestFd] = -1;
+        state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
+    } else {
+        s2e()->getWarningsStream(state)
+            << "ERROR: invalid file handle passed to HostFiles\n";
+    }
+}
+
 void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
 {
     //XXX: find a better way of allocating custom opcodes
@@ -83,140 +205,20 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
     opcode >>= 8;
 
     switch(op) {
-    case 0: // open
-        {
-            uint32_t fnamePtr, flags;
-            uint32_t guestFd = (uint32_t) -1;
-            bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &fnamePtr, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &flags, 4);
-
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd, 4);
-
-            if (!ok) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: symbolic argument was passed to s2e_op HostFiles "
-                    << '\n';
-                break;
-            }
-
-            std::string fname;
-            if(!state->readString(fnamePtr, fname)) {
-                s2e()->getWarningsStream(state)
-                    << "Error reading file name string from the guest" << '\n';
-                break;
-            }
-
-            unsigned i;
-            for(i = 0; i < fname.size(); ++i) {
-                //Allow only certain characters in the file name.
-                if(!(isalnum(fname[i]) || fname[i] == ','
-                        || fname[i] == '_' || fname[i] == '-' || fname[i] == '.')) {
-                    s2e()->getWarningsStream(state) <<
-                            "HostFiles: Invalid character " << fname[i] << " in " << fname << '\n';
-                    break;
-                }
-            }
-
-            if(fname.size() == 0 || i != fname.size()) {
-                s2e()->getWarningsStream(state)
-                        << "Guest passed invalid file name to HostFiles plugin: " << fname << '\n';
-                break;
-            }
-
-            llvm::sys::Path path(m_baseDir);
-            path.appendComponent(fname);
-
-            int oflags = O_RDONLY;
-#ifdef CONFIG_WIN32
-            oflags |= O_BINARY;
-#endif
-
-            int fd = open(path.c_str(), oflags);
-            if(fd != -1) {
-                m_openFiles.push_back(fd);
-                guestFd = m_openFiles.size()-1;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd, 4);
-            }else {
-                s2e()->getWarningsStream(state) <<
-                        "HostFiles could not open " << path.c_str() << "(errno " << errno << ")" << '\n';
-            }
-        }
-
+    case 0: {
+        open(state);
         break;
+    }
 
-    case 1: // close
-        {
-            uint32_t guestFd;
-            uint32_t ret = (uint32_t) -1;
-
-            bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd, 4);
-
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
-
-            if (!ok) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: symbolic argument was passed to s2e_op HostFiles "
-                    << '\n';
-                break;
-            }
-
-            if(guestFd < m_openFiles.size() && m_openFiles[guestFd] != -1) {
-                ret = close(m_openFiles[guestFd]);
-                m_openFiles[guestFd] = -1;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
-            }
-        }
-
+    case 1: {
+        close(state);
         break;
+    }
 
-    case 2: // read
-        {
-            uint32_t guestFd, bufAddr, count;
-            uint32_t ret = (uint32_t) -1;
-
-            bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &bufAddr, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EDX]), &count, 4);
-
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
-
-            if (!ok) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: symbolic argument was passed to s2e_op HostFiles" << '\n';
-                break;
-            }
-
-            if(count > 1024*64) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: count passed to HostFiles is too big" << '\n';
-                break;
-            }
-
-            if(guestFd > m_openFiles.size() || m_openFiles[guestFd] == -1) {
-                break;
-            }
-
-            int fd = m_openFiles[guestFd];
-            char buf[count];
-
-            ret = read(fd, buf, count);
-            if(ret == (uint32_t) -1)
-                break;
-
-            ok = state->writeMemoryConcrete(bufAddr, buf, ret);
-            if(!ok) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: HostFiles can not write to guest buffer" << '\n';
-                break;
-            }
-
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
-        }
-
+    case 2: {
+        read(state);
         break;
+    }
 
     //case 3: // write
     //    break;
