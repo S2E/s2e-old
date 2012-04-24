@@ -4,7 +4,7 @@ How to symbolically execute Linux binaries?
 
 .. contents::
 
-In this tutorial, we will show how to symbolically execute *existing* Linux programs,
+In this tutorial, we will show how to symbolically (or concolically) execute *existing* Linux programs,
 *without* modifying their source code. In the `Testing a Simple Program <../TestingMinimalProgram.html>`_ tutorial,
 we instrumented the source code with S2E instructions to inject symbolic values.
 This tutorial shows how to do this directly from the program's command line.
@@ -80,6 +80,7 @@ the ``--select-process-code`` or ``--sym-args`` argument.
                                    current process only
     --select-process-code          Enable forking in the code section of the
                                    current binary only
+    --concolic                     Augments all concrete arguments with symbolic values
     --sym-arg <N>                  Replace by a symbolic argument with length N
     --sym-arg <N>                  Replace by a symbolic argument with length N
     --sym-args <MIN> <MAX> <N>     Replace by at least MIN arguments and at most
