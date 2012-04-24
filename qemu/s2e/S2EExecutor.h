@@ -308,12 +308,22 @@ protected:
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
 
+    static void handle_ldw_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
     static void handle_ldl_mmu(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
 
     static void handle_stb_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
+    static void handle_stw_mmu(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
