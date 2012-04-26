@@ -13,7 +13,7 @@ Unfortunately, symbolic execution may get stuck at the start of an
 execution and have a hard time reaching deep paths. This is caused by the
 path selection heuristics and by the constraint solver. Path selection heuristics
 may not know very well which execution paths to choose so that execution
-goes deeper. For example, if a loop that depends on a symbolic condition, the heuristics
+goes deeper. For example, in a loop that depends on a symbolic condition, the heuristics
 may blindly keep selecting paths that would never exit the loop. Even if the path
 selection heuristics knew which path to select to go through the whole program,
 invoking the constraint solver on every branch that depends on symbolic input may
@@ -30,7 +30,7 @@ program down the path that reaches interesting parts of that program, which S2E 
 then thoroughly explore. More practical details are provided in the next sections
 of this tutorial.
 
-Concolic execution allows the program under test to *always* run to completion
+Concolic execution allows the program under analysis to run to completion
 (without getting stuck in the middle) while exploring additional paths along the main concrete path.
 On each branch that depends on a symbolic value, the engine follows in priority the one that
 would have been followed had the program been executed with concrete values. When the first path
@@ -39,8 +39,8 @@ recompute a new set of concrete values, and proceed similarly until this second 
 Of course, custom path selection plugins can optimize the selection for different needs
 (high code coverage, bug finding, etc.).
 
-A key optimization to make this feasible is to *never* call the constraint solver during the execution
-of a path and perform speculative forking. Whenever execution reaches
+There are two key optimizations to make this feasible: (1) *never* call the constraint solver during the execution
+of a path and (2) perform speculative forking. Whenever execution reaches
 a branch that depends on symbolic input, S2E forks a new state regardless of the actual
 feasibility of that forked state. This avoids calling the constraint solver.
 Since S2E stores concrete values for every symbolic variable, the execution engine can
@@ -49,9 +49,9 @@ and chose the corresponding concrete path.
 
 
 S2E invokes the constraint solver when selecting a new state to run. Since all states result
-from a speculative fork, it is necessary to check whether that state is actually feasible
-before running it. For that, S2E invokes the constraint solver to compute the concrete inputs
-that would cause execution to reach that state. If the solver fails to find the inputs,
+from speculative forks, it is necessary to check whether the states are actually feasible
+before running them. For that, S2E invokes the constraint solver to compute the concrete inputs
+that would allow execution to reach that state. If the solver fails to find the inputs,
 S2E discards the state. Otherwise, S2E uses the computed concrete inputs to resume
 concolic execution.
 
@@ -73,8 +73,8 @@ The following is a minimal S2E configuration file that enables concolic executio
     }
 
 
-It instructs the S2E engine to enable concolic execution and to use the depth-first searcher.
-The DFS searcher works well with concolic execution, because it naturally lets the current "concrete"
+It instructs the S2E engine to enable concolic execution and to use the depth-first path selection heuristic (aka path *searcher*).
+The DFS heuristic works well with concolic execution, because it naturally lets the current "concrete"
 path run to completion. It is possible to use any existing searcher in concolic mode.
 However, it may be better to design new searchers with concolic execution in mind in order to improve
 exploration efficiency.
@@ -97,7 +97,7 @@ Using the ``init_env`` plugin
 -----------------------------
 
 The `init_env <init_env.html>`_ library enables symbolic execution without modifying the program's source code.
-Concolic execution can be enabled using the ``--concolic`` switch and specifying the initial concrete inputs.
+This library also supports concolic execution with the ``--concolic`` switch, that can be added right before the concrete program arguments.
 The following example invokes the ``tr`` Unix utility via the ``tr ab ab ab`` command. The library automatically assigns
 symbolic arguments to all arguments while keeping the concrete ``ab`` values.
 
