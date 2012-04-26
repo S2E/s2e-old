@@ -59,7 +59,7 @@ S2E discards the state. Otherwise, S2E uses the computed concrete inputs to resu
 concolic execution.</p>
 <div class="section" id="setting-up-s2e-for-concolic-execution">
 <h1>Setting up S2E for Concolic Execution</h1>
-<p>The following is a minimal S2E configuration file that enables symbolic execution.</p>
+<p>The following is a minimal S2E configuration file that enables concolic execution.</p>
 <pre class="literal-block">
 s2e = {
     kleeArgs = {
@@ -68,7 +68,7 @@ s2e = {
     }
 }
 </pre>
-<p>It instructs the S2E engine to enable symbolic execution and to use the depth-first searcher.
+<p>It instructs the S2E engine to enable concolic execution and to use the depth-first searcher.
 The DFS searcher works well with concolic execution, because it naturally lets the current &quot;concrete&quot;
 path run to completion. It is possible to use any existing searcher in concolic mode.
 However, it may be better to design new searchers with concolic execution in mind in order to improve

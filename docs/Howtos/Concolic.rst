@@ -61,7 +61,7 @@ concolic execution.
 Setting up S2E for Concolic Execution
 =====================================
 
-The following is a minimal S2E configuration file that enables symbolic execution.
+The following is a minimal S2E configuration file that enables concolic execution.
 
 ::
 
@@ -73,7 +73,7 @@ The following is a minimal S2E configuration file that enables symbolic executio
     }
 
 
-It instructs the S2E engine to enable symbolic execution and to use the depth-first searcher.
+It instructs the S2E engine to enable concolic execution and to use the depth-first searcher.
 The DFS searcher works well with concolic execution, because it naturally lets the current "concrete"
 path run to completion. It is possible to use any existing searcher in concolic mode.
 However, it may be better to design new searchers with concolic execution in mind in order to improve
