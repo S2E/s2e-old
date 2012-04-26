@@ -17,7 +17,8 @@ S²E Documentation
 
   4. `Testing a simple program <TestingMinimalProgram.html>`_
   5. `Testing Linux binaries <Howtos/init_env.html>`_
-  6. `Equivalence testing <EquivalenceTesting.html>`_
+  6. `Analyzing large programs using concolic execution <Howtos/Concolic.html>`_
+  7. `Equivalence testing <EquivalenceTesting.html>`_
   
 * Analyzing Windows Device Drivers
 
