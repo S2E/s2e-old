@@ -7075,7 +7075,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     case 0x105: /* syscall */
         /* XXX: is it usable in real mode ? */
         gen_update_cc_op(s);
-        gen_jmp_im(pc_start - s->cs_base);
+        gen_jmp_im(s, pc_start - s->cs_base);
         gen_helper_syscall(tcg_const_i32(s->pc - pc_start));
         gen_eob(s);
         break;
@@ -7084,7 +7084,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
         } else {
             gen_update_cc_op(s);
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_sysret(tcg_const_i32(s->dflag));
             /* condition codes are modified only in long mode */
             if (s->lma)
