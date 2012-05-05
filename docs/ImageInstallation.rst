@@ -14,20 +14,25 @@ Preparing a Linux VM Image
 ==========================
 
 In the following, we describe how to install a minimal version of Debian Linux in QEMU.
-S2E supports only 32-bit systems for now.
+S2E supports only 32-bit guest systems for now.
+
+**Please make sure that you perform all the steps below using QEMU that ships with S2E.**
+There will be compatibility problems if you use QEMU that comes with your system (especially
+when saving/restoring snapshots).
+
+``$S2EDIR`` refers to the directory were S2E is installed. The paths below assume you
+followed the installation tutorials.
 
 ::
 
-   $ cd $S2EDIR
-
    $ # Create an empty disk image
-   $ qemu-img create -f raw s2e_disk.raw 2G
+   $ $S2EDIR/build/qemu-release/qemu-img create -f raw s2e_disk.raw 2G
 
    $ # Download debian install CD
    $ wget http://cdimage.debian.org/debian-cd/6.0.2.1/i386/iso-cd/debian-6.0.2.1-i386-businesscard.iso
 
    $ # Run QEMU and install the OS
-   $ qemu s2e_disk.raw -cdrom debian-6.0.2.1-i386-businesscard.iso
+   $ $S2EDIR/build/qemu-release/qemu-system-i386 s2e_disk.raw -cdrom debian-6.0.2.1-i386-businesscard.iso
    > Follow on-screen instructions to install Debian Linux inside VM
    > Select only "Standard System" component to install
 
@@ -40,7 +45,7 @@ with S2E (the reasons for this are described in the next section).
 
 ::
 
-   $ qemu-img convert -O qcow2 s2e_disk.raw s2e_disk.qcow2
+   $ $S2EDIR/build/qemu-release/qemu-img convert -O qcow2 s2e_disk.raw s2e_disk.qcow2
 
 
 General Requirements and Guidelines for VM Images

@@ -131,10 +131,10 @@ $ $S2ESRC/qemu/configure \
 $ make -j4
 
 $ # Verify that QEMU works in vanilla mode
-$ ./i386-softmmu/qemu -m 8 # you should see BIOS booting in the VM
+$ ./i386-softmmu/qemu-system-i386 -m 8 # you should see BIOS booting in the VM
 
 $ # Verify that QEMU works in S2E mode
-$ ./i386-s2e-softmmu/qemu -m 8 # you should see BIOS booting in the VM
+$ ./i386-s2e-softmmu/qemu-system-i386 -m 8 # you should see BIOS booting in the VM
 </pre>
 <p>For debug mode, proceed as follows.</p>
 <pre class="literal-block">
