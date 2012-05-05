@@ -127,10 +127,10 @@ S2E is based on QEMU and therefore inherits most of its configuration parameters
    $ make -j4
 
    $ # Verify that QEMU works in vanilla mode
-   $ ./i386-softmmu/qemu -m 8 # you should see BIOS booting in the VM
+   $ ./i386-softmmu/qemu-system-i386 -m 8 # you should see BIOS booting in the VM
 
    $ # Verify that QEMU works in S2E mode
-   $ ./i386-s2e-softmmu/qemu -m 8 # you should see BIOS booting in the VM
+   $ ./i386-s2e-softmmu/qemu-system-i386 -m 8 # you should see BIOS booting in the VM
 
 
 For debug mode, proceed as follows.
