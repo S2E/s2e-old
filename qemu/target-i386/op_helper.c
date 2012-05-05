@@ -1355,7 +1355,7 @@ void helper_syscall(int next_eip_addend)
     selector = (env->star >> 32) & 0xffff;
     if (env->hflags & HF_LMA_MASK) {
         int code64;
-        ECX_W(env, env->eip + next_eip_addend);
+        ECX_W(env->eip + next_eip_addend);
         WR_cpu(env, regs[11], compute_eflags());
 
         code64 = env->hflags & HF_CS64_MASK;
