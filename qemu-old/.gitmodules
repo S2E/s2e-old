@@ -1,6 +1,0 @@
-[submodule "roms/vgabios"]
-	path = roms/vgabios
-	url = ../vgabios.git
-[submodule "roms/seabios"]
-	path = roms/seabios
-	url = ../seabios.git
