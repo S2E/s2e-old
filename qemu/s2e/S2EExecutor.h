@@ -260,9 +260,6 @@ protected:
                      const std::vector<S2EExecutionState*>& newStates,
                      const std::vector<klee::ref<klee::Expr> >& conditions);
 
-    void doProcessFork(S2EExecutionState *originalState,
-                       const std::vector<S2EExecutionState*>& newStates);
-
     void doLoadBalancing();
 
     /** Copy concrete values to their proper location, concretizing

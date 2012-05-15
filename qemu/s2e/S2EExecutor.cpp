@@ -2072,95 +2072,6 @@ void S2EExecutor::deleteState(klee::ExecutionState *state)
     m_deletedStates.push_back(static_cast<S2EExecutionState*>(state));
 }
 
-void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
-                                const vector<S2EExecutionState*>& newStates)
-{
-    int splitIndex = newStates.size() / 2;
-    int low = 0;
-    int high = newStates.size()-1;
-    bool exitLoop = false;
-
-    do {
-        m_s2e->getDebugStream() << "Size=" << newStates.size() <<
-                " Low=" << low << " splitIndex=" << splitIndex << " high=" << high << '\n';
-
-        assert(low <= high);
-        assert(splitIndex <= high && splitIndex >= low);
-        assert(splitIndex >= 0 && splitIndex < (int)newStates.size());
-
-        unsigned parentId = m_s2e->getCurrentProcessIndex();
-        m_s2e->getCorePlugin()->onProcessFork.emit(true, false, -1);
-        int child = m_s2e->fork();
-        if (child < 0) {
-            //Fork did not succeed
-            m_s2e->getCorePlugin()->onProcessFork.emit(false, false, -1);
-            break;
-        }
-
-        if (child == 1) {
-            m_s2e->getDebugStream() << "Child (parent=" << parentId << ")" << '\n';
-            //Only send notification to the children
-            m_s2e->getCorePlugin()->onProcessFork.emit(false, true, parentId);
-
-            std::set<ExecutionState*> pathsToDelete = getStates();
-            for (int i=splitIndex; i<=high; ++i) {
-                //Keep only the paths in the upper half of the array
-                pathsToDelete.erase(newStates[i]);
-            }
-
-            foreach2(it, pathsToDelete.begin(), pathsToDelete.end()) {
-                S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(*it);
-                if (s2estate == originalState) {
-                    exitLoop = true;
-                }
-                terminateStateAtFork(*s2estate);
-            }
-
-            m_s2e->getCorePlugin()->onProcessForkComplete.emit(true);
-
-            low = splitIndex;
-
-            int diff = high - splitIndex;
-            if (diff == 1) ++diff;
-
-            splitIndex = diff / 2 + splitIndex;
-            if (high == splitIndex) {
-                break;
-            }
-        }else {
-            m_s2e->getDebugStream() << "Parent" << '\n';
-            m_s2e->getCorePlugin()->onProcessFork.emit(false, false, parentId);
-
-            //Delete all the states after
-            m_s2e->getDebugStream() << "Deleting after i=" << splitIndex << " high=" << high << '\n';
-            for (int i=splitIndex; i<=high; ++i) {
-                if (newStates[i] == originalState) {
-                    m_s2e->getDebugStream() << "came across origstate" << '\n';
-                    exitLoop = true;
-                }
-                m_s2e->getDebugStream() << "Terminating state idx "<< i << " (id=" << newStates[i]->getID()  << ")" << '\n';
-                terminateStateAtFork(*newStates[i]);
-            }
-
-            m_s2e->getCorePlugin()->onProcessForkComplete.emit(false);
-
-            high = splitIndex - 1;
-            int diff = high - low;
-
-            splitIndex = diff / 2 + low;
-
-            if (splitIndex == low) {
-                break;
-            }
-        }
-    }while(1);
-
-    if (exitLoop) {
-        assert(originalState == g_s2e_state);
-        m_forkProcTerminateCurrentState = true;
-    }
-}
-
 void S2EExecutor::doStateFork(S2EExecutionState *originalState,
                  const vector<S2EExecutionState*>& newStates,
                  const vector<ref<Expr> >& newConditions)
@@ -2222,7 +2133,6 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,
                                              newStates, newConditions);
 
-    //doProcessFork(originalState, newStates);
 }
 
 S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
