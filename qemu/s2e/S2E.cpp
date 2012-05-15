@@ -235,8 +235,9 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     {
         llvm::raw_ostream *out = openOutputFile("s2e.config.lua");
         ifstream in(configFileName.c_str());
-        if(in.good()) {
-            (*out) << in.rdbuf();
+        char c;
+        while (in.get(c)) {
+            (*out) << c;
         }
         delete out;
     }
