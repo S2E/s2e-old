@@ -53,7 +53,6 @@ extern CPUX86State *env;
 #include <s2e/Utils.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/S2EExecutionState.h>
-#include <s2e/Database.h>
 
 #include <s2e/s2e_qemu.h>
 #include <llvm/Support/FileSystem.h>
