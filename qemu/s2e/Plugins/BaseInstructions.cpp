@@ -45,7 +45,6 @@ extern "C" {
 
 #include "BaseInstructions.h"
 #include <s2e/S2E.h>
-#include <s2e/Database.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/ConfigFile.h>

@@ -53,7 +53,6 @@ extern CPUX86State *env;
 #include <s2e/Utils.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/S2EExecutionState.h>
-#include <s2e/Database.h>
 
 #include <s2e/s2e_qemu.h>
 #include <llvm/Support/FileSystem.h>
@@ -236,8 +235,9 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     {
         llvm::raw_ostream *out = openOutputFile("s2e.config.lua");
         ifstream in(configFileName.c_str());
-        if(in.good()) {
-            (*out) << in.rdbuf();
+        char c;
+        while (in.get(c)) {
+            (*out) << c;
         }
         delete out;
     }

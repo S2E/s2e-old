@@ -45,7 +45,6 @@ extern "C" {
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
-#include <s2e/Database.h>
 
 #include <llvm/Support/TimeValue.h>
 
