@@ -129,7 +129,7 @@ void ModuleExecutionDetector::initializeConfiguration()
     m_ConfigureAllModules = cfg->getBool(getConfigKey() + ".configureAllModules");
 
     foreach2(it, keyList.begin(), keyList.end()) {
-        if (*it == "trackAllModules") {
+        if (*it == "trackAllModules"  || *it == "configureAllModules") {
             continue;
         }
 
