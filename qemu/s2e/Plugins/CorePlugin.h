@@ -47,6 +47,9 @@
 extern "C" {
 typedef struct TranslationBlock TranslationBlock;
 struct QEMUTimer;
+struct Monitor;
+struct QDict;
+struct QObject;
 }
 
 namespace s2e {
@@ -260,6 +263,15 @@ public:
     sigc::signal<void,
                  S2EExecutionState* /* current state */>
           onInitializationComplete;
+
+    /** S2E has just received a command from QEMU's
+      * QMP monitor interface. The dictionnary contains
+      * the S2E-specific command parameters. */
+    sigc::signal<void,
+                Monitor * /* mon */,
+                const QDict * /* qdict */,
+                QObject ** /* ret */>
+          onMonitorCommand;
 };
 
 } // namespace s2e

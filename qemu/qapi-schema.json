@@ -1701,3 +1701,14 @@
 # Since: 1.1
 ##
 { 'command': 'xen-save-devices-state', 'data': {'filename': 'str'} }
+
+
+# @s2e-exec
+#
+# Executes an S2E command
+#
+# Returns: Nothing on success
+#
+{ 'command': 's2e-exec',
+  'data': { 'command': 'visitor' },
+  'gen': 'no' }

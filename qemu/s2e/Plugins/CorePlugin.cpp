@@ -38,6 +38,8 @@
 extern "C" {
 #include "tcg-op.h"
 #include <qemu-timer.h>
+#include "qmp-commands.h"
+#include "monitor.h"
 
 extern struct CPUX86State *env;
 }
@@ -462,4 +464,26 @@ void s2e_on_initialization_complete(void)
     } catch(s2e::CpuExitException&) {
         assert(false && "Cannot throw exceptions here. VM state may be inconsistent at this point.");
     }
+}
+
+int qmp_s2e_exec(Monitor *mon, const QDict *qdict, QObject **ret)
+{
+    QDict *value = qdict_get_qdict(qdict, "command");
+    Error *local_err = NULL;
+
+    if (!value) {
+        error_set(&local_err, QERR_INVALID_PARAMETER, "command");
+        goto out;
+    }
+
+    g_s2e->getCorePlugin()->onMonitorCommand.emit(mon, value, ret);
+
+ out:
+    if (local_err) {
+        qerror_report_err(local_err);
+        error_free(local_err);
+        return -1;
+    }
+
+    return 0;
 }
