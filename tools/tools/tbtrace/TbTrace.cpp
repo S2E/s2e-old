@@ -80,19 +80,19 @@ cl::list<unsigned>
              cl::desc("Path id to output, repeat for more. Empty=all paths"), cl::ZeroOrMore);
 
 cl::opt<bool>
-        PrintRegisters("printRegisters", cl::desc("Print register contents for each block"), cl::init(false));
+        PrintRegisters("printRegisters", cl::desc("Print register contents for each block. Requires TranslationBlockTracer."), cl::init(false));
 
 cl::opt<bool>
-        PrintMemory("printMemory", cl::desc("Print memory trace"), cl::init(false));
+        PrintMemory("printMemory", cl::desc("Print memory trace. Requires plugins that generate a memory trace."), cl::init(false));
 
 cl::opt<bool>
-        PrintDisassembly("printDisassembly", cl::desc("Print disassembly in the trace"), cl::init(false));
+        PrintDisassembly("printDisassembly", cl::desc("Print disassembly in the trace. Requires an *.lst disassembly listing from IDApro in moddir."), cl::init(false));
 
 cl::opt<bool>
-        PrintMemoryChecker("printMemoryChecker", cl::desc("Print memory checker events"), cl::init(false));
+        PrintMemoryChecker("printMemoryChecker", cl::desc("Print memory checker events. Requires the MemoryChecker plugin."), cl::init(false));
 
 cl::opt<bool>
-        PrintMemoryCheckerStack("printMemoryCheckerStack", cl::desc("Print stack grants/revocations"), cl::init(false));
+        PrintMemoryCheckerStack("printMemoryCheckerStack", cl::desc("Print stack grants/revocations. Requires the MemoryChecker plugin."), cl::init(false));
 
 
 }
