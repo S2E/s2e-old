@@ -58,7 +58,7 @@ struct S2ETranslationBlock;
 struct TranslationBlock;
 struct TCGLLVMContext;
 struct S2ETLBEntry;
-
+struct QDict;
 
 // XXX
 struct CPUX86State;
@@ -321,6 +321,8 @@ void s2e_on_privilege_change(unsigned previous, unsigned current);
 void s2e_on_page_directory_change(uint64_t previous, uint64_t current);
 
 void s2e_on_initialization_complete(void);
+
+void s2e_on_monitor_event(struct QDict *ret);
 
 //XXX: Provide a means of including KLEE header
 /* Return a possible constant value for the input expression. This

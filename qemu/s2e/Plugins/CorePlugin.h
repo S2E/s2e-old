@@ -264,14 +264,27 @@ public:
                  S2EExecutionState* /* current state */>
           onInitializationComplete;
 
-    /** S2E has just received a command from QEMU's
-      * QMP monitor interface. The dictionnary contains
-      * the S2E-specific command parameters. */
+    /**
+     * S2E has just received a command from QEMU's
+     * QMP monitor interface. The dictionnary contains
+     * the S2E-specific command parameters.
+     */
     sigc::signal<void,
                 Monitor * /* mon */,
                 const QDict * /* qdict */,
-                QObject ** /* ret */>
+                QDict * /* ret */>
           onMonitorCommand;
+
+    /**
+     * Fired when QEMU generates en event.
+     * onMonitorEvent allows plugins to react to them by
+     * sending back some data that will be serialized over
+     * the QEMU monitor interface (e.g., to JSON).
+     */
+    sigc::signal<void, QDict *>
+          onMonitorEvent;
+
+
 };
 
 } // namespace s2e

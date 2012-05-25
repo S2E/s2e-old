@@ -73,6 +73,10 @@
 #endif
 #include "hw/lm32_pic.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 //#define DEBUG
 //#define DEBUG_COMPLETION
 
@@ -498,6 +502,7 @@ void monitor_protocol_event(MonitorEvent event, QObject *data)
             break;
     }
 
+
     qmp = qdict_new();
     timestamp_put(qmp);
     qdict_put(qmp, "event", qstring_from_str(event_name));
@@ -505,6 +510,12 @@ void monitor_protocol_event(MonitorEvent event, QObject *data)
         qobject_incref(data);
         qdict_put_obj(qmp, "data", data);
     }
+
+#ifdef CONFIG_S2E
+    /* Add S2E-specific data to the event */
+    s2e_on_monitor_event(qmp);
+#endif
+
 
     QLIST_FOREACH(mon, &mon_list, entry) {
         if (monitor_ctrl_mode(mon) && qmp_cmd_mode(mon)) {
