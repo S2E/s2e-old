@@ -207,10 +207,25 @@ public:
                  S2EExecutionState*> /* nextState */
             onStateSwitch;
 
+    /**
+     * Triggered when S2E wants to generate a test case
+     */
+    sigc::signal<void,
+                 S2EExecutionState*, /* currentState */
+                 const std::string& /* message */>
+            onTestCaseGeneration;
+
+    /**
+     * Triggered whenever a state is killed
+     */
+    sigc::signal<void, S2EExecutionState*> onStateKill;
+
+
     /** Signal emitted when spawning a new S2E process */
     sigc::signal<void, bool /* prefork */,
                 bool /* ischild */,
-                unsigned /* parentProcId */> onProcessFork;
+                unsigned /* parentProcId */>
+            onProcessFork;
 
     /**
      * Signal emitted when a new S2E process was spawned and all

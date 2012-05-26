@@ -2224,9 +2224,18 @@ bool S2EExecutor::merge(klee::ExecutionState &_base, klee::ExecutionState &_othe
     }
 }
 
+void S2EExecutor::terminateStateEarly(klee::ExecutionState &state, const llvm::Twine &message)
+{
+    S2EExecutionState  *s2estate = static_cast<S2EExecutionState*>(&state);
+    m_s2e->getCorePlugin()->onTestCaseGeneration.emit(s2estate, message.str());
+    terminateState(state);
+}
+
 void S2EExecutor::terminateState(ExecutionState &s)
 {
     S2EExecutionState& state = static_cast<S2EExecutionState&>(s);
+    m_s2e->getCorePlugin()->onStateKill.emit(&state);
+
     terminateStateAtFork(state);
     state.zombify();
 
