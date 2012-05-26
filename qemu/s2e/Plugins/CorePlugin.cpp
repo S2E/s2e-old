@@ -466,33 +466,19 @@ void s2e_on_initialization_complete(void)
     }
 }
 
-int qmp_s2e_exec(Monitor *mon, const QDict *qdict, QObject **ret)
+int qmp_s2e_exec(Monitor *mon, const QDict *args, QObject **ret)
 {
-    QDict *value = qdict_get_qdict(qdict, "command");
-    QDict *dict = qdict_new();
-    Error *local_err = NULL;
+    QDict *retDict = qdict_new();
 
-    if (!value) {
-        error_set(&local_err, QERR_INVALID_PARAMETER, "command");
-        goto out;
-    }
-
-    g_s2e->getCorePlugin()->onMonitorCommand.emit(mon, value, dict);
-    *ret = QOBJECT(dict);
-
- out:
-    if (local_err) {
-        qerror_report_err(local_err);
-        error_free(local_err);
-        return -1;
-    }
+    g_s2e->getCorePlugin()->onMonitorCommand.emit(mon, args, retDict);
+    *ret = QOBJECT(retDict);
 
     return 0;
 }
 
-void s2e_on_monitor_event(QDict *ret)
+void s2e_on_monitor_event(QDict *event)
 {
     QDict *pluginData = qdict_new();
-    g_s2e->getCorePlugin()->onMonitorEvent.emit(pluginData);
-    qdict_put(ret, "s2e-event", pluginData);
+    g_s2e->getCorePlugin()->onMonitorEvent.emit(event, pluginData);
+    qdict_put(event, "s2e-event", pluginData);
 }

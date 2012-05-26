@@ -281,7 +281,9 @@ public:
      * sending back some data that will be serialized over
      * the QEMU monitor interface (e.g., to JSON).
      */
-    sigc::signal<void, QDict *>
+    sigc::signal<void,
+                const QDict * /* event */,
+                QDict * /* result */>
           onMonitorEvent;
 
 

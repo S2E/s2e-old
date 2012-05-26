@@ -2149,7 +2149,7 @@ EQMP
 #ifdef CONFIG_S2E
     {
         .name       = "s2e-exec",
-        .args_type  = "command:q",
+        .args_type  = "command:O",
         .mhandler.cmd_new = qmp_s2e_exec,
     },
 #endif
