@@ -79,7 +79,6 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <s2e/S2EStatsTracker.h>
 
 //XXX: Remove this from executor
-#include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 
 #include <s2e/s2e_qemu.h>
@@ -365,21 +364,8 @@ void S2EHandler::incPathsExplored()
 void S2EHandler::processTestCase(const klee::ExecutionState &state,
                      const char *err, const char *suffix)
 {
-    assert(static_cast<const S2EExecutionState*>(&state) != 0);
-    const S2EExecutionState* s = static_cast<const S2EExecutionState*>(&state);
-
-    m_s2e->getWarningsStream(s)
-           << "Terminating state " << s->getID()
-           << " with message '" << (err ? err : "") << "'" << '\n';
-
-    //XXX: export a core event onStateTermination or something like that
-    //to avoid hard-coded test case generation plugin.
-    s2e::plugins::TestCaseGenerator *tc =
-            dynamic_cast<s2e::plugins::TestCaseGenerator*>(m_s2e->getPlugin("TestCaseGenerator"));
-    if (tc) {
-        tc->processTestCase(*s, err, suffix);
-    }
-
+    //XXX: This stuff is not used anymore
+    //Use onTestCaseGeneration event instead.
 }
 
 void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
