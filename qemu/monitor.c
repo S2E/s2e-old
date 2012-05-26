@@ -525,6 +525,16 @@ void monitor_protocol_event(MonitorEvent event, QObject *data)
     QDECREF(qmp);
 }
 
+void monitor_emit_json(QObject *object)
+{
+    Monitor *mon;
+    QLIST_FOREACH(mon, &mon_list, entry) {
+        if (monitor_ctrl_mode(mon) && qmp_cmd_mode(mon)) {
+            monitor_json_emitter(mon, object);
+        }
+    }
+}
+
 static int do_qmp_capabilities(Monitor *mon, const QDict *params,
                                QObject **ret_data)
 {
