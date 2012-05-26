@@ -237,6 +237,10 @@ public:
 
     bool checkDeadProcesses();
 
+    inline uint64_t getStartTime() const {
+        return m_startTimeSeconds;
+    }
+
 };
 
 } // namespace s2e
