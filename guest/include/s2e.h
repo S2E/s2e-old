@@ -567,3 +567,22 @@ static inline int s2e_range(int start, int end, const char* name) {
     return x;
   }
 }
+
+/**
+ *  Transmits a buffer of dataSize length to the plugin named in pluginName.
+ *  eax contains the failure code upon return, 0 for success.
+ */
+static inline int s2e_invoke_plugin(const char *pluginName, void *data, uint32_t dataSize)
+{
+    int result;
+    __s2e_touch_string(pluginName);
+    __s2e_touch_buffer(data, dataSize);
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x0b, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : "=a" (result) : "a" (pluginName), "c" (data), "d" (dataSize) : "memory"
+    );
+
+    return result;
+}
