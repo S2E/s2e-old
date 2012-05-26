@@ -60,9 +60,8 @@ public:
 
     void initialize();
 
-    /* klee-related function */
-    void processTestCase(const S2EExecutionState &state,
-                         const char *err, const char *suffix);
+private:
+    void onTestCaseGeneration(S2EExecutionState *state, const std::string &message);
 };
 
 

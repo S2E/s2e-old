@@ -58,20 +58,20 @@ TestCaseGenerator::TestCaseGenerator(S2E* s2e)
 
 void TestCaseGenerator::initialize()
 {
-    //ConfigFile* conf = s2e()->getConfig();
+    s2e()->getCorePlugin()->onTestCaseGeneration.connect(
+            sigc::mem_fun(*this, &TestCaseGenerator::onTestCaseGeneration));
 }
 
 
-void TestCaseGenerator::processTestCase(const S2EExecutionState &state,
-                     const char *err, const char *suffix)
+void TestCaseGenerator::onTestCaseGeneration(S2EExecutionState *state, const std::string &message)
 {
     s2e()->getMessagesStream()
-            << "TestCaseGenerator: processTestCase of state " << state.getID()
-            << " at address " << hexval(state.getPc())
+            << "TestCaseGenerator: processTestCase of state " << state->getID()
+            << " at address " << hexval(state->getPc())
             << '\n';
 
     ConcreteInputs out;
-    bool success = s2e()->getExecutor()->getSymbolicSolution(state, out);
+    bool success = s2e()->getExecutor()->getSymbolicSolution(*state, out);
 
     if (!success) {
         s2e()->getWarningsStream() << "Could not get symbolic solutions" << '\n';
@@ -107,7 +107,7 @@ void TestCaseGenerator::processTestCase(const S2EExecutionState &state,
 
     unsigned bufsize;
     ExecutionTraceTestCase *tc = ExecutionTraceTestCase::serialize(&bufsize, out);
-    tracer->writeData(&state, tc, bufsize, TRACE_TESTCASE);
+    tracer->writeData(state, tc, bufsize, TRACE_TESTCASE);
     ExecutionTraceTestCase::deallocate(tc);
 }
 
