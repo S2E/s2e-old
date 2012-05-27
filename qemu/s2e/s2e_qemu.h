@@ -237,9 +237,6 @@ void s2e_read_ram_concrete_check(struct S2E* s2e,
         struct S2EExecutionState* state,
         uint64_t host_address, uint8_t* buf, uint64_t size);
 
-struct S2EExecutionState* s2e_select_next_state(
-        struct S2E* s2e, struct S2EExecutionState* state);
-
 /** Allocate S2E parts of the tanslation block. Called from tb_alloc() */
 void s2e_tb_alloc(struct S2E* s2e, struct TranslationBlock *tb);
 

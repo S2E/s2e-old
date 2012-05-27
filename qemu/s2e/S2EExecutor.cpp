@@ -1243,7 +1243,13 @@ void S2EExecutor::stateSwitchTimerCallback(void *opaque)
 
     if (g_s2e_state) {
         c->doLoadBalancing();
-        g_s2e_state = c->selectNextState(g_s2e_state);
+        S2EExecutionState *nextState = c->selectNextState(g_s2e_state);
+        if (nextState) {
+            g_s2e_state = nextState;
+        } else {
+            //Do not reschedule the timer anymore
+            return;
+        }
     }
 
     qemu_mod_timer(c->m_stateSwitchTimer, qemu_get_clock_ms(rt_clock) + 100);
@@ -1390,15 +1396,17 @@ ExecutionState* S2EExecutor::selectNonSpeculativeState(S2EExecutionState *state)
     } while(newState->isSpeculative());
 
     if (!newState) {
-        g_s2e_state = NULL;
         m_s2e->getWarningsStream() << "All states were terminated" << '\n';
         foreach(S2EExecutionState* s, m_deletedStates) {
-            unrefS2ETb(s->m_lastS2ETb);
-            s->m_lastS2ETb = NULL;
-            delete s;
+            //Leave the current state in a zombie form to let QEMU exit gracefully.
+            if (s != g_s2e_state) {
+                unrefS2ETb(s->m_lastS2ETb);
+                s->m_lastS2ETb = NULL;
+                delete s;
+            }
         }
         m_deletedStates.clear();
-        exit(0);
+        qemu_system_shutdown_request();
     }
 
     return newState;
@@ -1409,7 +1417,12 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     assert(state->m_active);
     updateStates(state);
 
-    ExecutionState& newKleeState = *selectNonSpeculativeState(state);
+    ExecutionState *nstate = selectNonSpeculativeState(state);
+    if (nstate == NULL) {
+        return NULL;
+    }
+
+    ExecutionState& newKleeState = *nstate;
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
 
     S2EExecutionState* newState =
@@ -2420,12 +2433,6 @@ void s2e_register_dirty_mask(S2E *s2e, S2EExecutionState *initial_state,
     s2e->getExecutor()->registerDirtyMask(initial_state, host_address, size);
 }
 
-
-
-S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
-{
-    return s2e->getExecutor()->selectNextState(state);
-}
 
 uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env1, struct TranslationBlock* tb)
 {
