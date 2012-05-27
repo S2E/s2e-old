@@ -103,7 +103,6 @@ protected:
     std::vector<S2EExecutionState*> m_deletedStates;
 
     bool m_executeAlwaysKlee;
-    StateManagerCb m_stateManager;
 
     bool m_forceConcretizations;
 
@@ -188,14 +187,6 @@ public:
                    klee::ref<klee::Expr> condition, bool isInternal);
 
     bool merge(klee::ExecutionState &base, klee::ExecutionState &other);
-
-    void setStateManagerCb(StateManagerCb cb) {
-        m_stateManager = cb;
-    }
-
-    StateManagerCb getStateManager() const {
-        return m_stateManager;
-    }
 
     void setForceConcretizations(bool b) {
         m_forceConcretizations = true;

@@ -860,8 +860,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     searcher = constructUserSearcher(*this);
 
-    m_stateManager = NULL;
-
     m_forceConcretizations = false;
 
     g_s2e_fork_on_symbolic_address = ForkOnSymbolicAddress;
@@ -1410,20 +1408,6 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 {
     assert(state->m_active);
     updateStates(state);
-
-    /* XXX Why is it here ? There is timers, there is onTranslate, onStateSwitch signals...
-           selectNextState is not good because it is called at "random" time. */
-    if (m_stateManager) {
-        //Try to kill the useless states. Even the current state can be killed at this point.
-        try {
-            m_stateManager(NULL, false);
-        }catch(CpuExitException &) {
-            m_s2e->getDebugStream() << "Attempted to kill current state, that's fine, we'll select another one." << '\n';
-        }
-        //The state manager can kill additional states, we must update the set of states,
-        //otherwise, the searcher might select killed states.
-        updateStates(state);
-    }
 
     ExecutionState& newKleeState = *selectNonSpeculativeState(state);
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
@@ -2237,11 +2221,6 @@ void S2EExecutor::terminateState(ExecutionState &s)
 
 void S2EExecutor::terminateStateAtFork(S2EExecutionState &state)
 {
-    //This will make sure to resume a suspended state before killing it
-    if (m_stateManager) {
-        m_stateManager(&state, true);
-    }
-
     Executor::terminateState(state);
 }
 

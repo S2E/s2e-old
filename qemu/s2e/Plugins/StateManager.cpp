@@ -325,7 +325,7 @@ void StateManager::initialize()
             sigc::mem_fun(*this, &StateManager::onTimer));
 
     m_executor = s2e()->getExecutor();
-    m_executor->setStateManagerCb(sm_callback);
+    //m_executor->setStateManagerCb(sm_callback);
 }
 
 void StateManager::onTimer()
