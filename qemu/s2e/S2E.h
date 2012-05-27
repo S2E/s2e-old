@@ -220,6 +220,7 @@ public:
     }
 
     unsigned fetchAndIncrementStateId();
+    unsigned fetchNextStateId();
     unsigned getMaxProcesses() const {
         return m_maxProcesses;
     }
