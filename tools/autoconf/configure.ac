@@ -75,6 +75,47 @@ s2e_src=`cd $with_s2esrc 2> /dev/null; pwd`
 AC_MSG_RESULT([$s2e_src])
 AC_SUBST(S2E_SRC,$s2e_src)
 
+dnl CXXFLAGS
+AC_SUBST(CXXFLAGS, "$CXXFLAGS -fexceptions")
+
+dnl **************************************************************************
+dnl Header include paths
+
+AC_ARG_WITH(bfd-incdir,
+  AS_HELP_STRING([--with-bfd-incdir],
+    [Location of BFD headers]),,)
+
+AC_ARG_WITH(libiberty-incdir,
+  AS_HELP_STRING([--with-libiberty-incdir],
+    [Location of libiberty headers]),,)
+
+if test X${with_bfd_incdir} != X; then
+    AC_SUBST(CXXFLAGS, "$CXXFLAGS -I\"${with_bfd_incdir}\"")
+fi
+
+if test X${with_libiberty_incdir} != X; then
+    AC_SUBST(CXXFLAGS, "$CXXFLAGS -I\"${with_libiberty_incdir}\"")
+fi
+
+dnl **************************************************************************
+dnl Library paths
+
+AC_ARG_WITH(bfd-libdir,
+  AS_HELP_STRING([--with-bfd-libdir],
+    [Location of BFD libraries]),,)
+
+AC_ARG_WITH(libiberty-libdir,
+  AS_HELP_STRING([--with-libiberty-libdir],
+    [Location of libiberty libraries]),,)
+
+if test X${with_bfd_libdir} != X; then
+    AC_SUBST(LDFLAGS, "$LDFLAGS -L\"${with_bfd_libdir}\"")
+fi
+
+if test X${with_libiberty_libdir} != X; then
+    AC_SUBST(LDFLAGS, "$LDFLAGS -L\"${with_libiberty_libdir}\"")
+fi
+
 dnl **************************************************************************
 dnl Add OS-specific libraries
 
