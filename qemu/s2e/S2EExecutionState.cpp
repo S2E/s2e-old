@@ -1115,9 +1115,10 @@ ref<Expr> S2EExecutionState::createConcolicValue(
     std::string sname = getUniqueVarName(name);
 
     unsigned bytes = Expr::getMinBytesForWidth(width);
+    unsigned bufferSize = buffer.size();
 
-    assert(bytes == buffer.size() &&
-           "Concrete buffer must have the same size as the expression");
+    assert((bytes == bufferSize || bytes == 0)  &&
+           "Concrete buffer must either have the same size as the expression or be empty");
 
     const Array *array = new Array(sname, bytes);
 
@@ -1126,7 +1127,7 @@ ref<Expr> S2EExecutionState::createConcolicValue(
 
     symbolics.push_back(std::make_pair(mo, array));
 
-    if (buffer.size() * 8 == width) {
+    if (bufferSize == bytes) {
         concolics.add(array, buffer);
     }
 
