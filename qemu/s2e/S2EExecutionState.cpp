@@ -1117,7 +1117,7 @@ ref<Expr> S2EExecutionState::createConcolicValue(
     unsigned bytes = Expr::getMinBytesForWidth(width);
     unsigned bufferSize = buffer.size();
 
-    assert((bytes == bufferSize || bytes == 0)  &&
+    assert((bufferSize == bytes || bufferSize == 0)  &&
            "Concrete buffer must either have the same size as the expression or be empty");
 
     const Array *array = new Array(sname, bytes);
