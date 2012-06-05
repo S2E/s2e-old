@@ -322,6 +322,58 @@ void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
     }
 }
 
+void BaseInstructions::invokePlugin(S2EExecutionState *state)
+{
+    BaseInstructionsPluginInvokerInterface *iface = NULL;
+    Plugin *plugin;
+    std::string pluginName;
+    uint32_t pluginNamePointer = 0; //XXX
+    uint32_t dataPointer = 0; //XXX
+    uint32_t dataSize = 0;
+    uint32_t result = 0;
+    bool ok = true;
+
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &pluginNamePointer, sizeof(pluginNamePointer));
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &dataPointer, sizeof(dataPointer));
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EDX]), &dataSize, sizeof(dataSize));
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic arguments was passed to s2e_op invokePlugin opcode\n";
+        result = 1;
+        goto fail;
+    }
+
+
+    if (!state->readString(pluginNamePointer, pluginName)) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: invokePlugin could not read name of plugin to invoke\n";
+        result = 2;
+        goto fail;
+    }
+
+    plugin = s2e()->getPlugin(pluginName);
+    if (!plugin) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: invokePlugin could not find plugin " << pluginName << "\n";
+        result = 3;
+        goto fail;
+    }
+
+    iface = dynamic_cast<BaseInstructionsPluginInvokerInterface*>(plugin);
+
+    if (!iface) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: " << pluginName << " is not an instance of BaseInstructionsPluginInvokerInterface\n";
+        result = 4;
+        goto fail;
+    }
+
+    iface->handleOpcodeInvocation(state, dataPointer, dataSize);
+
+ fail:
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, sizeof(result));
+}
+
 /** Handle s2e_op instruction. Instructions:
     0f 3f XX XX XX XX XX XX XX XX
     XX: opcode
@@ -368,13 +420,20 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
-        case 9:
+        case 9: {
             state->enableForking();
             break;
+        }
 
-        case 10:
+        case 0xa: {
             state->disableForking();
             break;
+        }
+
+        case 0xb: {
+            invokePlugin(state);
+            break;
+        }
 
         case 0x10: { /* s2e_print_message */
             printMessage(state, opcode >> 16);

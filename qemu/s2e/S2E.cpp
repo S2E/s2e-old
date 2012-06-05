@@ -720,6 +720,13 @@ unsigned S2E::fetchAndIncrementStateId()
     m_sync.release();
     return ret;
 }
+unsigned S2E::fetchNextStateId()
+{
+    S2EShared *shared = m_sync.acquire();
+    unsigned ret = shared->lastStateId;
+    m_sync.release();
+    return ret;
+}
 
 unsigned S2E::getCurrentProcessCount()
 {

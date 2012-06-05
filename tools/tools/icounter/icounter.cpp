@@ -64,10 +64,10 @@ namespace {
 
 cl::list<std::string>
     TraceFiles("trace", llvm::cl::value_desc("Input trace"), llvm::cl::Prefix,
-               llvm::cl::desc("Specify an execution trace file"));
+               llvm::cl::desc("Specify an execution trace file. The trace must be generated with InstructionCounter plugin enabled."));
 
 cl::opt<std::string>
-    LogDir("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
+    LogDir("outputdir", cl::desc("Store the results into the given folder"), cl::init("."));
 
 cl::list<std::string>
     ModPath("modpath", cl::desc("Path to modules"));

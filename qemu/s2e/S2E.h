@@ -220,6 +220,7 @@ public:
     }
 
     unsigned fetchAndIncrementStateId();
+    unsigned fetchNextStateId();
     unsigned getMaxProcesses() const {
         return m_maxProcesses;
     }
@@ -236,6 +237,10 @@ public:
     unsigned getCurrentProcessCount();
 
     bool checkDeadProcesses();
+
+    inline uint64_t getStartTime() const {
+        return m_startTimeSeconds;
+    }
 
 };
 

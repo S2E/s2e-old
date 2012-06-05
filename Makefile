@@ -327,10 +327,10 @@ stamps/tools-configure: stamps/llvm-configure
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS
-	cd tools && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1  CXXFLAGS="-fexceptions"  -j$(JOBS)
+	cd tools && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-debug: stamps/tools-configure ALWAYS
-	cd tools && make ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1 CXXFLAGS="-fexceptions" -j$(JOBS)
+	cd tools && make ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
 

@@ -79,7 +79,6 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <s2e/S2EStatsTracker.h>
 
 //XXX: Remove this from executor
-#include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 
 #include <s2e/s2e_qemu.h>
@@ -365,21 +364,8 @@ void S2EHandler::incPathsExplored()
 void S2EHandler::processTestCase(const klee::ExecutionState &state,
                      const char *err, const char *suffix)
 {
-    assert(static_cast<const S2EExecutionState*>(&state) != 0);
-    const S2EExecutionState* s = static_cast<const S2EExecutionState*>(&state);
-
-    m_s2e->getWarningsStream(s)
-           << "Terminating state " << s->getID()
-           << " with message '" << (err ? err : "") << "'" << '\n';
-
-    //XXX: export a core event onStateTermination or something like that
-    //to avoid hard-coded test case generation plugin.
-    s2e::plugins::TestCaseGenerator *tc =
-            dynamic_cast<s2e::plugins::TestCaseGenerator*>(m_s2e->getPlugin("TestCaseGenerator"));
-    if (tc) {
-        tc->processTestCase(*s, err, suffix);
-    }
-
+    //XXX: This stuff is not used anymore
+    //Use onTestCaseGeneration event instead.
 }
 
 void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
@@ -874,8 +860,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     searcher = constructUserSearcher(*this);
 
-    m_stateManager = NULL;
-
     m_forceConcretizations = false;
 
     g_s2e_fork_on_symbolic_address = ForkOnSymbolicAddress;
@@ -1259,7 +1243,13 @@ void S2EExecutor::stateSwitchTimerCallback(void *opaque)
 
     if (g_s2e_state) {
         c->doLoadBalancing();
-        g_s2e_state = c->selectNextState(g_s2e_state);
+        S2EExecutionState *nextState = c->selectNextState(g_s2e_state);
+        if (nextState) {
+            g_s2e_state = nextState;
+        } else {
+            //Do not reschedule the timer anymore
+            return;
+        }
     }
 
     qemu_mod_timer(c->m_stateSwitchTimer, qemu_get_clock_ms(rt_clock) + 100);
@@ -1406,15 +1396,17 @@ ExecutionState* S2EExecutor::selectNonSpeculativeState(S2EExecutionState *state)
     } while(newState->isSpeculative());
 
     if (!newState) {
-        g_s2e_state = NULL;
         m_s2e->getWarningsStream() << "All states were terminated" << '\n';
         foreach(S2EExecutionState* s, m_deletedStates) {
-            unrefS2ETb(s->m_lastS2ETb);
-            s->m_lastS2ETb = NULL;
-            delete s;
+            //Leave the current state in a zombie form to let QEMU exit gracefully.
+            if (s != g_s2e_state) {
+                unrefS2ETb(s->m_lastS2ETb);
+                s->m_lastS2ETb = NULL;
+                delete s;
+            }
         }
         m_deletedStates.clear();
-        exit(0);
+        qemu_system_shutdown_request();
     }
 
     return newState;
@@ -1425,21 +1417,12 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     assert(state->m_active);
     updateStates(state);
 
-    /* XXX Why is it here ? There is timers, there is onTranslate, onStateSwitch signals...
-           selectNextState is not good because it is called at "random" time. */
-    if (m_stateManager) {
-        //Try to kill the useless states. Even the current state can be killed at this point.
-        try {
-            m_stateManager(NULL, false);
-        }catch(CpuExitException &) {
-            m_s2e->getDebugStream() << "Attempted to kill current state, that's fine, we'll select another one." << '\n';
-        }
-        //The state manager can kill additional states, we must update the set of states,
-        //otherwise, the searcher might select killed states.
-        updateStates(state);
+    ExecutionState *nstate = selectNonSpeculativeState(state);
+    if (nstate == NULL) {
+        return NULL;
     }
 
-    ExecutionState& newKleeState = *selectNonSpeculativeState(state);
+    ExecutionState& newKleeState = *nstate;
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
 
     S2EExecutionState* newState =
@@ -2224,9 +2207,18 @@ bool S2EExecutor::merge(klee::ExecutionState &_base, klee::ExecutionState &_othe
     }
 }
 
+void S2EExecutor::terminateStateEarly(klee::ExecutionState &state, const llvm::Twine &message)
+{
+    S2EExecutionState  *s2estate = static_cast<S2EExecutionState*>(&state);
+    m_s2e->getCorePlugin()->onTestCaseGeneration.emit(s2estate, message.str());
+    terminateState(state);
+}
+
 void S2EExecutor::terminateState(ExecutionState &s)
 {
     S2EExecutionState& state = static_cast<S2EExecutionState&>(s);
+    m_s2e->getCorePlugin()->onStateKill.emit(&state);
+
     terminateStateAtFork(state);
     state.zombify();
 
@@ -2242,11 +2234,6 @@ void S2EExecutor::terminateState(ExecutionState &s)
 
 void S2EExecutor::terminateStateAtFork(S2EExecutionState &state)
 {
-    //This will make sure to resume a suspended state before killing it
-    if (m_stateManager) {
-        m_stateManager(&state, true);
-    }
-
     Executor::terminateState(state);
 }
 
@@ -2446,12 +2433,6 @@ void s2e_register_dirty_mask(S2E *s2e, S2EExecutionState *initial_state,
     s2e->getExecutor()->registerDirtyMask(initial_state, host_address, size);
 }
 
-
-
-S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
-{
-    return s2e->getExecutor()->selectNextState(state);
-}
 
 uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env1, struct TranslationBlock* tb)
 {

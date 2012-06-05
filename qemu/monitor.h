@@ -77,8 +77,14 @@ ReadLineState *monitor_get_rs(Monitor *mon);
 int monitor_read_password(Monitor *mon, ReadLineFunc *readline_func,
                           void *opaque);
 
+void monitor_emit_json(QObject *object);
+
 int qmp_qom_set(Monitor *mon, const QDict *qdict, QObject **ret);
 
 int qmp_qom_get(Monitor *mon, const QDict *qdict, QObject **ret);
+
+#ifdef CONFIG_S2E
+int qmp_s2e_exec(Monitor *mon, const QDict *qdict, QObject **ret);
+#endif
 
 #endif /* !MONITOR_H */

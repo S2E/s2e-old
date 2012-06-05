@@ -47,6 +47,9 @@
 extern "C" {
 typedef struct TranslationBlock TranslationBlock;
 struct QEMUTimer;
+struct Monitor;
+struct QDict;
+struct QObject;
 }
 
 namespace s2e {
@@ -204,10 +207,25 @@ public:
                  S2EExecutionState*> /* nextState */
             onStateSwitch;
 
+    /**
+     * Triggered when S2E wants to generate a test case
+     */
+    sigc::signal<void,
+                 S2EExecutionState*, /* currentState */
+                 const std::string& /* message */>
+            onTestCaseGeneration;
+
+    /**
+     * Triggered whenever a state is killed
+     */
+    sigc::signal<void, S2EExecutionState*> onStateKill;
+
+
     /** Signal emitted when spawning a new S2E process */
     sigc::signal<void, bool /* prefork */,
                 bool /* ischild */,
-                unsigned /* parentProcId */> onProcessFork;
+                unsigned /* parentProcId */>
+            onProcessFork;
 
     /**
      * Signal emitted when a new S2E process was spawned and all
@@ -260,6 +278,30 @@ public:
     sigc::signal<void,
                  S2EExecutionState* /* current state */>
           onInitializationComplete;
+
+    /**
+     * S2E has just received a command from QEMU's
+     * QMP monitor interface. The dictionnary contains
+     * the S2E-specific command parameters.
+     */
+    sigc::signal<void,
+                Monitor * /* mon */,
+                const QDict * /* qdict */,
+                QDict * /* ret */>
+          onMonitorCommand;
+
+    /**
+     * Fired when QEMU generates en event.
+     * onMonitorEvent allows plugins to react to them by
+     * sending back some data that will be serialized over
+     * the QEMU monitor interface (e.g., to JSON).
+     */
+    sigc::signal<void,
+                const QDict * /* event */,
+                QDict * /* result */>
+          onMonitorEvent;
+
+
 };
 
 } // namespace s2e

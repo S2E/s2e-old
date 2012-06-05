@@ -404,7 +404,7 @@ public:
   virtual void terminateState(ExecutionState &state);
 
   // call exit handler and terminate state
-  void terminateStateEarly(ExecutionState &state, const llvm::Twine &message);
+  virtual void terminateStateEarly(ExecutionState &state, const llvm::Twine &message);
   // call exit handler and terminate state
   void terminateStateOnExit(ExecutionState &state);
   // call error handler and terminate state

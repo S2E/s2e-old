@@ -2145,3 +2145,11 @@ EQMP
         .args_type  = "implements:s?,abstract:b?",
         .mhandler.cmd_new = qmp_marshal_input_qom_list_types,
     },
+
+#ifdef CONFIG_S2E
+    {
+        .name       = "s2e-exec",
+        .args_type  = "command:O",
+        .mhandler.cmd_new = qmp_s2e_exec,
+    },
+#endif

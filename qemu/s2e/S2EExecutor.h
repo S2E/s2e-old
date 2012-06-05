@@ -103,7 +103,6 @@ protected:
     std::vector<S2EExecutionState*> m_deletedStates;
 
     bool m_executeAlwaysKlee;
-    StateManagerCb m_stateManager;
 
     bool m_forceConcretizations;
 
@@ -189,14 +188,6 @@ public:
 
     bool merge(klee::ExecutionState &base, klee::ExecutionState &other);
 
-    void setStateManagerCb(StateManagerCb cb) {
-        m_stateManager = cb;
-    }
-
-    StateManagerCb getStateManager() const {
-        return m_stateManager;
-    }
-
     void setForceConcretizations(bool b) {
         m_forceConcretizations = true;
     }
@@ -212,6 +203,9 @@ public:
     bool isLoadBalancing() const {
         return m_inLoadBalancing;
     }
+
+    /** Kill the state with test case generation */
+    virtual void terminateStateEarly(klee::ExecutionState &state, const llvm::Twine &message);
 
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
@@ -291,6 +285,7 @@ protected:
 
     /** Kills the specified state and raises an exception to exit the cpu loop */
     virtual void terminateState(klee::ExecutionState &state);
+
 
     /** Kills the specified state without exiting to the CPU loop */
     void terminateStateAtFork(S2EExecutionState &state);

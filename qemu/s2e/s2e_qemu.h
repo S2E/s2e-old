@@ -58,7 +58,7 @@ struct S2ETranslationBlock;
 struct TranslationBlock;
 struct TCGLLVMContext;
 struct S2ETLBEntry;
-
+struct QDict;
 
 // XXX
 struct CPUX86State;
@@ -237,9 +237,6 @@ void s2e_read_ram_concrete_check(struct S2E* s2e,
         struct S2EExecutionState* state,
         uint64_t host_address, uint8_t* buf, uint64_t size);
 
-struct S2EExecutionState* s2e_select_next_state(
-        struct S2E* s2e, struct S2EExecutionState* state);
-
 /** Allocate S2E parts of the tanslation block. Called from tb_alloc() */
 void s2e_tb_alloc(struct S2E* s2e, struct TranslationBlock *tb);
 
@@ -321,6 +318,8 @@ void s2e_on_privilege_change(unsigned previous, unsigned current);
 void s2e_on_page_directory_change(uint64_t previous, uint64_t current);
 
 void s2e_on_initialization_complete(void);
+
+void s2e_on_monitor_event(struct QDict *ret);
 
 //XXX: Provide a means of including KLEE header
 /* Return a possible constant value for the input expression. This

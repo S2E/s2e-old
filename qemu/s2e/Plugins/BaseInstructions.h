@@ -59,7 +59,7 @@ public:
 private:
     void onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode);
-
+    void invokePlugin(S2EExecutionState *state);
     void makeSymbolic(S2EExecutionState *state, bool makeConcolic);
     void isSymbolic(S2EExecutionState *state);
     void killState(S2EExecutionState *state);
@@ -68,6 +68,13 @@ private:
     void printMemory(S2EExecutionState *state);
     void concretize(S2EExecutionState *state, bool addConstraint);
     void sleep(S2EExecutionState *state);
+};
+
+class BaseInstructionsPluginInvokerInterface {
+public:
+    virtual void handleOpcodeInvocation(S2EExecutionState *state,
+                                        uint64_t guestDataPtr,
+                                        uint64_t guestDataSize) = 0;
 };
 
 } // namespace plugins
