@@ -196,6 +196,10 @@ namespace {
     S2EDebugInstructions("print-llvm-instructions",
                    cl::desc("Traces all LLVM instructions sent to KLEE"),  cl::init(false));
 
+    cl::opt<bool>
+    UseFastHelpers("use-fast-helpers",
+                   cl::desc("Replaces LLVM bitcode with fast symbolic-aware equivalent native helpers"),  cl::init(false));
+
 }
 
 //The logs may be flooded with messages when switching execution mode.
@@ -794,7 +798,9 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     setModule(m_tcgLLVMContext->getModule(), MOpts, false);
 
-    disableConcreteLLVMHelpers();
+    if (UseFastHelpers) {
+        disableConcreteLLVMHelpers();
+    }
 
     /* Add dummy TB function declaration */
     PointerType* tbFunctionArgTy =
@@ -850,7 +856,9 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
         assert(function);
         addSpecialFunctionHandler(function, handlerTraceInstruction);
 
-        replaceExternalFunctionsWithSpecialHandlers();
+        if (UseFastHelpers) {
+            replaceExternalFunctionsWithSpecialHandlers();
+        }
 
         m_tcgLLVMContext->initializeHelpers();
     }
