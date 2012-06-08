@@ -60,8 +60,6 @@ bool TimingSolver::mustBeTrue(const ExecutionState& state, ref<Expr> expr,
     return true;
   }
 
-  *klee_message_stream << "mustBeTrue after:" << expr << "\n";
-
   sys::TimeValue now(0,0),user(0,0),delta(0,0),sys(0,0);
   sys::Process::GetTimeUsage(now,user,sys);
 
