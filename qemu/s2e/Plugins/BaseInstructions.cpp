@@ -384,6 +384,29 @@ void BaseInstructions::invokePlugin(S2EExecutionState *state)
     state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, sizeof(result));
 }
 
+void BaseInstructions::assume(S2EExecutionState *state)
+{
+    klee::ref<klee::Expr> expr = state->readCpuRegister(CPU_OFFSET(regs[R_EAX]), klee::Expr::Int32);
+
+    klee::ref<klee::Expr> zero = klee::ConstantExpr::create(0, expr.get()->getWidth());
+    klee::ref<klee::Expr> boolExpr = klee::NeExpr::create(expr, zero);
+
+
+    //Check that the added constraint is consistent with
+    //the existing path constraints
+    bool truth;
+    Solver *solver = s2e()->getExecutor()->getSolver();
+    Query query(state->constraints, boolExpr);
+    bool res = solver->mustBeTrue(query.negateExpr(), truth);
+    if (!res || truth) {
+        std::stringstream ss;
+        ss << "BaseInstructions: specified assume expression cannot be true. "
+                << boolExpr;
+        g_s2e->getExecutor()->terminateStateEarly(*state, ss.str());
+    }
+    state->addConstraint(boolExpr);
+}
+
 /** Handle s2e_op instruction. Instructions:
     0f 3f XX XX XX XX XX XX XX XX
     XX: opcode
@@ -442,6 +465,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
         case 0xb: {
             invokePlugin(state);
+            break;
+        }
+
+        case 0xc: {
+            assume(state);
             break;
         }
 

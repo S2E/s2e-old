@@ -68,6 +68,7 @@ private:
     void printMemory(S2EExecutionState *state);
     void concretize(S2EExecutionState *state, bool addConstraint);
     void sleep(S2EExecutionState *state);
+    void assume(S2EExecutionState *state);
 };
 
 class BaseInstructionsPluginInvokerInterface {
