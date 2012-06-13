@@ -179,6 +179,10 @@ extern int g_s2e_concretize_io_addresses;
 extern int g_s2e_concretize_io_writes;
 
 
+/** Prevent anything from flushing the TLB cache */
+extern int g_s2e_disable_tlb_flush;
+
+
 /** Create initial S2E execution state */
 struct S2EExecutionState* s2e_create_initial_state(struct S2E *s2e);
 

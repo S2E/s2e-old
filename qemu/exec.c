@@ -2034,9 +2034,20 @@ static CPUTLBEntry s_cputlb_empty_entry = {
  * entries from the TLB at any time, so flushing more entries than
  * required is only an efficiency issue, not a correctness issue.
  */
+
+#ifdef CONFIG_S2E
+int g_s2e_disable_tlb_flush = 0;
+#endif
+
 void tlb_flush(CPUArchState *env, int flush_global)
 {
     int i;
+
+#ifdef CONFIG_S2E
+    if (g_s2e_disable_tlb_flush) {
+        return;
+    }
+#endif
 
 #if defined(DEBUG_TLB)
     printf("tlb_flush:\n");

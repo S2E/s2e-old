@@ -1277,9 +1277,15 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     assert(!newState || !newState->m_active);
     assert(!newState || !newState->m_runningConcrete);
 
+    //Some state save/restore logic in QEMU flushes the cache.
+    //This can have bad effects in case of saving/restoring states
+    //that were in the middle of a memory operation. Therefore,
+    //we disable it here and re-enable after the new state has been activated.
+    g_s2e_disable_tlb_flush = 1;
+
     //Clear the asynchronous request queue, which is not saved as part of
-    //the snapshots by QEMU.
-    //This is the same mechanism as used by load/save_vmstate, so it should work reliably
+    //the snapshots by QEMU. This is the same mechanism as used by
+    //load/save_vmstate, so it should work reliably
     qemu_aio_flush();
     bdrv_flush_all();
 
@@ -1306,9 +1312,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         //oldState->m_qemuIcount = qemu_icount;
         *oldState->m_timersState = timers_state;
 
-        //XXX: flush is required to keep the m_tlbMap cache in sync
-        tlb_flush(env, 1);
-
         uint8_t *oldStore = oldState->m_cpuSystemObject->getConcreteStore();
         memcpy(oldStore, (uint8_t*) cpuMo->address, cpuMo->size);
 
@@ -1334,11 +1337,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         //XXX: assigning g_s2e_state here is ugly but is required for restoreDeviceState...
         g_s2e_state = newState;
         newState->getDeviceState()->restoreDeviceState();
-
-        //XXX: flush is required to keep the m_tlbMap cache in sync
-        tlb_flush(env, 1);
-        //XXX: g_s2e_state is still old, so call manually here
-        newState->flushTlbCache();
     }
 
     uint64_t totalCopied = 0;
@@ -1370,6 +1368,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     if(FlushTBsOnStateSwitch)
         tb_flush(env);
+
+    g_s2e_disable_tlb_flush = 0;
 
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
 }
@@ -2074,7 +2074,6 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
             << " at pc = " << hexval(originalState->getPc())
         << " into states:" << '\n';
 
-    tlb_flush(env, 1);
     qemu_aio_flush();
     bdrv_flush_all();
 
