@@ -358,6 +358,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
 
     } else {
         /* XXX: should we check getSymbolicRegisterMask ? */
+        /* XXX: why don't we allow writing symbolic values here ??? */
         assert(isa<ConstantExpr>(value) &&
                "Can not write symbolic values to registers while executing"
                " in concrete mode. TODO: fix it by s2e_longjmping to main loop");
@@ -366,6 +367,16 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
         small_memcpy((void*) (m_cpuRegistersState->address + offset), (void*) &v,
                     Expr::getMinBytesForWidth(ce->getWidth()));
     }
+}
+
+void S2EExecutionState::writeCpuRegisterSymbolic(unsigned offset,
+                                         klee::ref<klee::Expr> value)
+{
+    unsigned width = value->getWidth();
+    assert((width == 1 || (width&7) == 0) && width <= 64);
+    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
+
+    m_cpuRegistersObject->write(offset, value);
 }
 
 bool S2EExecutionState::readCpuRegisterConcrete(unsigned offset,
@@ -699,7 +710,11 @@ ref<Expr> S2EExecutionState::readMemory(uint64_t address,
         if(hostAddress == (uint64_t) -1)
             return ref<Expr>(0);
 
-        ObjectPair op = addressSpace.findObject(hostAddress & S2E_RAM_OBJECT_MASK);
+        ObjectPair op = m_memcache.get(hostAddress & S2E_RAM_OBJECT_MASK);
+        if (!op.first) {
+            op = addressSpace.findObject(hostAddress & S2E_RAM_OBJECT_MASK);
+            m_memcache.put(hostAddress & S2E_RAM_OBJECT_MASK, op);
+        }
 
         assert(op.first && op.first->isUserSpecified
                && op.first->size == S2E_RAM_OBJECT_SIZE);

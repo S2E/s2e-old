@@ -141,7 +141,7 @@ protected:
 
     S2EDeviceState *m_deviceState;
 
-    S2EMemoryCache m_memcache;
+    mutable S2EMemoryCache m_memcache;
 
     /* The following structure is used to store QEMU time accounting
        variables while the state is inactive */
@@ -226,6 +226,9 @@ public:
 
     /** Write CPU general purpose register */
     void writeCpuRegister(unsigned offset, klee::ref<klee::Expr> value);
+
+    /** Same as writeCpuRegister but also allows writing symbolic values */
+    void writeCpuRegisterSymbolic(unsigned offset, klee::ref<klee::Expr> value);
 
     /** Read concrete value from general purpose CPU register */
     bool readCpuRegisterConcrete(unsigned offset, void* buf, unsigned size);
