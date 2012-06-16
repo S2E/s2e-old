@@ -516,6 +516,7 @@ s2eobj-y += s2e/Synchronization.o
 s2eobj-y += s2e/S2EExecutionState.o
 s2eobj-y += s2e/S2EDeviceState.o
 s2eobj-y += s2e/S2EStatsTracker.o
+s2eobj-y += s2e/ExprInterface.o
 
 s2eobj-y += s2e/S2E.o
 s2eobj-y += s2e/x64.o
