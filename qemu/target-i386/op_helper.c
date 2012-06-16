@@ -69,6 +69,10 @@ struct CPUX86State* env = 0;
 
 #endif
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#include <s2e/ExprInterface.h>
+#endif
+
 #ifdef S2E_LLVM_LIB
 #include "llvm-lib.h"
 #endif
@@ -156,6 +160,23 @@ static inline uint32_t compute_eflags(void)
 {
     return env->mflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
 }
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+static inline void s2e_load_eflags(void *mgr, void *eflags, int update_mask)
+{
+    void *symb_flags = s2e_expr_and(mgr, eflags, CFLAGS_MASK);
+    s2e_expr_write_cpu(symb_flags, offsetof(CPUX86State, cc_src), sizeof(env->cc_src));
+
+
+    uint64_t concrete_flags =
+            s2e_expr_to_constant(
+                    s2e_expr_and(mgr, eflags, MFLAGS_MASK & update_mask)
+                    );
+
+    env->mflags = (env->mflags & ~update_mask) | concrete_flags;
+}
+
+#endif
 
 /* NOTE: CC_OP must be modified manually to CC_OP_EFLAGS */
 static inline void load_eflags(int eflags, int update_mask)
@@ -986,6 +1007,12 @@ do {\
 #define POPL_T(ssp, sp, sp_mask, val)\
 {\
     val = (uint32_t)ldl_kernel(SEG_ADDL(ssp, sp, sp_mask));\
+    sp += 4;\
+}
+
+#define POPL_T_S(mgr, ssp, sp, sp_mask, val)\
+{\
+    val = s2e_expr_read_mem_l(mgr, SEG_ADDL(ssp, sp, sp_mask));\
     sp += 4;\
 }
 #else
@@ -2993,6 +3020,10 @@ static inline void validate_seg(int seg_reg, int cpl)
 /* protected mode iret */
 static inline void helper_ret_protected(int shift, int is_iret, int addend)
 {
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+    void *mgr = NULL;
+    void *symb_new_eflags = NULL;
+#endif
     uint32_t new_cs, new_eflags, new_ss;
     uint32_t new_es, new_ds, new_fs, new_gs;
     uint32_t e1, e2, ss_e1, ss_e2;
@@ -3024,9 +3055,16 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
         POPL_T(ssp, sp, sp_mask, new_cs);
         new_cs &= 0xffff;
         if (is_iret) {
+            #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+            mgr = s2e_expr_mgr();
+            POPL_T_S(mgr, ssp, sp, sp_mask, symb_new_eflags);
+            if (s2e_expr_to_constant(s2e_expr_and(mgr, symb_new_eflags, VM_MASK)))
+                goto return_to_vm86;
+            #else
             POPL_T(ssp, sp, sp_mask, new_eflags);
             if (new_eflags & VM_MASK)
                 goto return_to_vm86;
+            #endif
         }
     } else {
         /* 16 bits */
@@ -3160,8 +3198,19 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
             eflags_mask |= IF_MASK;
         if (shift == 0)
             eflags_mask &= 0xffff;
+
+        #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+        if (symb_new_eflags == NULL) { //16-bit case no one cares about, let it be concrete
+            load_eflags(new_eflags, eflags_mask);
+        } else {
+            s2e_load_eflags(mgr, symb_new_eflags, eflags_mask);
+            s2e_expr_clear(mgr);
+        }
+        #else
         load_eflags(new_eflags, eflags_mask);
+        #endif
     }
+
     return;
 
  return_to_vm86:
@@ -3173,8 +3222,18 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
     POPL(ssp, sp, sp_mask, new_gs);
 
     /* modify processor state */
+    #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+    s2e_load_eflags(mgr, symb_new_eflags, TF_MASK | AC_MASK | ID_MASK |
+                    IF_MASK | IOPL_MASK | VM_MASK | NT_MASK | VIF_MASK | VIP_MASK);
+
+    s2e_expr_clear(mgr);
+    #else
     load_eflags(new_eflags, TF_MASK | AC_MASK | ID_MASK |
                 IF_MASK | IOPL_MASK | VM_MASK | NT_MASK | VIF_MASK | VIP_MASK);
+    #endif
+
+
+
     load_seg_vm(R_CS, new_cs & 0xffff);
     cpu_x86_set_cpl(env, 3);
     load_seg_vm(R_SS, new_ss & 0xffff);
