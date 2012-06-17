@@ -142,9 +142,12 @@ bool ModuleCacheState::loadModule(const std::string &name, uint64_t pid, uint64_
     pid = Library::translatePid(pid, loadBase);
 
     ModuleInstance *mi = new ModuleInstance(name, pid, loadBase, size, imageBase);
-    if(m_Instances.find(mi) != m_Instances.end()) {
-        delete mi;
-        return false;
+    ModuleInstanceSet::iterator it = m_Instances.find(mi);
+    if (it != m_Instances.end()) {
+        ModuleInstance *found = *it;
+        std::cout << "Warning: Module already loaded (Linux exec?)\n";
+        m_Instances.erase(it);
+        delete found;
     }
     m_Instances.insert(mi);
     return true;
@@ -183,7 +186,15 @@ ModuleCacheState::~ModuleCacheState()
 
 ItemProcessorState *ModuleCacheState::clone() const
 {
-    return new ModuleCacheState(*this);
+    ModuleCacheState *ret = new ModuleCacheState();
+
+    ModuleInstanceSet::iterator it;
+    for (it = m_Instances.begin(); it != m_Instances.end(); ++it) {
+        ModuleInstance *newInstance = new ModuleInstance(*(*it));
+        ret->m_Instances.insert(newInstance);
+    }
+
+    return ret;
 }
 
 }
