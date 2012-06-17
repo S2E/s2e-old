@@ -167,6 +167,9 @@ static inline void s2e_load_eflags(void *mgr, void *eflags, int update_mask)
     void *symb_flags = s2e_expr_and(mgr, eflags, CFLAGS_MASK);
     s2e_expr_write_cpu(symb_flags, offsetof(CPUX86State, cc_src), sizeof(env->cc_src));
 
+    void *symb_df = s2e_expr_and(mgr, eflags, DF_MASK);
+    uint64_t concrete_df = s2e_expr_to_constant(symb_df);
+    DF_W(concrete_df ? -1 : 1);
 
     uint64_t concrete_flags =
             s2e_expr_to_constant(
