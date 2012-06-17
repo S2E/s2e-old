@@ -363,6 +363,26 @@ static inline int s2e_read(int fd, char* buf, int count)
     return res;
 }
 
+/** Enable memory tracing */
+static inline void s2e_memtracer_enable()
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xac, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+    );
+}
+
+/** Disable memory tracing */
+static inline void s2e_memtracer_disable()
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xac, 0x01, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+    );
+}
+
 /** Raw monitor plugin */
 /** Communicates to S2E the coordinates of loaded modules. Useful when there is
     no plugin to automatically parse OS data structures */
