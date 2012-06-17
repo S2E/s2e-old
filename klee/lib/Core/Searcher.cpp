@@ -55,18 +55,29 @@ Searcher::~Searcher() {
 ///
 
 ExecutionState &DFSSearcher::selectState() {
-  return *states.back();
+    ExecutionState *ret = states.back();
+
+    if (currentState == NULL) {
+        currentState = ret;
+    }
+
+    return *currentState;
 }
 
 void DFSSearcher::update(ExecutionState *current,
                          const std::set<ExecutionState*> &addedStates,
                          const std::set<ExecutionState*> &removedStates) {
-  states.insert(states.end(),
+    bool firstTime = states.size() == 0;
+    states.insert(states.end(),
                 addedStates.begin(),
                 addedStates.end());
   for (std::set<ExecutionState*>::const_iterator it = removedStates.begin(),
          ie = removedStates.end(); it != ie; ++it) {
     ExecutionState *es = *it;
+    if (currentState == es) {
+        currentState = NULL;
+    }
+
     if (es == states.back()) {
       states.pop_back();
     } else {
@@ -84,6 +95,11 @@ void DFSSearcher::update(ExecutionState *current,
       assert(ok && "invalid state removed");
     }
   }
+
+  if (firstTime) {
+      currentState = states[0];
+  }
+
 }
 
 ///
