@@ -47,7 +47,7 @@
 
 //XXX: Move this to a better place
 namespace {
-    llvm::cl::opt<uint64_t>
+    llvm::cl::opt<unsigned>
             KernelStart("os", llvm::cl::desc("Start address of kernel space"),llvm::cl::init(0x80000000));
 }
 
