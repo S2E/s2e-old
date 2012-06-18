@@ -802,6 +802,19 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
         assert(ce && "Expression must be constant here!");
     }
 
+    if (current.forkDisabled) {
+       if (ce->isTrue()) {
+           //Condition is true in the current state
+           addConstraint(current, condition);
+           return StatePair(&current, 0);
+       } else {
+           //Condition is false in the current state
+           addConstraint(current, Expr::createIsZero(condition));
+           return StatePair(0, &current);
+       }
+   }
+
+
     ExecutionState *trueState, *falseState, *branchedState;
     branchedState = current.branch();
     addedStates.insert(branchedState);
