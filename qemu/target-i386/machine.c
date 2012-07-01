@@ -475,5 +475,12 @@ void cpu_save(QEMUFile *f, void *opaque)
 
 int cpu_load(QEMUFile *f, void *opaque, int version_id)
 {
-    return vmstate_load_state(f, &vmstate_cpu, opaque, version_id);
+    CPUX86State *env = (CPUX86State*)opaque;
+    //XXX: S2E: This is a hack to allow resuming KVM snapshots
+    //in DBT mode. Somehow the SMI bit gets set and that confuses
+    //the system. We should probably detect KVM snapshots and
+    //translate them properly.
+    int ret = vmstate_load_state(f, &vmstate_cpu, opaque, version_id);
+    env->interrupt_request &= ~0x40;
+    return ret;
 }
