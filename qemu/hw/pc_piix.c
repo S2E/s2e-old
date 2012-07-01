@@ -378,6 +378,12 @@ static QEMUMachine pc_machine_v1_1 = {
             .property = "vapic",
             .value    = "off",
         },
+        //For compatibility between KVM and DBT snapshots
+        {
+            .driver   = "pc-sysfw",
+            .property = "rom_only",
+            .value    = stringify(1),
+        },
         { /* end of list */ }
     },
 };

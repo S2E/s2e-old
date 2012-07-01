@@ -26,13 +26,25 @@ typedef struct KVMClockState {
     SysBusDevice busdev;
     uint64_t clock;
     bool clock_valid;
+    bool enabled;
 } KVMClockState;
+
+static bool kvmclock_available(void)
+{
+    return (kvm_enabled() &&
+        first_cpu->cpuid_kvm_features & ((1ULL << KVM_FEATURE_CLOCKSOURCE) |
+                                         (1ULL << KVM_FEATURE_CLOCKSOURCE2)));
+}
 
 static void kvmclock_pre_save(void *opaque)
 {
     KVMClockState *s = opaque;
     struct kvm_clock_data data;
     int ret;
+
+    if (!kvmclock_available()) {
+        return;
+    }
 
     if (s->clock_valid) {
         return;
@@ -58,6 +70,11 @@ static int kvmclock_post_load(void *opaque, int version_id)
 
     data.clock = s->clock;
     data.flags = 0;
+
+    if (!kvmclock_available()) {
+        return 0;
+    }
+
     return kvm_vm_ioctl(kvm_state, KVM_SET_CLOCK, &data);
 }
 
@@ -112,11 +129,9 @@ static TypeInfo kvmclock_info = {
 /* Note: Must be called after VCPU initialization. */
 void kvmclock_create(void)
 {
-    if (kvm_enabled() &&
-        first_cpu->cpuid_kvm_features & ((1ULL << KVM_FEATURE_CLOCKSOURCE) |
-                                         (1ULL << KVM_FEATURE_CLOCKSOURCE2))) {
+    //if (kvmclock_available()) {
         sysbus_create_simple("kvmclock", -1, NULL);
-    }
+    //}
 }
 
 static void kvmclock_register_types(void)
