@@ -673,6 +673,10 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(fputc)
     __DEFINE_EXT_FUNCTION(fwrite)
 
+    __DEFINE_EXT_VARIABLE(io_mem_ram)
+    __DEFINE_EXT_VARIABLE(io_mem_rom)
+    __DEFINE_EXT_VARIABLE(io_mem_unassigned)
+    __DEFINE_EXT_VARIABLE(io_mem_notdirty)
 
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
     __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
