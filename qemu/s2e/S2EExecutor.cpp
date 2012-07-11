@@ -197,6 +197,22 @@ namespace {
                    cl::desc("Traces all LLVM instructions sent to KLEE"),  cl::init(false));
 
     cl::opt<bool>
+    VerboseFork("verbose-fork-info",
+                   cl::desc("Print detailed information on forks"),  cl::init(false));
+
+    cl::opt<bool>
+    VerboseStateSwitching("verbose-state-switching",
+                   cl::desc("Print detailed information on state switches"),  cl::init(false));
+
+    cl::opt<bool>
+    VerboseStateDeletion("verbose-state-deletion",
+                   cl::desc("Print detailed information on state deletion"),  cl::init(false));
+
+    cl::opt<bool>
+    VerboseTbFinalize("verbose-tb-finalize",
+                   cl::desc("Print detailed information when finalizing a partially-completed TB"),  cl::init(false));
+
+    cl::opt<bool>
     UseFastHelpers("use-fast-helpers",
                    cl::desc("Replaces LLVM bitcode with fast symbolic-aware equivalent native helpers"),  cl::init(false));
 
@@ -213,6 +229,10 @@ cl::opt<bool>
 PrintForkingStatus("print-forking-status",
                 cl::desc("Print message when enabling/disabling forking."),
                 cl::init(false));
+
+cl::opt<bool>
+VerboseStateDeletion("verbose-state-deletion",
+               cl::desc("Print detailed information on state deletion"),  cl::init(false));
 
 extern cl::opt<bool> UseExprSimplifier;
 
@@ -1368,7 +1388,9 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         objectsCopied++;
     }
 
-    s2e_debug_print("Copied %d (count=%d)\n", totalCopied, objectsCopied);
+    if (VerboseStateSwitching) {
+        s2e_debug_print("Copied %d (count=%d)\n", totalCopied, objectsCopied);
+    }
 
     if(FlushTBsOnStateSwitch)
         tb_flush(env);
@@ -1638,9 +1660,11 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
 
     assert(!state->m_runningConcrete);
 
-    m_s2e->getDebugStream() << "Finalizing TB execution " << state->getID() << '\n';
-    foreach(const StackFrame& fr, state->stack) {
-        m_s2e->getDebugStream() << fr.kf->function->getNameStr() << '\n';
+    if (VerboseTbFinalize) {
+        m_s2e->getDebugStream() << "Finalizing TB execution " << state->getID() << '\n';
+        foreach(const StackFrame& fr, state->stack) {
+            m_s2e->getDebugStream() << fr.kf->function->getNameStr() << '\n';
+        }
     }
 
     /* Information for GETPC() macro */
@@ -2075,8 +2099,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
     llvm::raw_ostream& out = m_s2e->getMessagesStream(originalState);
     out << "Forking state " << originalState->getID()
-            << " at pc = " << hexval(originalState->getPc())
-        << " into states:" << '\n';
+            << " at pc = " << hexval(originalState->getPc()) << '\n';
 
     qemu_aio_flush();
     bdrv_flush_all();
@@ -2084,8 +2107,10 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
     for(unsigned i = 0; i < newStates.size(); ++i) {
         S2EExecutionState* newState = newStates[i];
 
-        out << "    state " << newState->getID() << " with condition "
+        if (VerboseFork) {
+            out << "    state " << newState->getID() << " with condition "
             << newConditions[i] << '\n';
+        }
 
         if(newState != originalState) {
             newState->m_needFinalizeTBExec = true;
@@ -2119,9 +2144,11 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
         }
     }
 
-    m_s2e->getDebugStream() << "Stack frame at fork:" << '\n';
-    foreach(const StackFrame& fr, originalState->stack) {
-        m_s2e->getDebugStream() << fr.kf->function->getNameStr() << '\n';
+    if (VerboseFork) {
+        m_s2e->getDebugStream() << "Stack frame at fork:" << '\n';
+        foreach(const StackFrame& fr, originalState->stack) {
+            m_s2e->getDebugStream() << fr.kf->function->getNameStr() << '\n';
+        }
     }
 
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,

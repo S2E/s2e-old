@@ -79,6 +79,8 @@ CPUTLBEntry s_cputlb_empty_entry = { -1, -1, -1, -1 };
 
 extern llvm::cl::opt<bool> PrintModeSwitch;
 extern llvm::cl::opt<bool> PrintForkingStatus;
+extern llvm::cl::opt<bool> ConcolicMode;
+extern llvm::cl::opt<bool> VerboseStateDeletion;
 
 namespace s2e {
 
@@ -109,7 +111,10 @@ S2EExecutionState::~S2EExecutionState()
     assert(m_lastS2ETb == NULL);
 
     PluginStateMap::iterator it;
-    g_s2e->getDebugStream() << "Deleting state " << m_stateID << " " << this << '\n';
+
+    if (VerboseStateDeletion) {
+        g_s2e->getDebugStream() << "Deleting state " << m_stateID << " " << this << '\n';
+    }
 
     //print_stacktrace();
 

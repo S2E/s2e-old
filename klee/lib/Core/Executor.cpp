@@ -766,7 +766,7 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
         return Executor::fork(current, condition, isInternal);
     }
 
-    *klee_message_stream << "Concolic fork for expression " << condition << "\n";
+    //*klee_message_stream << "Concolic fork for expression " << condition << "\n";
 
     //The current state is guaranteed to be consistent with whatever
     //assignment is stored in the concolics variable.
