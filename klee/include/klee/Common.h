@@ -83,7 +83,7 @@ namespace klee {
 
   inline std::ostream& operator<<(std::ostream& out, const hexval& h)
   {
-      out << std::hex << (h.value);
+      out << std::hex << "0x" << (h.value);
       return out;
   }
 }
