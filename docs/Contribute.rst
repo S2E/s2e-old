@@ -9,7 +9,7 @@ S2E welcomes contributions of code (either fixing bugs or adding new functionali
 However, we get a lot of patches, and so we have some guidelines about submitting patches.
 If you follow these, you'll help make our task of code review easier and your patch is likely to be committed faster.
 
-Since S2E is based on QEMU, patch submissions mostly follows the QEMU `guidelines <http://wiki.qemu.org/Contribute/SubmitAPatch>`_
+Since S2E is based on QEMU, patch submissions mostly follow the QEMU `guidelines <http://wiki.qemu.org/Contribute/SubmitAPatch>`_
 (most of the text is taken from the QEMU wiki). Here are the relevant parts applicable to S2E.
 
 
