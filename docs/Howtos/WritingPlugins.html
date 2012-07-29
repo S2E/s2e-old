@@ -131,7 +131,7 @@ There are many other core events to which a plugin can register. These events ar
 <span class="c1">//The callback incurs zero overhead for all other instructions.</span>
 <span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onInstructionExecution</span><span class="p">(</span><span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>
 <span class="p">{</span>
-    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">pc</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">hexval</span><span class="p">(</span><span class="n">pc</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="sc">&#39;\n&#39;</span><span class="p">;</span>
     <span class="c1">//The plugins can arbitrarily modify/observe the current execution state via</span>
     <span class="c1">//the execution state pointer.</span>
     <span class="c1">//Plugins can also call the s2e() method to use the S2E API.</span>
@@ -188,7 +188,7 @@ It  must also implement a <tt class="docutils literal">clone</tt> method which S
     <span class="c1">//specified execution state.</span>
     <span class="n">DECLARE_PLUGINSTATE</span><span class="p">(</span><span class="n">InstructionTrackerState</span><span class="p">,</span> <span class="n">state</span><span class="p">);</span>
 
-    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">pc</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">hexval</span><span class="p">(</span><span class="n">pc</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="sc">&#39;\n&#39;</span><span class="p">;</span>
 
     <span class="c1">//Increment the count</span>
     <span class="n">plgState</span><span class="o">-&gt;</span><span class="n">increment</span><span class="p">();</span>
@@ -226,7 +226,7 @@ otherwise other plugins will not be able to register.</p>
 <span class="p">{</span>
     <span class="n">DECLARE_PLUGINSTATE</span><span class="p">(</span><span class="n">InstructionTrackerState</span><span class="p">,</span> <span class="n">state</span><span class="p">);</span>
 
-    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">pc</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">hexval</span><span class="p">(</span><span class="n">pc</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="sc">&#39;\n&#39;</span><span class="p">;</span>
 
     <span class="n">plgState</span><span class="o">-&gt;</span><span class="n">increment</span><span class="p">();</span>
 

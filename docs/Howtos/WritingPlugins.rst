@@ -147,7 +147,7 @@ Extend your code as follows. Do not forget to add all new member functions to th
     //The callback incurs zero overhead for all other instructions.
     void InstructionTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc)
     {
-        s2e()->getDebugStream() << "Executing instruction at " << pc << std::endl;
+        s2e()->getDebugStream() << "Executing instruction at " << hexval(pc) << '\n';
         //The plugins can arbitrarily modify/observe the current execution state via
         //the execution state pointer.
         //Plugins can also call the s2e() method to use the S2E API.
@@ -213,7 +213,7 @@ Plugin code can refer to this state using the ``DECLARE_PLUGINSTATE`` macro, lik
         //specified execution state.
         DECLARE_PLUGINSTATE(InstructionTrackerState, state);
 
-        s2e()->getDebugStream() << "Executing instruction at " << pc << std::endl;
+        s2e()->getDebugStream() << "Executing instruction at " << hexval(pc) << '\n';
 
         //Increment the count
         plgState->increment();
@@ -262,7 +262,7 @@ Second, we add some logic to fire the event and call all the registered callback
     {
         DECLARE_PLUGINSTATE(InstructionTrackerState, state);
 
-        s2e()->getDebugStream() << "Executing instruction at " << pc << std::endl;
+        s2e()->getDebugStream() << "Executing instruction at " << hexval(pc) << '\n';
 
         plgState->increment();
 
