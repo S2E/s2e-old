@@ -189,10 +189,6 @@ namespace {
             cl::init(true));
 
     cl::opt<bool>
-    ConcolicMode("use-concolic-execution",
-                   cl::desc("Concolic execution mode"),  cl::init(false));
-
-    cl::opt<bool>
     S2EDebugInstructions("print-llvm-instructions",
                    cl::desc("Traces all LLVM instructions sent to KLEE"),  cl::init(false));
 
@@ -233,6 +229,12 @@ PrintForkingStatus("print-forking-status",
 cl::opt<bool>
 VerboseStateDeletion("verbose-state-deletion",
                cl::desc("Print detailed information on state deletion"),  cl::init(false));
+
+cl::opt<bool>
+ConcolicMode("use-concolic-execution",
+               cl::desc("Concolic execution mode"),  cl::init(false));
+
+
 
 extern cl::opt<bool> UseExprSimplifier;
 

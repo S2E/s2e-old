@@ -1148,7 +1148,13 @@ ref<Expr> S2EExecutionState::createConcolicValue(
     symbolics.push_back(std::make_pair(mo, array));
 
     if (bufferSize == bytes) {
-        concolics.add(array, buffer);
+        if (ConcolicMode) {
+            concolics.add(array, buffer);
+        } else {
+            g_s2e->getWarningsStream(this)
+                    << "Concolic mode disabled: ignoring concrete assignments for " << name << '\n';
+
+        }
     }
 
     return  Expr::createTempRead(array, width);
@@ -1192,7 +1198,13 @@ std::vector<ref<Expr> > S2EExecutionState::createConcolicArray(
     symbolics.push_back(std::make_pair(mo, array));
 
     if (concreteBuffer.size() == size) {
-        concolics.add(array, concreteBuffer);
+        if (ConcolicMode) {
+            concolics.add(array, concreteBuffer);
+        } else {
+            g_s2e->getWarningsStream(this)
+                    << "Concolic mode disabled: ignoring concrete assignments for " << name << '\n';
+
+        }
     }
 
     return result;
