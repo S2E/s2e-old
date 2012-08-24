@@ -201,10 +201,6 @@ namespace {
                    cl::desc("Print detailed information on state switches"),  cl::init(false));
 
     cl::opt<bool>
-    VerboseStateDeletion("verbose-state-deletion",
-                   cl::desc("Print detailed information on state deletion"),  cl::init(false));
-
-    cl::opt<bool>
     VerboseTbFinalize("verbose-tb-finalize",
                    cl::desc("Print detailed information when finalizing a partially-completed TB"),  cl::init(false));
 
