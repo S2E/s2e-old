@@ -2303,6 +2303,21 @@ static bool is_ram_rom_romd(MemoryRegionSection *s)
     return is_ram_rom(s) || is_romd(s);
 }
 
+#ifdef CONFIG_S2E
+uintptr_t s2e_get_host_address(target_phys_addr_t paddr)
+{
+    MemoryRegionSection *section;
+    section = phys_page_find(paddr >> TARGET_PAGE_BITS);
+    if (!section || !is_ram_rom_romd(section)) {
+        return (uintptr_t) -1;
+    }
+
+    return (uintptr_t)memory_region_get_ram_ptr(section->mr)
+            + section_addr(section, paddr);
+}
+
+#endif
+
 /* Add a new TLB entry. At most one entry for a given virtual address
    is permitted. Only a single TARGET_PAGE_SIZE region is mapped, the
    supplied size is only used by tlb_flush_page.  */

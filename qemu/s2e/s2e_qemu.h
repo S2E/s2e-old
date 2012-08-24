@@ -202,6 +202,8 @@ void s2e_register_ram(struct S2E* s2e,
                       uint64_t host_address, int is_shared_concrete,
                       int save_on_context_switch, const char *name);
 
+uintptr_t s2e_get_host_address(uint64_t paddr);
+
 int s2e_is_ram_registered(struct S2E* s2e,
                           struct S2EExecutionState *state,
                           uint64_t host_address);
