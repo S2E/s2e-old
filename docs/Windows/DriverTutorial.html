@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>Analyzing Windows Drivers: Step-by-Step Tutorial</title>
 <link rel="stylesheet" href="../s2e.css" type="text/css" />
 </head>
@@ -30,11 +30,11 @@ file for this purpose, how to launch symbolic execution, and finally how to inte
 <li><a class="reference internal" href="#configuring-klee" id="id9">2.1&nbsp;&nbsp;&nbsp;Configuring KLEE</a></li>
 <li><a class="reference internal" href="#specifying-the-list-of-plugins" id="id10">2.2&nbsp;&nbsp;&nbsp;Specifying the list of plugins</a></li>
 <li><a class="reference internal" href="#selecting-the-driver-to-execute" id="id11">2.3&nbsp;&nbsp;&nbsp;Selecting the driver to execute</a></li>
-<li><a class="reference internal" href="#configuring-symbolic-hardware" id="id12">2.4&nbsp;&nbsp;&nbsp;Configuring symbolic hardware</a></li>
-<li><a class="reference internal" href="#detecting-polling-loops" id="id13">2.5&nbsp;&nbsp;&nbsp;Detecting polling loops</a></li>
-<li><a class="reference internal" href="#annotating-driver-code" id="id14">2.6&nbsp;&nbsp;&nbsp;Annotating driver code</a></li>
-<li><a class="reference internal" href="#tracing-driver-execution" id="id15">2.7&nbsp;&nbsp;&nbsp;Tracing driver execution</a></li>
-<li><a class="reference internal" href="#specifying-consistency-models" id="id16">2.8&nbsp;&nbsp;&nbsp;Specifying consistency models</a></li>
+<li><a class="reference internal" href="#specifying-consistency-models" id="id12">2.4&nbsp;&nbsp;&nbsp;Specifying consistency models</a></li>
+<li><a class="reference internal" href="#configuring-symbolic-hardware" id="id13">2.5&nbsp;&nbsp;&nbsp;Configuring symbolic hardware</a></li>
+<li><a class="reference internal" href="#detecting-polling-loops" id="id14">2.6&nbsp;&nbsp;&nbsp;Detecting polling loops</a></li>
+<li><a class="reference internal" href="#annotating-driver-code" id="id15">2.7&nbsp;&nbsp;&nbsp;Annotating driver code</a></li>
+<li><a class="reference internal" href="#tracing-driver-execution" id="id16">2.8&nbsp;&nbsp;&nbsp;Tracing driver execution</a></li>
 <li><a class="reference internal" href="#controlling-the-execution-of-entry-points" id="id17">2.9&nbsp;&nbsp;&nbsp;Controlling the execution of entry points</a></li>
 <li><a class="reference internal" href="#detecting-bugs" id="id18">2.10&nbsp;&nbsp;&nbsp;Detecting bugs</a></li>
 </ul>
@@ -280,12 +280,6 @@ s2e = {
     kleeArgs = {
         &quot;--use-batching-search&quot;,
         &quot;--use-random-path&quot;,
-        &quot;--use-cex-cache=true&quot;,
-        &quot;--use-cache=true&quot;,
-        &quot;--use-fast-cex-solver=true&quot;,
-        &quot;--max-stp-time=10&quot;,
-        &quot;--use-expr-simplifier=true&quot;,
-        &quot;--print-expr-simplifier=false&quot;,
         &quot;--flush-tbs-on-state-switch=false&quot;,
     }
 }
@@ -301,17 +295,18 @@ we briefly present each of the plugins.</p>
 plugins = {
     &quot;WindowsMonitor&quot;,
     &quot;ModuleExecutionDetector&quot;,
+    &quot;FunctionMonitor&quot;,
 
     &quot;SymbolicHardware&quot;,
+
     &quot;EdgeKiller&quot;,
-    &quot;Annotation&quot;,
 
     &quot;ExecutionTracer&quot;,
     &quot;ModuleTracer&quot;,
     &quot;TranslationBlockTracer&quot;,
 
-    &quot;FunctionMonitor&quot;,
-    &quot;StateManager&quot;,
+    &quot;WindowsDriverExerciser&quot;,
+    &quot;NtoskrnlHandlers&quot;,
     &quot;NdisHandlers&quot;
 
     &quot;BlueScreenInterceptor&quot;,
@@ -350,8 +345,43 @@ pluginsConfig.ModuleExecutionDetector = {
 }
 </pre>
 </div>
+<div class="section" id="specifying-consistency-models">
+<h2>2.4&nbsp;&nbsp;&nbsp;Specifying consistency models</h2>
+<p>The annotation for NDIS drivers implement the <strong>over-approximate</strong>, <strong>local</strong>, <strong>strict</strong>, and <strong>over-constrained</strong> models.
+In this tutorial, we show how to set the <strong>strict</strong> model, in which the only symbolic input comes from the hardware.
+Feel free to experiment with other models.</p>
+<p>The configuration section looks as follows:</p>
+<pre class="literal-block">
+g_consistency = &quot;strict&quot;
+
+pluginsConfig.WindowsDriverExerciser = {
+    moduleIds = {&quot;pcntpci5_sys_1&quot;},
+    consistency = g_consistency,
+    unloadAction = &quot;kill&quot;
+}
+
+pluginsConfig.NdisHandlers = {
+    moduleIds = {&quot;pcntpci5_sys_1&quot;},
+    hwId = &quot;pcnetf&quot;,
+    consistency = g_consistency,
+}
+
+pluginsConfig.NtoskrnlHandlers = {
+    consistency = g_consistency,
+
+    -- It is also possible to have a different consistency
+    -- for specific API functions
+    functionConsistencies = {
+       f1 = {&quot;RtlAbsoluteToSelfRelativeSD&quot;, &quot;strict&quot;},
+       f2 = {&quot;RtlSetDaclSecurityDescriptor&quot;, &quot;strict&quot;},
+       f3 = {&quot;RtlCreateSecurityDescriptor&quot;, &quot;strict&quot;},
+       f4 = {&quot;RtlAddAccessAllowedAce&quot;, &quot;strict&quot;},
+    }
+}
+</pre>
+</div>
 <div class="section" id="configuring-symbolic-hardware">
-<h2>2.4&nbsp;&nbsp;&nbsp;Configuring symbolic hardware</h2>
+<h2>2.5&nbsp;&nbsp;&nbsp;Configuring symbolic hardware</h2>
 <p>The <tt class="docutils literal">SymbolicHardware</tt> plugin creates fake PCI (or ISA) devices, which are detected by the OS.
 All reads from such devices are symbolic and writes are discarded. Symbolic devices can also generate
 interrupts and handle DMA.</p>
@@ -375,7 +405,7 @@ pluginsConfig.SymbolicHardware = {
 </pre>
 </div>
 <div class="section" id="detecting-polling-loops">
-<h2>2.5&nbsp;&nbsp;&nbsp;Detecting polling loops</h2>
+<h2>2.6&nbsp;&nbsp;&nbsp;Detecting polling loops</h2>
 <p>Drivers often use polling loops to check the status of registers.
 Polling loops cause the number of states to explode. The <a class="reference external" href="../Plugins/EdgeKiller.html">EdgeKiller</a> plugin relies on the user
 to specify the location of each of these loops and kills the states whenever it detects such loops.
@@ -391,19 +421,21 @@ pluginsConfig.EdgeKiller = {
    }
 }
 </pre>
+<p><em>Remark:</em> Some of these edges kill the failure path of the configuration parsing section.
+Make sure that you specified all configuration options in the registry, otherwise execution
+might terminate with just one path.</p>
 </div>
 <div class="section" id="annotating-driver-code">
-<h2>2.6&nbsp;&nbsp;&nbsp;Annotating driver code</h2>
+<h2>2.7&nbsp;&nbsp;&nbsp;Annotating driver code</h2>
 <p>S2E comes with a powerful <tt class="docutils literal">Annotation</tt> plugin that allows users to control the behavior of symbolic execution.
 Each annotation comes in the form of a LUA function taking as parameters the current execution state and the instance
 of the annotation plugin. Such annotation can be used to inject symbolic values, monitor the execution, trim useless states, etc.</p>
-<p>In the following sample, we write an annotation <tt class="docutils literal">init_merge_point1_oncall</tt>
-that suspends all the execution states that have reached the end
-of the configuration phase of the <tt class="docutils literal">pcntpci5.sys</tt> driver. The end of the phase is located at the address <tt class="docutils literal">0x169c9</tt>
-relative to the native base of the driver. You may want to disassemble the driver for more details.</p>
+<p>In the following sample, we write an annotation <tt class="docutils literal">annotation_example</tt>
+that gets called when the instruction at address <tt class="docutils literal">0x169c9</tt> is executed.
+<tt class="docutils literal">0x169c9</tt> is relative to the native load base of the driver.</p>
 <pre class="literal-block">
-function init_merge_point1_oncall(state, plg)
-        plg:succeed();
+function annotation_example(state, plg)
+   -- Write custom Lua code here (e.g., to inject symbolic values)
 end
 
 pluginsConfig.Annotation =
@@ -412,13 +444,13 @@ pluginsConfig.Annotation =
         active=true,
         module=&quot;pcntpci5_sys_1&quot;,
         address=0x169c9,
-        instructionAnnotation=&quot;init_merge_point1_oncall&quot;
+        instructionAnnotation=&quot;annotation_example&quot;
     }
 }
 </pre>
 </div>
 <div class="section" id="tracing-driver-execution">
-<h2>2.7&nbsp;&nbsp;&nbsp;Tracing driver execution</h2>
+<h2>2.8&nbsp;&nbsp;&nbsp;Tracing driver execution</h2>
 <p>All output is generated by specialized plugins.
 S2E does not generate any output by itself, except debugging logs.</p>
 <p>In this part of the tutorial, we present three tracing plugins to record module loads/unloads as well as
@@ -434,22 +466,6 @@ This file is composed of generic trace items. Each item can have an arbitrary fo
 Whenever a translation block of a module specified in the <tt class="docutils literal">ModuleExecutionDetector</tt> plugin is executed, the <tt class="docutils literal">TranslationBlockTracer</tt> plugin records it in the trace.</li>
 </ul>
 </div>
-<div class="section" id="specifying-consistency-models">
-<h2>2.8&nbsp;&nbsp;&nbsp;Specifying consistency models</h2>
-<p>S2E enables various consistency models.
-The <tt class="docutils literal">NdisHandlers</tt> plugin implements the <strong>over-approximate</strong>, <strong>local</strong>, <strong>strict</strong>, and <strong>over-constrained</strong> models for
-Windows NDIS drivers.
-In this tutorial, we show how to set the <strong>strict</strong> model, in which the only symbolic input comes from the hardware.
-Feel free to experiment with other models.</p>
-<p>The configuration section looks as follows:</p>
-<pre class="literal-block">
-pluginsConfig.NdisHandlers = {
-    moduleIds = {&quot;pcntpci5_sys_1&quot;},
-    hwId = &quot;pcnetf&quot;,
-    consistency = &quot;strict&quot;,
-}
-</pre>
-</div>
 <div class="section" id="controlling-the-execution-of-entry-points">
 <h2>2.9&nbsp;&nbsp;&nbsp;Controlling the execution of entry points</h2>
 <p>The <tt class="docutils literal">StateManager</tt> plugins periodically chooses one successful state at random and kills the remaining states.
@@ -462,6 +478,9 @@ pluginsConfig.StateManager = {
     timeout=60
 }
 </pre>
+<p><em>Note:</em> StateManager is being phased out and replaced by concolic execution. Updates soon.
+If you would like to use it, e.g., to reproduce the DDT experiments from the TOCS paper, checkout
+an S2E version from early August 2011.</p>
 </div>
 <div class="section" id="detecting-bugs">
 <h2>2.10&nbsp;&nbsp;&nbsp;Detecting bugs</h2>
