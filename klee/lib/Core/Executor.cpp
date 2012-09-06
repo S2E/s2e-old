@@ -264,6 +264,11 @@ namespace {
   ValidateSimplifier("validate-expr-simplifier",
             cl::desc("Checks that the simplification algorithm produced correct expressions"),
             cl::init(false));
+
+  cl::opt<bool>
+  EnableSpeculativeForking("enable-speculative-forking",
+            cl::desc("Enable speculative forking for concolic execution"),
+            cl::init(true));
 }
 
 //S2E: we want these to be accessible in S2E executor
@@ -812,8 +817,31 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
            addConstraint(current, Expr::createIsZero(condition));
            return StatePair(0, &current);
        }
-   }
+    }
 
+    if (!EnableSpeculativeForking) {
+        if (ce->isTrue()) {
+            //Condition is true in the current state
+            current.speculativeCondition = Expr::createIsZero(condition);
+            bool valid = checkSpeculativeState(current);
+            current.speculativeCondition = NULL;
+
+            if (!valid) {
+                //Speculative state is infeasible
+                return StatePair(&current, 0);
+            }
+        } else {
+            //Condition is false in the current state
+            current.speculativeCondition = condition;
+            bool valid = checkSpeculativeState(current);
+            current.speculativeCondition = NULL;
+
+            if (!valid) {
+                //Speculative state is infeasible
+                return StatePair(0, &current);
+            }
+        }
+    }
 
     ExecutionState *trueState, *falseState, *branchedState;
     branchedState = current.branch();
@@ -848,16 +876,26 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
     return StatePair(trueState, falseState);
 }
 
-bool Executor::resolveSpeculativeState(ExecutionState &state)
+bool Executor::checkSpeculativeState(ExecutionState &state)
 {
-    assert(state.speculative);
-
-    //The speculative condition must satisfy the current path constraints
+    //Check if the speculative condition satisfies the current path constraints
     Query query(state.constraints,state.speculativeCondition);
     bool truth;
     bool res = solver->solver->mustBeTrue(query.negateExpr(), truth);
     if (!res || truth) {
        return false;
+    }
+
+    return true;
+}
+
+bool Executor::resolveSpeculativeState(ExecutionState &state)
+{
+    assert(state.isSpeculative());
+
+    //The speculative condition must satisfy the current path constraints
+    if (!checkSpeculativeState(state)) {
+        return false;
     }
 
     state.addConstraint(state.speculativeCondition);

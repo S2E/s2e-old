@@ -397,6 +397,7 @@ public:
                          ref<Expr> condition, bool isInternal);
 
   bool resolveSpeculativeState(ExecutionState &state);
+  bool checkSpeculativeState(ExecutionState &state);
 
   virtual bool merge(ExecutionState &base, ExecutionState &other);
 
