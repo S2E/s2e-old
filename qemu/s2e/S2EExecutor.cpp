@@ -1553,7 +1553,7 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
     ++state->m_stats.m_statInstructionCountSymbolic;
 
     //int64_t start_clock = get_clock();
-    cpu_disable_ticks();
+    //cpu_disable_ticks();
 
     KInstruction *ki = state->pc;
 
@@ -1567,7 +1567,6 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 
     bool shouldExitCpu = false;
     try {
-
         executeInstruction(*state, ki);
 
 #ifdef S2E_TRACE_EFLAGS
@@ -1625,7 +1624,7 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
     updateStates(state);
 
     // assume that symbex is 50 times slower
-    cpu_enable_ticks();
+    //cpu_enable_ticks();
 
     //int64_t inst_clock = get_clock() - start_clock;
     //cpu_adjust_clock(- inst_clock*(1-0.02));
@@ -1635,17 +1634,21 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         state->writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
         state->zombify();
         m_forkProcTerminateCurrentState = false;
+        cpu_enable_ticks();
         throw CpuExitException();
     }
 
     //S2E doesn't know if the current state can be run
     //if concolic fork marks it as speculative.
     if (state->isSpeculative()) {
+        cpu_enable_ticks();
         throw CpuExitException();
     }
 
-    if(shouldExitCpu)
+    if(shouldExitCpu) {
+        cpu_enable_ticks();
         throw CpuExitException();
+    }
 }
 
 void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
@@ -1670,9 +1673,11 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
     /*      however, GETPC is not used in S2E anyway */
     //g_s2e_exec_ret_addr = 0; //state->getTb()->tc_ptr;
 
+    cpu_disable_ticks();
     while(state->stack.size() != 1) {
         executeOneInstruction(state);
     }
+    cpu_enable_ticks();
 
     state->prevPC = 0;
     state->pc = m_dummyMain->instructions;
@@ -1759,6 +1764,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
         /* Information for GETPC() macro */
         //g_s2e_exec_ret_addr = tb->tc_ptr;
 
+
+        cpu_disable_ticks();
         /* Execute */
         while(state->stack.size() != 1) {
             executeOneInstruction(state);
@@ -1821,6 +1828,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
         state->pc = m_dummyMain->instructions;
 
     } while(tcg_llvm_runtime.goto_tb != 0xff);
+
+    cpu_enable_ticks();
 
     //g_s2e_exec_ret_addr = 0;
 
