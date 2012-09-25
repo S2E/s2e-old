@@ -41,6 +41,7 @@ extern "C"
 #include "hw/isa.h"
 #include "hw/fakepci.h"
 #include "hw/sysbus.h"
+#include "hw/msi.h"
 #include "qemu/object.h"
 }
 
@@ -91,6 +92,11 @@ extern "C" {
 
     static void pci_symbhw_class_init(ObjectClass *klass, void *data);
     static void isa_symbhw_class_init(ObjectClass *klass, void *data);
+
+    uint64_t symbhw_read(void *opaque, target_phys_addr_t addr,
+                         unsigned size);
+    void symbhw_write(void *opaque, target_phys_addr_t addr,
+                      uint64_t data, unsigned size);
 }
 
 
@@ -177,7 +183,9 @@ bool SymbolicHardware::setSymbolicMmioRange(S2EExecutionState *state, uint64_t p
     s2e()->getDebugStream() << "SymbolicHardware: adding MMIO range 0x" << hexval(physaddr)
             << " length=0x" << size << '\n';
 
-    assert(state->isActive());
+    // We don't seem to need this
+    // SymDrive fails during pci_restore_device if this is left in.
+    // assert(state->isActive());
 
     DECLARE_PLUGINSTATE(SymbolicHardwareState, state);
     bool b = plgState->setMmioRange(physaddr, size, true);
@@ -298,7 +306,7 @@ DeviceDescriptor *DeviceDescriptor::create(SymbolicHardware *plg, ConfigFile *cf
 
     std::string id = cfg->getString(key + ".id", "", &ok);
     if (!ok || id.empty()) {
-        ws << "You must specifiy an id for " << key << ". " <<
+        ws << "You must specify an id for " << key << ". " <<
                 "This is required by QEMU for saving/restoring snapshots." << '\n';
         return NULL;
     }
@@ -459,38 +467,84 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 {
     bool ok;
     llvm::raw_ostream &ws = plg->s2e()->getWarningsStream();
+    llvm::raw_ostream &ms = plg->s2e()->getMessagesStream();
 
     std::string id = cfg->getString(key + ".id", "", &ok);
     assert(ok);
 
     uint16_t vid = cfg->getInt(key + ".vid", 0, &ok);
     if (!ok) {
-        ws << "You must specifiy a vendor id for a symbolic PCI device!" << '\n';
+        ws << "You must specify a vendor id for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
     uint16_t pid = cfg->getInt(key + ".pid", 0, &ok);
     if (!ok) {
-        ws << "You must specifiy a product id for a symbolic PCI device!" << '\n';
+        ws << "You must specify a product id for a symbolic PCI device!" << '\n';
         return NULL;
+    }
+
+    uint16_t ss_vid = cfg->getInt(key + ".ss_vid", 0, &ok);
+    if (!ok) {
+        ms << "Defaulting to ss_vid of 0\n";
+        ss_vid = 0;
+    }
+
+    uint16_t ss_id = cfg->getInt(key + ".ss_id", 0, &ok);
+    if (!ok) {
+        ms << "Defaulting to ss_id of 0\n";
+        ss_id = 0;
     }
 
     uint32_t classCode = cfg->getInt(key + ".classCode", 0, &ok);
     if (!ok || classCode > 0xffffff) {
-        ws << "You must specifiy a valid class code for a symbolic PCI device!" << '\n';
+        ws << "You must specify a valid class code for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
     uint8_t revisionId = cfg->getInt(key + ".revisionId", 0, &ok);
     if (!ok) {
-        ws << "You must specifiy a revision id for a symbolic PCI device!" << '\n';
+        ws << "You must specify a revision id for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
     uint8_t interruptPin = cfg->getInt(key + ".interruptPin", 0, &ok);
     if (!ok || interruptPin > 4) {
-        ws << "You must specifiy an interrupt pin (1-4, 0 for none) for " << key << "!" << '\n';
+        ws << "You must specify an interrupt pin (1-4, 0 for none) for " << key << "!" << '\n';
         return NULL;
+    }
+
+    uint32_t capPM = cfg->getInt(key + ".cap_pm", 0, &ok);
+    if (!ok) {
+        ms << "Defaulting to capPM = 0\n";
+        capPM = 0;
+    } else {
+        if (capPM != 0 && capPM != 1) {
+            ws << "You must specify 0 or 1 for capPM, " << key << "!" << '\n';
+            return NULL;
+        }
+    }
+
+    uint32_t capMSI = cfg->getInt(key + ".cap_msi", 0, &ok);
+    if (!ok) {
+        ms << "Defaulting to capMSI = 0\n";
+        capMSI = 0;
+    } else {
+        if (capMSI > 4096) {
+            ws << "You must specify MSI >= 0 and <= 4096 for capMSI, " << key << "!" << '\n';
+            return NULL;
+        }
+    }
+
+    uint32_t capPCIE = cfg->getInt(key + ".cap_pcie", 0, &ok);
+    if (!ok) {
+        ms << "Defaulting to capPCIE = 0\n";
+        capPCIE = 0;
+    } else {
+        if (capPCIE != 0 && capPCIE != 1) {
+            ws << "You must specify 0 or 1 for capPCIE, " << key << "!" << '\n';
+            return NULL;
+        }
     }
 
     std::vector<PciResource> resources;
@@ -498,7 +552,7 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
     //Reading the resource list
     ConfigFile::string_list resKeys = cfg->getListKeys(key + ".resources", &ok);
     if (!ok || resKeys.empty()) {
-        ws << "You must specifiy at least one resource descriptor for a symbolic PCI device!" << '\n';
+        ws << "You must specify at least one resource descriptor for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
@@ -540,8 +594,13 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
     ret->m_classCode = classCode;
     ret->m_pid = pid;
     ret->m_vid = vid;
+    ret->m_ss_vid = ss_vid;
+    ret->m_ss_id = ss_id;
     ret->m_revisionId = revisionId;
     ret->m_interruptPin = interruptPin;
+    ret->m_capPM = capPM;
+    ret->m_capMSI = capMSI;
+    ret->m_capPCIE = capPCIE;
     ret->m_resources = resources;
 
     return ret;
@@ -611,7 +670,12 @@ void PciDeviceDescriptor::initializeQemuDevice()
     //Replaces VMSTATE_PCI_DEVICE()
     m_vmStateFields[0].name = m_id.c_str();
     m_vmStateFields[0].size = sizeof(PCIDevice);
-    m_vmStateFields[0].vmsd = &vmstate_pci_device;
+    if (m_capPCIE > 0) {
+        m_vmStateFields[0].version_id = 2;
+        m_vmStateFields[0].vmsd = &vmstate_pcie_device;
+    } else {
+        m_vmStateFields[0].vmsd = &vmstate_pci_device;
+    }
     m_vmStateFields[0].flags = VMS_STRUCT;
     m_vmStateFields[0].offset = vmstate_offset_value(SymbolicPciDeviceState, dev, PCIDevice);
 
@@ -662,6 +726,9 @@ PciDeviceDescriptor::PciDeviceDescriptor(const std::string &id):DeviceDescriptor
     m_classCode = 0;
     m_revisionId = 0;
     m_interruptPin = 0;
+    m_capPM = 0;
+    m_capMSI = 0;
+    m_capPCIE = 0;
 }
 
 PciDeviceDescriptor::~PciDeviceDescriptor()
@@ -674,10 +741,15 @@ void PciDeviceDescriptor::print(llvm::raw_ostream &os) const
     os << "PCI Device Descriptor id=" << m_id << '\n';
     os << "VID=" << hexval(m_vid) <<
             " PID=" << hexval(m_pid) <<
+        " SS_VID=0x" << m_ss_vid <<
+        " SS_ID=0x" << m_ss_id <<
             " RevID=" << hexval(m_revisionId) << '\n';
 
     os << "Class=" << hexval(m_classCode) <<
             " INT=" << hexval(m_interruptPin) << '\n';
+    os << "capPM=" << hexval(m_capPM) << "\n";
+    os << "capMSI=" << hexval(m_capMSI) << "\n";
+    os << "capPCIE=" << hexval(m_capPCIE) << "\n";
 
     unsigned i=0;
     foreach2(it, m_resources.begin(), m_resources.end()) {
@@ -712,19 +784,14 @@ void PciDeviceDescriptor::assignIrq(void *irq)
 
 /////////////////////////////////////////////////////////////////////
 /* Dummy I/O functions for symbolic devices. Unused for now. */
-
-/////////////////////////////////////////////////////////////////////
-/* Dummy I/O functions for symbolic devices. Unused for now. */
-static uint64_t symbhw_read(void *opaque, target_phys_addr_t addr,
-                            unsigned size)
-{
+uint64_t symbhw_read(void *opaque, target_phys_addr_t addr,
+                     unsigned size) {
     return 0;
 }
 
-static void symbhw_write(void *opaque, target_phys_addr_t addr,
-                         uint64_t data, unsigned size)
-{
-
+void symbhw_write(void *opaque, target_phys_addr_t addr,
+                  uint64_t data, unsigned size) {
+    return;
 }
 
 static const MemoryRegionOps symbhw_io_ops = {
@@ -805,7 +872,57 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
 
     pci_conf = symb_pci_state->dev.config;
     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
-    pci_conf[0x3d] = pci_device_desc->getInterruptPin(); // interrupt pin 0
+    pci_set_byte(&pci_conf[PCI_INTERRUPT_PIN], pci_device_desc->getInterruptPin());
+    pci_set_byte(&pci_conf[PCI_REVISION_ID], pci_device_desc->getRevisionId());
+
+    // Force PCI power management to ON
+    // We could add a flag for this.
+    if (pci_device_desc->getCapPM() > 0) {
+        int r = pci_add_capability(pci_dev, PCI_CAP_ID_PM, 0, PCI_PM_SIZEOF);
+        assert (r >= 0 && "Why isn't power management working?");
+    }
+
+    if (pci_device_desc->getCapMSI() > 0) {
+        // The 0 = find a valid PCI capability offset.
+        // 0x50 seems to work FWIW
+        // The first 64 bytes of PCI config space are
+        // standardized, so 0x50 = the first byte after that.
+        // If we add more capabilities this number might need
+        // to be changed.
+        // false = msi64bit (4th param)
+        // false = msi_per_vector_mask (5th param)
+        msi_init(pci_dev, 0, pci_device_desc->getCapMSI(), false, false);
+    } else {
+        assert (pci_device_desc->getCapMSI() == 0 && "?? MSI should be >= 0");
+    }
+
+    if (pci_device_desc->getCapPCIE() > 0) {
+        // TODO:  I have no idea if we should be using PCI_EXP_TYPE_ENDPOINT
+        // and I also have no idea if 0 is a reasonable "port" number.
+        // We're basically am just calling this function and hoping for the best.
+        int r = pcie_cap_init(pci_dev, 0, PCI_EXP_TYPE_ENDPOINT, 0);
+        assert (r >= 0 && "Why isn't PCI-E working?");
+    }
+
+    if (pci_device_desc->getCapPM() > 0) {
+        uint8_t cap;
+        cap = pci_find_capability(pci_dev, PCI_CAP_ID_PM);
+        g_s2e->getMessagesStream() << "capPM offset: " << hexval(cap) << "\n";
+        assert (cap != 0 && "cap PM bug.");
+    }
+    if (pci_device_desc->getCapMSI() > 0) {
+        uint8_t cap;
+        cap = pci_find_capability(pci_dev, PCI_CAP_ID_MSI);
+        g_s2e->getMessagesStream() << "capMSI offset: " << hexval(cap) << "\n";
+        assert (cap != 0 && "cap MSI bug.");
+    }
+    if (pci_device_desc->getCapPCIE() > 0) {
+        uint8_t cap;
+        cap = pci_find_capability(pci_dev, PCI_CAP_ID_EXP);
+        g_s2e->getMessagesStream() << "capPCIE offset: " << hexval(cap) << "\n";
+        assert (cap != 0 && "cap PCI-E bug.");
+    }
+
 
     const PciDeviceDescriptor::PciResources &resources =
             pci_device_desc->getResources();
@@ -822,13 +939,18 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
         ss << pci_device_desc->getId();
 
         if (type & PCI_BASE_ADDRESS_SPACE_IO) {
+            // Port I/O
             ss << "-io";
-        } else if (type & PCI_BASE_ADDRESS_SPACE_MEMORY) {
+        } else {
+            // Memory-mapped I/O
+            // No need to explicitly check PCI_BASE_ADDRESS_SPACE_MEMORY
+            // This preprocessor directive evaluates to zero and isn't a flag
             ss << "-mmio";
         }
 
         memory_region_init_io(&symb_pci_state->io[i], &symbhw_io_ops, symb_pci_state, ss.str().c_str(), res.size);
         pci_register_bar(&symb_pci_state->dev, i, type, &symb_pci_state->io[i]);
+
         ++i;
     }
 
@@ -840,6 +962,18 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
 static int pci_symbhw_uninit(PCIDevice *pci_dev)
 {
     SymbolicPciDeviceState *d = DO_UPCAST(SymbolicPciDeviceState, dev, pci_dev);
+
+    // PM support requires no special shutdown
+
+    // MSI support
+    if (d->desc->getCapMSI() > 0) {
+        msi_uninit(pci_dev);
+    }
+
+    // PCI-E support
+    if (d->desc->getCapPCIE() > 0) {
+        pcie_cap_exit(pci_dev);
+    }
 
     for (int i=0; i<d->desc->getResources().size(); ++i) {
         memory_region_destroy(&d->io[i]);
@@ -854,6 +988,9 @@ static void  pci_symbhw_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     PciDeviceDescriptor *pci_desc = static_cast<PciDeviceDescriptor*>(data);
+    if (pci_desc->getCapPCIE() > 0) {
+        k->is_express = 1;
+    }
 
     k->init = pci_symbhw_init;
     k->exit = pci_symbhw_uninit;
@@ -968,10 +1105,12 @@ bool SymbolicHardwareState::PageBitmap::hasSymbolic() const
 }
 
 void SymbolicHardwareState::PageBitmap::allocateBitmap(klee::BitArray *source) {
-    if (source) {
-        bitmap = new klee::BitArray(*source, TARGET_PAGE_SIZE);
-    } else {
-        bitmap = new klee::BitArray(TARGET_PAGE_SIZE, false);
+    if (bitmap == NULL) {
+        if (source) {
+            bitmap = new klee::BitArray(*source, TARGET_PAGE_SIZE);
+        } else {
+            bitmap = new klee::BitArray(TARGET_PAGE_SIZE, false);
+        }
     }
 }
 
@@ -1008,6 +1147,7 @@ SymbolicHardwareState::PageBitmap::~PageBitmap() {
     if (bitmap) {
         delete bitmap;
     }
+    bitmap = NULL;
 }
 
 //Returns true if the resulting range is fully concrete
