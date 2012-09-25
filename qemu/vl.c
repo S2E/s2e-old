@@ -2521,6 +2521,15 @@ int main(int argc, char **argv, char **envp)
               }
               break;
 
+            case QEMU_OPTION_fake_pci_cap_pm: // PM support
+              g_fake_pci.cap_pm = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_cap_msi: // MSI support
+              g_fake_pci.cap_msi = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_cap_pcie: // PCI-E support
+              g_fake_pci.cap_pcie = strtol(optarg, NULL, 0);
+              break;
 #endif
 
             case QEMU_OPTION_hda:

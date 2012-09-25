@@ -68,6 +68,15 @@ DEF("fake-pci-resource-mem-prefetch", HAS_ARG, QEMU_OPTION_fake_pci_resource_mem
 DEF("fake-pci-resource-rom", HAS_ARG, QEMU_OPTION_fake_pci_resource_rom,
     "fake-pci-resource-rom\n", QEMU_ARCH_ALL)
 
+DEF("fake-pci-cap-pm", HAS_ARG, QEMU_OPTION_fake_pci_cap_pm,
+    "fake-pci-cap-pm\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-cap-msi", HAS_ARG, QEMU_OPTION_fake_pci_cap_msi,
+    "fake-pci-cap-msi\n", QEMU_ARCH_ALL)
+
+DEF("fake-pci-cap-pcie", HAS_ARG, QEMU_OPTION_fake_pci_cap_pcie,
+    "fake-pci-cap-pcie\n", QEMU_ARCH_ALL)
+
 #endif
 
 

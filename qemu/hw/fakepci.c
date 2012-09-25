@@ -43,6 +43,9 @@
 #include "qemu-common.h"
 #include "hw/hw.h"
 #include "hw/pci.h"
+#include "hw/msi.h" // MSI support
+#include "hw/pcie.h" // PCI-E support
+
 #include "fakepci.h"
 
 
@@ -75,7 +78,7 @@ typedef struct _PCIFakeState {
     PCIDevice dev;
     fake_pci_t fake_pci;
     MemoryRegion io[PCI_NUM_REGIONS];
-}PCIFakeState;
+} PCIFakeState;
 
 static int pci_fake_init(PCIDevice *pci_dev)
 {
@@ -87,12 +90,47 @@ static int pci_fake_init(PCIDevice *pci_dev)
 
     pci_conf = d->dev.config;
     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
-    pci_conf[0x3d] = 1; // interrupt pin 0
+    pci_conf[PCI_INTERRUPT_PIN] = 1; // interrupt pin 0
 
     char *name_io = malloc(strlen(d->fake_pci.name) + 20);
     char *name_mmio = malloc(strlen(d->fake_pci.name) + 20);
     sprintf(name_io, "%s-io", d->fake_pci.name);
     sprintf(name_mmio, "%s-mmio", d->fake_pci.name);
+
+    if (d->fake_pci.cap_pm > 0) {
+        // Force PCI power management to ON
+        int r = pci_add_capability(pci_dev, PCI_CAP_ID_PM, 0, PCI_PM_SIZEOF);
+        assert (r >= 0 && "Why isn't power management working?");
+    }
+
+    if (d->fake_pci.cap_msi > 0) {
+        // The 0 = find a valid PCI capability offset.
+        // 0x50 seems to work FWIW
+        // The first 64 bytes of PCI config space are
+        // standardized, so 0x50 = the first byte after that.
+        // If we add more capabilities this number might need
+        // to be changed.
+        // false = msi64bit (4th param)
+        // false = msi_per_vector_mask (5th param)
+        msi_init(pci_dev, 0, d->fake_pci.cap_msi, false, false);
+    } else {
+        assert (d->fake_pci.cap_msi == 0 && "?? MSI should be >= 0");
+    }
+
+    if (d->fake_pci.cap_pcie > 0) {
+        int r = pcie_cap_init(pci_dev, 0, PCI_EXP_TYPE_ENDPOINT, 0);
+        assert (r >= 0 && "Why isn't PCI-E working?");
+    }
+
+    if (d->fake_pci.cap_pm > 0) {
+        assert (pci_find_capability(pci_dev, PCI_CAP_ID_PM) != 0 && "cap PM bug.");
+    }
+    if (d->fake_pci.cap_msi > 0) {
+        assert (pci_find_capability(pci_dev, PCI_CAP_ID_MSI) != 0 && "cap MSI bug.");
+    }
+    if (d->fake_pci.cap_pcie > 0) {
+        assert (pci_find_capability(pci_dev, PCI_CAP_ID_EXP) != 0 && "cap PCI-E bug.");
+    }
 
     for(i=0; i<d->fake_pci.num_resources; ++i) {
         int type = d->fake_pci.resources[i].type;
@@ -100,8 +138,12 @@ static int pci_fake_init(PCIDevice *pci_dev)
         char *name;
 
         if (type == PCI_BASE_ADDRESS_SPACE_IO) {
+            // Port I/O
             name = name_io;
-        } else if (type == PCI_BASE_ADDRESS_SPACE_MEMORY) {
+        } else {
+            // Memory-mapped I/O
+            // No need to explicitly check PCI_BASE_ADDRESS_SPACE_MEMORY
+            // This preprocessor directive evaluates to zero and isn't a flag
             name = name_mmio;
         }
 
@@ -123,11 +165,22 @@ static int pci_fake_uninit(PCIDevice *dev)
         memory_region_destroy(&d->io[i]);
     }
 
+    // PM support requires no special shutdown
+
+    // MSI support
+    if (d->fake_pci.cap_msi > 0) {
+        msi_uninit(dev);
+    }
+
+    // PCI-E support
+    if (d->fake_pci.cap_pcie > 0) {
+        pcie_cap_exit(dev);
+    }
+
     return 0;
 }
 
-
-static  VMStateDescription vmstate_pci_fake = {
+static VMStateDescription vmstate_pci_fake = {
     .name = "fakepci",
     .version_id = 3,
     .minimum_version_id = 3,
@@ -138,6 +191,16 @@ static  VMStateDescription vmstate_pci_fake = {
     }
 };
 
+static VMStateDescription vmstate_pcie_fake = {
+    .name = "fakepci",
+    .version_id = 3,
+    .minimum_version_id = 3,
+    .minimum_version_id_old = 3,
+    .fields      = (VMStateField []) {
+        VMSTATE_PCIE_DEVICE(dev, PCIFakeState),
+        VMSTATE_END_OF_LIST()
+    }
+};
 
 static Property fakepci_properties[] = {
     DEFINE_PROP_END_OF_LIST(),
@@ -147,6 +210,11 @@ static void fakepci_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    // PCI-E support
+    if (s_fake_pci->cap_pcie > 0) {
+        k->is_express = 1;
+    }
 
     k->init = pci_fake_init;
     k->exit = pci_fake_uninit;
@@ -158,7 +226,12 @@ static void fakepci_class_init(ObjectClass *klass, void *data)
     k->subsystem_vendor_id = s_fake_pci->ss_vendor_id;
     k->subsystem_id = s_fake_pci->ss_id;
 
-    dc->vmsd = &vmstate_pci_fake;
+    if (s_fake_pci->cap_pcie > 0) {
+        dc->vmsd = &vmstate_pcie_fake;
+    } else {
+        dc->vmsd = &vmstate_pci_fake;
+    }
+
     dc->props = fakepci_properties;
 }
 
@@ -199,7 +272,11 @@ void fakepci_register_device(fake_pci_t *fake)
 
 
     fakepci_info.name = s_fake_pci->name;
+
+    // Just assign both -- we'll only actually use one of these though
+    vmstate_pcie_fake.name = s_fake_pci->name;
     vmstate_pci_fake.name = s_fake_pci->name;
+
     type_register_static(&fakepci_info);
 }
 
