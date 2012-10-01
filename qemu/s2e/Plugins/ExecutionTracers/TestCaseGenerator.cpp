@@ -35,6 +35,7 @@
  */
 
 #include <iomanip>
+#include <cctype>
 
 #include <s2e/S2E.h>
 #include <s2e/Utils.h>
@@ -93,14 +94,30 @@ void TestCaseGenerator::onTestCaseGeneration(S2EExecutionState *state, const std
     ConcreteInputs::iterator it;
     for (it = out.begin(); it != out.end(); ++it) {
         const VarValuePair &vp = *it;
-        ss << vp.first << ": ";
+        ss << std::setw(20) << vp.first << ": ";
 
-        for (unsigned i=0; i<vp.second.size(); ++i) {
-            ss << std::setw(2) << std::setfill('0') << (unsigned) vp.second[i] << ' '
-                    << (vp.second[i] >= 0x20 ? (char) vp.second[i] : ' ');
+        for (unsigned i = 0; i < vp.second.size(); ++i) {
+            if (i != 0)
+                ss << ' ';
+            ss << std::setw(2) << std::setfill('0') << std::hex << (unsigned) vp.second[i] << std::dec;
+        }
+        ss << std::setfill(' ') << ", ";
+
+        if (vp.second.size() == sizeof(int32_t)) {
+            int32_t valueAsInt = vp.second[0] | ((int32_t)vp.second[1] << 8) | ((int32_t)vp.second[2] << 16) | ((int32_t)vp.second[3] << 24);
+            ss << "(int32_t) " << valueAsInt << ", ";
+        }
+        if (vp.second.size() == sizeof(int64_t)) {
+            int64_t valueAsInt = vp.second[0] | ((int64_t)vp.second[1] <<  8) | ((int64_t)vp.second[2] << 16) | ((int64_t)vp.second[3] << 24) |
+                ((int64_t)vp.second[4] << 32) | ((int64_t)vp.second[5] << 40) | ((int64_t)vp.second[6] << 48) | ((int64_t)vp.second[7] << 56);
+            ss << "(int64_t) " << valueAsInt << ", ";
         }
 
-        ss << std::setfill(' ')<< '\n';
+        ss << "(string) \"";
+        for (unsigned i=0; i < vp.second.size(); ++i) {
+            ss << (char)(std::isprint(vp.second[i]) ? vp.second[i] : '.');
+        }
+        ss << "\"\n";
     }
 
     s2e()->getMessagesStream() << ss.str();
