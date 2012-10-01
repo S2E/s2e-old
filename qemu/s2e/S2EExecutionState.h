@@ -116,6 +116,9 @@ protected:
         state */
     bool m_zombie;
 
+    /** Set to true if this state is yielding. */
+    bool m_yielded;
+
     /** Set to true when the state executes code in concrete mode.
         NOTE: When m_runningConcrete is true, CPU registers that contain
               concrete values are stored in the shared region (env global
@@ -213,6 +216,13 @@ public:
 
     bool isZombie() const { return m_zombie; }
     void zombify() { m_zombie = true; }
+
+    /** Yield the state. */
+    bool isYielded() const { return m_yielded; }
+    void yield(bool new_yield_state) {
+        assert (m_yielded == !new_yield_state);
+        m_yielded = new_yield_state;
+    }
 
     /** Returns true if this state is currently running in concrete mode */
     bool isRunningConcrete() const { return m_runningConcrete; }

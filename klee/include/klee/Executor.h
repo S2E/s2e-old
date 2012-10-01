@@ -509,7 +509,7 @@ public:
   virtual void copyOutConcretes(ExecutionState &state);
   virtual bool copyInConcretes(ExecutionState &state);
 
-  size_t getStatesCount() { return states.size(); }
+  size_t getStatesCount() const { return states.size(); }
   const std::set<ExecutionState*> &getStates() {
     return states;
   }

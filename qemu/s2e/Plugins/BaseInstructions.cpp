@@ -445,6 +445,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
+        case 0xF: { // MJR
+            s2e()->getExecutor()->yieldState(*state);
+            break;
+        }
+
         case 0x10: { /* s2e_print_message */
             printMessage(state, opcode >> 16);
             break;

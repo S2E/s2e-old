@@ -112,6 +112,12 @@ protected:
 
     struct QEMUTimer *m_stateSwitchTimer;
 
+    /** Holds the yielded state, if any */
+    S2EExecutionState* yieldedState;
+
+    /** Moves yielded state back into list of schedulable states */
+    void restoreYieldedState(void);
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
@@ -207,6 +213,12 @@ public:
     /** Kill the state with test case generation */
     virtual void terminateStateEarly(klee::ExecutionState &state, const llvm::Twine &message);
 
+    /** Yields the specified state and raises an exception to exit the cpu loop */
+    virtual void yieldState(klee::ExecutionState &state);
+    const S2EExecutionState* getYieldedState() {
+        return yieldedState;
+    }
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,
@@ -285,7 +297,6 @@ protected:
 
     /** Kills the specified state and raises an exception to exit the cpu loop */
     virtual void terminateState(klee::ExecutionState &state);
-
 
     /** Kills the specified state without exiting to the CPU loop */
     void terminateStateAtFork(S2EExecutionState &state);

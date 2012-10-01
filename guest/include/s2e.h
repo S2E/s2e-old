@@ -127,6 +127,16 @@ static inline void s2e_disable_forking(void)
     );
 }
 
+/** Yield the current state */
+static inline void s2e_yield(void)
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x0F, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+    );
+}
+
 /** Get the current execution path/state id. */
 static inline unsigned s2e_get_path_id(void)
 {

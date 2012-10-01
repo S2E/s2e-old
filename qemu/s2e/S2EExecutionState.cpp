@@ -95,7 +95,7 @@ unsigned S2EExecutionState::s_lastSymbolicId = 0;
 S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         klee::ExecutionState(kf), m_stateID(g_s2e->fetchAndIncrementStateId()),
         m_symbexEnabled(true), m_startSymbexAtPC((uint64_t) -1),
-        m_active(true), m_zombie(false), m_runningConcrete(true),
+        m_active(true), m_zombie(false), m_yielded(false), m_runningConcrete(true),
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
         m_qemuIcount(0), m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1),
@@ -1824,10 +1824,14 @@ int s2e_is_speculative(S2EExecutionState *state)
     return state->isSpeculative();
 }
 
-int s2e_is_runnable(S2EExecutionState *state)
+int s2e_is_yielded(S2EExecutionState *state)
 {
-    return !s2e_is_zombie(state) && !s2e_is_speculative(state);
+    return state->isYielded();
 }
 
+int s2e_is_runnable(S2EExecutionState *state)
+{
+    return !s2e_is_zombie(state) && !s2e_is_speculative(state) && !s2e_is_yielded(state);
+}
 
 } // extern "C"
