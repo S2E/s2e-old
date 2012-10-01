@@ -54,6 +54,7 @@ static inline void __s2e_touch_buffer(volatile void *buffer, unsigned size)
     for (i=0; i<size; ++i) {
         volatile const char *b = (volatile const char *)buffer;
         *b;
+        ++buffer;
     }
 }
 
