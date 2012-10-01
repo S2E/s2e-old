@@ -172,8 +172,8 @@ static inline void s2e_make_concolic(void* buf, int size, const char* name)
     );
 }
 
-/** Returns true if ptr points to a symbolic value */
-static inline int s2e_is_symbolic(void* ptr)
+/** Returns true if ptr points to symbolic memory */
+static inline int s2e_is_symbolic(void* ptr, size_t size)
 {
     int result;
     __s2e_touch_buffer(ptr, 1);
@@ -181,7 +181,7 @@ static inline int s2e_is_symbolic(void* ptr)
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x04, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : "=a" (result) : "a" (0), "c" (ptr)
+        : "=a" (result) : "a" (size), "c" (ptr)
     );
     return result;
 }

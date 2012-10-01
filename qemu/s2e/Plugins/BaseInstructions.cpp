@@ -133,12 +133,16 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state, bool makeConcolic)
 
 void BaseInstructions::isSymbolic(S2EExecutionState *state)
 {
-    uint32_t address;
-    uint32_t result;
-    char buf;
+    target_ulong address;
+    target_ulong size;
+    target_ulong result;
+
     bool ok = true;
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &address, 4);
+                                         &address, sizeof(address));
+
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                         &size, sizeof(size));
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -146,15 +150,21 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
         return;
     }
 
+    // readMemoryConcrete fails if the value is symbolic
+    result = 0;
+    for (unsigned i=0; i<size; ++i) {
+        klee::ref<klee::Expr> ret = state->readMemory8(address + i);
+        if (!isa<ConstantExpr>(ret)) {
+            result = 1;
+        }
+    }
+
     s2e()->getMessagesStream(state)
             << "Testing whether data at " << hexval(address)
-            << " is symbolic:";
-
-    // readMemoryConcrete fails if the value is symbolic
-    result = !state->readMemoryConcrete(address, &buf, 1);
-    s2e()->getMessagesStream(state)
+            << " and size " << size << " is symbolic: "
             << (result ? " true" : " false") << '\n';
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, 4);
+
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, sizeof(result));
 }
 
 void BaseInstructions::killState(S2EExecutionState *state)
