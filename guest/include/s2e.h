@@ -51,10 +51,9 @@ static inline void __s2e_touch_string(volatile const char *string)
 static inline void __s2e_touch_buffer(volatile void *buffer, unsigned size)
 {
     unsigned i;
+    volatile char *b = (volatile char *)buffer;
     for (i=0; i<size; ++i) {
-        volatile const char *b = (volatile const char *)buffer;
-        *b;
-        ++buffer;
+        *b; ++b;
     }
 }
 
