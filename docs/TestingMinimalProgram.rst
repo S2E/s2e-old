@@ -53,11 +53,11 @@ the possible paths through it.
 Compiling the Program in the Guest
 ==================================
 
-Before testing the program in S2E, compile and run it in the vanilla QEMU
-(e.g., that you downloaded on the QEMU's web site).
+Before testing the program in S2E, compile and run it in the native QEMU build
+(the one in the ``i386-softmmu`` directory).
 Launch QEMU with with the following command::
 
-   $ qemu your_image.qcow2
+   $ $S2EDIR/build/i386-softmmu/qemu-system-i386 your_image.qcow2
 
 You need to copy the example source code into the VM. As you will likely need to do this
 frequently, we recommend to install either ``ssh`` or an http server on your host
@@ -193,12 +193,12 @@ disabled. Then, save a snapshot and load it in the S2E::
 
    guest$ su -c halt # shut down qemu
    
-   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2
+   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 your_image.qcow2
    > Wait until Linux is loaded, login into the system. Then press
    > Ctrl + Alt + 2 and type 'savevm 1' then 'quit'.
-   > Notice that we use i386-softmmu, which is the build with S2E DISABLED.
+   > Notice that we use i386-softmmu, which is the build with S2E **disabled**.
 
-   $ $S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
+   $ $S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu-system-i386 your_image.qcow2 -loadvm 1 \
                               -s2e-config-file config.lua -s2e-verbose
    > Wait the snapshot is resumed, then type in the guest
    guest$ ./tutorial1
@@ -256,12 +256,12 @@ S2E log using ``s2e_message()`` or ``s2e_warning()`` functions:
 Now, resume the snapshot in QEMU with S2E disabled, edit and recompile
 the program, re-save the snapshot and re-load it in S2E::
 
-   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2 -loadvm 1
+   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 your_image.qcow2 -loadvm 1
    guest$ edit tutorial1.c
    guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
    > press Ctrl + Alt + 2 and type 'savevm 1' then type 'quit'.
 
-   $ $S2EDIR/build/qemu/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
+   $ $S2EDIR/build/qemu/i386-s2e-softmmu/qemu-system-i386 your_image.qcow2 -loadvm 1 \
                               -s2e-config-file config.lua -s2e-verbose
    guest$ ./tutorial1
 

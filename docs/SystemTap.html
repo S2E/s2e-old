@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>Using SystemTap with S2E</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -86,7 +86,7 @@ $ linux32 make install
 <p>Build SystemTap dependencies and fetch SystemTap source:</p>
 <pre class="literal-block">
 # Boot the OS image in the vanilla QEMU and login as root
-$ $S2EBUILD/qemu-release/i386-softmmu/qemu s2e_disk.qcow2
+$ $S2EBUILD/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.qcow2
 
 # Get packages on which SystemTap depends and install them:
 $ wget http://ftp.au.debian.org/debian/pool/main/e/elfutils/libelf1_0.131-4_i386.deb
@@ -247,7 +247,7 @@ by adding <tt class="docutils literal"><span class="pre">-redir</span> <span cla
 This will redirect ports 2222 from <tt class="docutils literal">localhost</tt> to the guest port 22. Adapt the
 name of the disk image to suite your needs.</p>
 <pre class="literal-block">
-$ $S2EBUILD/qemu-release/i386-softmmu/qemu -rtc clock=vm -net user \
+$ $S2EBUILD/qemu-release/i386-softmmu/qemu-system-i386 -rtc clock=vm -net user \
     -net nic,model=pcnet -redir tcp:2222::22 -redir udp:2222::22 \
     -hda s2e_disk.qcow2
 # Press Ctrl-Alt-2 to reach the QEMU monitor, then save the snapshot with a tag (e.g., ready)
@@ -257,7 +257,7 @@ $ su -c halt
 </pre>
 <p>Start the S2E-enabled QEMU with port forwarding enabled:</p>
 <pre class="literal-block">
-$ $S2EBUILD/qemu-release/i386-s2e-softmmu/qemu -rtc clock=vm -net user \
+$ $S2EBUILD/qemu-release/i386-s2e-softmmu/qemu-system-i386 -rtc clock=vm -net user \
     -net nic,model=pcnet -redir tcp:2222::22 -redir udp:2222::22 \
     -hda s2e_disk.qcow2 -s2e-config-file tcpip.lua -loadvm ready
 </pre>
