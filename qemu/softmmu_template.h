@@ -378,9 +378,6 @@ glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(ENV_PARAM
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
-#ifndef S2E_LLVM_LIB
-            retaddr = GETPC();
-#endif
             ioaddr = env->iotlb[mmu_idx][index];
             res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_VAR ioaddr, addr, retaddr);
 

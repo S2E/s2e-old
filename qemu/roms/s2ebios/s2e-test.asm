@@ -4,7 +4,11 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_concolic_3
+    ;call s2e_concolic_3
+    call s2e_test_unaligned_access_symb
+    ;call s2e_symbmem1
+    ;call s2e_concolic_disable_fork
+    ;call s2e_concolic_3
     ;call s2e_test_memspeed
     ;call s2e_sm_test
     ;call s2e_sm_succeed_test
@@ -21,6 +25,37 @@ s2e_test:
     hlt
 
 
+;Performs an unaligned access at an address
+;spanning two pages. The first byte of the second
+;page contains a symbolic value
+s2e_test_unaligned_access_symb:
+    push ebp
+    mov ebp, esp
+
+    call s2e_int
+    mov [0x4000], eax
+
+    ;Switch to concrete mode
+    xor eax, eax
+    jmp s2e_ttuas
+s2e_ttuas:
+
+    ;Perform the unaligned access
+    mov ebx, [0x3fff]
+
+    push ebx
+    call s2e_print_expression
+
+    push msg_ok
+    push 0
+    call s2e_kill_state
+
+    leave
+    ret
+
+
+
+>>>>>>> 7234f66... Fixed crash in case of an unaligned access to symbolic value in concrete mode
 ;Both states are feasible
 s2e_concolic_1:
     call s2e_fork_enable
