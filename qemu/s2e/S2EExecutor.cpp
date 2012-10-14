@@ -2289,6 +2289,7 @@ void S2EExecutor::terminateState(ExecutionState &s)
     //No need for exiting the loop if we kill another state.
     if (!m_inLoadBalancing && (&state == g_s2e_state)) {
         state.writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
+        qemu_mod_timer(m_stateSwitchTimer, qemu_get_clock_ms(rt_clock));
         throw CpuExitException();
     }
 }
