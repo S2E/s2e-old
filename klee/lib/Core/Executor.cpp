@@ -351,6 +351,7 @@ Executor::Executor(const InterpreterOptions &opts,
     symPathWriter(0),
     specialFunctionHandler(0),
     processTree(0),
+    concolicMode(false),
     replayOut(0),
     replayPath(0),    
     usingSeeds(0),
@@ -3264,6 +3265,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       value = state.constraints.simplifyExpr(value);
   }
 
+  if (concolicMode) {
+      state.concolics.disableEvaluator = true;
+  }
+
   // fast path: single in-bounds resolution
   ObjectPair op;
   bool success;
@@ -3295,6 +3300,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       ss << "Query timed out on symbolic address " << std::hex << address <<
               " - offset " << offset;
       terminateStateEarly(state, ss.str());
+
+      if (concolicMode) {
+          state.concolics.disableEvaluator = false;
+      }
+
       return;
     }
 
@@ -3340,6 +3350,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
           result = replaceReadWithSymbolic(state, result);
         
         bindLocal(target, state, result);
+      }
+
+      if (concolicMode) {
+          state.concolics.disableEvaluator = false;
       }
 
       return;
@@ -3399,6 +3413,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         ref<Expr> result = os->read(offset, type);
         bindLocal(target, *bound, result);
       }
+
+      if (concolicMode) {
+          bound->concolics.disableEvaluator = false;
+      }
     }
 
     unbound = branches.second;
@@ -3416,6 +3434,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                             "ptr.err",
                             getAddressInfo(*unbound, address));
     }
+  }
+
+  if (concolicMode) {
+      state.concolics.disableEvaluator = false;
   }
 }
 

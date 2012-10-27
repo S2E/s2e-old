@@ -507,9 +507,24 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
         expr = s2eExecutor->simplifyExpr(*state, expr);
     }
 
-    expr = state->concolics.evaluate(expr);
-    expr = state->constraints.simplifyExpr(expr);
+    if (ConcolicMode) {
+        klee::ConstantExpr *cste = dyn_cast<klee::ConstantExpr>(expr);
+        if (!cste) {
+          klee::ref<klee::Expr> concreteAddress = state->concolics.evaluate(expr);
+          assert(dyn_cast<klee::ConstantExpr>(concreteAddress) && "Could not evaluate address");
 
+          klee::ref<klee::Expr> condition = EqExpr::create(concreteAddress, expr);
+          //XXX: may create deep paths!
+          StatePair sp = executor->fork(*state, condition, true);
+          assert(sp.first == state);
+          //Will have to reexecute handleForkAndConcretize in the speculative state
+          sp.second->pc = sp.second->prevPC;
+
+          expr = concreteAddress;
+          s2eExecutor->bindLocal(target, *state, concreteAddress);
+          return;
+        }
+    }
 
     if(isa<klee::ConstantExpr>(expr)) {
 #ifndef NDEBUG
@@ -892,9 +907,11 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     m_forceConcretizations = false;
 
-    g_s2e_fork_on_symbolic_address = ForkOnSymbolicAddress;
+    g_s2e_fork_on_symbolic_address = ForkOnSymbolicAddress || ConcolicMode;
     g_s2e_concretize_io_addresses = ConcretizeIoAddress;
     g_s2e_concretize_io_writes = ConcretizeIoWrites;
+
+    concolicMode = ConcolicMode;
 }
 
 void S2EExecutor::initializeStatistics()
