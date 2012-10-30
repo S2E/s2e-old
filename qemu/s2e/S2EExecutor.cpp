@@ -516,9 +516,18 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
           klee::ref<klee::Expr> condition = EqExpr::create(concreteAddress, expr);
           //XXX: may create deep paths!
           StatePair sp = executor->fork(*state, condition, true);
+
+          //The condition is always true in the current state
+          //(i.e., expr == concreteAddress holds).
           assert(sp.first == state);
-          //Will have to reexecute handleForkAndConcretize in the speculative state
-          sp.second->pc = sp.second->prevPC;
+
+          //It may happen that the simplifier figures out that
+          //the condition is always true, in which case, no fork is needed.
+          //TODO: find a test case for that
+          if (sp.second) {
+              //Will have to reexecute handleForkAndConcretize in the speculative state
+              sp.second->pc = sp.second->prevPC;
+          }
 
           expr = concreteAddress;
           s2eExecutor->bindLocal(target, *state, concreteAddress);
