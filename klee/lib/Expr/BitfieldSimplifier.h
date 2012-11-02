@@ -51,17 +51,17 @@ protected:
         uint64_t knownOneBits;  ///< Bits known to be one (passed bottom-up)
         uint64_t knownZeroBits; ///< Bits known to be zero (passed bottom-up)
     };
+    typedef std::pair<ref<Expr>, BitsInfo> ExprBitsInfo;
 
     /// XXX: this cache will probably grow too large with time
     ExprHashMap<BitsInfo> m_bitsInfoCache;
 
     ref<Expr> replaceWithConstant(ref<Expr> e, uint64_t value);
 
-    typedef std::pair<ref<Expr>, BitsInfo> ExprBitsInfo;
     ExprBitsInfo doSimplifyBits(ref<Expr> e, uint64_t ignoredBits);
 
 public:
-    ref<Expr> simplify(ref<Expr> e);
+    ref<Expr> simplify(ref<Expr> e, uint64_t *knownZeroBits = NULL);
 };
 
 } // namespace klee
