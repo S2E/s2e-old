@@ -15,6 +15,9 @@
 #include "klee/Expr.h"
 #include "klee/Internal/ADT/ImmutableMap.h"
 
+#include "../Expr/BitfieldSimplifier.h"
+
+
 namespace klee {
   class ExecutionState;
   class MemoryObject;
@@ -53,6 +56,15 @@ namespace klee {
 
     /// ExecutionState that owns this AddressSpace
     ExecutionState *state;
+
+    /// Extracts known expression patterns from the symbolic
+    /// address to quickly resolve the object.
+    /// Supported patterns:
+    ///    Constant base address + offset
+    bool resolveOneFast(BitfieldSimplifier &simplifier,
+                                      ref<Expr> address,
+                                      ObjectPair &result,
+                                      bool *inBounds);
 
   public:
     AddressSpace(ExecutionState* _state) : cowKey(1), state(_state) {}

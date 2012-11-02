@@ -93,6 +93,54 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
   return false;
 }
 
+bool AddressSpace::resolveOneFast(BitfieldSimplifier &simplifier,
+                                  ref<Expr> address,
+                                  ObjectPair &result,
+                                  bool *inBounds)
+{
+    if (isa<ConstantExpr>(address)) {
+        return false;
+    }
+
+    AddExpr *add = dyn_cast<AddExpr>(address);
+    if (!add) {
+        return false;
+    }
+
+    ConstantExpr *base = dyn_cast<ConstantExpr>(add->left);
+    if (!base) {
+        return false;
+    }
+
+    ref<Expr> offset = add->right;
+    uint64_t knownZeroBits;
+    simplifier.simplify(offset, &knownZeroBits);
+
+    uint64_t inBoundsSize;
+    if (knownZeroBits == ~(uint64_t) 0xff) {
+        inBoundsSize = 1 << 8;
+    } else {
+        return false;
+    }
+
+    bool success = resolveOne(base, result);
+    if (!success) {
+        return false;
+    }
+
+    if (result.first->address != base->getZExtValue()) {
+        return false;
+    }
+
+    if (result.first->size <= inBoundsSize) {
+        *inBounds = true;
+    } else {
+        *inBounds = false;
+    }
+
+    return true;
+}
+
 bool AddressSpace::resolveOne(ExecutionState &state,
                               TimingSolver *solver,
                               ref<Expr> address,
