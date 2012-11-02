@@ -3272,12 +3272,20 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   // fast path: single in-bounds resolution
   ObjectPair op;
   bool success;
-  solver->setTimeout(stpTimeout);
-  if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
-    address = toConstant(state, address, "resolveOne failure");
-    success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
+  bool fastInBounds = false;
+
+  //Fast pattern-matching of addresses
+  //Avoids calling the constraint solver for simple cases
+  success = state.addressSpace.resolveOneFast(*exprSimplifier, address, op, &fastInBounds);
+
+  if (!success) {
+      solver->setTimeout(stpTimeout);
+      if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
+        address = toConstant(state, address, "resolveOne failure");
+        success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
+      }
+      solver->setTimeout(0);
   }
-  solver->setTimeout(0);
 
   if (success) {
     const MemoryObject *mo = op.first;
@@ -3288,12 +3296,19 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     
     ref<Expr> offset = mo->getOffsetExpr(address);
 
-    bool inBounds;
-    solver->setTimeout(stpTimeout);
-    bool success = solver->mustBeTrue(state, 
+    bool inBounds, success;
+
+    if (!fastInBounds) {
+        solver->setTimeout(stpTimeout);
+        success = solver->mustBeTrue(state,
                                       mo->getBoundsCheckOffset(offset, bytes),
                                       inBounds);
-    solver->setTimeout(0);
+        solver->setTimeout(0);
+    } else {
+        inBounds = true;
+        success = true;
+    }
+
     if (!success) {
       state.pc = state.prevPC;
       std::stringstream ss;
