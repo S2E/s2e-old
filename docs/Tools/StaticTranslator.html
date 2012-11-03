@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<title>RevGen - An x86-to-LLVM Static Translator</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="revgen-an-x86-to-llvm-static-translator">
+<h1 class="title">RevGen - An x86-to-LLVM Static Translator</h1>
+
+<p>RevGen takes as input a binary executable image (e.g., PE, ELF, etc.) and transforms it to LLVM.</p>
+<p><strong>WARNING:</strong> RevGen is at a very early experimental stage, will most likely not work on
+real applications, and comes with no support. The current implementation does not allow to execute the resulting LLVM code and crashes very often.
+However, it may be useful to transform short sequences of binary code to LLVM for further analysis.</p>
+<div class="section" id="building-revgen">
+<h1>Building RevGen</h1>
+<p>RevGen is part of the S2E tools and is automatically built with the rest of S2E.
+It is located in <tt class="docutils literal"><span class="pre">$S2EDIR/build/tools/Release/bin/static-translator</span></tt></p>
+</div>
+<div class="section" id="revgen-architecture">
+<h1>RevGen Architecture</h1>
+<p>RevGen consists of several parts:</p>
+<ol class="arabic">
+<li><p class="first">The translator library</p>
+<p>It is the core part that transforms a sequence of machine instruction bytes to an equivalent
+LLVM representation. It works at a translation block granularity. Given a program counter, the
+library outputs LLVM code up to the next instruction that modifies the control flow.
+The library is located in the <tt class="docutils literal">tools/lib/X86Translator</tt> folder.</p>
+</li>
+<li><p class="first">The bit code library</p>
+<p>Contains the machine code emulation helpers (essentially <tt class="docutils literal">op_helper.c</tt> compiled to LLVM).</p>
+</li>
+<li><p class="first">The <tt class="docutils literal"><span class="pre">static-translator</span></tt> tool itself</p>
+<p>The static translator parses the executable file format, determines where instructions are located,
+and iteratively calls the translator library to get LLVM bitcode.</p>
+</li>
+</ol>
+</div>
+<div class="section" id="using-revgen">
+<h1>Using RevGen</h1>
+<p>The static translator works on the Windows AMD PCnet device driver <tt class="docutils literal">pcntpci5.sys</tt> without crashing.</p>
+<pre class="literal-block">
+$ ./static-translator -bitcodelibrary ../lib/X86BitcodeLibrary.bc pcntpci5.sys
+</pre>
+<p>The resulting LLVM code is output to <tt class="docutils literal">module.bc</tt>.</p>
+<p>Unlike the static translator tool itself, the library is pretty stable, and you can easily reuse it in your own projects.</p>
+</div>
+<div class="section" id="potential-improvement-ideas">
+<h1>Potential Improvement Ideas</h1>
+<p>Here is a list of things that could be done to improve the static translator:</p>
+<ul>
+<li><p class="first">More precise disassembly</p>
+<p>RevGen would work perfectly if it was given an accurate list of program counters to disassemble.
+Using tools like Jakstab would help.</p>
+</li>
+<li><p class="first">Better code generation</p>
+<p>The generated bitcode is several orders of magnitude larger than necessary (e.g., look at the size difference
+between <tt class="docutils literal">pcntpci5.sys</tt> and the bitcode file. Implementing LLVM optimization passes aware of the specificities
+of the translator would help. Decompilation techniques would help too.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="StaticTranslator.rst">View document source</a>.
+
+</div>
+</body>
+</html>

@@ -43,6 +43,7 @@ S²E Documentation
      2. `Translation block printer <Tools/TbPrinter.html>`_
      3. `Execution profiler <Tools/ExecutionProfiler.html>`_
      4. `Coverage generator <Tools/CoverageGenerator.html>`_
+     5. `RevGen - x86 to LLVM static translator <Tools/StaticTranslator.html>`_
    
   2. `Supported debug information <Tools/DebugInfo.html>`_
   
