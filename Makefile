@@ -43,15 +43,23 @@ stamps/llvm-gcc-unpack: $(LLVM_GCC_SRC).tar.gz
 llvm-2.6.tar.gz:
 	wget http://llvm.org/releases/2.6/llvm-2.6.tar.gz
 
+clang-2.6.tar.gz:
+	wget http://llvm.org/releases/2.6/clang-2.6.tar.gz
+
 stamps/llvm-unpack: llvm-2.6.tar.gz
 	tar -zxf llvm-2.6.tar.gz
+	mkdir -p stamps && touch $@
+
+stamps/clang-unpack: clang-2.6.tar.gz stamps/llvm-unpack
+	tar -zxf clang-2.6.tar.gz
+	mv clang-2.6 llvm-2.6/tools/clang
 	mkdir -p stamps && touch $@
 
 ########
 # LLVM #
 ########
 
-stamps/llvm-configure: stamps/llvm-gcc-unpack stamps/llvm-unpack
+stamps/llvm-configure: stamps/llvm-gcc-unpack stamps/llvm-unpack stamps/clang-unpack
 	mkdir -p llvm
 	cd llvm && $(S2EBUILD)/llvm-2.6/configure \
 		--prefix=$(S2EBUILD)/opt \
