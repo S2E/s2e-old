@@ -156,11 +156,6 @@ namespace {
             cl::init(false));
 
 
-    cl::opt<unsigned>
-    MaxForksOnConcretize("max-forks-on-concretize",
-            cl::desc("Maximum number of states to fork when concretizing symbolic value"),
-            cl::init(256));
-
     cl::opt<bool>
     FlushTBsOnStateSwitch("flush-tbs-on-state-switch",
             cl::desc("Flush translation blocks when switching states -"
@@ -489,191 +484,61 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
                                      std::vector< ref<Expr> > &args)
 {
     S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
-    S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
 
     assert(args.size() == 3);
-    assert(isa<klee::ConstantExpr>(args[1]));
-    assert(isa<klee::ConstantExpr>(args[2]));
+    ref<Expr> address = args[0];
 
-    uint64_t min = cast<klee::ConstantExpr>(args[1])->getZExtValue();
-    uint64_t max = cast<klee::ConstantExpr>(args[2])->getZExtValue();
-    assert(min <= max);
+    address = state->constraints.simplifyExpr(address);
 
-    ref<Expr> expr = args[0];
-    Expr::Width width = expr->getWidth();
-
-    // XXX: this might be expensive...
     if (UseExprSimplifier) {
-        expr = s2eExecutor->simplifyExpr(*state, expr);
+        address = s2eExecutor->simplifyExpr(*state, address);
     }
+
+    if(isa<klee::ConstantExpr>(address)) {
+        s2eExecutor->bindLocal(target, *state, address);
+        return;
+    }
+
+    klee::ref<klee::Expr> concreteAddress;
 
     if (ConcolicMode) {
-        klee::ConstantExpr *cste = dyn_cast<klee::ConstantExpr>(expr);
-        if (!cste) {
-          klee::ref<klee::Expr> concreteAddress = state->concolics.evaluate(expr);
-          assert(dyn_cast<klee::ConstantExpr>(concreteAddress) && "Could not evaluate address");
-
-          klee::ref<klee::Expr> condition = EqExpr::create(concreteAddress, expr);
-          //XXX: may create deep paths!
-          StatePair sp = executor->fork(*state, condition, true);
-
-          //The condition is always true in the current state
-          //(i.e., expr == concreteAddress holds).
-          assert(sp.first == state);
-
-          //It may happen that the simplifier figures out that
-          //the condition is always true, in which case, no fork is needed.
-          //TODO: find a test case for that
-          if (sp.second) {
-              //Will have to reexecute handleForkAndConcretize in the speculative state
-              sp.second->pc = sp.second->prevPC;
-          }
-
-          expr = concreteAddress;
-          s2eExecutor->bindLocal(target, *state, concreteAddress);
-          return;
-        }
-    }
-
-    if(isa<klee::ConstantExpr>(expr)) {
-#ifndef NDEBUG
-        uint64_t value = cast<klee::ConstantExpr>(expr)->getZExtValue();
-        assert(value >= min && value <= max);
-#endif
-        s2eExecutor->bindLocal(target, *state, expr);
-        return;
-    }
-
-    g_s2e->getDebugStream(s2eState) << "forkAndConcretize(" << expr << ")" << '\n';
-
-    if (state->forkDisabled) {
-        //Simply pick one possible value and continue
-        ref<klee::ConstantExpr> value;
+        concreteAddress = state->concolics.evaluate(address);
+        assert(dyn_cast<klee::ConstantExpr>(concreteAddress) && "Could not evaluate address");
+    } else {
+        //Not in concolic mode, will have to invoke the constraint solver
+        //to compute a concrete value
+        klee::ref<klee::ConstantExpr> value;
         bool success = s2eExecutor->getSolver()->getValue(
-                Query(state->constraints, expr), value);
+                Query(state->constraints, address), value);
 
-        if (success) {
-            g_s2e->getDebugStream(s2eState) << "Chosen " << value << '\n';
-            ref<Expr> eqCond = EqExpr::create(expr, value);
-            state->addConstraint(eqCond);
-            s2eExecutor->bindLocal(target, *state, value);
-        }else {
-            g_s2e->getDebugStream(s2eState) << "Failed to find a value. Leaving unconstrained." << '\n';
-            s2eExecutor->bindLocal(target, *state, expr);
+        if (!success) {
+            s2eExecutor->terminateStateEarly(*state, "Could not compute a concrete value for a symbolic address");
+            assert(false && "Can't get here");
         }
-        return;
+
+        concreteAddress = value;
     }
 
-    // go starting from min
-    Query query(state->constraints, expr);
-    uint64_t step = 1;
-    std::vector< uint64_t > values;
-    std::vector< ref<Expr> > conditions;
-    while(min <= max) {
-        if(conditions.size() >= MaxForksOnConcretize) {
-            s2eExecutor->m_s2e->getWarningsStream(s2eState)
-                << "Dropping states with constraint \n"
-                << UleExpr::create(expr, klee::ConstantExpr::create(min, width))
-                << "\n becase max-forks-on-concretize limit was reached." << '\n';
-            break;
+    klee::ref<klee::Expr> condition = EqExpr::create(concreteAddress, address);
+
+    if (!state->forkDisabled) {
+        //XXX: may create deep paths!
+        StatePair sp = executor->fork(*state, condition, true);
+
+        //The condition is always true in the current state
+        //(i.e., expr == concreteAddress holds).
+        assert(sp.first == state);
+
+        //It may happen that the simplifier figures out that
+        //the condition is always true, in which case, no fork is needed.
+        //TODO: find a test case for that
+        if (sp.second) {
+            //Will have to reexecute handleForkAndConcretize in the speculative state
+            sp.second->pc = sp.second->prevPC;
         }
-
-        ref<Expr> eqCond = EqExpr::create(expr, klee::ConstantExpr::create(min, width));
-        bool res = false;
-
-        bool success = s2eExecutor->getSolver()->mayBeTrue(query.withExpr(eqCond), res);
-        assert(success && "FIXME: Unhandled solver failure");
-
-        if(res) {
-            values.push_back(min);
-            conditions.push_back(eqCond);
-        }
-
-        if(min == max) {
-            break; // this was the last possible value
-        }
-
-        // Choice next value to try
-        uint64_t lo = min+1, hi = max, mid = min + step;
-
-        if(res) {
-            // we succeeded with guessing step, it is worth trying it again
-            if(step == 1) {
-                min += 1; continue;
-            } else {
-                bool success =
-                    s2eExecutor->getSolver()->mayBeTrue(
-                        query.withExpr(
-                            AndExpr::create(
-                                UgeExpr::create(expr,
-                                    klee::ConstantExpr::create(min+1, width)),
-                                UleExpr::create(expr,
-                                    klee::ConstantExpr::create(min+step-1, width)))),
-                        res);
-                assert(success && "FIXME: Unhandled solver failure");
-                if(res == false) {
-                    min += step; continue;
-                }
-
-                // there are some values in range [min+1, min+step-1],
-                // fall back to binary search to find them
-                hi = min + step - 1;
-                mid = lo + (hi - lo)/2;
-            }
-        }
-
-        // Previous step didn't worked, try binary search
-        // anyway, start from the same step as initial guess
-        while(lo < hi) {
-            bool res = false;
-            bool success =
-                s2eExecutor->getSolver()->mayBeTrue(
-                    query.withExpr(
-                        AndExpr::create(
-                            UgeExpr::create(expr,
-                                klee::ConstantExpr::create(lo, width)),
-                            UleExpr::create(expr,
-                                klee::ConstantExpr::create(mid, width)))),
-                    res);
-
-            assert(success && "FIXME: Unhandled solver failure");
-            (void) success;
-
-            if (res)
-                hi = mid;
-            else
-                lo = mid+1;
-
-            mid = lo + (hi-lo)/2;
-        }
-
-        step = lo - min;
-        min = lo;
-
-        if(min + step > max)
-            step = max - min;
     }
 
-    std::vector<ExecutionState *> branches;
-    s2eExecutor->branch(*state, conditions, branches);
-
-    for(uint64_t i=0; i<conditions.size(); i++) {
-#ifndef NDEBUG
-        ref<klee::ConstantExpr> value;
-        bool success = s2eExecutor->getSolver()->getValue(
-                Query(branches[i]->constraints, expr), value);
-
-        assert(success && "The solver failed");
-        if (value->getZExtValue() != values[i]) {
-            g_s2e->getWarningsStream() << "Solver error: " <<
-                    hexval(value->getZExtValue()) << " != " << hexval(values[i]) << '\n';
-
-        }
-        assert(success && value->getZExtValue() == values[i]);
-#endif
-        s2eExecutor->bindLocal(target, *branches[i],
-                               klee::ConstantExpr::create(values[i], width));
-    }
+    s2eExecutor->bindLocal(target, *state, concreteAddress);
 }
 
 S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
