@@ -33,7 +33,7 @@
  * All contributors are listed in the S2E-AUTHORS file.
  */
 
-#include "BitfieldSimplifier.h"
+#include "klee/BitfieldSimplifier.h"
 
 #include <klee/Common.h>
 #include "llvm/Support/CommandLine.h"

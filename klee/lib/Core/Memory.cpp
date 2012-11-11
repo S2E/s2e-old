@@ -16,7 +16,7 @@
 #include "klee/Solver.h"
 #include "klee/util/BitArray.h"
 
-#include "ObjectHolder.h"
+#include "klee/ObjectHolder.h"
 
 #include <llvm/Function.h>
 #include <llvm/Instruction.h>

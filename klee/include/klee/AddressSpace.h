@@ -15,7 +15,7 @@
 #include "klee/Expr.h"
 #include "klee/Internal/ADT/ImmutableMap.h"
 
-#include "../Expr/BitfieldSimplifier.h"
+#include "klee/BitfieldSimplifier.h"
 
 
 namespace klee {

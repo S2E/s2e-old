@@ -25,7 +25,7 @@
 #include "TimingSolver.h"
 #include "klee/UserSearcher.h"
 #include "klee/SolverStats.h"
-#include "../Expr/BitfieldSimplifier.h"
+#include "klee/BitfieldSimplifier.h"
 
 #include "klee/ExecutionState.h"
 #include "klee/Expr.h"

@@ -14,8 +14,7 @@
 #include "klee/Expr.h"
 #include "klee/Internal/ADT/TreeStream.h"
 
-// FIXME: We do not want to be exposing these? :(
-#include "../../lib/Core/AddressSpace.h"
+#include "klee/AddressSpace.h"
 #include "klee/Internal/Module/KInstIterator.h"
 
 #include "klee/util/Assignment.h"
