@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8' />
+    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
+    <meta name="description" content="S2E : A Platform for In-Vivo Multi-Path Software Analysis" />
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>S2E</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/dslab-epfl/s2e">View on GitHub</a>
+
+          <h1 id="project_title">S2E</h1>
+          <h2 id="project_tagline">A Platform for In-Vivo Multi-Path Software Analysis</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/dslab-epfl/s2e/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/dslab-epfl/s2e/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p><a href="https://s2e.epfl.ch">https://s2e.epfl.ch</a></p>
+
+<p>S2E is a platform for writing tools that analyze the properties and behavior of software systems. So far, S2E has been used to develop a comprehensive performance profiler, a reverse engineering tool for proprietary software, and a bug finding tool for both kernel-mode and user-mode binaries. Building these tools on top of S2E took less than 770 LOC and 40 person-hours each.</p>
+
+<p>S2E’s novelty consists of its ability to scale to large real systems, such as a full Windows stack. S2E is based on two new ideas:</p>
+
+<p>1.Selective symbolic execution, a way to automatically minimize the amount of code that has to be executed symbolically given a target analysis; and</p>
+
+<p>2.Relaxed execution consistency models, a way to make principled performance/accuracy trade-offs in complex analyses.</p>
+
+<p>These techniques give S2E three key abilities:</p>
+
+<p>1.to simultaneously analyze entire families of execution paths, instead of just one execution at a time;</p>
+
+<p>2.to perform the analyses in-vivo within a real software stack—user programs, libraries, kernel, drivers, etc.— instead of using abstract models of these layers; and to operate directly on binaries, thus being able to analyze even proprietary software.</p>
+
+<p>Conceptually, S2E is an automated path explorer with modular path analyzers: the explorer drives the target system down all execution paths of interest, while analyzers check properties of each such path (e.g., to look for bugs) or simply collect information (e.g., count page faults). Desired paths can be specified in multiple ways, and S2E users can either combine existing
+analyzers to build a custom analysis tool, or write new analyzers using the S2E API.</p>
+
+<p>S2E helps make analyses based on symbolic execution practical for large software that runs in real environments, without requiring explicit modeling of these environments.</p>
+
+<p>S2E is built upon the KLEE symbolic execution engine (<a href="http://klee.llvm.org">http://klee.llvm.org</a>) and the QEMU virtual machine emulator (<a href="http://qemu.org">http://qemu.org</a>).</p>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">S2E maintained by <a href="https://github.com/dslab-epfl">dslab-epfl</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
