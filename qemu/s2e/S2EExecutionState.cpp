@@ -718,19 +718,27 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
         return 0;
 
     uint64_t mask = 0;
+    uint64_t offset = 0;
     /* XXX: x86-specific */
-    for(int i = 0; i < 8; ++i) { /* regs */
-        if(!os->isConcrete(i*sizeof(target_ulong), sizeof(target_ulong)*8))
+    for (int i = 0; i < CPU_NB_REGS; ++i) { /* regs */
+        if (!os->isConcrete(offset, sizeof(*env->regs) << 3)) {
             mask |= (1 << (i+5));
+        }
+        offset += sizeof (*env->regs);
     }
-    if(!os->isConcrete(offsetof(CPUX86State, cc_op), sizeof(env->cc_op)*8)) // cc_op
+
+    if (!os->isConcrete(offsetof(CPUX86State, cc_op),
+                        sizeof(env->cc_op) << 3)) {
         mask |= _M_CC_OP;
-    if(!os->isConcrete(offsetof(CPUX86State, cc_src), sizeof(env->cc_src)*8)) // cc_src
+    }
+    if (!os->isConcrete(offsetof(CPUX86State, cc_src),
+                        sizeof(env->cc_src) << 3)) {
         mask |= _M_CC_SRC;
-    if(!os->isConcrete(offsetof(CPUX86State, cc_dst), sizeof(env->cc_dst)*8)) // cc_dst
+    }
+    if (!os->isConcrete(offsetof(CPUX86State, cc_dst),
+                        sizeof(env->cc_dst) << 3)) {
         mask |= _M_CC_DST;
-    if(!os->isConcrete(offsetof(CPUX86State, cc_tmp), sizeof(env->cc_tmp)*8)) // cc_tmp
-        mask |= _M_CC_TMP;
+    }
     return mask;
 }
 
