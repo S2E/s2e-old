@@ -1851,7 +1851,7 @@ char *qemu_find_file(int type, const char *name)
     switch (type) {
     case QEMU_FILE_TYPE_LIB:
         /* XXX: Terrible hack. Redo it properly! */
-        subdir="../i386-s2e-softmmu/";
+        subdir="../" TARGET_ARCH "-s2e-softmmu/";
         break;
     case QEMU_FILE_TYPE_BIOS:
         subdir = "";
