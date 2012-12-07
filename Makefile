@@ -221,7 +221,7 @@ klee/Release/bin/klee-config: stamps/klee-make-release
 QEMU_COMMON_FLAGS = --prefix=$(S2EBUILD)/opt\
                     --cc=$(CLANG_CC) \
                     --cxx=$(CLANG_CXX) \
-                    --target-list=i386-s2e-softmmu,i386-softmmu \
+                    --target-list=x86_64-s2e-softmmu,x86_64-softmmu,i386-s2e-softmmu,i386-softmmu \
                     --enable-llvm \
                     --enable-s2e \
                     --with-pkgversion=S2E \
@@ -241,6 +241,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
+
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
@@ -249,6 +250,7 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
+
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug
