@@ -334,13 +334,14 @@ static void s2e_trace_memory_access_slow(
         int isWrite, int isIO)
 {
     uint64_t value = 0;
-    memcpy((void*) &value, buf, size);
+    unsigned copy_size = (size > sizeof value) ? sizeof (value) : size;
+    memcpy(&value, buf, copy_size);
 
     try {
         g_s2e->getCorePlugin()->onDataMemoryAccess.emit(g_s2e_state,
             klee::ConstantExpr::create(vaddr, 64),
             klee::ConstantExpr::create(haddr, 64),
-            klee::ConstantExpr::create(value, size*8),
+            klee::ConstantExpr::create(value, copy_size << 3),
             isWrite, isIO);
     } catch(s2e::CpuExitException&) {
         s2e_longjmp(env->jmp_env, 1);
