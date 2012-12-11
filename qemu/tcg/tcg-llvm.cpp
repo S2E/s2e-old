@@ -204,8 +204,9 @@ public:
         Value *valueToStore = m_builder.CreateCall3(m_helperForkAndConcretize,
                             m_builder.CreateZExt(orig, intType(64)),
                             ConstantInt::get(intType(64), 0),
-                            ConstantInt::get(intType(64), 0xffffffff));
-        valueToStore = m_builder.CreateTrunc(valueToStore, intType(32));
+                            ConstantInt::get(intType(64), (target_ulong)-1));
+        valueToStore = m_builder.CreateTrunc(valueToStore,
+                                             intType(TARGET_LONG_BITS));
         return valueToStore;
 #else
         return orig;
