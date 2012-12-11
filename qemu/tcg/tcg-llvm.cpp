@@ -969,7 +969,9 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         assert(getValue(args[1])->getType() == wordType());         \
         Value* valueToStore = getValue(args[0]);                    \
                                                                     \
-        if (memBits == 32 && !execute_llvm && args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) { \
+        if (TARGET_LONG_BITS == memBits && !execute_llvm            \
+            && args[1] == 0                                         \
+            && args[2] == offsetof(CPUX86State, eip)) { \
             valueToStore = handleSymbolicPcAssignment(valueToStore);\
         }                                                           \
                                                                     \
