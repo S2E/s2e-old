@@ -78,7 +78,7 @@
 #define HELPER_PREFIX helper_
 #endif
 
-#define ADDR_MAX 0xffffffff
+#define ADDR_MAX ((target_ulong)-1)
 
 #ifdef CONFIG_S2E
 #include <s2e/s2e_config.h>
