@@ -332,6 +332,11 @@ protected:
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
 
+    static void handle_ldq_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
     static void handle_stb_mmu(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
@@ -343,6 +348,11 @@ protected:
                         std::vector< klee::ref<klee::Expr> > &args);
 
     static void handle_stl_mmu(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
+    static void handle_stq_mmu(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
@@ -363,7 +373,17 @@ protected:
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);
 
+    static void handle_ldq_kernel(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
     static void handle_stl_kernel(klee::Executor* executor,
+                        klee::ExecutionState* state,
+                        klee::KInstruction* target,
+                        std::vector< klee::ref<klee::Expr> > &args);
+
+    static void handle_stq_kernel(klee::Executor* executor,
                         klee::ExecutionState* state,
                         klee::KInstruction* target,
                         std::vector< klee::ref<klee::Expr> > &args);

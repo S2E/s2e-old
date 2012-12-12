@@ -197,6 +197,19 @@ void S2EExecutor::handle_ldl_mmu(Executor* executor,
     s2eExecutor->bindLocal(target, *state, value);
 }
 
+void S2EExecutor::handle_ldq_mmu(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
+    assert(args.size() == 2);
+    ref<Expr> value = handle_ldst_mmu(executor, state, target, args, false, 8,
+                                      false, false);
+    assert(value->getWidth() == Expr::Int64);
+    s2eExecutor->bindLocal(target, *state, value);
+}
+
 void S2EExecutor::handle_stb_mmu(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
@@ -224,6 +237,14 @@ void S2EExecutor::handle_stl_mmu(Executor* executor,
     handle_ldst_mmu(executor, state, target, args, true, 4, false, false);
 }
 
+void S2EExecutor::handle_stq_mmu(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 3);
+    handle_ldst_mmu(executor, state, target, args, true, 8, false, false);
+}
 
 ref<ConstantExpr> S2EExecutor::handleForkAndConcretizeNative(Executor* executor,
                                            ExecutionState* state,
@@ -419,6 +440,16 @@ void S2EExecutor::handle_ldl_kernel(Executor* executor,
 
 }
 
+void S2EExecutor::handle_ldq_kernel(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 1);
+    handle_ldst_kernel(executor, state, target, args, false, 8, false, false);
+
+}
+
 void S2EExecutor::handle_lduw_kernel(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
@@ -439,6 +470,15 @@ void S2EExecutor::handle_stl_kernel(Executor* executor,
 {
     assert(args.size() == 2);
     handle_ldst_kernel(executor, state, target, args, true, 4, false, false);
+}
+
+void S2EExecutor::handle_stq_kernel(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 2);
+    handle_ldst_kernel(executor, state, target, args, true, 8, false, false);
 }
 
 void S2EExecutor::handle_ldst_kernel(Executor* executor,
@@ -529,13 +569,17 @@ S2EExecutor::HandlerInfo S2EExecutor::s_handlerInfo[] = {
 add("__ldb_mmu", handle_ldb_mmu),
 add("__ldw_mmu", handle_ldw_mmu),
 add("__ldl_mmu", handle_ldl_mmu),
+add("__ldq_mmu", handle_ldq_mmu),
 add("__stb_mmu", handle_stb_mmu),
 add("__stw_mmu", handle_stw_mmu),
 add("__stl_mmu", handle_stl_mmu),
+add("__stq_mmu", handle_stq_mmu),
 add("lduw_kernel", handle_lduw_kernel),
 add("ldl_kernel", handle_ldl_kernel),
+add("ldq_kernel", handle_ldq_kernel),
 //add("stb_kernel", handle_stb_kernel),
 add("stl_kernel", handle_stl_kernel),
+add("stq_kernel", handle_stq_kernel),
 
 #undef add
 };
