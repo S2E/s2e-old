@@ -645,7 +645,16 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
         return false;
     }
 
-    uint32_t newSp = getSp() + (paramCount+1)*sizeof(uint32_t);
+    target_ulong newSp = getSp() + sizeof(target_ulong);
+#ifdef TARGET_X86_64
+    if (env->hflags & HF_CS64_MASK) {
+    // First six parameters in x86_64 are passed in registers, with the rest on
+    // the stack
+        newSp += (paramCount > 6) ? (paramCount - 6) * sizeof(target_ulong) : 0;
+    } else
+#else
+        newSp += paramCount * sizeof(target_ulong);
+#endif
 
     setSp(newSp);
     setPc(retAddr);
