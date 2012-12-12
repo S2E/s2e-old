@@ -1388,7 +1388,7 @@ void S2EExecutionState::undoCallAndJumpToSymbolic()
     if (needToJumpToSymbolic()) {
         //Undo the call
         assert(getTb()->pcOfLastInstr);
-        setSp(getSp() + sizeof(uint32_t));
+        setSp(getSp() + sizeof(target_ulong));
         setPc(getTb()->pcOfLastInstr);
         jumpToSymbolicCpp();
     }
