@@ -656,11 +656,13 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
 //XXX: assumes x86 architecture
 bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 {
+    target_ulong t_retAddr;
     *retAddr = 0;
-    if (!readMemoryConcrete(getSp(), retAddr, sizeof(uint32_t))) {
+    if (!readMemoryConcrete(getSp(), &t_retAddr, sizeof(target_ulong))) {
         g_s2e->getDebugStream() << "Could not get the return address " << '\n';
         return false;
     }
+    *retAddr = static_cast<uint64_t>(t_retAddr);
     return true;
 }
 
