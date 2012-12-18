@@ -399,7 +399,7 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
 }
 
 typedef struct _s2e_opcode_module_config_t {
-    uint32_t name;
+    uint64_t name;
     uint64_t nativeBase;
     uint64_t loadBase;
     uint64_t entryPoint;
@@ -418,7 +418,11 @@ static inline void s2e_rawmon_loadmodule2(const char *name,
                                           unsigned kernelMode)
 {
     s2e_opcode_module_config_t cfg;
+#ifdef __x86_64__
+    cfg.name = (uint64_t) name;
+#else
     cfg.name = (uint32_t) name;
+#endif
     cfg.nativeBase = nativebase;
     cfg.loadBase = loadbase;
     cfg.entryPoint = entrypoint;
