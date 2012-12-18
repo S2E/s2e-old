@@ -157,15 +157,15 @@ void RawMonitor::initialize()
 
 void RawMonitor::opLoadConfiguredModule(S2EExecutionState *state)
 {
-    uint32_t rtloadbase, name, size;
+    target_ulong rtloadbase, name, size;
     bool ok = true;
 
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                         &name, 4);
+                                         &name, sizeof name);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                         &rtloadbase, 4);
+                                         &rtloadbase, sizeof rtloadbase);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &size, 4);
+                                         &size, sizeof size);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -198,7 +198,7 @@ void RawMonitor::opLoadConfiguredModule(S2EExecutionState *state)
 
 void RawMonitor::opLoadModule(S2EExecutionState *state)
 {
-    uint32_t pModuleConfig;
+    target_ulong pModuleConfig;
     bool ok = true;
 
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
@@ -239,14 +239,14 @@ void RawMonitor::opLoadModule(S2EExecutionState *state)
 
 void RawMonitor::opCreateImportDescriptor(S2EExecutionState *state)
 {
-    uint32_t dllname, funcname, funcptr;
+    target_ulong dllname, funcname, funcptr;
     bool ok = true;
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                         &dllname, 4);
+                                         &dllname, sizeof dllname);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                         &funcname, 4);
+                                         &funcname, sizeof funcname);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &funcptr, 4);
+                                         &funcptr, sizeof funcptr);
 
     if (!ok) {
         s2e()->getWarningsStream(state)
