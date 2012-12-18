@@ -1243,6 +1243,25 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         setValue(args[0], ret);
     }
     break;
+#if TCG_TARGET_REG_BITS == 64
+    case INDEX_op_deposit_i64: {
+        Value *arg1 = getValue(args[1]);
+        Value *arg2 = getValue(args[2]);
+        arg2 = m_builder.CreateTrunc(arg2, intType(64));
+
+        uint32_t ofs = args[3];
+        uint32_t len = args[4];
+
+        uint64_t mask = (1u << len) - 1;
+        Value *ret;
+        Value *t1 = m_builder.CreateAnd(arg2, APInt(64, mask));
+        t1 = m_builder.CreateShl(t1, APInt(64, ofs));
+        ret = m_builder.CreateAnd(arg1, APInt(64, ~(mask << ofs)));
+        ret = m_builder.CreateOr(ret, t1);
+        setValue(args[0], ret);
+    }
+    break;
+#endif
 
     default:
         std::cerr << "ERROR: unknown TCG micro operation '"
