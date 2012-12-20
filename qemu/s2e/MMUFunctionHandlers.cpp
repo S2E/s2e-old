@@ -224,6 +224,32 @@ void S2EExecutor::handle_stl_mmu(Executor* executor,
     handle_ldst_mmu(executor, state, target, args, true, 4, false, false);
 }
 
+
+ref<ConstantExpr> S2EExecutor::handleForkAndConcretizeNative(Executor* executor,
+                                           ExecutionState* state,
+                                           klee::KInstruction* target,
+                                           std::vector< ref<Expr> > &args)
+{
+    ref<Expr> symbAddress = args[0];
+    ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
+    if (constantAddress.isNull()) {
+        //Find the LLVM instruction that computes the address
+        const llvm::Instruction *addrInst = dyn_cast<llvm::Instruction>(target->inst->getOperand(0));
+        assert(target->owner->instrMap.count(addrInst));
+
+        std::vector<ref<Expr> > forkArgs;
+        forkArgs.push_back(symbAddress);
+        forkArgs.push_back(ref<Expr>(NULL));
+        forkArgs.push_back(ref<Expr>(NULL));
+        KInstruction *kinst = (*target->owner->instrMap.find(addrInst)).second;
+        S2EExecutor::handleForkAndConcretize(executor, state, kinst, forkArgs);
+
+        constantAddress = executor->toConstant(*state, symbAddress, "handle_ldl_mmu symbolic address");
+        assert(!constantAddress.isNull());
+    }
+    return constantAddress;
+}
+
 /* Replacement for __ldl_mmu / __stl_mmu */
 /* Params: ldl: addr, mmu_idx */
 /* Params: stl: addr, val, mmu_idx */
@@ -239,15 +265,8 @@ ref<Expr> S2EExecutor::handle_ldst_mmu(Executor* executor,
     ref<Expr> symbAddress = args[0];
     unsigned mmu_idx = dyn_cast<ConstantExpr>(args[isWrite ? 2 : 1])->getZExtValue();
 
-    //XXX: for now, concretize symbolic addresses
-    if (!dyn_cast<ConstantExpr>(symbAddress)) {
-        symbAddress = state->concolics.evaluate(symbAddress);
-    }
-    ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
-    if (constantAddress.isNull()) {
-        constantAddress = executor->toConstant(*state, symbAddress, "handle_ldl_mmu symbolic address");
-        assert(!constantAddress.isNull());
-    }
+    ref<ConstantExpr> constantAddress =
+            handleForkAndConcretizeNative(executor, state, target, args);
 
     //XXX: determine this by looking at the instruction that called us
     Expr::Width width = data_size * 8;
@@ -430,18 +449,10 @@ void S2EExecutor::handle_ldst_kernel(Executor* executor,
 {
     S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(state);
     S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
-    ref<Expr> symbAddress = args[0];
     unsigned mmu_idx = CPU_MMU_INDEX;
 
-    if (!dyn_cast<ConstantExpr>(symbAddress)) {
-        symbAddress = state->concolics.evaluate(symbAddress);
-    }
-    //XXX: for now, concretize symbolic addresses
-    ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
-    if (constantAddress.isNull()) {
-        constantAddress = executor->toConstant(*state, symbAddress, "handle_ldl_mmu symbolic address");
-        assert(!constantAddress.isNull());
-    }
+    ref<ConstantExpr> constantAddress =
+            handleForkAndConcretizeNative(executor, state, target, args);
 
     Expr::Width width = data_size * 8;
 

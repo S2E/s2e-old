@@ -21,6 +21,7 @@ namespace klee {
   class Executor;
   struct InstructionInfo;
   class KModule;
+  struct KFunction;
 
 
   /// KInstruction - Intermediate instruction representation used
@@ -37,6 +38,8 @@ namespace klee {
     /// Destination register index.
     unsigned dest;
 
+    /// The function that owns this instruction
+    KFunction *owner;
   public:
     virtual ~KInstruction(); 
   };

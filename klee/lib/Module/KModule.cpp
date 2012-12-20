@@ -726,7 +726,9 @@ KFunction::KFunction(llvm::Function *_function,
 
       }
 
+      ki->owner = this;
       instructions[i++] = ki;
+      instrMap.insert(std::make_pair(it, ki));
     }
   }
 }

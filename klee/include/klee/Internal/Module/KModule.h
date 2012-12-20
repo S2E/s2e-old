@@ -15,6 +15,7 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <llvm/ADT/DenseMap.h>
 
 namespace llvm {
   class BasicBlock;
@@ -46,6 +47,7 @@ namespace klee {
     KInstruction **instructions;
 
     std::map<llvm::BasicBlock*, unsigned> basicBlockEntry;
+    llvm::DenseMap<const llvm::Instruction*, KInstruction *> instrMap;
 
     /// Whether instructions in this function should count as
     /// "coverable" for statistics and search heuristics.

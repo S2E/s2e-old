@@ -363,6 +363,11 @@ protected:
                         std::vector< klee::ref<klee::Expr> > &args,
                         bool isWrite, unsigned data_size, bool signExtend, bool zeroExtend);
 
+    static klee::ref<klee::ConstantExpr> handleForkAndConcretizeNative(klee::Executor* executor,
+                                               klee::ExecutionState* state,
+                                               klee::KInstruction* target,
+                                               std::vector< klee::ref<klee::Expr> > &args);
+
     void replaceExternalFunctionsWithSpecialHandlers();
     void disableConcreteLLVMHelpers();
 
