@@ -144,7 +144,7 @@ static ref<Expr> io_read_chk(S2EExecutionState *state,
 
     env->mem_io_vaddr = addr;
     if (s2e_ismemfunc(mr, 0)) {
-        uintptr_t pa = s2e_notdirty_mem_write(physaddr);
+        uintptr_t pa = (uintptr_t) qemu_get_ram_ptr(naddr);
         if (isSymb) {
             return state->createSymbolicValue(ss.str(), width);
         }
