@@ -24,17 +24,16 @@ namespace klee {
     typedef std::map<const Array*, std::vector<unsigned char> > bindings_ty;
 
     bool allowFreeValues;
-    bool disableEvaluator;
     bindings_ty bindings;
     
   public:
-    Assignment(bool _allowFreeValues=false, bool _disableEvaluator = false)
-      : allowFreeValues(_allowFreeValues), disableEvaluator(_disableEvaluator) {}
+    Assignment(bool _allowFreeValues=false)
+        : allowFreeValues(_allowFreeValues) {}
+
     Assignment(std::vector<const Array*> &objects, 
                std::vector< std::vector<unsigned char> > &values,
-               bool _allowFreeValues=false,
-               bool _disableEvaluator=false)
-      : allowFreeValues(_allowFreeValues), disableEvaluator(_disableEvaluator) {
+               bool _allowFreeValues=false)
+      : allowFreeValues(_allowFreeValues) {
       std::vector< std::vector<unsigned char> >::iterator valIt = 
         values.begin();
       for (std::vector<const Array*>::iterator it = objects.begin(),
@@ -91,12 +90,8 @@ namespace klee {
   }
 
   inline ref<Expr> Assignment::evaluate(ref<Expr> e) const {
-      if (disableEvaluator) {
-          return e;
-      } else {
-          AssignmentEvaluator v(*this);
-          return v.visit(e);
-      }
+      AssignmentEvaluator v(*this);
+      return v.visit(e);
   }
 
   template<typename InputIterator>

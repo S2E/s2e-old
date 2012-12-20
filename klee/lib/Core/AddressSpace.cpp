@@ -99,7 +99,7 @@ bool AddressSpace::resolveOneFast(BitfieldSimplifier &simplifier,
                                   bool *inBounds)
 {
     if (isa<ConstantExpr>(address)) {
-        return false;
+        return resolveOne(dyn_cast<ConstantExpr>(address), result);
     }
 
     AddExpr *add = dyn_cast<AddExpr>(address);

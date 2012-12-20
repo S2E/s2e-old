@@ -3265,10 +3265,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       value = state.constraints.simplifyExpr(value);
   }
 
-  if (concolicMode) {
-      state.concolics.disableEvaluator = true;
-  }
-
   // fast path: single in-bounds resolution
   ObjectPair op;
   bool success;
@@ -3279,12 +3275,30 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   success = state.addressSpace.resolveOneFast(*exprSimplifier, address, op, &fastInBounds);
 
   if (!success) {
-      solver->setTimeout(stpTimeout);
-      if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
-        address = toConstant(state, address, "resolveOne failure");
-        success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
+      if (concolicMode) {
+          klee::ref<klee::Expr> concreteAddress;
+          concreteAddress = state.concolics.evaluate(address);
+          assert(dyn_cast<klee::ConstantExpr>(concreteAddress) && "Could not evaluate address");
+          klee::ref<klee::Expr> condition = EqExpr::create(concreteAddress, address);
+
+          StatePair branches = fork(state, condition, true);
+          assert(branches.first == &state);
+          if (branches.second) {
+            //The forked state will have to re-execute the memory op
+            branches.second->pc = branches.second->prevPC;
+          }
+
+          address = concreteAddress;
+          success = state.addressSpace.resolveOneFast(*exprSimplifier, address, op, &fastInBounds);
+          assert(success && "Could not resolve concrete memory address");
+      } else {
+          solver->setTimeout(stpTimeout);
+          if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
+            address = toConstant(state, address, "resolveOne failure");
+            success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
+          }
+          solver->setTimeout(0);
       }
-      solver->setTimeout(0);
   }
 
   if (success) {
@@ -3315,11 +3329,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       ss << "Query timed out on symbolic address " << std::hex << address <<
               " - offset " << offset;
       terminateStateEarly(state, ss.str());
-
-      if (concolicMode) {
-          state.concolics.disableEvaluator = false;
-      }
-
       return;
     }
 
@@ -3366,11 +3375,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         
         bindLocal(target, state, result);
       }
-
-      if (concolicMode) {
-          state.concolics.disableEvaluator = false;
-      }
-
       return;
     }
   } 
@@ -3428,10 +3432,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         ref<Expr> result = os->read(offset, type);
         bindLocal(target, *bound, result);
       }
-
-      if (concolicMode) {
-          bound->concolics.disableEvaluator = false;
-      }
     }
 
     unbound = branches.second;
@@ -3449,10 +3449,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                             "ptr.err",
                             getAddressInfo(*unbound, address));
     }
-  }
-
-  if (concolicMode) {
-      state.concolics.disableEvaluator = false;
   }
 }
 
