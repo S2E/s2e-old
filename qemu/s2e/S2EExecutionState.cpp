@@ -81,6 +81,7 @@ extern llvm::cl::opt<bool> PrintModeSwitch;
 extern llvm::cl::opt<bool> PrintForkingStatus;
 extern llvm::cl::opt<bool> ConcolicMode;
 extern llvm::cl::opt<bool> VerboseStateDeletion;
+extern llvm::cl::opt<bool> DebugConstraints;
 
 namespace s2e {
 
@@ -1722,21 +1723,26 @@ void S2EExecutionState::writeDirtyMask(uint64_t host_address, uint8_t val)
 
 void S2EExecutionState::addConstraint(klee::ref<klee::Expr> e)
 {
-#if 0
-    //Check that the added constraint is consistent with
-    //the existing path constraints
-    bool truth;
-    Solver *solver = g_s2e->getExecutor()->getSolver();
-    Query query(constraints,e);
-    //bool res = solver->mayBeTrue(query, mayBeTrue);
-    bool res = solver->mustBeTrue(query.negateExpr(), truth);
-    if (!res || truth) {
-       g_s2e->getWarningsStream() << "State has invalid constraints" << '\n';
-       exit(-1);
-       //g_s2e->getExecutor()->terminateStateEarly(*this, "State has invalid constraint set");
+    if (DebugConstraints) {
+        if (ConcolicMode) {
+            klee::ref<klee::Expr> ce = concolics.evaluate(e);
+            assert(ce->isTrue() && "Expression must be true here");
+        }
+
+        //Check that the added constraint is consistent with
+        //the existing path constraints
+        bool truth;
+        Solver *solver = g_s2e->getExecutor()->getSolver();
+        Query query(constraints,e);
+        //bool res = solver->mayBeTrue(query, mayBeTrue);
+        bool res = solver->mustBeTrue(query.negateExpr(), truth);
+        if (!res || truth) {
+           g_s2e->getWarningsStream() << "State has invalid constraints" << '\n';
+           exit(-1);
+           //g_s2e->getExecutor()->terminateStateEarly(*this, "State has invalid constraint set");
+        }
+        assert(res && !truth  &&  "state has invalid constraint set");
     }
-    assert(res && !truth  &&  "state has invalid constraint set");
-#endif
 
     constraints.addConstraint(e);
 }

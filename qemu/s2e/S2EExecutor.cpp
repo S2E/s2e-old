@@ -225,6 +225,11 @@ cl::opt<bool>
 ConcolicMode("use-concolic-execution",
                cl::desc("Concolic execution mode"),  cl::init(false));
 
+cl::opt<bool>
+DebugConstraints("debug-constraints",
+               cl::desc("Check that added constraints are satisfiable"),  cl::init(false));
+
+
 
 
 extern cl::opt<bool> UseExprSimplifier;
