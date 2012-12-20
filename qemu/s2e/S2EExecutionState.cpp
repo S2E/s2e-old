@@ -39,6 +39,7 @@ extern "C" {
 #include "qemu-common.h"
 #include "sysemu.h"
 #include "cpus.h"
+#include "helper.h"
 
 #include "tcg-llvm.h"
 #include "cpu.h"
@@ -581,17 +582,17 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
     uint64_t mask = 0;
     /* XXX: x86-specific */
     for(int i = 0; i < 8; ++i) { /* regs */
-        if(!os->isConcrete(i*4, 4*8))
+        if(!os->isConcrete(i*sizeof(target_ulong), sizeof(target_ulong)*8))
             mask |= (1 << (i+5));
     }
-    if(!os->isConcrete( 8*4, 4*8)) // cc_op
-        mask |= (1 << 1);
-    if(!os->isConcrete( 9*4, 4*8)) // cc_src
-        mask |= (1 << 2);
-    if(!os->isConcrete(10*4, 4*8)) // cc_dst
-        mask |= (1 << 3);
-    if(!os->isConcrete(11*4, 4*8)) // cc_tmp
-        mask |= (1 << 4);
+    if(!os->isConcrete(offsetof(CPUX86State, cc_op), sizeof(env->cc_op)*8)) // cc_op
+        mask |= _M_CC_OP;
+    if(!os->isConcrete(offsetof(CPUX86State, cc_src), sizeof(env->cc_src)*8)) // cc_src
+        mask |= _M_CC_SRC;
+    if(!os->isConcrete(offsetof(CPUX86State, cc_dst), sizeof(env->cc_dst)*8)) // cc_dst
+        mask |= _M_CC_DST;
+    if(!os->isConcrete(offsetof(CPUX86State, cc_tmp), sizeof(env->cc_tmp)*8)) // cc_tmp
+        mask |= _M_CC_TMP;
     return mask;
 }
 
@@ -1048,19 +1049,19 @@ void S2EExecutionState::readRegisterConcrete(
             if(!wos->readConcrete8(offset+i, buf+i)) {
                 const char* reg;
                 switch(offset) {
-                    case 0x00: reg = "eax"; break;
-                    case 0x04: reg = "ecx"; break;
-                    case 0x08: reg = "edx"; break;
-                    case 0x0c: reg = "ebx"; break;
-                    case 0x10: reg = "esp"; break;
-                    case 0x14: reg = "ebp"; break;
-                    case 0x18: reg = "esi"; break;
-                    case 0x1c: reg = "edi"; break;
+                    case offsetof(CPUX86State, regs[R_EAX]): reg = "eax"; break;
+                    case offsetof(CPUX86State, regs[R_ECX]): reg = "ecx"; break;
+                    case offsetof(CPUX86State, regs[R_EDX]): reg = "edx"; break;
+                    case offsetof(CPUX86State, regs[R_EBX]): reg = "ebx"; break;
+                    case offsetof(CPUX86State, regs[R_ESP]): reg = "esp"; break;
+                    case offsetof(CPUX86State, regs[R_EBP]): reg = "ebp"; break;
+                    case offsetof(CPUX86State, regs[R_ESI]): reg = "esi"; break;
+                    case offsetof(CPUX86State, regs[R_EDI]): reg = "edi"; break;
 
-                    case 0x20: reg = "cc_src"; break;
-                    case 0x24: reg = "cc_dst"; break;
-                    case 0x28: reg = "cc_op"; break;
-                    case 0x3c: reg = "df"; break;
+                    case offsetof(CPUX86State, cc_src): reg = "cc_src"; break;
+                    case offsetof(CPUX86State, cc_dst): reg = "cc_dst"; break;
+                    case offsetof(CPUX86State, cc_op): reg = "cc_op"; break;
+                    case offsetof(CPUX86State, cc_tmp): reg = "cc_tmp"; break;
 
                     default: reg = "unknown"; break;
                 }

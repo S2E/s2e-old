@@ -641,9 +641,10 @@ typedef struct CPUX86State {
                         stored elsewhere */
 #endif
     /* emulator internal eflags handling */
+    uint32_t cc_op;
     target_ulong cc_src;
     target_ulong cc_dst;
-    uint32_t cc_op;
+    target_ulong cc_tmp; /* temporary for rcr/rcl */
 
     /* S2E note: the contents of the structure from this point
        can never be symbolic. The content up to this point can
@@ -690,7 +691,6 @@ typedef struct CPUX86State {
     XMMReg xmm_regs[CPU_NB_REGS];
     XMMReg xmm_t0;
     MMXReg mmx_t0;
-    target_ulong cc_tmp; /* temporary for rcr/rcl */
 
     /* sysenter registers */
     uint32_t sysenter_cs;
