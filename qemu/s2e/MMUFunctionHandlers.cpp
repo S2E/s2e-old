@@ -230,6 +230,7 @@ ref<ConstantExpr> S2EExecutor::handleForkAndConcretizeNative(Executor* executor,
                                            klee::KInstruction* target,
                                            std::vector< ref<Expr> > &args)
 {
+    S2EExecutor *s2eExecutor = static_cast<S2EExecutor*>(executor);
     ref<Expr> symbAddress = args[0];
     ref<ConstantExpr> constantAddress = dyn_cast<ConstantExpr>(symbAddress);
     if (constantAddress.isNull()) {
@@ -244,7 +245,7 @@ ref<ConstantExpr> S2EExecutor::handleForkAndConcretizeNative(Executor* executor,
         KInstruction *kinst = (*target->owner->instrMap.find(addrInst)).second;
         S2EExecutor::handleForkAndConcretize(executor, state, kinst, forkArgs);
 
-        constantAddress = executor->toConstant(*state, symbAddress, "handle_ldl_mmu symbolic address");
+        constantAddress = dyn_cast<ConstantExpr>(s2eExecutor->getDestCell(*state, kinst).value);
         assert(!constantAddress.isNull());
     }
     return constantAddress;
