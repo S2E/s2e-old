@@ -17,10 +17,10 @@ QEMU_DGFLAGS += -MMD -MP -MT $@ -MF $(*D)/$(*F).d
 
 ifdef CONFIG_ASAN
 
-%.o: %.c $(GENERATED_HEADERS)
+%.o: %.c
 	$(call quiet-command,$(ASANCC) $(QEMU_INCLUDES) $(QEMU_CFLAGS)  $(QEMU_DGFLAGS) $(CFLAGS) $(ASAN_FLAGS) -c -o $@ $<,"  ASANCC    $(TARGET_DIR)$@")
 
-%.o: %.cpp $(GENERATED_HEADERS)
+%.o: %.cpp
 	$(call quiet-command,$(ASANCXX) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) $(ASAN_FLAGS) -c -o $@ $<,"  ASANCXX   $(TARGET_DIR)$@")
 
 %.o: %.m
@@ -29,10 +29,10 @@ ifdef CONFIG_ASAN
 
 else
 
-%.o: %.c $(GENERATED_HEADERS)
+%.o: %.c
 	$(call quiet-command,$(LLVMCC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
 
-%.o: %.cpp $(GENERATED_HEADERS)
+%.o: %.cpp
 	$(call quiet-command,$(LLVMCXX) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) -c -o $@ $<,"  CXX   $(TARGET_DIR)$@")
 
 %.o: %.m
