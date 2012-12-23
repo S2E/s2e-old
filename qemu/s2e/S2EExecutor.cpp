@@ -576,6 +576,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     //__DEFINE_EXT_FUNCTION(raise_exception)
     //__DEFINE_EXT_FUNCTION(raise_exception_err)
 
+    helper_register_symbols();
+
     __DEFINE_EXT_VARIABLE(g_s2e_concretize_io_addresses)
     __DEFINE_EXT_VARIABLE(g_s2e_concretize_io_writes)
     __DEFINE_EXT_VARIABLE(g_s2e_fork_on_symbolic_address)
@@ -2565,6 +2567,11 @@ void s2e_flush_tlb_cache_page(void *objectState, int mmu_idx, int index)
 int s2e_is_load_balancing()
 {
     return g_s2e->getExecutor()->isLoadBalancing();
+}
+
+void helper_register_symbol(const char *name, void *address)
+{
+    llvm::sys::DynamicLibrary::AddSymbol(name, address);
 }
 
 #ifdef S2E_DEBUG_MEMORY

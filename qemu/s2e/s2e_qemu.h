@@ -356,6 +356,11 @@ void tcg_llvm_trace_port_access(uint64_t port, uint64_t value,
                                 unsigned bits, int isWrite);
 //#endif
 
+
+/* Register target-specific helpers with LLVM */
+void helper_register_symbols(void);
+void helper_register_symbol(const char *name, void *address);
+
 #ifdef __cplusplus
 }
 #endif

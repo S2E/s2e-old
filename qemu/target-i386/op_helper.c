@@ -6311,3 +6311,10 @@ void s2e_ensure_symbolic(struct S2E* s2e, struct S2EExecutionState *state)
 {
 }
 #endif
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+void helper_register_symbols()
+{
+    helper_register_symbol("helper_load_seg", helper_load_seg);
+}
+#endif
