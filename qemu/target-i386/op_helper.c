@@ -5371,7 +5371,7 @@ void tlb_fill(CPUX86State *env1, target_ulong addr, target_ulong page_addr,
 
 #ifdef CONFIG_S2E
     s2e_on_tlb_miss(g_s2e, g_s2e_state, addr, is_write);
-    ret = cpu_x86_handle_mmu_fault(env, addr & TARGET_PAGE_MASK,
+    ret = cpu_x86_handle_mmu_fault(env, page_addr,
                                    is_write, mmu_idx);
 #else
     ret = cpu_x86_handle_mmu_fault(env1, addr, is_write, mmu_idx);

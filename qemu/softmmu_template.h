@@ -278,7 +278,7 @@ glue(glue(glue(HELPER_PREFIX, ld), SUFFIX), MMUSUFFIX)(ENV_PARAM
                                                        int mmu_idx)
 {
     DATA_TYPE res;
-    int object_index, index;
+    target_ulong object_index, index;
     target_ulong tlb_addr;
     target_phys_addr_t addend, ioaddr;
     void *retaddr = NULL;
@@ -362,7 +362,7 @@ glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(ENV_PARAM
                                        void *retaddr)
 {
     DATA_TYPE res, res1, res2;
-    int object_index, index, shift;
+    target_ulong object_index, index, shift;
     target_phys_addr_t addend, ioaddr;
     target_ulong tlb_addr, addr1, addr2;
 
@@ -560,7 +560,7 @@ void glue(glue(glue(HELPER_PREFIX, st), SUFFIX), MMUSUFFIX)(ENV_PARAM
     target_phys_addr_t addend, ioaddr;
     target_ulong tlb_addr;
     void *retaddr = NULL;
-    int object_index, index;
+    target_ulong object_index, index;
 
     addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr, ADDR_MAX);
     object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
@@ -636,7 +636,8 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(ENV_PARAM
 {
     target_phys_addr_t addend, ioaddr;
     target_ulong tlb_addr;
-    int object_index, index, i;
+    target_ulong object_index, index;
+    int i;
 
     addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr, ADDR_MAX);
     object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
