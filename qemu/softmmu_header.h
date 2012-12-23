@@ -163,7 +163,7 @@ static S2EINLINE RES_TYPE
 glue(glue(glue(CPU_PREFIX, ld), USUFFIX), MEMSUFFIX)(ENV_PARAM
                                                      target_ulong ptr)
 {
-    int object_index, page_index;
+    target_ulong object_index, page_index;
     RES_TYPE res;
     target_ulong addr;
     uintptr_t physaddr;
@@ -205,7 +205,8 @@ static S2EINLINE int
 glue(glue(glue(CPU_PREFIX, lds), SUFFIX), MEMSUFFIX)(ENV_PARAM
                                                      target_ulong ptr)
 {
-    int res, object_index, page_index;
+    int res;
+    target_ulong object_index, page_index;
     target_ulong addr;
     uintptr_t physaddr;
     int mmu_idx;
@@ -245,7 +246,7 @@ static S2EINLINE void
 glue(glue(glue(CPU_PREFIX, st), SUFFIX), MEMSUFFIX)(ENV_PARAM target_ulong ptr,
                                                     RES_TYPE v)
 {
-    int object_index, page_index;
+    target_ulong object_index, page_index;
     target_ulong addr;
     uintptr_t physaddr;
     int mmu_idx;
