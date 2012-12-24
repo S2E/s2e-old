@@ -15,3 +15,6 @@ all: $(BINARIES)
 .PHONY: clean
 clean:
 	rm -f $(BINARIES)
+
+install: $(BINARIES)
+	cp $(BINARIES) $(BUILD_DIR)
