@@ -1168,6 +1168,14 @@ ref<Expr> S2EExecutionState::createSymbolicValue(
 {
 
     std::vector<unsigned char> concreteValues;
+
+    if (ConcolicMode) {
+        unsigned bytes = Expr::getMinBytesForWidth(width);
+        for (unsigned i = 0; i < bytes; ++i) {
+            concreteValues.push_back(0);
+        }
+    }
+
     return createConcolicValue(name, width, concreteValues);
 }
 
@@ -1216,6 +1224,13 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
             const std::string& name, unsigned size)
 {
     std::vector<unsigned char> concreteBuffer;
+
+    if (ConcolicMode) {
+        for (unsigned i = 0; i < size; ++i) {
+            concreteBuffer.push_back(0);
+        }
+    }
+
     return createConcolicArray(name, size, concreteBuffer);
 }
 
