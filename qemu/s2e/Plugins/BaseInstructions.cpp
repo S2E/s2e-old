@@ -57,6 +57,10 @@ extern "C" {
 #include <klee/Searcher.h>
 #include <klee/Solver.h>
 
+#include <llvm/Support/CommandLine.h>
+
+extern llvm::cl::opt<bool> ConcolicMode;
+
 namespace s2e {
 namespace plugins {
 
@@ -394,16 +398,30 @@ void BaseInstructions::assume(S2EExecutionState *state)
 
     //Check that the added constraint is consistent with
     //the existing path constraints
-    bool truth;
-    Solver *solver = s2e()->getExecutor()->getSolver();
-    Query query(state->constraints, boolExpr);
-    bool res = solver->mustBeTrue(query.negateExpr(), truth);
-    if (!res || truth) {
+    bool isValid = true;
+    if (ConcolicMode) {
+        ConstantExpr *ce = dyn_cast<ConstantExpr>(state->concolics->evaluate(boolExpr));
+        assert(ce && "Expression must be constant here");
+        if (!ce->isTrue()) {
+            isValid = false;
+        }
+    } else {
+        bool truth;
+        Solver *solver = s2e()->getExecutor()->getSolver();
+        Query query(state->constraints, boolExpr);
+        bool res = solver->mustBeTrue(query.negateExpr(), truth);
+        if (!res || truth) {
+            isValid = false;
+        }
+    }
+
+    if (!isValid) {
         std::stringstream ss;
         ss << "BaseInstructions: specified assume expression cannot be true. "
                 << boolExpr;
         g_s2e->getExecutor()->terminateStateEarly(*state, ss.str());
     }
+
     state->addConstraint(boolExpr);
 }
 
