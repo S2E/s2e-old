@@ -54,6 +54,12 @@ HandlerInfo handlerInfo[] = {
 #define addDNR(name, handler) { name, \
                                 &SpecialFunctionHandler::handler, \
                                 true, false, false }
+
+  add("klee_get_value", handleGetValue, true),
+  add("klee_make_symbolic", handleMakeSymbolic, false),
+
+//S2E: no need for these...
+#if 0
   addDNR("__assert_rtn", handleAssertFail),
   addDNR("__assert_fail", handleAssertFail),
   addDNR("_assert", handleAssert),
@@ -68,7 +74,7 @@ HandlerInfo handlerInfo[] = {
   add("free", handleFree, false),
   add("klee_assume", handleAssume, false),
   add("klee_check_memory_access", handleCheckMemoryAccess, false),
-  add("klee_get_value", handleGetValue, true),
+
   add("klee_define_fixed_object", handleDefineFixedObject, false),
   add("klee_get_obj_size", handleGetObjSize, true),
   add("klee_get_errno", handleGetErrno, true),
@@ -102,6 +108,7 @@ HandlerInfo handlerInfo[] = {
   add("_Znam", handleNewArray, true),
   // operator new(unsigned long)
   add("_Znwm", handleNew, true),
+#endif
 
 #undef addDNR
 #undef add  
