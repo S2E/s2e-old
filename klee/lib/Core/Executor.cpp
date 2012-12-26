@@ -3274,12 +3274,23 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   //Avoids calling the constraint solver for simple cases
   success = state.addressSpace.resolveOneFast(*exprSimplifier, address, type, op, &fastInBounds);
 
-  if (!success) {
+  if (!success || !fastInBounds) {
       if (concolicMode) {
           klee::ref<klee::Expr> concreteAddress;
           concreteAddress = state.concolics.evaluate(address);
           assert(dyn_cast<klee::ConstantExpr>(concreteAddress) && "Could not evaluate address");
-          klee::ref<klee::Expr> condition = EqExpr::create(concreteAddress, address);
+
+          //Retrieve the memory object for that concrete address
+          success = state.addressSpace.resolveOneFast(*exprSimplifier, concreteAddress, type, op, &fastInBounds);
+          assert(success && "Could not resolve concrete memory address");
+
+          assert(fastInBounds && "Memory access cannot span multiple objects here");
+
+          //We need to keep the address symbolic to avoid blowup.
+          //For that, add a constraint that will ensure that next time, we get a different memory object
+          klee::ref<klee::Expr> condition =
+                  AndExpr::create(UgeExpr::create(address, op.first->getBaseExpr()),
+                                  UltExpr::create(address, AddExpr::create(op.first->getBaseExpr(), op.first->getSizeExpr())));
 
           StatePair branches = fork(state, condition, true);
           assert(branches.first == &state);
@@ -3287,10 +3298,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
             //The forked state will have to re-execute the memory op
             branches.second->pc = branches.second->prevPC;
           }
-
-          address = concreteAddress;
-          success = state.addressSpace.resolveOneFast(*exprSimplifier, address, type, op, &fastInBounds);
-          assert(success && "Could not resolve concrete memory address");
       } else {
           solver->setTimeout(stpTimeout);
           if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
