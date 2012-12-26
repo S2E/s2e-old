@@ -167,10 +167,16 @@ namespace {
             cl::desc("Never delete generated LLVM functions"),
             cl::init(false));
 
+    //The default is true for two reasons:
+    //1. Symbolic addresses are very expensive to handle
+    //2. There is lazy forking which will eventually enumerate
+    //all possible addresses.
+    //Overall, we have more path explosion, but at least execution
+    //does not get stuck in various places.
     cl::opt<bool>
     ForkOnSymbolicAddress("fork-on-symbolic-address",
             cl::desc("Fork on each memory access with symbolic address"),
-            cl::init(false));
+            cl::init(true));
 
     cl::opt<bool>
     ConcretizeIoAddress("concretize-io-address",
