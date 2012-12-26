@@ -95,11 +95,25 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
 
 bool AddressSpace::resolveOneFast(BitfieldSimplifier &simplifier,
                                   ref<Expr> address,
+                                  Expr::Width width,
                                   ObjectPair &result,
                                   bool *inBounds)
 {
     if (isa<ConstantExpr>(address)) {
-        return resolveOne(dyn_cast<ConstantExpr>(address), result);
+        ConstantExpr *ce = dyn_cast<ConstantExpr>(address);
+        bool success = resolveOne(ce, result);
+        if (!success) {
+            return false;
+        }
+
+        uintptr_t val = ce->getZExtValue() - result.first->address;
+        if (val + Expr::getMinBytesForWidth(width) <= result.first->size) {
+            *inBounds = true;
+        } else {
+            *inBounds = false;
+        }
+
+        return true;
     }
 
     AddExpr *add = dyn_cast<AddExpr>(address);

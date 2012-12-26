@@ -63,6 +63,7 @@ namespace klee {
     ///    Constant base address + offset
     bool resolveOneFast(BitfieldSimplifier &simplifier,
                                       ref<Expr> address,
+                                      Expr::Width width,
                                       ObjectPair &result,
                                       bool *inBounds);
 

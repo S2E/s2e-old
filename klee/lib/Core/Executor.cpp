@@ -3272,7 +3272,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   //Fast pattern-matching of addresses
   //Avoids calling the constraint solver for simple cases
-  success = state.addressSpace.resolveOneFast(*exprSimplifier, address, op, &fastInBounds);
+  success = state.addressSpace.resolveOneFast(*exprSimplifier, address, type, op, &fastInBounds);
 
   if (!success) {
       if (concolicMode) {
@@ -3289,7 +3289,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
           }
 
           address = concreteAddress;
-          success = state.addressSpace.resolveOneFast(*exprSimplifier, address, op, &fastInBounds);
+          success = state.addressSpace.resolveOneFast(*exprSimplifier, address, type, op, &fastInBounds);
           assert(success && "Could not resolve concrete memory address");
       } else {
           solver->setTimeout(stpTimeout);
