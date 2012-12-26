@@ -794,11 +794,21 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     m_forceConcretizations = false;
 
-    g_s2e_fork_on_symbolic_address = ForkOnSymbolicAddress || ConcolicMode;
+    g_s2e_fork_on_symbolic_address = ForkOnSymbolicAddress;
     g_s2e_concretize_io_addresses = ConcretizeIoAddress;
     g_s2e_concretize_io_writes = ConcretizeIoWrites;
 
     concolicMode = ConcolicMode;
+
+    if (UseFastHelpers) {
+        if (!ForkOnSymbolicAddress) {
+            s2e->getWarningsStream()
+                    << UseFastHelpers.ArgStr << " can only be used if "
+                    << ForkOnSymbolicAddress.ArgStr << " is enabled\n";
+            exit(-1);
+        }
+    }
+
 }
 
 void S2EExecutor::initializeStatistics()
