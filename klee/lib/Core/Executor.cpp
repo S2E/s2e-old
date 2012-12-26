@@ -1320,43 +1320,10 @@ void Executor::executeGetValue(ExecutionState &state,
                                ref<Expr> e,
                                KInstruction *target) {
   e = state.constraints.simplifyExpr(e);
-  std::map< ExecutionState*, std::vector<SeedInfo> >::iterator it = 
-    seedMap.find(&state);
-  if (it==seedMap.end() || isa<ConstantExpr>(e)) {
-    ref<ConstantExpr> value;
-    bool success = solver->getValue(state, e, value);
-    assert(success && "FIXME: Unhandled solver failure");
-    (void) success;
-    bindLocal(target, state, value);
-  } else {
-    std::set< ref<Expr> > values;
-    for (std::vector<SeedInfo>::iterator siit = it->second.begin(), 
-           siie = it->second.end(); siit != siie; ++siit) {
-      ref<ConstantExpr> value;
-      bool success = 
-        solver->getValue(state, siit->assignment.evaluate(e), value);
-      assert(success && "FIXME: Unhandled solver failure");
-      (void) success;
-      values.insert(value);
-    }
-    
-    std::vector< ref<Expr> > conditions;
-    for (std::set< ref<Expr> >::iterator vit = values.begin(), 
-           vie = values.end(); vit != vie; ++vit)
-      conditions.push_back(EqExpr::create(e, *vit));
+  assert(seedMap.empty() && "S2E does not support seeding");
 
-    std::vector<ExecutionState*> branches;
-    branch(state, conditions, branches);
-    
-    std::vector<ExecutionState*>::iterator bit = branches.begin();
-    for (std::set< ref<Expr> >::iterator vit = values.begin(), 
-           vie = values.end(); vit != vie; ++vit) {
-      ExecutionState *es = *bit;
-      if (es)
-        bindLocal(target, *es, *vit);
-      ++bit;
-    }
-  }
+  e = toConstant(state, e, "klee_get_value()");
+  bindLocal(target, state, e);
 }
 
 void Executor::stepInstruction(ExecutionState &state) {
