@@ -150,6 +150,8 @@ void s2e_trace_memory_access(
         uint64_t vaddr, uint64_t haddr, uint8_t* buf, unsigned size,
         int isWrite, int isIO);
 
+extern unsigned g_s2e_enable_mmio_checks;
+
 /** Called on port access from helper code */
 void s2e_trace_port_access(
         struct S2E *s2e, struct S2EExecutionState* state,

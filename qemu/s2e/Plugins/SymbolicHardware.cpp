@@ -139,9 +139,11 @@ void SymbolicHardware::initialize()
     if (EnableSymbHw) {
         s2e()->getCorePlugin()->setPortCallback(symbhw_is_symbolic, this);
         s2e()->getCorePlugin()->setMmioCallback(symbhw_is_mmio_symbolic, this);
+        s2e()->getCorePlugin()->enableMmioCallbacks(true);
     }else {
         s2e()->getCorePlugin()->setPortCallback(symbhw_is_symbolic_none, this);
         s2e()->getCorePlugin()->setMmioCallback(symbhw_is_mmio_symbolic_none, this);
+        s2e()->getCorePlugin()->enableMmioCallbacks(false);
     }
 }
 

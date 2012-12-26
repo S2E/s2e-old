@@ -43,6 +43,7 @@
 #include <s2e/Signals/Signals.h>
 #include <vector>
 #include <inttypes.h>
+#include <s2e/s2e_qemu.h>
 
 extern "C" {
 typedef struct TranslationBlock TranslationBlock;
@@ -96,6 +97,10 @@ public:
     void setMmioCallback(SYMB_MMIO_CHECK cb, void *opaque) {
         m_isMmioSymbolicCb = cb;
         m_isMmioSymbolicOpaque = opaque;
+    }
+
+    void enableMmioCallbacks(bool enable) {
+        g_s2e_enable_mmio_checks = enable;
     }
 
     inline bool isPortSymbolic(uint16_t port) const {

@@ -64,7 +64,9 @@ namespace s2e {
 
 using namespace s2e;
 
-
+extern "C" {
+    unsigned g_s2e_enable_mmio_checks = 0;
+}
 
 static void s2e_timer_cb(void *opaque)
 {

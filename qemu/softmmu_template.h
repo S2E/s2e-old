@@ -137,7 +137,7 @@ DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(ENV_PARAM
     physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
 
 #ifdef CONFIG_S2E
-    if (glue(s2e_is_mmio_symbolic_, SUFFIX)(physaddr)) {
+    if (glue(g_s2e_enable_mmio_checks && s2e_is_mmio_symbolic_, SUFFIX)(physaddr)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
 #endif
@@ -193,7 +193,7 @@ inline DATA_TYPE glue(io_read_chk_symb_, SUFFIX)(const char *label, target_ulong
     data.dt = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa));
 
     for (i = 0; i<(1<<SHIFT); ++i) {
-        if (s2e_is_mmio_symbolic_b(physaddr + i)) {
+        if (g_s2e_enable_mmio_checks && s2e_is_mmio_symbolic_b(physaddr + i)) {
             data.arr[i] = glue(io_make_symbolic, SUFFIX)(label);
         }
     }
@@ -211,7 +211,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
     target_ulong naddr = (physaddr & TARGET_PAGE_MASK)+addr;
     char label[64];
     int isSymb = 0;
-    if ((isSymb = glue(s2e_is_mmio_symbolic_, SUFFIX)(naddr))) {
+    if (g_s2e_enable_mmio_checks && (isSymb = glue(s2e_is_mmio_symbolic_, SUFFIX)(naddr))) {
         //If at least one byte is symbolic, generate a label
         trace_port(label, "iommuread_", naddr, env->eip);
     }
