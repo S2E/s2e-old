@@ -227,9 +227,10 @@ cl::opt<bool>
 VerboseStateDeletion("verbose-state-deletion",
                cl::desc("Print detailed information on state deletion"),  cl::init(false));
 
+//Concolic mode is the default because it works better than symbex.
 cl::opt<bool>
 ConcolicMode("use-concolic-execution",
-               cl::desc("Concolic execution mode"),  cl::init(false));
+               cl::desc("Concolic execution mode"),  cl::init(true));
 
 cl::opt<bool>
 DebugConstraints("debug-constraints",
