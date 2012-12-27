@@ -3351,30 +3351,34 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         } else {
           ObjectState *wos = state.addressSpace.getWriteable(mo, os);
           if(mo->isSharedConcrete) {
-              if(mo->isValueIgnored) {
-                  offset = toConstantSilent(state, offset);
-                  value  = toConstantSilent(state,  value);
-              } else {
-                  std::stringstream ss;
-                  ss << "write to always concrete memory name:" << mo->name <<
-                          " offset=" << offset << " value=" << value;
+              if (!dyn_cast<ConstantExpr>(offset) || !dyn_cast<ConstantExpr>(value)) {
+                  if(mo->isValueIgnored) {
+                      offset = toConstantSilent(state, offset);
+                      value  = toConstantSilent(state,  value);
+                  } else {
+                      std::stringstream ss;
+                      ss << "write to always concrete memory name:" << mo->name <<
+                              " offset=" << offset << " value=" << value;
 
-                  offset = toConstant(state, offset, ss.str().c_str());
-                  value  = toConstant(state,  value, ss.str().c_str());
+                      offset = toConstant(state, offset, ss.str().c_str());
+                      value  = toConstant(state,  value, ss.str().c_str());
+                  }
               }
           }
           wos->write(offset, value);
         }          
       } else {
         if(mo->isSharedConcrete) {
-            if(mo->isValueIgnored) {
-                offset = toConstantSilent(state, offset);
-            } else {
-                std::stringstream ss;
-                ss << "Read from always concrete memory name:" << mo->name <<
-                        " offset=" << offset;
+            if (!dyn_cast<ConstantExpr>(offset)) {
+                if(mo->isValueIgnored) {
+                    offset = toConstantSilent(state, offset);
+                } else {
+                    std::stringstream ss;
+                    ss << "Read from always concrete memory name:" << mo->name <<
+                            " offset=" << offset;
 
-                offset = toConstant(state, offset, ss.str().c_str());
+                    offset = toConstant(state, offset, ss.str().c_str());
+                }
             }
         }
         ref<Expr> result = os->read(offset, type);
