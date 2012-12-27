@@ -134,6 +134,8 @@ void qemu_thread_create(QemuThread *thread,
         }
     }
 
+    pthread_attr_setstacksize(&attr, 16 * 1024 * 1024);
+
     /* Leave signal handling to the iothread.  */
     sigfillset(&set);
     pthread_sigmask(SIG_SETMASK, &set, &oldset);
