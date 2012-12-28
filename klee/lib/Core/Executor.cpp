@@ -151,9 +151,11 @@ namespace {
                 cl::desc("Generate tests cases for all errors "
                          "(default=one per (error,instruction) pair)"));
 
+  //The counter example cache may have bad interactions with
+  //concolic mode. Disabled by default.
   cl::opt<bool>
   UseCexCache("use-cex-cache",
-              cl::init(true),
+              cl::init(false),
 	      cl::desc("Use counterexample caching"));
 
   cl::opt<bool>
