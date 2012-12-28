@@ -1252,10 +1252,21 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         uint32_t ofs = args[3];
         uint32_t len = args[4];
 
+        if (0 == ofs && 64 == len) {
+            setValue(args[0], arg2);
+            break;
+        }
+
         uint64_t mask = (1u << len) - 1;
-        Value *ret;
-        Value *t1 = m_builder.CreateAnd(arg2, APInt(64, mask));
-        t1 = m_builder.CreateShl(t1, APInt(64, ofs));
+        Value *t1, *ret;
+
+        if (ofs + len < 64) {
+            t1 = m_builder.CreateAnd(arg2, APInt(64, mask));
+            t1 = m_builder.CreateShl(t1, APInt(64, ofs));
+        } else {
+            t1 = m_builder.CreateShl(arg2, APInt(64, ofs));
+        }
+
         ret = m_builder.CreateAnd(arg1, APInt(64, ~(mask << ofs)));
         ret = m_builder.CreateOr(ret, t1);
         setValue(args[0], ret);
