@@ -239,6 +239,26 @@ s2e_int:
     leave
     ret
 
+s2e_assume:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [ebp + 0x4] ;expression
+
+    db 0x0f
+    db 0x3f ; S2EOP
+
+    db 0x00 ; Built-in instructions
+    db 0x0c ; assume
+    db 0x00
+    db 0x00
+    dd 0x0
+
+    leave
+    ret
+
+
+
 s2e_concolic_int:
     push ebp
     mov ebp, esp
