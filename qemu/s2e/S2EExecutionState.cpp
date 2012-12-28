@@ -750,6 +750,10 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
                         sizeof(env->cc_dst) << 3)) {
         mask |= _M_CC_DST;
     }
+    if (!os->isConcrete(offsetof(CPUX86State, cc_tmp),
+                        sizeof(env->cc_tmp) << 3)) {
+        mask |= _M_CC_TMP;
+    }
     return mask;
 }
 
