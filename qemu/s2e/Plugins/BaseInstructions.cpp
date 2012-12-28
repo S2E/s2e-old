@@ -400,8 +400,8 @@ void BaseInstructions::assume(S2EExecutionState *state)
     //the existing path constraints
     bool isValid = true;
     if (ConcolicMode) {
-        ConstantExpr *ce = dyn_cast<ConstantExpr>(state->concolics.evaluate(boolExpr));
-        assert(ce && "Expression must be constant here");
+        klee::ref<klee::Expr> ce = state->concolics.evaluate(boolExpr);
+        assert(isa<klee::ConstantExpr>(ce) && "Expression must be constant here");
         if (!ce->isTrue()) {
             isValid = false;
         }
