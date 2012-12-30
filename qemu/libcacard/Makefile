@@ -18,7 +18,7 @@ QEMU_CFLAGS+=-I../
 libcacard.lib-y=$(addsuffix .lo,$(basename $(libcacard-y)))
 
 vscclient: $(libcacard-y) $(QEMU_OBJS) vscclient.o
-	$(call quiet-command,$(CC) -o $@ $^ $(libcacard_libs) $(LIBS),"  LINK  $@")
+	$(call quiet-command,$(CC) -o $@ $^ $(libcacard_libs) $(LIBS) $(LDFLAGS),"  LINK  $@")
 
 clean:
 	rm -f *.o */*.o *.d */*.d *.a */*.a *~ */*~ vscclient *.lo .libs/* *.la *.pc
