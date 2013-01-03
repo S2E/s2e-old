@@ -1,26 +1,31 @@
-=========================
-Translation Block Printer
-=========================
+=============
+Trace Printer
+=============
 
-The fork profiler tool outputs for each specified state the list of translation blocks that were executed in that state.
-It complements this list with a test case, if it is available.
+The trace printer tool outputs for each specified path all the trace items that were collected in these states.
+Items include memory accesses, executed translation blocks, or test cases.
 This tool is useful to quickly observe the execution sequence that led to a particular event that caused a state to terminate. 
 It can also be useful for debugging.
 
 Examples
 ~~~~~~~~
 
-The following command outputs the translation block trace for paths 0 and 34.
-If the ``-printRegisters`` option is specified, it will also print the contents of
-the registers before and after the execution of each translation block.
+A complete tutorial on how to generate and display a trace can be found `here <../Howtos/ExecutionTracers.html>`_
+
+Assuming you have obtained a trace in ``ExecutionTracer.dat``,
+the following command outputs the translation block trace for paths 0 and 34.
 Omitting the ``-pathId`` option will cause the command to output the trace for all paths.
- 
+
+If the ``-printRegisters`` option is specified, the command also prints the contents of
+the registers before and after the execution of each translation block (provided that ``TranslationBlockTracer`` was enabled).
+
+``-printMemory`` also shows all memory accesses (provided that `MemoryTracer`` was enabled).
+
   ::
 
-      $ /home/s2e/tools/Release/bin/tbtrace -trace=s2e-last/ExecutionTracer.dat -outputdir=s2e-last/traces \
-        -moddir=/home/s2e/experiments/rtl8139.sys/driver -moddir=/home/s2e/experiments/rtl8029.sys/driver \
-        -pathId=0 -pathId=34
-        
+      $ $S2EDIR/build/tools/Release+Asserts/bin/tbtrace -trace=s2e-last/ExecutionTracer.dat \
+        -outputdir=s2e-last/traces -pathId=0 -pathId=34 -printMemory
+
 
 Required Plugins
 ~~~~~~~~~~~~~~~~
@@ -33,5 +38,6 @@ Required Plugins
 Optional Plugins
 ~~~~~~~~~~~~~~~~
 
-
 * TestCaseGenerator (for test cases)
+* MemoryTracer (for memory traces)
+* TranslationBlockTracer (for executed translation blocks)

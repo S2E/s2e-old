@@ -42,7 +42,7 @@ S²E Documentation
   1. Available Tools
      
      1. `Fork profiler <Tools/ForkProfiler.html>`_
-     2. `Translation block printer <Tools/TbPrinter.html>`_
+     2. `Trace printer <Tools/TbPrinter.html>`_
      3. `Execution profiler <Tools/ExecutionProfiler.html>`_
      4. `Coverage generator <Tools/CoverageGenerator.html>`_
    

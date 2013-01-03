@@ -31,128 +31,71 @@ Tracers rely on the ModuleExecutionDetector plugin to obtain this information. M
 on OS monitor plugins to be notified whenever the OS loads or unloads the modules.
 
 
-Using execution tracers consists of two steps: preparing the binaries for tracing and configuring the S2E plugins.
-In the following, we give an end-to-end example of how to obtain the fork profile of an application.
+Here is an end-to-end  example of how to generate an execution trace for the ``echo`` utility and using the `init_env.so <../Howtos/init_env.html>`_ library.
+The trace will contain all memory accesses done by ``echo``, as well as the list of executed translation blocks and test cases.
 
-1. Preparing the Binary
-=======================
+1. Minimal Configuration File
+=============================
 
-We assume a Linux binary for which source code is available.
-To detect module loads on Linux, we use the `RawMonitor <Plugins/RawMonitor.html>`_  plugin. This
-plugin requires the user to *manually* specify whenever the modules of interest are loaded. This
-can be simply done with a custom instruction. If you use Windows,
-the `WindowMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_ plugin handles detection fully automatically.
+  ::
 
-Here are the steps to prepare the binary:
+        s2e = {
+          kleeArgs = {}
+        }
 
-::
+        plugins = {
+                "BaseInstructions",
+                "ExecutionTracer",
+                "ModuleTracer",
 
-    # Compile your program with debug information
-    $ gcc -g -O0 -m32 -o myprogram myprogram.c
+                "RawMonitor",
+                "ModuleExecutionDetector",
 
-    # Obtain the size of the compiled program
-    $ ls -l myprogram
+                --The following plugins can be enabled as needed
+                "MemoryTracer",
+                "TestCaseGenerator",
+                "TranslationBlockTracer"
+        }
 
-    # Obtain the native base address of the binary
-    # On Linux, it is something like 0x08048000
-    $ objdump / idapro / etc.
+        pluginsConfig = {}
 
-    # Add a call to s2e_rawmon_loadmodule (declared in s2e.h) in the main() of your program.
-    # This function tells S2E where you program is loaded.
-    # You must specify the runtime base address of the program (which is usually the same as the native base address)
-    # and the size of the program. You can use the one you obtained previously.
+        pluginsConfig.MemoryTracer = {
+          monitorMemory = true,
+          monitorModules = true,
+        }
 
-    # If you use an OS monitor plugin that automatically detects module loads (e.g., WindowMonitor),
-    # you do not need this step. There is no such plugin yet for Linux.
 
-    # main() {
-    #   ...
-    #   s2e_rawmon_loadmodule("myprogram", loadbase, size);
-    #   ...
-    # }
-
-    # Recompile your program
-    $ gcc -g -O0 -m32 -o myprogram myprogram.c
-
-2. Configuring Plugins
+2. Guest Configuration
 ======================
 
-In the second step, configure the desired plugin. You can use multiple tracers at once. Please refer to the documentation of each
-plugin for detailed configuration options.
+Preparing the guest program for tracing is easy. The `init_env.so <../Howtos/init_env.html>`_ library will instruct
+S2E to trace the program as specified in the configuration file.
 
-Your ``config.lua`` file may look as follows. Note that some plugins do not have any option.
 
-::
+  ::
 
-    s2e = {
-        kleeArgs = {
-            -- Whatever options you like
-        }
-    }
+      $ LD_PRELOAD=/home/s2e/init_env.so /bin/echo abc ab > /dev/null
 
-    plugins = {
-        "BaseInstructions",
-        "RawMonitor",
-        "ModuleExecutionDetector",
-        "ExecutionTracer",
-        "ModuleTracer",
-        "TranslationBlockTracer"
-    }
 
-    pluginsConfig = {}
-
-    pluginsConfig.RawMonitor = {
-        kernelStart = 0xc0000000,
-        myprog_id = {
-            name = "myprogram",
-            start = 0x0,
-            size = --put your size here, e.g., 52505,
-            nativebase = 0x8048000,
-            delay = true,
-            kernelmode = false
-        }
-    }
-
-    pluginsConfig.ModuleExecutionDetector = {
-        myprog_id = {
-            moduleName = "myprogram",
-            kernelMode = false
-        },
-    }
-
-    --Trace all the modules configured in ModuleExecutionDetector
-    pluginsConfig.TranslationBlockTracer = {
-      manualTrigger = false,
-      flushTbCache = true
-    }
-
-3. Viewing the traces
+3. Viewing the Traces
 =====================
 
 S2E comes with several tools that parse and display the execution traces.
 They are located in the `tools`  folder of the source distribution.
-You can find the documentation for them on the `main page <index.html>`_.
+You can find the documentation for them on the `main page <../index.html>`_.
 
+Here is an example that prints the list of executed translation blocks and all memory accesses performed in paths #0 and #34.
+
+  ::
+
+      $ $S2EDIR/build/tools/Release+Asserts/bin/tbtrace -trace=s2e-last/ExecutionTracer.dat \
+        -outputdir=s2e-last/traces -pathId=0 -pathId=34 -printMemory
 
 
 Mini-FAQ
 ========
 
-* The RawMonitor plugin complains that it cannot read the program name.
-  This is because the string that you passed to ``s2e_rawmon_loadmodule`` is located in an unmapped memory page.
-  S2E cannot access unmapped pages. You need to touch that page to let the OS load it before calling ``s2e_rawmon_loadmodule``.
-
 * You followed all steps and no debug information is displayed by the offline tools.
 
-  * Check that you used the name of the modules coherently. The string you specified in ``s2e_rawmon_loadmodule``
-    must be identical to what you set in the RawMonitor and ModuleExecutionDetector plugins.
-  * Make sure you defined the module to trace in the ModuleExecutionDetector configuration section.
+  * Some programs might be relocated by the OS and their load base will differ from their native base. Try to disable ASLR.
   * Check that your binutils library understands the debug information in the binaries.
-  * Make sure you computed the runtime load address properly, especially if you want to analyze a relocatable library.
-  * Check the size of your binary
-  * Make sure you set the kernel-mode option properly. It must be ``false`` for user-mode programs (more precisely, for
-    programs that do not run in the kernel space, above 0x80000000 or 0xC0000000).
-
-
-
-

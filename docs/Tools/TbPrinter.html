@@ -3,29 +3,31 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
-<title>Translation Block Printer</title>
+<meta name="generator" content="Docutils 0.8.1: http://docutils.sourceforge.net/" />
+<title>Trace Printer</title>
 <link rel="stylesheet" href="../s2e.css" type="text/css" />
 </head>
 <body>
-<div class="document" id="translation-block-printer">
-<h1 class="title">Translation Block Printer</h1>
+<div class="document" id="trace-printer">
+<h1 class="title">Trace Printer</h1>
 
-<p>The fork profiler tool outputs for each specified state the list of translation blocks that were executed in that state.
-It complements this list with a test case, if it is available.
+<p>The trace printer tool outputs for each specified path all the trace items that were collected in these states.
+Items include memory accesses, executed translation blocks, or test cases.
 This tool is useful to quickly observe the execution sequence that led to a particular event that caused a state to terminate.
 It can also be useful for debugging.</p>
 <div class="section" id="examples">
 <h1>Examples</h1>
-<p>The following command outputs the translation block trace for paths 0 and 34.
-If the <tt class="docutils literal"><span class="pre">-printRegisters</span></tt> option is specified, it will also print the contents of
-the registers before and after the execution of each translation block.
+<p>A complete tutorial on how to generate and display a trace can be found <a class="reference external" href="../Howtos/ExecutionTracers.html">here</a></p>
+<p>Assuming you have obtained a trace in <tt class="docutils literal">ExecutionTracer.dat</tt>,
+the following command outputs the translation block trace for paths 0 and 34.
 Omitting the <tt class="docutils literal"><span class="pre">-pathId</span></tt> option will cause the command to output the trace for all paths.</p>
+<p>If the <tt class="docutils literal"><span class="pre">-printRegisters</span></tt> option is specified, the command also prints the contents of
+the registers before and after the execution of each translation block (provided that <tt class="docutils literal">TranslationBlockTracer</tt> was enabled).</p>
+<p><tt class="docutils literal"><span class="pre">-printMemory</span></tt> also shows all memory accesses (provided that <cite>MemoryTracer`</cite> was enabled).</p>
 <blockquote>
 <pre class="literal-block">
-$ /home/s2e/tools/Release/bin/tbtrace -trace=s2e-last/ExecutionTracer.dat -outputdir=s2e-last/traces \
-  -moddir=/home/s2e/experiments/rtl8139.sys/driver -moddir=/home/s2e/experiments/rtl8029.sys/driver \
-  -pathId=0 -pathId=34
+$ $S2EDIR/build/tools/Release+Asserts/bin/tbtrace -trace=s2e-last/ExecutionTracer.dat \
+  -outputdir=s2e-last/traces -pathId=0 -pathId=34 -printMemory
 </pre>
 </blockquote>
 </div>
@@ -42,6 +44,8 @@ $ /home/s2e/tools/Release/bin/tbtrace -trace=s2e-last/ExecutionTracer.dat -outpu
 <h1>Optional Plugins</h1>
 <ul class="simple">
 <li>TestCaseGenerator (for test cases)</li>
+<li>MemoryTracer (for memory traces)</li>
+<li>TranslationBlockTracer (for executed translation blocks)</li>
 </ul>
 </div>
 </div>
