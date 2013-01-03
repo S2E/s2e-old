@@ -398,9 +398,9 @@ void TbTrace::onItem(unsigned traceIndex,
                 (const s2e::plugins::ExecutionTraceMemory*) item;
         std::string type;
 
-        type += te->flags & EXECTRACE_MEM_SYMBHOSTADDR ? "H" : "h";
-        type += te->flags & EXECTRACE_MEM_SYMBADDR ? "A" : "a";
-        type += te->flags & EXECTRACE_MEM_SYMBVAL ? "S" : "C";
+        type += te->flags & EXECTRACE_MEM_SYMBHOSTADDR ? "H" : "-";
+        type += te->flags & EXECTRACE_MEM_SYMBADDR ? "A" : "-";
+        type += te->flags & EXECTRACE_MEM_SYMBVAL ? "S" : "-";
         type += te->flags & EXECTRACE_MEM_WRITE   ? "W" : "R";
         m_output << "S=" << std::dec << hdr.stateId << " P=0x" << std::hex << hdr.pid << " PC=0x" << std::hex << te->pc << " " << type << (int)te->size << "[0x"
                 << std::hex << te->address << "]=0x" << std::setw(10) << std::setfill('0') << te->value;
