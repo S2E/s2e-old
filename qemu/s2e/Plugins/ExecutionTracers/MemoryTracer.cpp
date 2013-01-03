@@ -114,6 +114,7 @@ void MemoryTracer::traceDataMemoryAccess(S2EExecutionState *state,
 
     //Output to the trace entry here
     ExecutionTraceMemory e;
+    e.flags = 0;
     e.pc = state->getPc();
     e.address = isAddrCste ? cast<klee::ConstantExpr>(address)->getZExtValue(64) : 0xDEADBEEF;
     e.value = isValCste ? cast<klee::ConstantExpr>(value)->getZExtValue(64) : 0xDEADBEEF;
