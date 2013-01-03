@@ -2595,9 +2595,8 @@ void helper_register_symbol(const char *name, void *address)
 
 #ifdef S2E_DEBUG_MEMORY
 #ifdef __linux__
-#warning Compiling with memory debugging support...
 
-void *operator new(size_t s)
+void *operator new(size_t s) throw(std::bad_alloc)
 {
     void *ret = malloc(s);
     if (!ret) {
@@ -2608,7 +2607,8 @@ void *operator new(size_t s)
     return ret;
 }
 
-void* operator new[](size_t s) {
+void* operator new[](size_t s) throw(std::bad_alloc)
+{
     void *ret = malloc(s);
     if (!ret) {
         throw std::bad_alloc();
@@ -2620,14 +2620,15 @@ void* operator new[](size_t s) {
 
 
 
-void operator delete( void *pvMem )
+void operator delete( void *pvMem ) throw()
 {
    size_t s =  malloc_usable_size(pvMem);
    memset(pvMem, 0xBB, s);
    free(pvMem);
 }
 
-void operator delete[](void *pvMem) {
+void operator delete[](void *pvMem) throw()
+{
     size_t s =  malloc_usable_size(pvMem);
     memset(pvMem, 0xBB, s);
     free(pvMem);
