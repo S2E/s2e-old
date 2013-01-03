@@ -1,7 +1,7 @@
 /*
  * S2E Selective Symbolic Execution Framework
  *
- * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ * Copyright (c) 2013, Dependable Systems Laboratory, EPFL
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,6 +43,12 @@
 #include <string.h>
 
 #include <s2e.h>
+
+#ifdef DEBUG_NATIVE
+#define myprintf printf
+#else
+#define myprintf s2e_printf
+#endif
 
 // ***********************************************
 // Helper functions (adapted from klee_init_env.c)
@@ -109,6 +115,99 @@ static const char* __base_name(const char* path) {
     return path;
 }
 
+
+//Describes an executable portion of the address space
+typedef struct _procmap_entry_t
+{
+    uintptr_t base;
+    uintptr_t limit;
+    const char *name;
+} procmap_entry_t;
+
+//Returns each executable line of /proc/self/maps
+//as an array of entries. The last one is null.
+static procmap_entry_t* load_process_map()
+{
+    FILE* maps = fopen("/proc/self/maps", "r");
+    if (!maps) {
+        return NULL;
+    }
+
+    char line[256], path[128];
+    procmap_entry_t *result = NULL;
+    procmap_entry_t current_entry;
+    unsigned nb_entries = 0;
+    char executable;
+    while (fgets(line, sizeof(line), maps)) {
+        int matches = sscanf(line, "%x-%x %*c%*c%c%*c %*x %*s %*d %127[^\n]",
+                             &current_entry.base, &current_entry.limit, &executable, path);
+        if (matches != 4) {
+            continue;
+        }
+
+        if (executable != 'x') {
+            continue;
+        }
+
+        current_entry.name = strdup(path);
+        ++nb_entries;
+
+        result = realloc(result, sizeof(*result) * nb_entries);
+        result[nb_entries-1] = current_entry;
+    }
+
+    fclose(maps);
+
+    current_entry.base = current_entry.limit = 0;
+    current_entry.name = NULL;
+
+    ++nb_entries;
+    result = realloc(result, sizeof(*result) * nb_entries);
+    result[nb_entries-1] = current_entry;
+
+    return result;
+}
+
+static void display_process_map(procmap_entry_t *map)
+{
+    myprintf("Process map:\n");
+    while (map->base && map->limit) {
+        myprintf("Base=%#x Limit=%#x Name=%s\n", map->base, map->limit, map->name);
+        ++map;
+    }
+}
+
+static procmap_entry_t *search_process_map(procmap_entry_t *map, const char *name)
+{
+    const char *base = __base_name(name);
+    while (map->base && map->limit) {
+        if (strstr(map->name, base)) {
+            return map;
+        }
+        ++map;
+    }
+    myprintf("Could not find %s (basename %s) in the process map\n", name, base);
+    return NULL;
+}
+
+static void register_module(procmap_entry_t *proc_map, const char *name)
+{
+    procmap_entry_t* cur_proc = search_process_map(proc_map, name);
+    if (cur_proc) {
+        const char *base = __base_name(cur_proc->name);
+        myprintf("Registering module: %s (%s) %x %x\n",
+                 cur_proc->name, base, cur_proc->base, cur_proc->limit);
+
+        ///XXX: Also figure out the real native base and the address of the entry point.
+        #ifndef DEBUG_NATIVE
+
+        uint64_t size = cur_proc->limit - cur_proc->base;
+        s2e_moduleexec_add_module(base, base, 0);
+        s2e_rawmon_loadmodule2(base, cur_proc->base, cur_proc->base, 0, size, 0);
+        #endif
+    }
+}
+
 void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     int argc = *argcPtr;
     char** argv = *argvPtr;
@@ -123,6 +222,13 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     int concolic_mode = 0;
 
     sym_arg_name[4] = '\0';
+
+
+    // Load the process map and get the info about the current process
+    procmap_entry_t* proc_map = load_process_map();
+    display_process_map(proc_map);
+    register_module(proc_map, argv[0]);
+    register_module(proc_map, "init_env.so");
 
     // Recognize --help when it is the sole argument.
     if (argc == 2 && __streq(argv[1], "--help")) {
@@ -140,7 +246,9 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
                          MAX arguments, each with maximum length N\n\n");
     }
 
+    #ifndef DEBUG_NATIVE
     s2e_enable_forking();
+    #endif
 
     while (k < argc) {
         if (__streq(argv[k], "--concolic") || __streq(argv[k], "-concolic")) {
@@ -180,27 +288,19 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
         }
         else if (__streq(argv[k], "--select-process") || __streq(argv[k], "-select-process")) {
             k++;
+            myprintf("Forks will be restricted to the current address space\n");
             s2e_codeselector_enable_address_space(0);
         }
         else if (__streq(argv[k], "--select-process-userspace") || __streq(argv[k], "-select-process-userspace")) {
             k++;
+            myprintf("Forks will be restricted to the user-mode portion of the current address space\n");
             s2e_codeselector_enable_address_space(1);
         }
         else if (__streq(argv[k], "--select-process-code") || __streq(argv[k], "-select-process-code")) {
-            char name[512];
-            uint64_t loadBase, size;
-
             k++;
-
-            if (s2e_get_module_info(NULL, name, sizeof(name)-1, &loadBase, &size) < 0) {
-                __emit_error("s2e_get_module_info: could not load process information\n");
-                return;
-            }
-
-            s2e_moduleexec_add_module("init_env_module", __base_name(name), 0);
-            s2e_codeselector_select_module("init_env_module");
-            //XXX: Also figure out the real native base and the address of the entry point.
-            s2e_rawmon_loadmodule2(__base_name(name), loadBase, loadBase, 0, size, 0);
+            const char *process_base_name = __base_name(argv[0]);
+            myprintf("Forks will be restricted to %s\n", process_base_name);
+            s2e_codeselector_select_module(process_base_name);
         }
         else {
             /* simply copy arguments */
