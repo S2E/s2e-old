@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include <stdarg.h>
 
 /** Forces the read of every byte of the specified string.
   * This makes sure the memory pages occupied by the string are paged in
@@ -80,6 +81,18 @@ static inline void s2e_message(const char* message)
         ".byte 0x00, 0x00, 0x00, 0x00\n"
         : : "a" (message)
     );
+}
+
+/* Outputs a formatted string as an S2E message */
+static inline int s2e_printf(const char *format, ...)
+{
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    int ret = vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    s2e_message(buffer);
+    return ret;
 }
 
 /** Print warning to the S2E log and S2E stdout. */
