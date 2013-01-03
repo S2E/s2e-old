@@ -248,7 +248,14 @@ void ModuleExecutionDetector::onCustomInstruction(
     switch(subfunction) {
         case 0: {
             if (opAddModuleConfigEntry(state)) {
-                tb_flush(env);
+                if (s2e()->getExecutor()->getStatesCount() > 1) {
+                    s2e()->getWarningsStream(state)
+                            << "ModuleExecutionDetector attempts to flush the TB cache while having more than 1 state.\n"
+                            << "Doing that in S2E is dangerous for many reasons, so we ignore the request.\n";
+                }  else {
+                    tb_flush(env);
+                }
+
                 state->setPc(state->getPc() + OPCODE_SIZE);
                 throw CpuExitException();
             }
