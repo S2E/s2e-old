@@ -26,7 +26,7 @@ the possible paths through it.
      if(!fgets(str, sizeof(str), stdin))
        return 1;
 
-     if(str[0] == 0 || str[1] == 0) {
+     if(str[0] == '\n' || str[1] == '\n') {
        printf("Not enough characters\n");
 
      } else {
