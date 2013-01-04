@@ -2865,6 +2865,56 @@ void Executor::terminateStateOnExit(ExecutionState &state) {
   terminateState(state);
 }
 
+void Executor::printStack(ExecutionState &state, KInstruction *target, std::stringstream &msg)
+{
+    msg << "Stack: \n";
+    unsigned idx = 0;
+    for (ExecutionState::stack_ty::reverse_iterator
+           it = state.stack.rbegin(), ie = state.stack.rend();
+         it != ie; ++it) {
+      StackFrame &sf = *it;
+      Function *f = sf.kf->function;
+
+      unsigned assemblyLine;
+      const InstructionInfo *ii = NULL;
+      if (target) {
+          ii = target->info;
+          assemblyLine = ii->assemblyLine;
+      }
+
+      msg << "\t#" << idx++
+          << " " << std::setw(8) << std::setfill('0') << assemblyLine
+          << " in " << f->getName().str() << " (";
+
+      // Yawn, we could go up and print varargs if we wanted to.
+      unsigned index = 0;
+      for (Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end();
+           ai != ae; ++ai) {
+        if (ai!=f->arg_begin()) msg << ", ";
+
+        msg << ai->getName().str();
+        // XXX should go through function
+        ref<Expr> value = sf.locals[sf.kf->getArgRegister(index++)].value;
+        //if (isa<ConstantExpr>(value))
+        if (concolicMode) {
+            msg << " [" << state.concolics.evaluate(value) << "]";
+        } else {
+            msg << "=" << value;
+        }
+      }
+      msg << ")";
+
+      if (ii) {
+          if (ii->file != "")
+            msg << " at " << ii->file << ":" << ii->line;
+      }
+
+      msg << "\n";
+
+      target = sf.caller;
+    }
+}
+
 void Executor::terminateStateOnError(ExecutionState &state,
                                      const llvm::Twine &messaget,
                                      const char *suffix,
@@ -2883,42 +2933,14 @@ void Executor::terminateStateOnError(ExecutionState &state,
     if (!EmitAllErrors)
       klee_message("NOTE: now ignoring this error at this location");
     
-    std::ostringstream msg;
+    std::stringstream msg;
     msg << "Error: " << message << "\n";
     if (ii.file != "") {
       msg << "File: " << ii.file << "\n";
       msg << "Line: " << ii.line << "\n";
     }
-    msg << "Stack: \n";
-    unsigned idx = 0;
-    const KInstruction *target = state.prevPC;
-    for (ExecutionState::stack_ty::reverse_iterator
-           it = state.stack.rbegin(), ie = state.stack.rend();
-         it != ie; ++it) {
-      StackFrame &sf = *it;
-      Function *f = sf.kf->function;
-      const InstructionInfo &ii = *target->info;
-      msg << "\t#" << idx++ 
-          << " " << std::setw(8) << std::setfill('0') << ii.assemblyLine
-          << " in " << f->getNameStr() << " (";
-      // Yawn, we could go up and print varargs if we wanted to.
-      unsigned index = 0;
-      for (Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end();
-           ai != ae; ++ai) {
-        if (ai!=f->arg_begin()) msg << ", ";
 
-        msg << ai->getNameStr();
-        // XXX should go through function
-        ref<Expr> value = sf.locals[sf.kf->getArgRegister(index++)].value; 
-        //if (isa<ConstantExpr>(value))
-        msg << "=" << value;
-      }
-      msg << ")";
-      if (ii.file != "")
-        msg << " at " << ii.file << ":" << ii.line;
-      msg << "\n";
-      target = sf.caller;
-    }
+    printStack(state, state.prevPC, msg);
 
     std::string info_str = info.str();
     if (info_str != "")

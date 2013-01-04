@@ -527,7 +527,9 @@ public:
   Solver *getSolver() const;
   void initializeSolver();
 
-   Expr::Width getWidthForLLVMType(llvm::Type *type) const;
+  Expr::Width getWidthForLLVMType(llvm::Type *type) const;
+
+  void printStack(ExecutionState &state, KInstruction *target, std::stringstream &msg);
 };
 
 } // End klee namespace
