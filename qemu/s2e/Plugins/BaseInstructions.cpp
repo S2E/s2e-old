@@ -223,6 +223,12 @@ void BaseInstructions::printExpression(S2EExecutionState *state)
 
     s2e()->getMessagesStream() << "SymbExpression " << nameStr << " - "
                                <<val << '\n';
+
+    if (ConcolicMode) {
+        klee::ref<klee::Expr> concrete = state->concolics.evaluate(val);
+        s2e()->getMessagesStream() << "SymbExpression " << nameStr << " - Value: "
+                                   << concrete << '\n';
+    }
 }
 
 void BaseInstructions::printMemory(S2EExecutionState *state)
