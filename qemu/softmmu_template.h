@@ -31,8 +31,7 @@
  *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
  *
- * All contributors are listed in S2E-AUTHORS file.
- *
+ * All contributors are listed in the S2E-AUTHORS file.
  */
 #include "qemu-timer.h"
 #include "memory.h"

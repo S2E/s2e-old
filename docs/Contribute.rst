@@ -130,8 +130,7 @@ To be accepted, your code must follow the following rules:
      * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
      * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
      *
-     * All contributors are listed in S2E-AUTHORS file.
-     *
+     * All contributors are listed in the S2E-AUTHORS file.
      */
 
 

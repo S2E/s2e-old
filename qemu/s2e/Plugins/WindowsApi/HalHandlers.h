@@ -30,8 +30,7 @@
  *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
  *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *
- * All contributors are listed in S2E-AUTHORS file.
- *
+ * All contributors are listed in the S2E-AUTHORS file.
  */
 
 #ifndef S2E_PLUGINS_HALHANDLERS_H

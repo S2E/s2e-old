@@ -30,8 +30,7 @@
  *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
  *
- * All contributors are listed in S2E-AUTHORS file.
- *
+ * All contributors are listed in the S2E-AUTHORS file.
  */
 
 #ifndef _S2E_DEVICE_STATE_H_

@@ -8,7 +8,7 @@
 # Copyright (c) 2010, Dependable Systems Laboratory, EPFL
 #
 # Main authors: Vitaly Chipounov, Volodymyr Kuznetsov.
-# All contributors are listed in S2E-AUTHORS file.
+# All contributors are listed in the S2E-AUTHORS file.
 
 # set temporary file name
 if test ! -z "$TMPDIR" ; then
