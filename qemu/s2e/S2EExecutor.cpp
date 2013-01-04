@@ -2578,6 +2578,13 @@ void s2e_flush_tlb_cache()
     g_s2e_state->flushTlbCache();
 }
 
+void s2e_flush_tb_cache()
+{
+    if (g_s2e->getExecutor()->getStatesCount() > 0) {
+        g_s2e->getWarningsStream() << "Flushing TB cache with more than 1 state. Dangerous. Expect crashes.\n";
+    }
+}
+
 void s2e_flush_tlb_cache_page(void *objectState, int mmu_idx, int index)
 {
     g_s2e_state->flushTlbCachePage(static_cast<klee::ObjectState*>(objectState), mmu_idx, index);
