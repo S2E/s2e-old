@@ -90,6 +90,7 @@ void s2e_close_arg(void);
 
 
 void s2e_debug_print(const char *fmtstr, ...);
+void s2e_warning_print(const char *fmtstr, ...);
 void print_stacktrace(void);
 
 void s2e_print_apic(struct CPUX86State *env);

@@ -820,6 +820,22 @@ void s2e_debug_print(const char *fmtstr, ...)
     va_end(vl);
 }
 
+void s2e_warning_print(const char *fmtstr, ...)
+{
+    if (!g_s2e) {
+        return;
+    }
+
+    va_list vl;
+    va_start(vl,fmtstr);
+
+    char str[512];
+    vsnprintf(str, sizeof(str), fmtstr, vl);
+    g_s2e->getWarningsStream() << str;
+
+    va_end(vl);
+}
+
 //Print a klee expression.
 //Useful for invocations from GDB
 void s2e_print_expr(void *expr);
