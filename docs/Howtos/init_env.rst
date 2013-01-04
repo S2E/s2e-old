@@ -81,8 +81,7 @@ the ``--select-process-code`` or ``--sym-args`` argument.
     --select-process-code          Enable forking in the code section of the
                                    current binary only
     --concolic                     Augments all concrete arguments with symbolic values
-    --sym-arg <N>                  Replace by a symbolic argument with length N
-    --sym-arg <N>                  Replace by a symbolic argument with length N
+    --sym-arg <N>                  Replace by a symbolic argument of length N
     --sym-args <MIN> <MAX> <N>     Replace by at least MIN arguments and at most
                                    MAX arguments, each with maximum length N
 

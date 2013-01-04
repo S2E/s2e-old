@@ -239,8 +239,7 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
                          -select-process-code      - Enable forking in the code section of the\n\
                          current binary only\n\
                          -concolic                 - Augment existing concrete arguments with symbolic values\n\
-                         -sym-arg <N>              - Replace by a symbolic argument with length N\n\
-                         -sym-arg <N>              - Replace by a symbolic argument with length N\n\
+                         -sym-arg <N>              - Replace by a symbolic argument of length N\n\
                          -sym-args <MIN> <MAX> <N> - Replace by at least MIN arguments and at most\n\
                          MAX arguments, each with maximum length N\n\n");
     }
