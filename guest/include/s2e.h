@@ -59,7 +59,7 @@ static inline void __s2e_touch_buffer(volatile void *buffer, unsigned size)
 }
 
 /** Get S2E version or 0 when running without S2E. */
-static inline int s2e_version()
+static inline int s2e_version(void)
 {
     int version;
     __asm__ __volatile__(
@@ -284,7 +284,7 @@ static inline void s2e_kill_state(int status, const char *message)
 }
 
 /** Disable timer interrupt in the guest. */
-static inline void s2e_disable_timer_interrupt()
+static inline void s2e_disable_timer_interrupt(void)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
@@ -294,7 +294,7 @@ static inline void s2e_disable_timer_interrupt()
 }
 
 /** Enable timer interrupt in the guest. */
-static inline void s2e_enable_timer_interrupt()
+static inline void s2e_enable_timer_interrupt(void)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
@@ -304,7 +304,7 @@ static inline void s2e_enable_timer_interrupt()
 }
 
 /** Disable all APIC interrupts in the guest. */
-static inline void s2e_disable_all_apic_interrupts()
+static inline void s2e_disable_all_apic_interrupts(void)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
@@ -314,7 +314,7 @@ static inline void s2e_disable_all_apic_interrupts()
 }
 
 /** Enable all APIC interrupts in the guest. */
-static inline void s2e_enable_all_apic_interrupts()
+static inline void s2e_enable_all_apic_interrupts(void)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
@@ -324,7 +324,7 @@ static inline void s2e_enable_all_apic_interrupts()
 }
 
 /** Get the current S2E_RAM_OBJECT_BITS configuration macro */
-static inline int s2e_get_ram_object_bits()
+static inline int s2e_get_ram_object_bits(void)
 {
     int bits;
     __asm__ __volatile__(
@@ -340,7 +340,7 @@ static inline int s2e_get_ram_object_bits()
  *  all states when they reach this point.
  *
  * NOTE: This requires the merge searcher to be enabled. */
-static inline void s2e_merge_point()
+static inline void s2e_merge_point(void)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
@@ -400,7 +400,7 @@ static inline int s2e_read(int fd, char *buf, int count)
 }
 
 /** Enable memory tracing */
-static inline void s2e_memtracer_enable()
+static inline void s2e_memtracer_enable(void)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
@@ -410,7 +410,7 @@ static inline void s2e_memtracer_enable()
 }
 
 /** Disable memory tracing */
-static inline void s2e_memtracer_disable()
+static inline void s2e_memtracer_disable(void)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
