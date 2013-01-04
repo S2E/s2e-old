@@ -172,7 +172,7 @@ private:
 
     ConfiguredCodeSelDesc m_CodeSelDesc;
 
-    //Keep state accross tb translation signals
+    //Keep state across tb translation signals
     //to put the right amount of calls to en/disablesymbexec.
     TranslationBlock *m_Tb;
     bool m_TbSymbexEnabled;

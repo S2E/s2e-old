@@ -7,7 +7,7 @@ dnl Identify where LLVM source tree is (this is patched by
 dnl AutoRegen.sh)
 LLVM_SRC_ROOT=XXX
 
-dnl Tell autoconf that the auxilliary files are actually located in
+dnl Tell autoconf that the auxiliary files are actually located in
 dnl the LLVM autoconf directory, not here.
 AC_CONFIG_AUX_DIR($LLVM_SRC_ROOT/autoconf)
 

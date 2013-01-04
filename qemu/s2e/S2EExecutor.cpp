@@ -1867,7 +1867,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
 {
-    //Avoid incrementing stats everytime, very expensive.
+    //Avoid incrementing stats every time, very expensive.
     static unsigned doStatsIncrementCount= 0;
     assert(state->isActive());
 

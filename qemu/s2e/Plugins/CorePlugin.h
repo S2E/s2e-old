@@ -121,7 +121,7 @@ public:
         return m_Timer;
     }
 
-    /** Signal that is emitted on begining and end of code generation
+    /** Signal that is emitted on beginning and end of code generation
         for each QEMU translation block.
     */
     sigc::signal<void, ExecutionSignal*, 
@@ -184,7 +184,7 @@ public:
             onCustomInstruction;
 
     /** Signal that is emitted on each memory access */
-    /* XXX: this signal is still not emmited for code */
+    /* XXX: this signal is still not emitted for code */
     sigc::signal<void, S2EExecutionState*,
                  klee::ref<klee::Expr> /* virtualAddress */,
                  klee::ref<klee::Expr> /* hostAddress */,

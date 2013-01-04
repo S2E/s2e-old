@@ -164,7 +164,7 @@ private:
     typedef std::map<std::string, BasicBlockCoverage*> BbCoverageMap;
     BbCoverageMap m_bbCov;
 
-    /* Occurence count of program counters not in any known module */
+    /* Occurrence count of program counters not in any known module */
     uint64_t m_unknownModuleCount;
 
     /* Module names for which the tool could not find the executable image. */

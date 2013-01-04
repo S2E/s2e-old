@@ -104,7 +104,7 @@ void handler_symbwrite(const char **args)
     return;
 }
 
-void handler_examplify()
+void handler_exemplify()
 {
     const unsigned int BUF_SIZE = 32;
     char buffer[BUF_SIZE];
@@ -131,7 +131,7 @@ static cmd_t s_commands[] = {
     COMMAND(message, 1, "Display a message"),
     COMMAND(wait, 0, "Wait for S2E mode"),
     COMMAND(symbwrite, 1, "Write n symbolic bytes to stdout"),
-    COMMAND(examplify, 0, "Read from stdin and write an example to stdout"),
+    COMMAND(exemplify, 0, "Read from stdin and write an example to stdout"),
     {NULL, NULL, 0}
 };
 

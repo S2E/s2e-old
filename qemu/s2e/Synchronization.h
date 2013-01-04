@@ -58,7 +58,7 @@ public:
 
     void lock();
     void release();
-    void *aquire();
+    void *acquire();
     void *tryAquire();
 
     //Unsynchronized function to get the buffer
@@ -89,7 +89,7 @@ public:
     }
 
     T *acquire() {
-        return (T*)sync.aquire();
+        return (T*)sync.acquire();
     }
 
     //Returns null if could not lock the object

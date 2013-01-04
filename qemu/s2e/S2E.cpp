@@ -227,7 +227,7 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     shared->processPids[m_currentProcessId] = getpid();
     m_sync.release();
 
-    /* Open output directory. Do it at the very begining so that
+    /* Open output directory. Do it at the very beginning so that
        other init* functions can use it. */
     initOutputDirectory(outputDirectory, verbose, false);
 
@@ -759,7 +759,7 @@ bool S2E::checkDeadProcesses()
         snprintf(buffer, sizeof(buffer), "kill -0 %d", shared->processPids[i]);
         int ret = system(buffer);
         if (ret != 0) {
-            //Process is dead, we have to decrement everyting
+            //Process is dead, we have to decrement everything
             shared->processIds[i] = (unsigned) -1;
             shared->processPids[i] = (unsigned) -1;
             --shared->currentProcessCount;

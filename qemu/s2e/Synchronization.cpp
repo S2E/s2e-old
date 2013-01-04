@@ -77,7 +77,7 @@ S2ESynchronizedObjectInternal::~S2ESynchronizedObjectInternal()
     delete [] m_sharedBuffer;
 }
 
-void *S2ESynchronizedObjectInternal::aquire()
+void *S2ESynchronizedObjectInternal::acquire()
 {
     return m_sharedBuffer;
 }
@@ -161,7 +161,7 @@ S2ESynchronizedObjectInternal::~S2ESynchronizedObjectInternal()
     munmap(m_sharedBuffer, totalSize);
 }
 
-void *S2ESynchronizedObjectInternal::aquire() {
+void *S2ESynchronizedObjectInternal::acquire() {
     SyncHeader *hdr = (SyncHeader*)m_sharedBuffer;
 #ifdef CONFIG_DARWIN
     while (__sync_lock_test_and_set(&hdr->lock, 0) != 0);

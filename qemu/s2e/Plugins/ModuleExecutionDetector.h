@@ -110,7 +110,7 @@ public:
         const ModuleDescriptor *,
         const ModuleDescriptor *> onModuleTransition;
 
-    /** Signal that is emitted on begining and end of code generation
+    /** Signal that is emitted on beginning and end of code generation
         for each translation block belonging to the module.
     */
     sigc::signal<void, ExecutionSignal*,

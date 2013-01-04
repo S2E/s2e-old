@@ -115,7 +115,7 @@ class FunctionMonitorState : public PluginState
 
     FunctionMonitor *m_plugin;
 
-    /* Get a signal that is emited on function calls. Passing eip = 0 means
+    /* Get a signal that is emitted on function calls. Passing eip = 0 means
        any function, and cr3 = 0 means any cr3 */
     FunctionMonitor::CallSignal* getCallSignal(uint64_t eip, uint64_t cr3 = 0);
 

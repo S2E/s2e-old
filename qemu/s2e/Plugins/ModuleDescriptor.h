@@ -120,7 +120,7 @@ struct ModuleDescriptor
   //The name of the module (eg. MYAPP.EXE or DRIVER.SYS)
   std::string Name;
   
-  //Where the the prefered load address of the module.
+  //Where the the preferred load address of the module.
   //This is defined by the linker and put into the header of the image.
   uint64_t NativeBase;
   

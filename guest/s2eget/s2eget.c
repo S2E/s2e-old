@@ -116,7 +116,7 @@ int copy_file(const char *directory, const char *guest_file)
         fsize += ret;
     }
 
-    printf("... file %s of size %d was transfered successfully\n",
+    printf("... file %s of size %d was transferred successfully\n",
             file, fsize);
 
     s2e_close(s2e_fd);

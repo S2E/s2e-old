@@ -157,7 +157,7 @@ void BasicBlockCoverage::parseExcludeFile(const std::string &moduleDir,
     fclose(fp);
 }
 
-//Start and end must be local to the modle
+//Start and end must be local to the model
 bool BasicBlockCoverage::addTranslationBlock(uint64_t ts, uint64_t start, uint64_t end)
 {
     Block tb(ts, start, end);

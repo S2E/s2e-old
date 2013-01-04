@@ -318,7 +318,7 @@ public:
     void readRamConcreteCheck(uint64_t hostAddress, uint8_t* buf, uint64_t size);
 
 
-    /** Read from physical memory, concretizing if nessecary.
+    /** Read from physical memory, concretizing if necessary.
         Note: this function accepts host address (as returned
         by qemu_get_ram_ptr */
     void readRamConcrete(uint64_t hostAddress, uint8_t* buf, uint64_t size);

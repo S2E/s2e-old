@@ -172,7 +172,7 @@ public:
 };
 
 
-/** Should be put at the begining of any S2E plugin */
+/** Should be put at the beginning of any S2E plugin */
 #define S2E_PLUGIN                                                                 \
     private:                                                                       \
         static const char s_pluginDeps[][64];                                      \
