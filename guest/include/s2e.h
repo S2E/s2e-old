@@ -44,7 +44,7 @@
   * before passing them to S2E, which can't page in memory by itself. */
 static inline void __s2e_touch_string(volatile const char *string)
 {
-    while(*string) {
+    while (*string) {
         ++string;
     }
 }
@@ -52,8 +52,8 @@ static inline void __s2e_touch_string(volatile const char *string)
 static inline void __s2e_touch_buffer(volatile void *buffer, unsigned size)
 {
     unsigned i;
-    volatile char *b = (volatile char *)buffer;
-    for (i=0; i<size; ++i) {
+    volatile char *b = (volatile char *) buffer;
+    for (i = 0; i < size; ++i) {
         *b; ++b;
     }
 }
@@ -72,7 +72,7 @@ static inline int s2e_version()
 }
 
 /** Print message to the S2E log. */
-static inline void s2e_message(const char* message)
+static inline void s2e_message(const char *message)
 {
     __s2e_touch_string(message);
     __asm__ __volatile__(
@@ -96,7 +96,7 @@ static inline int s2e_printf(const char *format, ...)
 }
 
 /** Print warning to the S2E log and S2E stdout. */
-static inline void s2e_warning(const char* message)
+static inline void s2e_warning(const char *message)
 {
     __s2e_touch_string(message);
     __asm__ __volatile__(
@@ -108,7 +108,7 @@ static inline void s2e_warning(const char* message)
 }
 
 /** Print symbolic expression to the S2E log. */
-static inline void s2e_print_expression(const char* name, int expression)
+static inline void s2e_print_expression(const char *name, int expression)
 {
     __s2e_touch_string(name);
     __asm__ __volatile__(
@@ -163,7 +163,7 @@ static inline unsigned s2e_get_path_id(void)
 }
 
 /** Fill buffer with unconstrained symbolic values. */
-static inline void s2e_make_symbolic(void* buf, int size, const char* name)
+static inline void s2e_make_symbolic(void *buf, int size, const char *name)
 {
     __s2e_touch_string(name);
     __s2e_touch_buffer(buf, size);
@@ -179,7 +179,7 @@ static inline void s2e_make_symbolic(void* buf, int size, const char* name)
 }
 
 /** Fill buffer with unconstrained symbolic values without discarding concrete data. */
-static inline void s2e_make_concolic(void* buf, int size, const char* name)
+static inline void s2e_make_concolic(void *buf, int size, const char *name)
 {
     __s2e_touch_string(name);
     __s2e_touch_buffer(buf, size);
@@ -208,7 +208,7 @@ static inline void s2e_assume(int expression)
 
 
 /** Returns true if ptr points to symbolic memory */
-static inline int s2e_is_symbolic(void* ptr, size_t size)
+static inline int s2e_is_symbolic(void *ptr, size_t size)
 {
     int result;
     __s2e_touch_buffer(ptr, 1);
@@ -222,7 +222,7 @@ static inline int s2e_is_symbolic(void* ptr, size_t size)
 }
 
 /** Concretize the expression. */
-static inline void s2e_concretize(void* buf, int size)
+static inline void s2e_concretize(void *buf, int size)
 {
     __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
@@ -237,7 +237,7 @@ static inline void s2e_concretize(void* buf, int size)
 }
 
 /** Get example value for expression (without adding state constraints). */
-static inline void s2e_get_example(void* buf, int size)
+static inline void s2e_get_example(void *buf, int size)
 {
     __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
@@ -269,7 +269,7 @@ static inline unsigned s2e_get_example_uint(unsigned val)
 }
 
 /** Terminate current state. */
-static inline void s2e_kill_state(int status, const char* message)
+static inline void s2e_kill_state(int status, const char *message)
 {
     __s2e_touch_string(message);
     __asm__ __volatile__(
@@ -352,7 +352,7 @@ static inline void s2e_merge_point()
 /** Open file from the guest.
  *
  * NOTE: This requires the HostFiles plugin. */
-static inline int s2e_open(const char* fname)
+static inline int s2e_open(const char *fname)
 {
     int fd;
     __s2e_touch_string(fname);
@@ -383,7 +383,7 @@ static inline int s2e_close(int fd)
 /** Read file content from the guest.
  *
  * NOTE: This requires the HostFiles plugin. */
-static inline int s2e_read(int fd, char* buf, int count)
+static inline int s2e_read(int fd, char *buf, int count)
 {
     int res;
     __s2e_touch_buffer(buf, count);
@@ -449,10 +449,11 @@ typedef struct _s2e_opcode_module_config_t {
 /** Communicates to S2E the coordinates of loaded modules. Useful when there is
     no plugin to automatically parse OS data structures. */
 static inline void s2e_rawmon_loadmodule2(const char *name,
-                                         uint64_t nativebase,
-                                         uint64_t loadbase,
-                                         uint64_t entrypoint,
-                                         uint64_t size, unsigned kernelMode)
+                                          uint64_t nativebase,
+                                          uint64_t loadbase,
+                                          uint64_t entrypoint,
+                                          uint64_t size,
+                                          unsigned kernelMode)
 {
     s2e_opcode_module_config_t cfg;
     cfg.name = (uint32_t) name;
@@ -521,41 +522,42 @@ static inline void s2e_moduleexec_add_module(const char *moduleId, const char *m
 }
 
 /* Kills the current state if b is zero. */
-static inline void _s2e_assert(int b, const char *expression )
+static inline void _s2e_assert(int b, const char *expression)
 {
-   if (!b) {
-      s2e_kill_state(0, expression);
-   }
+    if (!b) {
+        s2e_kill_state(0, expression);
+    }
 }
 
 #define s2e_assert(expression) _s2e_assert(expression, "Assertion failed: "  #expression)
 
 /** Returns a symbolic value in [start, end). */
-static inline int s2e_range(int start, int end, const char* name) {
-  int x = -1;
+static inline int s2e_range(int start, int end, const char *name)
+{
+    int x = -1;
 
-  if (start >= end) {
-    s2e_kill_state(1, "s2e_range: invalid range");
-  }
-
-  if (start+1==end) {
-    return start;
-  } else {
-    s2e_make_symbolic(&x, sizeof x, name);
-
-    /* Make nicer constraint when simple... */
-    if (start==0) {
-      if ((unsigned) x >= (unsigned) end) {
-        s2e_kill_state(0, "s2e_range creating a constraint...");
-      }
-    } else {
-      if (x < start || x >= end) {
-        s2e_kill_state(0, "s2e_range creating a constraint...");
-      }
+    if (start >= end) {
+        s2e_kill_state(1, "s2e_range: invalid range");
     }
 
-    return x;
-  }
+    if (start + 1 == end) {
+        return start;
+    } else {
+        s2e_make_symbolic(&x, sizeof x, name);
+
+        /* Make nicer constraint when simple... */
+        if (start == 0) {
+            if ((unsigned) x >= (unsigned) end) {
+                s2e_kill_state(0, "s2e_range creating a constraint...");
+            }
+        } else {
+            if (x < start || x >= end) {
+                s2e_kill_state(0, "s2e_range creating a constraint...");
+            }
+        }
+
+        return x;
+    }
 }
 
 /**
