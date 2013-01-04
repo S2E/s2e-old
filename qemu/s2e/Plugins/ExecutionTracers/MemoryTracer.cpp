@@ -76,6 +76,7 @@ void MemoryTracer::initialize()
 
     //Catch accesses that are above the specified address
     m_catchAbove = s2e()->getConfig()->getInt(getConfigKey() + ".catchAccessesAbove");
+    m_catchBelow = s2e()->getConfig()->getInt(getConfigKey() + ".catchAccessesBelow");
 
     //Whether or not to include host addresses in the trace.
     //This is useful for debugging, bug yields larger traces
@@ -112,6 +113,15 @@ void MemoryTracer::traceDataMemoryAccess(S2EExecutionState *state,
                                klee::ref<klee::Expr> &value,
                                bool isWrite, bool isIO)
 {
+    if (m_catchAbove || m_catchBelow) {
+        if (m_catchAbove && (m_catchAbove >= state->getPc())) {
+            return;
+        }
+        if (m_catchBelow && (m_catchBelow < state->getPc())) {
+            return;
+        }
+    }
+
     bool isAddrCste = isa<klee::ConstantExpr>(address);
     bool isValCste = isa<klee::ConstantExpr>(value);
     bool isHostAddrCste = isa<klee::ConstantExpr>(hostAddress);

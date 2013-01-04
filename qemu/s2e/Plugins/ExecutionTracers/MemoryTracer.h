@@ -72,6 +72,7 @@ private:
     bool m_monitorStack;
     bool m_traceHostAddresses;
     uint64_t m_catchAbove;
+    uint64_t m_catchBelow;
 
     uint64_t m_timeTrigger;
     uint64_t m_elapsedTics;
