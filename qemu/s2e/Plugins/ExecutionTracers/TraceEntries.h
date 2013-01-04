@@ -359,7 +359,7 @@ struct ExecutionTraceTb
     uint8_t tbType;
 
     uint8_t symbMask;
-    uint32_t registers[8];
+    uint64_t registers[8];
 }__attribute__((packed));
 
 union ExecutionTraceAll {
