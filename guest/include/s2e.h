@@ -339,7 +339,7 @@ static inline int s2e_get_ram_object_bits()
 /** Declare a merge point: S2E will try to merge
  *  all states when they reach this point.
  *
- * NOTE: This requires merge searcher to be enabled. */
+ * NOTE: This requires the merge searcher to be enabled. */
 static inline void s2e_merge_point()
 {
     __asm__ __volatile__(
@@ -351,7 +351,7 @@ static inline void s2e_merge_point()
 
 /** Open file from the guest.
  *
- * NOTE: This require HostFiles plugin. */
+ * NOTE: This requires the HostFiles plugin. */
 static inline int s2e_open(const char* fname)
 {
     int fd;
@@ -367,7 +367,7 @@ static inline int s2e_open(const char* fname)
 
 /** Close file from the guest.
  *
- * NOTE: This require HostFiles plugin. */
+ * NOTE: This requires the HostFiles plugin. */
 static inline int s2e_close(int fd)
 {
     int res;
@@ -382,7 +382,7 @@ static inline int s2e_close(int fd)
 
 /** Read file content from the guest.
  *
- * NOTE: This require HostFiles plugin. */
+ * NOTE: This requires the HostFiles plugin. */
 static inline int s2e_read(int fd, char* buf, int count)
 {
     int res;
@@ -421,7 +421,7 @@ static inline void s2e_memtracer_disable()
 
 /** Raw monitor plugin */
 /** Communicates to S2E the coordinates of loaded modules. Useful when there is
-    no plugin to automatically parse OS data structures */
+    no plugin to automatically parse OS data structures. */
 static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, unsigned size)
 {
     __s2e_touch_string(name);
@@ -447,7 +447,7 @@ typedef struct _s2e_opcode_module_config_t {
 
 /** Raw monitor plugin */
 /** Communicates to S2E the coordinates of loaded modules. Useful when there is
-    no plugin to automatically parse OS data structures */
+    no plugin to automatically parse OS data structures. */
 static inline void s2e_rawmon_loadmodule2(const char *name,
                                          uint64_t nativebase,
                                          uint64_t loadbase,
@@ -473,7 +473,7 @@ static inline void s2e_rawmon_loadmodule2(const char *name,
 }
 
 /** CodeSelector plugin */
-/** Enable forking in the current process (entire address space or user mode only) */
+/** Enable forking in the current process (entire address space or user mode only). */
 static inline void s2e_codeselector_enable_address_space(unsigned user_mode_only)
 {
     __asm__ __volatile__(
@@ -507,7 +507,7 @@ static inline void s2e_codeselector_select_module(const char *moduleId)
     );
 }
 
-/** Programmatically add a new configuration entry to the ModuleExecutionDetector plugin */
+/** Programmatically add a new configuration entry to the ModuleExecutionDetector plugin. */
 static inline void s2e_moduleexec_add_module(const char *moduleId, const char *moduleName, int kernelMode)
 {
     __s2e_touch_string(moduleId);
@@ -520,7 +520,7 @@ static inline void s2e_moduleexec_add_module(const char *moduleId, const char *m
     );
 }
 
-/* Kills the current state if b is zero */
+/* Kills the current state if b is zero. */
 static inline void _s2e_assert(int b, const char *expression )
 {
    if (!b) {
@@ -530,7 +530,7 @@ static inline void _s2e_assert(int b, const char *expression )
 
 #define s2e_assert(expression) _s2e_assert(expression, "Assertion failed: "  #expression)
 
-/** Returns a symbolic value in [start, end) */
+/** Returns a symbolic value in [start, end). */
 static inline int s2e_range(int start, int end, const char* name) {
   int x = -1;
 
