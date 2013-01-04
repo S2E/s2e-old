@@ -34,6 +34,7 @@
  */
 
 #include <iomanip>
+#include <inttypes.h>
 
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
@@ -41,6 +42,10 @@
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 #include "MemoryTracer.h"
+
+#include <llvm/Support/CommandLine.h>
+
+extern llvm::cl::opt<bool> ConcolicMode;
 
 namespace s2e {
 namespace plugins {
@@ -115,8 +120,19 @@ void MemoryTracer::traceDataMemoryAccess(S2EExecutionState *state,
     ExecutionTraceMemory e;
     e.flags = 0;
     e.pc = state->getPc();
-    e.address = isAddrCste ? cast<klee::ConstantExpr>(address)->getZExtValue(64) : 0xDEADBEEF;
-    e.value = isValCste ? cast<klee::ConstantExpr>(value)->getZExtValue(64) : 0xDEADBEEF;
+
+    uint64_t concreteAddress = 0xdeadbeef;
+    uint64_t concreteValue = 0xdeadbeef;
+    if (ConcolicMode) {
+        klee::ref<klee::ConstantExpr> ce = dyn_cast<klee::ConstantExpr>(state->concolics.evaluate(address));
+        concreteAddress = ce->getZExtValue();
+
+        ce = dyn_cast<klee::ConstantExpr>(state->concolics.evaluate(value));
+        concreteValue = ce->getZExtValue();
+    }
+
+    e.address = isAddrCste ? cast<klee::ConstantExpr>(address)->getZExtValue(64) : concreteAddress;
+    e.value = isValCste ? cast<klee::ConstantExpr>(value)->getZExtValue(64) : concreteValue;
     e.size = klee::Expr::getMinBytesForWidth(value->getWidth());
     e.flags = isWrite*EXECTRACE_MEM_WRITE |
                  isIO*EXECTRACE_MEM_IO;
