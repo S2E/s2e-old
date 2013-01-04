@@ -54,8 +54,6 @@ s2e_ttuas:
     ret
 
 
-
->>>>>>> 7234f66... Fixed crash in case of an unaligned access to symbolic value in concrete mode
 ;Both states are feasible
 s2e_concolic_1:
     call s2e_fork_enable
