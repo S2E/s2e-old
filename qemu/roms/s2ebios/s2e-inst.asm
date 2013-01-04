@@ -243,7 +243,7 @@ s2e_assume:
     push ebp
     mov ebp, esp
 
-    mov eax, [ebp + 0x4] ;expression
+    mov eax, [ebp + 0x8] ;expression
 
     db 0x0f
     db 0x3f ; S2EOP
