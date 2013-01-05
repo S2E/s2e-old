@@ -784,32 +784,8 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
     //Evaluate the expression using the current variable assignment.
     ref<Expr> evalResult = current.concolics.evaluate(condition);
     ConstantExpr *ce = dyn_cast<ConstantExpr>(evalResult);
-    if (!ce) {
-        //Some variable assignments are missing,
-        //try to compute them using the solver.
-        std::vector<const Array*> symbObjects;
-        std::vector<std::vector<unsigned char> > concreteObjects;
-        findSymbolicObjects(evalResult, symbObjects);
 
-        if (!solver->getInitialValues(current, symbObjects, concreteObjects)) {
-            current.pc = current.prevPC;
-            std::stringstream ss;
-            ss << "Could not get initial values on expression " << evalResult
-               << " for condition " << condition;
-            terminateStateEarly(current, ss.str());
-            return StatePair(0, 0);
-        }
-
-        //Add them to the current state
-        for (unsigned i=0; i<symbObjects.size(); ++i) {
-            current.concolics.add(symbObjects[i], concreteObjects[i]);
-        }
-
-        //Redo the evaluation
-        evalResult = current.concolics.evaluate(condition);
-        ce = dyn_cast<ConstantExpr>(evalResult);
-        assert(ce && "Expression must be constant here!");
-    }
+    assert(ce && "Could not evaluate the expression to a constant.");
 
     if (current.forkDisabled) {
        if (ce->isTrue()) {
