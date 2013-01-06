@@ -68,11 +68,18 @@ void Annotation::initialize()
 
     //Reading all sections first
     foreach2(it, Sections.begin(), Sections.end()) {
-        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << '\n';
+        std::string sectionName = *it;
         std::stringstream sk;
-        sk << getConfigKey() << "." << *it;
-        if (!initSection(sk.str(), *it)) {
-            noErrors = false;
+        sk << getConfigKey() << "." << sectionName;
+
+        if (sectionName.compare("coreSignals") == 0) {
+            s2e()->getMessagesStream() << "Registering annotations for core signals\n";
+            registerCoreSignals(sk.str());
+        } else {
+            s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << '\n';
+            if (!initSection(sk.str(), *it)) {
+                noErrors = false;
+            }
         }
     }
 
@@ -95,6 +102,44 @@ Annotation::~Annotation()
 {
     foreach2(it, m_entries.begin(), m_entries.end()) {
         delete *it;
+    }
+}
+
+std::string Annotation::checkCoreSignal(const std::string &cfgname,
+                                        const std::string &name)
+{
+    ConfigFile *cfg = s2e()->getConfig();
+    std::stringstream ss;
+    ss << cfgname << "." << name;
+    std::string ret = cfg->getString(ss.str());
+    if (ret.length() > 0) {
+        if (!cfg->isFunctionDefined(ret)) {
+            s2e()->getWarningsStream()
+                    << "Annotation: " << ret << " is not declared in the Lua script\n";
+            exit(-1);
+        }
+
+        s2e()->getDebugStream()
+                << "Annotation: Registering " << name
+                << "(" << ret << ")\n";
+    }
+    return ret;
+}
+
+void Annotation::registerCoreSignals(const std::string &cfgname)
+{
+    m_onStateKill = checkCoreSignal(cfgname, "onStateKill");
+    if (m_onStateKill.length() > 0) {
+        s2e()->getCorePlugin()->onStateKill.connect(
+                sigc::mem_fun(*this, &Annotation::onStateKill)
+        );
+    }
+
+    m_onTimer = checkCoreSignal(cfgname, "onTimer");
+    if (m_onTimer.length() > 0) {
+        s2e()->getCorePlugin()->onTimer.connect(
+                sigc::mem_fun(*this, &Annotation::onTimer)
+        );
     }
 }
 
@@ -168,6 +213,29 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
     m_entries.insert(ne);
 
     return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+void Annotation::onStateKill(S2EExecutionState* state)
+{
+    lua_State *L = s2e()->getConfig()->getState();
+    LUAAnnotation luaAnnotation(this, state);
+    S2ELUAExecutionState lua_s2e_state(state);
+
+    lua_getfield(L, LUA_GLOBALSINDEX, m_onStateKill.c_str());
+    Lunar<S2ELUAExecutionState>::push(L, &lua_s2e_state);
+    Lunar<LUAAnnotation>::push(L, &luaAnnotation);
+    lua_call(L, 2, 0);
+}
+
+void Annotation::onTimer()
+{
+    lua_State *L = s2e()->getConfig()->getState();
+    LUAAnnotation luaAnnotation(this, NULL);
+
+    lua_getfield(L, LUA_GLOBALSINDEX, m_onTimer.c_str());
+    Lunar<LUAAnnotation>::push(L, &luaAnnotation);
+    lua_call(L, 1, 0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -448,7 +516,12 @@ LUAAnnotation::LUAAnnotation(Annotation *plg, S2EExecutionState *state)
 
 LUAAnnotation::LUAAnnotation(lua_State *lua)
 {
-
+    m_plugin = NULL;
+    m_doKill = false;
+    m_doSkip = false;
+    m_isReturn = false;
+    m_isInstruction = false;
+    m_state = NULL;
 }
 
 LUAAnnotation::~LUAAnnotation()

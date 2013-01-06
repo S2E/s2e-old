@@ -110,8 +110,18 @@ private:
     sigc::connection m_tbConnectionStart;
     sigc::connection m_tbConnectionEnd;
 
+    std::string m_onStateKill;
+    std::string m_onTimer;
 
     bool initSection(const std::string &entry, const std::string &cfgname);
+
+    std::string checkCoreSignal(const std::string &cfgname,
+                                const std::string &name);
+    void registerCoreSignals(const std::string &cfgname);
+
+    //CorePlugin signal hooks for annotations
+    void onStateKill(S2EExecutionState* state);
+    void onTimer();
 
     void onModuleLoad(
             S2EExecutionState* state,
