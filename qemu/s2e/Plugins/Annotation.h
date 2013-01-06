@@ -44,7 +44,6 @@
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/OSMonitor.h>
 #include <s2e/ConfigFile.h>
-#include <s2e/Plugins/StateManager.h>
 
 namespace s2e {
 namespace plugins {
@@ -103,7 +102,6 @@ private:
     FunctionMonitor *m_functionMonitor;
     ModuleExecutionDetector *m_moduleExecutionDetector;
     OSMonitor *m_osMonitor;
-    StateManager *m_manager;
     CfgEntries m_entries;
 
     //To instrument specific instructions in the code
@@ -204,7 +202,6 @@ private:
     bool m_doSkip;
     bool m_doKill;
     bool m_isReturn;
-    bool m_succeed;
     bool m_isInstruction;
     S2EExecutionState *m_state;
 
@@ -221,7 +218,6 @@ public:
     int activateRule(lua_State *L);
     int isReturn(lua_State *L);
     int isCall(lua_State *L);
-    int succeed(lua_State *L);
 
     int setValue(lua_State *L);
     int getValue(lua_State *L);

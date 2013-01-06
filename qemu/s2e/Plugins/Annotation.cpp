@@ -60,7 +60,6 @@ void Annotation::initialize()
     m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
     m_moduleExecutionDetector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
     m_osMonitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
-    m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
 
     m_translationEventConnected = false;
 
@@ -350,13 +349,6 @@ void Annotation::invokeAnnotation(
         throw CpuExitException();
     }
 
-    if (!isCall && luaAnnotation.m_succeed) {
-       assert(m_manager && "The StateManager plugin must be active to use succeed() call.");
-       m_manager->succeedState(state);
-       m_functionMonitor->eraseSp(state, state->getPc());
-       throw CpuExitException();
-    }
-
     if (fns) {
         assert(isCall);
         FunctionMonitor::ReturnSignal returnSignal;
@@ -433,7 +425,6 @@ Lunar<LUAAnnotation>::RegType LUAAnnotation::methods[] = {
   LUNAR_DECLARE_METHOD(LUAAnnotation, activateRule),
   LUNAR_DECLARE_METHOD(LUAAnnotation, isReturn),
   LUNAR_DECLARE_METHOD(LUAAnnotation, isCall),
-  LUNAR_DECLARE_METHOD(LUAAnnotation, succeed),
   LUNAR_DECLARE_METHOD(LUAAnnotation, getValue),
   LUNAR_DECLARE_METHOD(LUAAnnotation, setValue),
   {0,0}
@@ -446,7 +437,6 @@ LUAAnnotation::LUAAnnotation(Annotation *plg, S2EExecutionState *state)
     m_doKill = false;
     m_doSkip = false;
     m_isReturn = false;
-    m_succeed = false;
     m_isInstruction = false;
     m_state = state;
 }
@@ -475,13 +465,6 @@ int LUAAnnotation::setKill(lua_State *L)
     m_doKill = lua_toboolean(L, 1);
 
     g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doKill << '\n';
-    return 0;
-}
-
-int LUAAnnotation::succeed(lua_State *L)
-{
-    m_succeed = true;
-    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doSkip << '\n';
     return 0;
 }
 
