@@ -52,8 +52,7 @@ extern "C" {
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(Annotation, "Bypasses functions at run-time", "Annotation",
-                  "ModuleExecutionDetector", "FunctionMonitor", "Interceptor");
+S2E_DEFINE_PLUGIN(Annotation, "Bypasses functions at run-time", "Annotation");
 
 void Annotation::initialize()
 {
@@ -132,6 +131,11 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
     e.address = cfg->getInt(entry + ".address", 0, &ok);
     if (!ok) {
         os << "You must specify a valid address for " << entry << ".address!" << '\n';
+        return false;
+    }
+
+    if (!m_functionMonitor || !m_moduleExecutionDetector || !m_osMonitor) {
+        os << "You must enable FunctionMonitor, ModuleExecutionDetector, and an OS monitor plugin\n";
         return false;
     }
 
