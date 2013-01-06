@@ -431,6 +431,7 @@ Lunar<LUAAnnotation>::RegType LUAAnnotation::methods[] = {
   LUNAR_DECLARE_METHOD(LUAAnnotation, isCall),
   LUNAR_DECLARE_METHOD(LUAAnnotation, getValue),
   LUNAR_DECLARE_METHOD(LUAAnnotation, setValue),
+  LUNAR_DECLARE_METHOD(LUAAnnotation, exit),
   {0,0}
 };
 
@@ -530,6 +531,15 @@ int LUAAnnotation::getValue(lua_State *L)
 
   lua_pushnumber(L, value);
   return 1;
+}
+
+int LUAAnnotation::exit(lua_State *L)
+{
+    g_s2e->getMessagesStream(g_s2e_state) <<
+            "Lua annotation requested exit from S2E\n";
+    //make sure to call the stdlib exit() function
+    ::exit(0);
+    return 0;
 }
 
 /////////////////////////////

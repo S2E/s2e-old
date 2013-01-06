@@ -222,6 +222,8 @@ public:
     int setValue(lua_State *L);
     int getValue(lua_State *L);
 
+    int exit(lua_State *L);
+
     friend class Annotation;
 };
 
