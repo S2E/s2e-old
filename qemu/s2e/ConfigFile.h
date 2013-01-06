@@ -371,6 +371,8 @@ public:
         return m_luaState;
     }
 
+    bool isFunctionDefined(const std::string &name) const;
+
 };
 
 } // namespace s2e
