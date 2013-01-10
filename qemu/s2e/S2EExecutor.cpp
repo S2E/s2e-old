@@ -2581,7 +2581,9 @@ void s2e_flush_tlb_cache()
 void s2e_flush_tb_cache()
 {
     if (g_s2e && g_s2e->getExecutor()->getStatesCount() > 0) {
-        g_s2e->getWarningsStream() << "Flushing TB cache with more than 1 state. Dangerous. Expect crashes.\n";
+        if (!FlushTBsOnStateSwitch) {
+            g_s2e->getWarningsStream() << "Flushing TB cache with more than 1 state. Dangerous. Expect crashes.\n";
+        }
     }
 }
 
