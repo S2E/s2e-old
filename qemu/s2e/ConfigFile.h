@@ -286,6 +286,7 @@ public:
   int writeMemorySymb(lua_State *L);
   int readMemory(lua_State *L);
   int writeMemory(lua_State *L);
+  int isSpeculative(lua_State *L);
 };
 
 

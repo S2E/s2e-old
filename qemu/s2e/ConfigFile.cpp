@@ -398,6 +398,7 @@ Lunar<S2ELUAExecutionState>::RegType S2ELUAExecutionState::methods[] = {
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeMemorySymb),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readMemory),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeMemory),
+  LUNAR_DECLARE_METHOD(S2ELUAExecutionState, isSpeculative),
   {0,0}
 };
 
@@ -641,6 +642,12 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
     m_state->readCpuRegisterConcrete(offsetof(CPUX86State, regs) + regIndex*4, &value, size);
 
     lua_pushnumber(L, value);        /* first result */
+    return 1;
+}
+
+int S2ELUAExecutionState::isSpeculative(lua_State *L)
+{
+    lua_pushboolean(L, m_state->isSpeculative());        /* first result */
     return 1;
 }
 
