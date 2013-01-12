@@ -41,6 +41,9 @@
 
 #ifdef WIN32
 #include <windows.h>
+#define SLEEP(x) Sleep((x) * 1000)
+#else
+#define SLEEP(x) sleep(x)
 #endif
 
 typedef void (*cmd_handler_t)(const char **args);
@@ -68,11 +71,7 @@ void handler_wait(const char **args)
 {
     s2e_message("Waiting for S2E...");
     while (!s2e_version()) {
-#ifdef WIN32
-       Sleep(1000);
-#else
-       sleep(1);
-#endif
+       SLEEP(1);
     }
     s2e_message("Done waiting for S2E.");
 }
