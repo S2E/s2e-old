@@ -288,10 +288,21 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
     }
 
     for(unsigned i = 0; i < size; ++i) {
-        if (!state->readMemoryConcrete8(address + i, NULL, S2EExecutionState::VirtualAddress, addConstraint)) {
+        uint8_t b = 0;
+        if (!state->readMemoryConcrete8(address + i, &b, S2EExecutionState::VirtualAddress, addConstraint)) {
             s2e()->getWarningsStream(state)
                 << "Can not concretize memory"
                 << " at " << hexval(address + i) << '\n';
+        } else {
+            //readMemoryConcrete8 does not automatically overwrite the destination
+            //address if we choose not to add the constraint, so we do it here
+            if (!addConstraint) {
+                if (!state->writeMemoryConcrete(address + i, &b, sizeof(b))) {
+                    s2e()->getWarningsStream(state)
+                        << "Can not write memory"
+                        << " at " << hexval(address + i) << '\n';
+                }
+            }
         }
     }
 }
