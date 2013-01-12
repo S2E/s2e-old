@@ -53,7 +53,7 @@ typedef struct _cmd_t {
     cmd_handler_t handler;
     unsigned args_count;
     char *description;
-}cmd_t;
+} cmd_t;
 
 void handler_kill(const char **args)
 {
@@ -109,7 +109,7 @@ void handler_exemplify(void)
     memset(buffer, 0, sizeof(buffer));
 
     while (fgets(buffer, sizeof(buffer), stdin)) {
-        for (i = 0; i<BUF_SIZE; ++i) {
+        for (i = 0; i < BUF_SIZE; ++i) {
             if (s2e_is_symbolic(&buffer[i], sizeof(buffer[i]))) {
                 s2e_get_example(&buffer[i], sizeof(buffer[i]));
             }
@@ -121,7 +121,7 @@ void handler_exemplify(void)
 }
 
 
-#define COMMAND(c, args, desc) {#c, handler_##c, args, desc}
+#define COMMAND(c, args, desc) { #c, handler_##c, args, desc }
 
 static cmd_t s_commands[] = {
     COMMAND(kill, 2, "Kill the current state with the specified numeric status and message"),
@@ -129,23 +129,23 @@ static cmd_t s_commands[] = {
     COMMAND(wait, 0, "Wait for S2E mode"),
     COMMAND(symbwrite, 1, "Write n symbolic bytes to stdout"),
     COMMAND(exemplify, 0, "Read from stdin and write an example to stdout"),
-    {NULL, NULL, 0}
+    { NULL, NULL, 0 }
 };
 
 void print_commands(void)
 {
-    unsigned i=0;
+    unsigned i = 0;
     printf("%-15s  %s %s\n\n", "Command name", "Argument count", "Description");
     while(s_commands[i].handler) {
-        printf("%-15s  %d              %s\n", s_commands[i].name, s_commands[i].args_count,
-                s_commands[i].description);
+        printf("%-15s  %d              %s\n", s_commands[i].name,
+               s_commands[i].args_count, s_commands[i].description);
         ++i;
     }
 }
 
 int find_command(const char *cmd)
 {
-    unsigned i=0;
+    unsigned i = 0;
     while(s_commands[i].handler) {
         if (!strcmp(s_commands[i].name, cmd)) {
             return i;
@@ -175,7 +175,8 @@ int main(int argc, const char **argv)
     ++argv;
 
     if (argc != s_commands[cmd_index].args_count) {
-        printf("Invalid number of arguments supplied (%d instead of %d)\n", argc, s_commands[cmd_index].args_count);
+        printf("Invalid number of arguments supplied (%d instead of %d)\n",
+               argc, s_commands[cmd_index].args_count);
         return -1;
     }
 
