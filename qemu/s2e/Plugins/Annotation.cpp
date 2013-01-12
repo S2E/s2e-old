@@ -88,12 +88,14 @@ void Annotation::initialize()
         exit(-1);
     }
 
-    m_moduleExecutionDetector->onModuleLoad.connect(
-        sigc::mem_fun(
-            *this,
-            &Annotation::onModuleLoad
-        )
-    );
+    if (m_moduleExecutionDetector) {
+        m_moduleExecutionDetector->onModuleLoad.connect(
+            sigc::mem_fun(
+                *this,
+                &Annotation::onModuleLoad
+            )
+        );
+    }
 
     Lunar<LUAAnnotation>::Register(s2e()->getConfig()->getState());
 }
