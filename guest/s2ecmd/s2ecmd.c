@@ -89,8 +89,7 @@ void handler_symbwrite(const char **args)
         return;
     }
 
-    char* buffer = malloc(n_bytes+1);
-    memset(buffer, 0, n_bytes + 1);
+    char *buffer = calloc(1, n_bytes + 1);
     s2e_make_symbolic(buffer, n_bytes, "buffer");
 
     for (i = 0; i < n_bytes; ++i) {
