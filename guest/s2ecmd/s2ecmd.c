@@ -155,7 +155,7 @@ int find_command(const char *cmd)
     return -1;
 }
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
     if (argc < 2) {
         print_commands();
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    s_commands[cmd_index].handler((const char**)argv);
+    s_commands[cmd_index].handler(argv);
 
     return 0;
 }
