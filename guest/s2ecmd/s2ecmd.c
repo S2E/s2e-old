@@ -101,7 +101,7 @@ void handler_symbwrite(const char **args)
     return;
 }
 
-void handler_exemplify()
+void handler_exemplify(void)
 {
     const unsigned int BUF_SIZE = 32;
     char buffer[BUF_SIZE];
@@ -132,7 +132,7 @@ static cmd_t s_commands[] = {
     {NULL, NULL, 0}
 };
 
-void print_commands()
+void print_commands(void)
 {
     unsigned i=0;
     printf("%-15s  %s %s\n\n", "Command name", "Argument count", "Description");
