@@ -661,6 +661,7 @@ int cpu_exec(CPUArchState *env)
         } else {
             #ifdef CONFIG_S2E
             assert(g_s2e_state);
+            s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, NULL);
             if (!s2e_is_runnable(g_s2e_state)) {
                 cpu_single_env = NULL;
                 return EXCP_S2E;
@@ -670,15 +671,6 @@ int cpu_exec(CPUArchState *env)
             /* Reload env after s2e_longjmp - the compiler may have smashed all
              * local variables as s2e_longjmp is marked 'noreturn'. */
             env = cpu_single_env;
-#ifdef CONFIG_S2E
-            //cpu_restore_icount(env);
-            s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, NULL);
-            if (!s2e_is_runnable(g_s2e_state)) {
-                cpu_single_env = NULL;
-                return EXCP_S2E;
-            }
-#endif
-
         }
     } /* for(;;) */
 
