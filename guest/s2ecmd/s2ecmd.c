@@ -101,7 +101,7 @@ void handler_symbwrite(const char **args)
     return;
 }
 
-void handler_exemplify(void)
+void handler_exemplify(const char **args)
 {
     const unsigned int BUF_SIZE = 32;
     char buffer[BUF_SIZE];
