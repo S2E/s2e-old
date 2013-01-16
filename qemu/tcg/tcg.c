@@ -1354,9 +1354,9 @@ static inline void tcg_la_bb_end(TCGContext *s, uint8_t *dead_temps)
    temporaries are removed. */
 static void tcg_liveness_analysis(TCGContext *s)
 {
-    int i, op_index, nb_args, nb_iargs, nb_oargs, arg, nb_ops;
+    int i, op_index, nb_args, nb_iargs, nb_oargs, nb_ops;
     TCGOpcode op;
-    TCGArg *args;
+    TCGArg arg, *args;
     const TCGOpDef *def;
     uint8_t *dead_temps;
     unsigned int dead_args;

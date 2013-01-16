@@ -78,10 +78,10 @@ static void *qemu_st_helpers[5] = {
 #include <llvm/PassManager.h>
 #include <llvm/Intrinsics.h>
 #include <llvm/Analysis/Verifier.h>
-#include <llvm/Target/TargetData.h>
+#include <llvm/DataLayout.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
-#include <llvm/Support/IRBuilder.h>
+#include <llvm/IRBuilder.h>
 #include <llvm/Support/Threading.h>
 
 #include <llvm/Support/DynamicLibrary.h>
@@ -302,6 +302,18 @@ public:
     uint8_t *allocateGlobal(uintptr_t Size, unsigned Alignment) {
         return m_base->allocateGlobal(Size, Alignment);
     }
+    uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment,
+                                 unsigned SectionID) {
+        return m_base->allocateCodeSection(Size, Alignment, SectionID);
+    }
+    uint8_t *allocateDataSection(uintptr_t Size, unsigned Alignment,
+                                 unsigned SectionID) {
+        return m_base->allocateDataSection(Size, Alignment, SectionID);
+    }
+    void *getPointerToNamedFunction(const std::string &Name,
+                                    bool AbortOnFailure = true) {
+        return m_base->getPointerToNamedFunction(Name, AbortOnFailure);
+    }
     //void deallocateMemForFunction(const Function *F) {
     //    m_base->deallocateMemForFunction(F);
     //}
@@ -362,7 +374,7 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
 
     m_functionPassManager = new FunctionPassManager(m_module);
     m_functionPassManager->add(
-            new TargetData(*m_executionEngine->getTargetData()));
+            new DataLayout(*m_executionEngine->getDataLayout()));
 
     m_functionPassManager->add(createReassociatePass());
     m_functionPassManager->add(createConstantPropagationPass());
@@ -1443,7 +1455,7 @@ const char* tcg_llvm_get_func_name(TranslationBlock *tb)
 {
     static char buf[64];
     if(tb->llvm_function) {
-        strncpy(buf, tb->llvm_function->getNameStr().c_str(), sizeof(buf));
+        strncpy(buf, tb->llvm_function->getName().str().c_str(), sizeof(buf));
     } else {
         buf[0] = 0;
     }

@@ -131,7 +131,7 @@ void SpecialFunctionHandler::prepare() {
       // Make sure NoReturn attribute is set, for optimization and
       // coverage counting.
       if (hi.doesNotReturn)
-        f->addFnAttr(Attribute::NoReturn);
+        f->addFnAttr(Attributes::NoReturn);
 
       // Change to a declaration since we handle internally (simplifies
       // module and allows deleting dead code).

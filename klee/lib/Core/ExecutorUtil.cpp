@@ -26,7 +26,7 @@
 #endif
 #include "llvm/Support/CallSite.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include <iostream>
 #include <cassert>
 

@@ -63,7 +63,7 @@ class S2EHandler : public klee::InterpreterHandler
 {
 private:
     S2E* m_s2e;
-    unsigned m_testIndex;  // number of tests written so far
+    // /* UNUSED */ unsigned m_testIndex;  // number of tests written so far
     unsigned m_pathsExplored; // number of paths explored so far
 
 public:

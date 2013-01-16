@@ -46,6 +46,7 @@
 
 #include <sstream>
 
+#include <unistd.h>
 #include <stdio.h>
 #include <inttypes.h>
 
