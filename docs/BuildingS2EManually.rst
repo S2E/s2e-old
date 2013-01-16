@@ -19,6 +19,10 @@ LLVM a second time using the ``clang`` compiler. In a nutshell, ``gcc`` is
 only used to bootstrap the process.
 
 
+**The script snippets on this page are taken from the S2E Makefile.**
+Please refer to that Makefile for more details.
+
+
 ::
 
    $ S2ESRC=/path/to/s2e

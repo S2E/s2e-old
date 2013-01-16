@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.8.1: http://docutils.sourceforge.net/" />
 <title>Building the S2E Framework Manually</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -31,6 +31,8 @@ binary distribution packages will not work.</p>
 on LLVM, we first build LLVM and <tt class="docutils literal">clang</tt> using <tt class="docutils literal">gcc</tt>. Then, we rebuild
 LLVM a second time using the <tt class="docutils literal">clang</tt> compiler. In a nutshell, <tt class="docutils literal">gcc</tt> is
 only used to bootstrap the process.</p>
+<p><strong>The script snippets on this page are taken from the S2E Makefile.</strong>
+Please refer to that Makefile for more details.</p>
 <pre class="literal-block">
 $ S2ESRC=/path/to/s2e
 $ S2EBUILD=/path/to/build
