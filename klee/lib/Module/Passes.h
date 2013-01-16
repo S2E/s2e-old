@@ -20,7 +20,7 @@ namespace llvm {
     class Function;
     class Instruction;
     class Module;
-    class TargetData;
+    class DataLayout;
     class Type;
 }
 
@@ -53,7 +53,7 @@ public:
 // variables (via intrinsic lowering).
 class IntrinsicCleanerPass : public llvm::ModulePass {
     static char ID;
-    const llvm::TargetData &TargetData;
+    const llvm::DataLayout &DataLayout;
     llvm::IntrinsicLowering *IL;
     bool LowerIntrinsics;
 
@@ -63,10 +63,10 @@ class IntrinsicCleanerPass : public llvm::ModulePass {
     void replaceIntrinsicAdd(llvm::Module &M, llvm::CallInst *CI);
 
 public:
-    IntrinsicCleanerPass(const llvm::TargetData &TD,
+    IntrinsicCleanerPass(const llvm::DataLayout &TD,
                          bool LI=true)
                              : llvm::ModulePass(ID),
-                             TargetData(TD),
+                             DataLayout(TD),
                              IL(new llvm::IntrinsicLowering(TD)),
                              LowerIntrinsics(LI) {}
 

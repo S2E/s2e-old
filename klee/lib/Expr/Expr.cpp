@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr.h"
+#include <llvm/ADT/Hashing.h>
 
 #include "llvm/Support/CommandLine.h"
 // FIXME: We shouldn't need this once fast constant support moves into
@@ -163,7 +164,7 @@ unsigned Expr::computeHash() {
 }
 
 unsigned ConstantExpr::computeHash() {
-  hashValue = value.getHashValue() ^ (getWidth() * MAGIC_HASH_CONSTANT);
+  hashValue = hash_value(value) ^ (getWidth() * MAGIC_HASH_CONSTANT);
   return hashValue;
 }
 

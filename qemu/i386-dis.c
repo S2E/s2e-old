@@ -4320,7 +4320,7 @@ dofloat (int sizeflag)
 static void
 OP_ST (int bytemode ATTRIBUTE_UNUSED, int sizeflag ATTRIBUTE_UNUSED)
 {
-  oappend ("%st" + intel_syntax);
+  oappend (&"%st"[(int)intel_syntax]);
 }
 
 static void
@@ -4671,32 +4671,32 @@ append_seg (void)
   if (prefixes & PREFIX_CS)
     {
       used_prefixes |= PREFIX_CS;
-      oappend ("%cs:" + intel_syntax);
+      oappend (&"%cs:"[(int)intel_syntax]);
     }
   if (prefixes & PREFIX_DS)
     {
       used_prefixes |= PREFIX_DS;
-      oappend ("%ds:" + intel_syntax);
+      oappend (&"%ds:"[(int)intel_syntax]);
     }
   if (prefixes & PREFIX_SS)
     {
       used_prefixes |= PREFIX_SS;
-      oappend ("%ss:" + intel_syntax);
+      oappend (&"%ss:"[(int)intel_syntax]);
     }
   if (prefixes & PREFIX_ES)
     {
       used_prefixes |= PREFIX_ES;
-      oappend ("%es:" + intel_syntax);
+      oappend (&"%es:"[(int)intel_syntax]);
     }
   if (prefixes & PREFIX_FS)
     {
       used_prefixes |= PREFIX_FS;
-      oappend ("%fs:" + intel_syntax);
+      oappend (&"%fs:"[(int)intel_syntax]);
     }
   if (prefixes & PREFIX_GS)
     {
       used_prefixes |= PREFIX_GS;
-      oappend ("%gs:" + intel_syntax);
+      oappend (&"%gs:"[(int)intel_syntax]);
     }
 }
 
@@ -4720,7 +4720,7 @@ print_operand_value (char *buf, size_t bufsize, int hex, bfd_vma disp)
 	  buf[0] = '0';
 	  buf[1] = 'x';
           snprintf_vma (tmp, sizeof(tmp), disp);
-	  for (i = 0; tmp[i] == '0' && tmp[i + 1]; i++);
+	  for (i = 0; tmp[i] == '0' && tmp[i + 1]; i++) {};
           pstrcpy (buf + 2, bufsize - 2, tmp + i);
 	}
       else
@@ -5745,7 +5745,7 @@ OP_ESreg (int code, int sizeflag)
 	  intel_operand_size (b_mode, sizeflag);
 	}
     }
-  oappend ("%es:" + intel_syntax);
+  oappend (&"%es:"[(int)intel_syntax]);
   ptr_reg (code, sizeflag);
 }
 

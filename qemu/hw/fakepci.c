@@ -135,7 +135,7 @@ static int pci_fake_init(PCIDevice *pci_dev)
     for(i=0; i<d->fake_pci.num_resources; ++i) {
         int type = d->fake_pci.resources[i].type;
         int size = d->fake_pci.resources[i].size;
-        char *name;
+        const char *name = "fakepci-io";
 
         if (type == PCI_BASE_ADDRESS_SPACE_IO) {
             // Port I/O

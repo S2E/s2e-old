@@ -47,6 +47,7 @@
 #include "Debugger.h"
 
 extern "C" {
+#include "s2etools/config.h"
 #include <bfd.h>
 }
 

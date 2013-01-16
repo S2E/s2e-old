@@ -60,7 +60,7 @@
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Process.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 #include <cassert>
 #include <algorithm>
@@ -388,7 +388,7 @@ const Module *Executor::setModule(llvm::Module *module,
   kmodule = new KModule(module);
 
   // Initialize the context.
-  TargetData *TD = kmodule->targetData;
+  DataLayout *TD = kmodule->targetData;
   Context::initialize(TD->isLittleEndian(),
                       (Expr::Width) TD->getPointerSizeInBits());
 
@@ -464,7 +464,7 @@ ref<Expr> Executor::simplifyExpr(const ExecutionState &s, ref<Expr> e)
 void Executor::initializeGlobalObject(ExecutionState &state, ObjectState *os,
                                       Constant *c, 
                                       unsigned offset) {
-  TargetData *targetData = kmodule->targetData;
+  DataLayout *targetData = kmodule->targetData;
   if (ConstantVector *cp = dyn_cast<ConstantVector>(c)) {
     unsigned elementSize =
       targetData->getTypeStoreSize(cp->getType()->getElementType());
@@ -487,6 +487,13 @@ void Executor::initializeGlobalObject(ExecutionState &state, ObjectState *os,
     for (unsigned i=0, e=cs->getNumOperands(); i != e; ++i)
       initializeGlobalObject(state, os, cs->getOperand(i), 
 			     offset + sl->getElementOffset(i));
+  } else if (const ConstantDataSequential *cds =
+               dyn_cast<ConstantDataSequential>(c)) {
+    unsigned elementSize =
+      targetData->getTypeStoreSize(cds->getElementType());
+    for (unsigned i=0, e=cds->getNumElements(); i != e; ++i)
+      initializeGlobalObject(state, os, cds->getElementAsConstant(i),
+                             offset + i*elementSize);
   } else {
     unsigned StoreBits = targetData->getTypeStoreSizeInBits(c->getType());
     ref<ConstantExpr> C = evalConstant(c);
@@ -545,7 +552,7 @@ void Executor::initializeGlobals(ExecutionState &state) {
     // not defined in this module; if it isn't resolvable then it
     // should be null.
     if (f->hasExternalWeakLinkage() && 
-        !externalDispatcher->resolveSymbol(f->getNameStr())) {
+        !externalDispatcher->resolveSymbol(f->getName())) {
       addr = Expr::createPointer(0);
     } else {
       addr = Expr::createPointer((uintptr_t) (void*) f);
@@ -634,7 +641,7 @@ void Executor::initializeGlobals(ExecutionState &state) {
       // concrete value and write it to our copy.
       if (size) {
         void *addr;
-        addr = externalDispatcher->resolveSymbol(i->getNameStr());
+        addr = externalDispatcher->resolveSymbol(i->getName());
 
         if (!addr)
           klee_error("unable to load symbol(%s) while initializing globals.", 
@@ -650,7 +657,7 @@ void Executor::initializeGlobals(ExecutionState &state) {
 
       if (UseAsmAddresses && i->getName()[0]=='\01') {
         char *end;
-        uint64_t address = ::strtoll(i->getNameStr().c_str()+1, &end, 0);
+        uint64_t address = ::strtoll(i->getName().str().c_str()+1, &end, 0);
 
         if (end && *end == '\0') {
           klee_message("NOTE: allocated global at asm specified address: %#08"
@@ -1197,10 +1204,48 @@ ref<klee::ConstantExpr> Executor::evalConstant(Constant *c) {
         return it->second;
     } else if (isa<ConstantPointerNull>(c)) {
       return Expr::createPointer(0);
-    } else if (isa<UndefValue>(c)) {
+    } else if (isa<UndefValue>(c) || isa<ConstantAggregateZero>(c)) {
       return ConstantExpr::create(0, getWidthForLLVMType(c->getType()));
+    } else if (const ConstantDataSequential *cds =
+                 dyn_cast<ConstantDataSequential>(c)) {
+      std::vector<ref<Expr> > kids;
+      for (unsigned i = 0, e = cds->getNumElements(); i != e; ++i) {
+        ref<Expr> kid = evalConstant(cds->getElementAsConstant(i));
+        kids.push_back(kid);
+      }
+      ref<Expr> res = ConcatExpr::createN(kids.size(), kids.data());
+      return cast<ConstantExpr>(res);
+    } else if (const ConstantArray *ca =
+                 dyn_cast<ConstantArray>(c)) {
+      std::vector<ref<Expr> > kids;
+      for (unsigned i = 0, e = ca->getNumOperands(); i != e; ++i) {
+        ref<Expr> kid = evalConstant(ca->getOperand(i));
+        kids.push_back(kid);
+      }
+      ref<Expr> res = ConcatExpr::createN(kids.size(), kids.data());
+      return cast<ConstantExpr>(res);
+    } else if (const ConstantStruct *cs = dyn_cast<ConstantStruct>(c)) {
+      const StructLayout *sl = kmodule->targetData->getStructLayout(cs->getType());
+      llvm::SmallVector<ref<Expr>, 4> kids;
+      for (unsigned i = cs->getNumOperands(); i != 0; --i) {
+        unsigned op = i-1;
+        ref<Expr> kid = evalConstant(cs->getOperand(op));
+
+        uint64_t thisOffset = sl->getElementOffsetInBits(op),
+                 nextOffset = (op == cs->getNumOperands() - 1)
+                              ? sl->getSizeInBits()
+                              : sl->getElementOffsetInBits(op+1);
+        if (nextOffset-thisOffset > kid->getWidth()) {
+          uint64_t paddingWidth = nextOffset-thisOffset-kid->getWidth();
+          kids.push_back(ConstantExpr::create(0, paddingWidth));
+        }
+
+        kids.push_back(kid);
+      }
+      ref<Expr> res = ConcatExpr::createN(kids.size(), kids.data());
+      return cast<ConstantExpr>(res);
     } else {
-      // Constant{AggregateZero,Array,Struct,Vector}
+      // Constant{Vector}
       assert(0 && "invalid argument to evalConstant()");
     }
   }
@@ -1625,7 +1670,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                            CallSite(cast<CallInst>(caller)));
 
             // XXX need to check other param attrs ?
-            if (cs.paramHasAttr(0, llvm::Attribute::SExt)) {
+            if (cs.paramHasAttr(0, llvm::Attributes::SExt)) {
               result = SExtExpr::create(result, to);
             } else {
               result = ZExtExpr::create(result, to);
@@ -1645,27 +1690,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     }      
     break;
   }
-  case Instruction::Unwind: {
-    for (;;) {
-      KInstruction *kcaller = state.stack.back().caller;
-      state.popFrame();
 
-      if (statsTracker)
-        statsTracker->framePopped(state);
-
-      if (state.stack.empty()) {
-        terminateStateOnExecError(state, "unwind from initial stack frame");
-        break;
-      } else {
-        Instruction *caller = kcaller->inst;
-        if (InvokeInst *ii = dyn_cast<InvokeInst>(caller)) {
-          transferToBasicBlock(ii->getUnwindDest(), caller->getParent(), state);
-          break;
-        }
-      }
-    }
-    break;
-  }
   case Instruction::Br: {
     BranchInst *bi = cast<BranchInst>(i);
     if (bi->isUnconditional()) {
@@ -1694,7 +1719,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Switch: {
     SwitchInst *si = cast<SwitchInst>(i);
     ref<Expr> cond = eval(ki, 0, state).value;
-    unsigned cases = si->getNumCases();
     BasicBlock *bb = si->getParent();
 
     cond = simplifyExpr(state, toUnique(state, cond));
@@ -1704,13 +1728,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       llvm::IntegerType *Ty =
         cast<IntegerType>(si->getCondition()->getType());
       ConstantInt *ci = ConstantInt::get(Ty, CE->getZExtValue());
-      unsigned index = si->findCaseValue(ci);
+      unsigned index = si->findCaseValue(ci).getSuccessorIndex();
       transferToBasicBlock(si->getSuccessor(index), si->getParent(), state);
     } else {
       std::map<BasicBlock*, ref<Expr> > targets;
       ref<Expr> isDefault = ConstantExpr::alloc(1, Expr::Bool);
-      for (unsigned i=1; i<cases; ++i) {
-        ref<Expr> value = evalConstant(si->getCaseValue(i));
+      for (SwitchInst::CaseIt i = si->case_begin(), e = si->case_end();
+           i != e; ++i) {
+        ref<Expr> value = evalConstant(i.getCaseValue());
         ref<Expr> match = EqExpr::create(cond, value);
         isDefault = simplifyExpr(state, AndExpr::create(isDefault,
                                     Expr::createIsZero(match)));
@@ -1721,7 +1746,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         (void) success;
         if (result) {
           std::map<BasicBlock*, ref<Expr> >::iterator it =
-            targets.insert(std::make_pair(si->getSuccessor(i),
+            targets.insert(std::make_pair(i.getCaseSuccessor(),
                                           ConstantExpr::alloc(0, Expr::Bool))).first;
           it->second = OrExpr::create(match, it->second);
         }
@@ -1817,7 +1842,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
             if (from != to) {
               // XXX need to check other param attrs ?
-              if (cs.paramHasAttr(i+1, llvm::Attribute::SExt)) {
+              if (cs.paramHasAttr(i+1, llvm::Attributes::SExt)) {
                 arguments[i] = SExtExpr::create(arguments[i], to);
               } else {
                 arguments[i] = ZExtExpr::create(arguments[i], to);
@@ -2859,7 +2884,7 @@ void Executor::printStack(ExecutionState &state, KInstruction *target, std::stri
       StackFrame &sf = *it;
       Function *f = sf.kf->function;
 
-      unsigned assemblyLine;
+      unsigned assemblyLine = 0;
       const InstructionInfo *ii = NULL;
       if (target) {
           ii = target->info;
@@ -2954,7 +2979,7 @@ void Executor::callExternalFunction(ExecutionState &state,
   
   if (NoExternals && !okExternals.count(function->getName())) {
     llvm::errs() << "KLEE:ERROR: Calling not-OK external function : "
-               << function->getNameStr() << "\n";
+               << function->getName().str() << "\n";
     terminateStateOnError(state, "externals disallowed", "user.err");
     return;
   }
@@ -2981,7 +3006,7 @@ void Executor::callExternalFunction(ExecutionState &state,
       } else {
           std::stringstream ss;
            ss << "external call with symbolic argument " << std::dec <<
-                  i << ": " << function->getNameStr() << " - ";
+                  i << ": " << function->getName().str() << " - ";
             ss << arg;
             unsigned j=0;
             ss << "[";
@@ -3001,7 +3026,7 @@ void Executor::callExternalFunction(ExecutionState &state,
 
   if (!SuppressExternalWarnings) {
     std::ostringstream os;
-    os << "calling external: " << function->getNameStr() << "(";
+    os << "calling external: " << function->getName().str() << "(";
     for (unsigned i=0; i<arguments.size(); i++) {
         os << std::hex << arguments[i];
       if (i != arguments.size()-1)

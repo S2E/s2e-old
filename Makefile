@@ -23,10 +23,10 @@ ifeq ($(shell ls qemu/vl.c 2>&1),qemu/vl.c)
 endif
 
 
-LLVM_VERSION=3.0
-LLVM_SRC=llvm-$(LLVM_VERSION).tar.gz
+LLVM_VERSION=3.2
+LLVM_SRC=llvm-$(LLVM_VERSION).src.tar.gz
 LLVM_SRC_DIR=llvm-$(LLVM_VERSION).src
-CLANG_SRC=clang-$(LLVM_VERSION).tar.gz
+CLANG_SRC=clang-$(LLVM_VERSION).src.tar.gz
 CLANG_SRC_DIR=clang-$(LLVM_VERSION).src
 
 clean:
@@ -94,8 +94,8 @@ ASAN_DIR=$(S2EBUILD)/llvm-asan/projects/compiler-rt/lib/asan_clang_linux
 ASAN_CC=$(ASAN_DIR)/bin/clang
 ASAN_CXX=$(ASAN_DIR)/bin/clang++
 
-CLANG_CC=$(S2EBUILD)/llvm-native/Release/bin/clang
-CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
+CLANG_CC=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang
+CLANG_CXX=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang++
 
 ########
 # LLVM #
@@ -108,7 +108,7 @@ stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack
 	echo $(S2EBUILD) $(S2ESRC)
 	cd llvm-native && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--target=x86_64 --enable-targets=x86 --enable-jit \
+		--enable-targets=x86 --enable-jit \
 		--enable-optimized
 	mkdir -p stamps && touch $@
 
@@ -122,10 +122,10 @@ stamps/llvm-configure: stamps/llvm-make-release-native
 	mkdir -p llvm
 	cd llvm && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--target=x86_64 --enable-targets=x86 --enable-jit \
+		--enable-targets=x86 --enable-jit \
 		--enable-optimized --enable-assertions\
-		CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
-		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
+		CC=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang \
+		CXX=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang++
 	mkdir -p stamps && touch $@
 
 stamps/llvm-make-debug: stamps/llvm-configure
@@ -163,13 +163,13 @@ stamps/stp-copy:
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
-	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC)
+	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
 	#cd stp && cp src/c_interface/c_interface.h include/stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
 	$(CP) -Rup $(S2ESRC)/stp stp
-	cd stp && make -j$(JOBS)
+	cd stp && make -j$(JOBS) CFLAGS_M32=
 	mkdir -p stamps && touch $@
 
 stp/include/stp/c_interface.h: stamps/stp-configure
@@ -208,8 +208,8 @@ stamps/klee-configure: stamps/llvm-configure \
 		--with-stp=$(S2EBUILD)/stp \
 		--target=x86_64 \
 		--enable-exceptions --enable-assertions \
-                CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
-		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
+                CC=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang \
+		CXX=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang++
 	mkdir -p stamps && touch $@
 
 stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-make ALWAYS
@@ -255,7 +255,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Debug+Asserts  \
-		--with-clang=$(S2EBUILD)/llvm-native/Release/bin/clang \
+		--with-clang=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
@@ -271,7 +271,7 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Release+Asserts  \
-		--with-clang=$(S2EBUILD)/llvm-native/Release/bin/clang \
+		--with-clang=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
@@ -295,7 +295,7 @@ stamps/qemu-configure-release-asan: stamps/klee-make-release-asan
 	cd qemu-release-asan && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm-instr-asan/Release+Asserts  \
-		--with-clang=$(S2EBUILD)/llvm-native/Release/bin/clang \
+		--with-clang=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang \
 		--with-stp=$(S2EBUILD)/stp-asan \
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
@@ -322,8 +322,8 @@ stamps/tools-configure: stamps/llvm-configure
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-s2esrc=$(S2ESRC)/qemu \
 		--target=x86_64 --enable-assertions \
-		CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
-		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
+		CC=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang \
+		CXX=$(S2EBUILD)/llvm-native/Release+Asserts/bin/clang++
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS

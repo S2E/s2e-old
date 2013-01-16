@@ -21,11 +21,11 @@
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Type.h"
-#include "llvm/Support/IRBuilder.h"
+#include "llvm/IRBuilder.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <llvm/Support/raw_ostream.h>
 
@@ -278,7 +278,7 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b)
 {
     bool dirty = false;
 
-    unsigned WordSize = TargetData.getPointerSizeInBits() / 8;
+    unsigned WordSize = DataLayout.getPointerSizeInBits() / 8;
     for (BasicBlock::iterator i = b.begin(), ie = b.end(); i != ie;) {
         IntrinsicInst *ii = dyn_cast<IntrinsicInst>(&*i);
         // increment now since LowerIntrinsic deletion makes iterator invalid.
