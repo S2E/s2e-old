@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.8.1: http://docutils.sourceforge.net/" />
 <title>How to Write an S2E plugin?</title>
 <link rel="stylesheet" href="../s2e.css" type="text/css" />
 </head>
@@ -88,7 +88,7 @@ pluginsConfig.InstructionTracker = {
 <p>If we run the plugin as it is now, nothing will happen. S2E ignores any unknown configuration value.
 We need a mechanism to explicitly retrieve the configuration value.
 In S2E, plugins can retrieve the configuration at any time. In our case, we do it during the initialization phase.</p>
-<div class="highlight"><pre><span class="c1">//We need this to read configuration files</span>
+<div class="highlight"><pre><span class="cp">//We need this to read configuration files</span>
 <span class="cp">#include &lt;s2e/ConfigFile.h&gt;</span>
 <span class="c1">//...</span>
 
