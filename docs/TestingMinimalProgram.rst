@@ -175,6 +175,10 @@ the system in S2E.
    -- File: config.lua
    s2e = {
      kleeArgs = {
+       -- Pick a random path to execute among all the
+       -- available paths.
+       "--use-random-path=true"
+
        -- Run each state for at least 1 second before
        -- switching to the other:
        "--use-batching-search=true", "--batch-time=1.0"
@@ -184,6 +188,9 @@ the system in S2E.
      -- Enable a plugin that handles S2E custom opcode
      "BaseInstructions"
    }
+
+**Note:** At the end of this tutorial, there is a section that shows an even simpler
+configuration file.
 
 Booting the system in S2E takes a long time. Use a two-step process to
 speed it up. First, boot the system in the version of QEMU that has S2E
@@ -268,11 +275,33 @@ a log file that you can examine.
 
 Please note that in case your program crashes or exits at some other point
 without calling ``s2e_kill_state()``, S2E will not terminate and will continue to
-execute paths that returned to the system. To avoid this, you can write
-a program that simply calls ``s2e_kill_state()``. Launch it right after the
-invocation to the program that can crash, e.g., as follows:
+execute paths that returned to the system. To avoid this, you can use the ``s2ecmd`` utility (in ``$S2EDIR/guest``).
+Launch it right after the invocation to the program that can crash, e.g., as follows:
 
 ::
 
-   guest$ ./tutorial; ./s2e_kill
+   guest$ ./tutorial; ./s2ecmd kill 0 "done"
 
+
+Minimal Configuration File
+==========================
+
+The following is a minimal configuration file that you can use to run this example:
+
+.. code-block:: lua
+
+   -- File: config.lua
+   s2e = {
+     kleeArgs = {}
+   }
+
+   plugins = {
+     -- Enable a plugin that handles S2E custom opcode
+     "BaseInstructions"
+   }
+
+In this case S2E uses the default **depth-first searcher (DFS)**.
+The current state will run until it is explicitely killed. After that,
+S2E will select another path, according to the DFS strategy.
+You **must** use ``s2ecmd`` or ``s2e_kill_state()``, otherwise the current path will run forever
+and there will not be any progress.

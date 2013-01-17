@@ -21,6 +21,7 @@ on the <a class="reference external" href="BuildingS2E.html">Building the S2E Fr
 <li><a class="reference internal" href="#preparing-the-program-for-s2e" id="id3">Preparing the Program for S2E</a></li>
 <li><a class="reference internal" href="#running-the-program-in-s2e" id="id4">Running the Program in S2E</a></li>
 <li><a class="reference internal" href="#exploring-the-program-faster" id="id5">Exploring the Program Faster</a></li>
+<li><a class="reference internal" href="#minimal-configuration-file" id="id6">Minimal Configuration File</a></li>
 </ul>
 </div>
 <div class="section" id="program-to-test">
@@ -172,6 +173,10 @@ the system in S2E.</p>
 <div class="highlight"><pre><span class="c1">-- File: config.lua</span>
 <span class="n">s2e</span> <span class="o">=</span> <span class="p">{</span>
   <span class="n">kleeArgs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="c1">-- Pick a random path to execute among all the</span>
+    <span class="c1">-- available paths.</span>
+    <span class="s2">&quot;</span><span class="s">--use-random-path=true&quot;</span>
+
     <span class="c1">-- Run each state for at least 1 second before</span>
     <span class="c1">-- switching to the other:</span>
     <span class="s2">&quot;</span><span class="s">--use-batching-search=true&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">--batch-time=1.0&quot;</span>
@@ -182,6 +187,8 @@ the system in S2E.</p>
   <span class="s2">&quot;</span><span class="s">BaseInstructions&quot;</span>
 <span class="p">}</span>
 </pre></div>
+<p><strong>Note:</strong> At the end of this tutorial, there is a section that shows an even simpler
+configuration file.</p>
 <p>Booting the system in S2E takes a long time. Use a two-step process to
 speed it up. First, boot the system in the version of QEMU that has S2E
 disabled. Then, save a snapshot and load it in the S2E:</p>
@@ -257,12 +264,30 @@ guest$ ./tutorial1
 a log file that you can examine.</p>
 <p>Please note that in case your program crashes or exits at some other point
 without calling <tt class="docutils literal">s2e_kill_state()</tt>, S2E will not terminate and will continue to
-execute paths that returned to the system. To avoid this, you can write
-a program that simply calls <tt class="docutils literal">s2e_kill_state()</tt>. Launch it right after the
-invocation to the program that can crash, e.g., as follows:</p>
+execute paths that returned to the system. To avoid this, you can use the <tt class="docutils literal">s2ecmd</tt> utility (in <tt class="docutils literal">$S2EDIR/guest</tt>).
+Launch it right after the invocation to the program that can crash, e.g., as follows:</p>
 <pre class="literal-block">
-guest$ ./tutorial; ./s2e_kill
+guest$ ./tutorial; ./s2ecmd kill 0 &quot;done&quot;
 </pre>
+</div>
+<div class="section" id="minimal-configuration-file">
+<h1>Minimal Configuration File</h1>
+<p>The following is a minimal configuration file that you can use to run this example:</p>
+<div class="highlight"><pre><span class="c1">-- File: config.lua</span>
+<span class="n">s2e</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="n">kleeArgs</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="p">}</span>
+
+<span class="n">plugins</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="c1">-- Enable a plugin that handles S2E custom opcode</span>
+  <span class="s2">&quot;</span><span class="s">BaseInstructions&quot;</span>
+<span class="p">}</span>
+</pre></div>
+<p>In this case S2E uses the default <strong>depth-first searcher (DFS)</strong>.
+The current state will run until it is explicitely killed. After that,
+S2E will select another path, according to the DFS strategy.
+You <strong>must</strong> use <tt class="docutils literal">s2ecmd</tt> or <tt class="docutils literal">s2e_kill_state()</tt>, otherwise the current path will run forever
+and there will not be any progress.</p>
 </div>
 </div>
 <div class="footer">
