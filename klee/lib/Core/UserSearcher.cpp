@@ -21,7 +21,7 @@ using namespace klee;
 
 namespace {
   cl::opt<bool>
-  UseDfsSearch("use-dfs-search", cl::init(true));
+  UseDfsSearch("use-dfs-search");
 
   cl::opt<bool>
   UseInterleavedRS("use-interleaved-RS");
@@ -116,7 +116,7 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
   } else if (UseDfsSearch) {
     searcher = new DFSSearcher();
   } else {
-    searcher = new RandomSearcher();
+    searcher = new DFSSearcher();
   }
 
   if (UseInterleavedNURS || UseInterleavedMD2UNURS || UseInterleavedRS ||
