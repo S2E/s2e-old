@@ -105,15 +105,6 @@ path will print <tt class="docutils literal">abc</tt>, while the others will pri
 <pre class="literal-block">
 $ LD_PRELOAD=/path/to/guest/init_env/init_env.so /bin/echo --concolic abc ; /path/to/guest/s2ecmd/s2ecmd kill 0 &quot;echo done&quot;
 </pre>
-<p>Do not forget the follwing settings in the Lua file for concolic execution to be enabled:</p>
-<pre class="literal-block">
-s2e = {
-    kleeArgs = {
-        &quot;--use-concolic-execution=true&quot;,
-        &quot;--use-dfs-search=true&quot;
-    }
-}
-</pre>
 <p>You may also want to add <tt class="docutils literal">&gt; /dev/null</tt> to prevent the program from forking in the kernel
 when printing symbolic content.</p>
 </div>

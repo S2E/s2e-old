@@ -103,18 +103,6 @@ path will print ``abc``, while the others will print other strings)::
 
     $ LD_PRELOAD=/path/to/guest/init_env/init_env.so /bin/echo --concolic abc ; /path/to/guest/s2ecmd/s2ecmd kill 0 "echo done"
 
-Do not forget the follwing settings in the Lua file for concolic execution to be enabled:
-
-::
-
-    s2e = {
-        kleeArgs = {
-            "--use-concolic-execution=true",
-            "--use-dfs-search=true"
-        }
-    }
-
-
 You may also want to add ``> /dev/null`` to prevent the program from forking in the kernel
 when printing symbolic content.
 

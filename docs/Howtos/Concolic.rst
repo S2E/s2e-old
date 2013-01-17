@@ -66,10 +66,12 @@ The following is a minimal S2E configuration file that enables concolic executio
 ::
 
     s2e = {
-        kleeArgs = {
-            "--use-concolic-execution=true",
-            "--use-dfs-search=true"
-        }
+      kleeArgs = {}
+    }
+
+    plugins = {
+      -- Enable a plugin that handles S2E custom opcode
+      "BaseInstructions"
     }
 
 
@@ -78,6 +80,22 @@ The DFS heuristic works well with concolic execution, because it naturally lets 
 path run to completion. It is possible to use any existing searcher in concolic mode.
 However, it may be better to design new searchers with concolic execution in mind in order to improve
 exploration efficiency.
+
+**Note:** concolic mode with DFS is the default setting of S2E. The following is an explicit configuration:
+
+::
+
+    s2e = {
+      kleeArgs = {
+        "--use-concolic-execution=true",
+        "--use-dfs-search=true"
+      }
+    }
+
+    plugins = {
+      -- Enable a plugin that handles S2E custom opcode
+      "BaseInstructions"
+    }
 
 
 Executing Programs in Concolic Mode
