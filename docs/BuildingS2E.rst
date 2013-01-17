@@ -46,7 +46,7 @@ This will clone the S2E repository into ``$S2EDIR/s2e``.
 You can also clone S2E via SSH::
 
    $ cd $S2EDIR
-   $ git clone git@dslabgit.epfl.ch:s2e/s2e.git
+   $ git clone git@github.com:dslab-epfl/s2e.git
 
 In order to report bugs, please use GitHub's `issue tracker <https://github.com/dslab-epfl/s2e/issues>`_. If you would like
 to contribute to S2E, please create your own personal clone of S2E on GitHub, push your changes to it and then send us a
