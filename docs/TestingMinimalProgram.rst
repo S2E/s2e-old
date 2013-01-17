@@ -28,7 +28,6 @@ the possible paths through it.
 
      if(str[0] == '\n' || str[1] == '\n') {
        printf("Not enough characters\n");
-
      } else {
        if(str[0] >= 'a' && str[0] <= 'z')
          printf("First char is lowercase\n");
@@ -128,9 +127,8 @@ After these changes, the example program looks as follows:
      s2e_enable_forking();
      s2e_make_symbolic(str, 2, "str");
 
-     if(str[0] == 0 || str[1] == 0) {
+     if(str[0] == '\n' || str[1] == '\n') {
        printf("Not enough characters\n");
-
      } else {
        if(str[0] >= 'a' && str[0] <= 'z')
          printf("First char is lowercase\n");
