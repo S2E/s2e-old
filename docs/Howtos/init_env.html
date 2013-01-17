@@ -17,7 +17,8 @@
 <li><a class="reference internal" href="#obtaining-and-compiling-init-env" id="id1">1. Obtaining and compiling <tt class="docutils literal">init_env</tt></a></li>
 <li><a class="reference internal" href="#configuring-s2e-for-use-with-init-env" id="id2">2. Configuring S2E for use with <tt class="docutils literal">init_env</tt></a></li>
 <li><a class="reference internal" href="#using-init-env" id="id3">3. Using <tt class="docutils literal">init_env</tt></a></li>
-<li><a class="reference internal" href="#what-about-other-symbolic-input" id="id4">4. What about other symbolic input?</a></li>
+<li><a class="reference internal" href="#analyzing-large-programs-with-concolic-execution" id="id4">4. Analyzing large programs with concolic execution</a></li>
+<li><a class="reference internal" href="#what-about-other-symbolic-input" id="id5">5. What about other symbolic input?</a></li>
 </ul>
 </div>
 <p>In this tutorial, we will show how to symbolically (or concolically) execute <em>existing</em> Linux programs,
@@ -95,8 +96,29 @@ the <tt class="docutils literal"><span class="pre">--select-process-code</span><
 <p>Additionally, <tt class="docutils literal">init_env</tt> will show a usage message if the sole argument given
 is <tt class="docutils literal"><span class="pre">--help</span></tt>.</p>
 </div>
+<div class="section" id="analyzing-large-programs-with-concolic-execution">
+<h1>4. Analyzing large programs with concolic execution</h1>
+<p>Depending on the program under analysis, normal symbolic execution may get stuck in the constraint
+solver. It is better in general to use <a class="reference external" href="Concolic.html">concolic execution</a>. The following
+command runs <tt class="docutils literal">echo</tt> in concolic mode, based on the concrete parameter <tt class="docutils literal">abc</tt> (i.e., the first
+path will print <tt class="docutils literal">abc</tt>, while the others will print other strings):</p>
+<pre class="literal-block">
+$ LD_PRELOAD=/path/to/guest/init_env/init_env.so /bin/echo --concolic abc ; /path/to/guest/s2ecmd/s2ecmd kill 0 &quot;echo done&quot;
+</pre>
+<p>Do not forget the follwing settings in the Lua file for concolic execution to be enabled:</p>
+<pre class="literal-block">
+s2e = {
+    kleeArgs = {
+        &quot;--use-concolic-execution=true&quot;,
+        &quot;--use-dfs-search=true&quot;
+    }
+}
+</pre>
+<p>You may also want to add <tt class="docutils literal">&gt; /dev/null</tt> to prevent the program from forking in the kernel
+when printing symbolic content.</p>
+</div>
 <div class="section" id="what-about-other-symbolic-input">
-<h1>4. What about other symbolic input?</h1>
+<h1>5. What about other symbolic input?</h1>
 <p>You can easily feed symbolic data to your program via <tt class="docutils literal">stdin</tt>.
 The idea is to pipe the symbolic output of one program to the input of another.
 Symbolic output can be generated using the <tt class="docutils literal">s2ecmd</tt> utility, located in the

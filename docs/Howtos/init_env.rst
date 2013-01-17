@@ -93,8 +93,34 @@ the ``--select-process-code`` or ``--sym-args`` argument.
 Additionally, ``init_env`` will show a usage message if the sole argument given
 is ``--help``.
 
+4. Analyzing large programs with concolic execution
+---------------------------------------------------
 
-4. What about other symbolic input?
+Depending on the program under analysis, normal symbolic execution may get stuck in the constraint
+solver. It is better in general to use `concolic execution <Concolic.html>`_. The following
+command runs ``echo`` in concolic mode, based on the concrete parameter ``abc`` (i.e., the first
+path will print ``abc``, while the others will print other strings)::
+
+    $ LD_PRELOAD=/path/to/guest/init_env/init_env.so /bin/echo --concolic abc ; /path/to/guest/s2ecmd/s2ecmd kill 0 "echo done"
+
+Do not forget the follwing settings in the Lua file for concolic execution to be enabled:
+
+::
+
+    s2e = {
+        kleeArgs = {
+            "--use-concolic-execution=true",
+            "--use-dfs-search=true"
+        }
+    }
+
+
+You may also want to add ``> /dev/null`` to prevent the program from forking in the kernel
+when printing symbolic content.
+
+
+
+5. What about other symbolic input?
 -----------------------------------
 
 You can easily feed symbolic data to your program via ``stdin``.
