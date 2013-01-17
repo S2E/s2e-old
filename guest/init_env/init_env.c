@@ -228,6 +228,7 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     display_process_map(proc_map);
     register_module(proc_map, argv[0]);
     register_module(proc_map, "init_env.so");
+    s2e_codeselector_select_module("init_env.so");
 
     // Recognize --help when it is the sole argument.
     if (argc == 2 && __streq(argv[1], "--help")) {
@@ -316,8 +317,6 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
 
     *argcPtr = new_argc;
     *argvPtr = final_argv;
-
-    //When we return, forking must be enabled in all three cases
 }
 
 // ****************************
