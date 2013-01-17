@@ -17,7 +17,9 @@
 <li><a class="reference internal" href="#obtaining-and-compiling-init-env" id="id1">1. Obtaining and compiling <tt class="docutils literal">init_env</tt></a></li>
 <li><a class="reference internal" href="#configuring-s2e-for-use-with-init-env" id="id2">2. Configuring S2E for use with <tt class="docutils literal">init_env</tt></a></li>
 <li><a class="reference internal" href="#using-init-env" id="id3">3. Using <tt class="docutils literal">init_env</tt></a></li>
-<li><a class="reference internal" href="#what-about-other-symbolic-input" id="id4">4. What about other symbolic input?</a></li>
+<li><a class="reference internal" href="#obtaining-testcases" id="id4">4. Obtaining testcases</a></li>
+<li><a class="reference internal" href="#speeding-things-up" id="id5">5. Speeding things up</a></li>
+<li><a class="reference internal" href="#going-further-symbolic-stdin-and-files" id="id6">6. Going further: Symbolic stdin and files</a></li>
 </ul>
 </div>
 <p>In this tutorial, we will show how to symbolically (or concolically) execute <em>existing</em> Linux programs,
@@ -91,8 +93,51 @@ the <tt class="docutils literal"><span class="pre">--select-process-code</span><
 <p>Additionally, <tt class="docutils literal">init_env</tt> will show a usage message if the sole argument given
 is <tt class="docutils literal"><span class="pre">--help</span></tt>.</p>
 </div>
-<div class="section" id="what-about-other-symbolic-input">
-<h1>4. What about other symbolic input?</h1>
+<div class="section" id="obtaining-testcases">
+<h1>4. Obtaining testcases</h1>
+<p>The command above tests <tt class="docutils literal">echo</tt> with command line arguments that could take
+<em>any value</em>. Whenever <tt class="docutils literal">echo</tt> performs a test on its command line arguments,
+S2E checks which cases could be true, and explores all possibilities. Each
+possible outcome of the test is explored in it's own <em>state</em>. You can see how
+S2E switches between these states in S2E's output and the virtual machine
+console.</p>
+<p>Each state corresponds to a set of command line arguments that cause <tt class="docutils literal">echo</tt> to
+exhibit a particular behavior. Use the <tt class="docutils literal">TestCaseGenerator</tt> plugin to see the
+command line arguments for those states that S2E finished exploring. Add the
+following to the <tt class="docutils literal">plugins</tt> section in <tt class="docutils literal">config.lua</tt>:</p>
+<pre class="literal-block">
+-- Generate a test case when a state is killed
+&quot;ExecutionTracer&quot;,
+&quot;TestCaseGenerator&quot;,
+</pre>
+<p>The <tt class="docutils literal">TestCaseGenerator</tt> generates output whenever S2E finishes exploring a
+state. You need to tell S2E that it can terminate a state once <tt class="docutils literal">echo</tt> exits.
+To do so, call <tt class="docutils literal">s2ecmd kill</tt> right after calling <tt class="docutils literal">echo</tt>:</p>
+<pre class="literal-block">
+$ LD_PRELOAD=/path/to/guest/init_env/init_env.so /bin/echo \
+--select-process-code --sym-args 0 2 4; \
+/path/to/guest/s2ecmd/s2ecmd kill 0 &quot;echo done&quot;
+</pre>
+</div>
+<div class="section" id="speeding-things-up">
+<h1>5. Speeding things up</h1>
+<p>A number of configuration options exist that can make S2E test <tt class="docutils literal">echo</tt> faster.
+These are not enabled by default because results could be confusing. Now that
+you're warned, let's add the following to <tt class="docutils literal">kleeArgs</tt> in <tt class="docutils literal">config.lua</tt>:</p>
+<pre class="literal-block">
+&quot;--flush-tbs-on-state-switch=false&quot;,
+&quot;--state-shared-memory=true&quot;,
+</pre>
+<p>The first option disables flushing the translation block cache when switching
+between states. This could lead to problems if you test self-modifying code, or
+programs that load libraries dynamically. It should be save for <tt class="docutils literal">echo</tt>.</p>
+<p>The second option allows states to share some memory, for example the screen
+buffer. This means you will see the output of different states on the screen at
+the same time. It should not cause problems for testing programs, unless these
+actually read the content of the screen or other shared memory regions.</p>
+</div>
+<div class="section" id="going-further-symbolic-stdin-and-files">
+<h1>6. Going further: Symbolic stdin and files</h1>
 <p>You can easily feed symbolic data to your program via <tt class="docutils literal">stdin</tt>.
 The idea is to pipe the symbolic output of one program to the input of another.
 Symbolic output can be generated using the <tt class="docutils literal">s2ecmd</tt> utility, located in the

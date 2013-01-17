@@ -88,9 +88,56 @@ the ``--select-process-code`` or ``--sym-args`` argument.
 Additionally, ``init_env`` will show a usage message if the sole argument given
 is ``--help``.
 
+4. Obtaining testcases
+----------------------
 
-4. What about other symbolic input?
------------------------------------
+The command above tests ``echo`` with command line arguments that could take
+*any value*. Whenever ``echo`` performs a test on its command line arguments,
+S2E checks which cases could be true, and explores all possibilities. Each
+possible outcome of the test is explored in it's own *state*. You can see how
+S2E switches between these states in S2E's output and the virtual machine
+console.
+
+Each state corresponds to a set of command line arguments that cause ``echo`` to
+exhibit a particular behavior. Use the ``TestCaseGenerator`` plugin to see the
+command line arguments for those states that S2E finished exploring. Add the
+following to the ``plugins`` section in ``config.lua``::
+
+    -- Generate a test case when a state is killed
+    "ExecutionTracer",
+    "TestCaseGenerator",
+
+The ``TestCaseGenerator`` generates output whenever S2E finishes exploring a
+state. You need to tell S2E that it can terminate a state once ``echo`` exits.
+To do so, call ``s2ecmd kill`` right after calling ``echo``::
+
+    $ LD_PRELOAD=/path/to/guest/init_env/init_env.so /bin/echo \
+    --select-process-code --sym-args 0 2 4; \
+    /path/to/guest/s2ecmd/s2ecmd kill 0 "echo done"
+
+
+5. Speeding things up
+---------------------
+
+A number of configuration options exist that can make S2E test ``echo`` faster.
+These are not enabled by default because results could be confusing. Now that
+you're warned, let's add the following to ``kleeArgs`` in ``config.lua``::
+
+    "--flush-tbs-on-state-switch=false",
+    "--state-shared-memory=true",
+
+The first option disables flushing the translation block cache when switching
+between states. This could lead to problems if you test self-modifying code, or
+programs that load libraries dynamically. It should be save for ``echo``.
+
+The second option allows states to share some memory, for example the screen
+buffer. This means you will see the output of different states on the screen at
+the same time. It should not cause problems for testing programs, unless these
+actually read the content of the screen or other shared memory regions.
+
+
+6. Going further: Symbolic stdin and files
+------------------------------------------
 
 You can easily feed symbolic data to your program via ``stdin``.
 The idea is to pipe the symbolic output of one program to the input of another.
@@ -103,7 +150,6 @@ guest tools directory.
 
 
 The command above will pass 4 symbolic bytes to ``echo``.
-
 
 The easiest way to have your program read symbolic data from *files* (other than
 ``stdin``) currently involves a ramdisk. You need to redirect the symbolic output
