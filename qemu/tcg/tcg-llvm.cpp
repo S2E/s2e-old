@@ -131,6 +131,8 @@ struct TCGLLVMContextPrivate {
     Function *m_helperTraceMemoryAccess;
     Function *m_helperTraceInstruction;
     Function *m_helperForkAndConcretize;
+    Function *m_helperMakeSymbolic;
+    Function *m_helperGetValue;
     Function* m_qemu_ld_helpers[5];
     Function* m_qemu_st_helpers[5];
 #endif
@@ -394,6 +396,11 @@ void TCGLLVMContextPrivate::initializeHelpers()
     m_helperForkAndConcretize =
             m_module->getFunction("tcg_llvm_fork_and_concretize");
 
+    m_helperMakeSymbolic =
+            m_module->getFunction("tcg_llvm_make_symbolic");
+    m_helperGetValue =
+            m_module->getFunction("tcg_llvm_get_value");
+
     m_qemu_ld_helpers[0] = m_module->getFunction("__ldb_mmu");
     m_qemu_ld_helpers[1] = m_module->getFunction("__ldw_mmu");
     m_qemu_ld_helpers[2] = m_module->getFunction("__ldl_mmu");
@@ -407,6 +414,8 @@ void TCGLLVMContextPrivate::initializeHelpers()
     m_qemu_st_helpers[4] = m_module->getFunction("__stq_mmu");
 
     assert(m_helperTraceMemoryAccess);
+    assert(m_helperMakeSymbolic);
+    assert(m_helperGetValue);
     for(int i = 0; i < 5; ++i) {
         assert(m_qemu_ld_helpers[i]);
         assert(m_qemu_st_helpers[i]);

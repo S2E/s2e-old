@@ -47,19 +47,18 @@ struct HandlerInfo {
 // especially things like realloc which have complicated semantics
 // w.r.t. forking. Among other things this makes delayed query
 // dispatch easier to implement.
-HandlerInfo handlerInfo[] = {
+HandlerInfo handlerInfo[] = { // XXX TODO: Remove all of this
 #define add(name, handler, ret) { name, \
                                   &SpecialFunctionHandler::handler, \
                                   false, ret, false }
 #define addDNR(name, handler) { name, \
                                 &SpecialFunctionHandler::handler, \
                                 true, false, false }
-
+//S2E: no need for these...
+#if 0
   add("klee_get_value", handleGetValue, true),
   add("klee_make_symbolic", handleMakeSymbolic, false),
 
-//S2E: no need for these...
-#if 0
   addDNR("__assert_rtn", handleAssertFail),
   addDNR("__assert_fail", handleAssertFail),
   addDNR("_assert", handleAssert),

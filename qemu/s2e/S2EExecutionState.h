@@ -245,6 +245,18 @@ public:
     /** Write concrete value to general purpose CPU register */
     void writeCpuRegisterConcrete(unsigned offset, const void* buf, unsigned size);
 
+    /** Handler for tcg_llvm_make_symbolic, tcg_llvm_get_value. */
+    void makeSymbolic(std::vector< klee::ref<klee::Expr> > &args,
+                      bool makeConcolic);
+    void kleeReadMemory(klee::ref<klee::Expr> kleeAddressExpr,
+                        uint64_t sizeInBytes,
+                        std::vector<klee::ref<klee::Expr> > *result,
+                        bool concreteOnly = false,
+                        bool concretize = false,
+                        bool addConstraint = false);
+    void kleeWriteMemory(klee::ref<klee::Expr> kleeAddressExpr,
+                         std::vector<klee::ref<klee::Expr> > &bytes);
+
     /** Read CPU system state */
     uint64_t readCpuState(unsigned offset, unsigned width) const;
 

@@ -555,6 +555,34 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
     s2eExecutor->bindLocal(target, *state, concreteAddress);
 }
 
+void S2EExecutor::handleMakeSymbolic(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
+    s2eState->makeSymbolic(args, false);
+}
+
+void S2EExecutor::handleGetValue(klee::Executor* executor,
+                                 klee::ExecutionState* state,
+                                 klee::KInstruction* target,
+                                 std::vector<klee::ref<klee::Expr> > &args) {
+    S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
+    assert(args.size() == 3);
+
+    // KLEE address of variable
+    ref<klee::ConstantExpr> kleeAddress = cast<klee::ConstantExpr>(args[0]);
+    
+    // Size in bytes
+    uint64_t sizeInBytes = cast<klee::ConstantExpr>(args[1])->getZExtValue();
+
+    // Read the value and concretize it.
+    // The value will be stored at kleeAddress
+    std::vector<ref<Expr> > result;
+    s2eState->kleeReadMemory(kleeAddress, sizeInBytes, NULL, false, true, true);
+}
+
 S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                     const InterpreterOptions &opts,
                             InterpreterHandler *ie)
@@ -779,6 +807,14 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
         function = kmodule->module->getFunction("tcg_llvm_fork_and_concretize");
         assert(function);
         addSpecialFunctionHandler(function, handleForkAndConcretize);
+
+        function = kmodule->module->getFunction("tcg_llvm_make_symbolic");
+        assert(function);
+        addSpecialFunctionHandler(function, handleMakeSymbolic);
+
+        function = kmodule->module->getFunction("tcg_llvm_get_value");
+        assert(function);
+        addSpecialFunctionHandler(function, handleGetValue);
 
         FunctionType *traceInstTy = FunctionType::get(Type::getVoidTy(M->getContext()), false);
         function = dynamic_cast<Function*>(kmodule->module->getOrInsertFunction("tcg_llvm_trace_instruction", traceInstTy));

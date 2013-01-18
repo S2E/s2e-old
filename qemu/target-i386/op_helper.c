@@ -755,13 +755,14 @@ void helper_check_iol(uint32_t t0)
 void helper_outb(uint32_t port, uint32_t data)
 {
     if (g_s2e_concretize_io_addresses) {
-        port = klee_get_value(port);
+        tcg_llvm_get_value(&port, sizeof(port), false);
     }
 
     tcg_llvm_trace_port_access(port, data, 8, 1);
     if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         if (g_s2e_concretize_io_writes) {
-            data = klee_get_value(data & 0xFF);
+            data &= 0xFF;
+            tcg_llvm_get_value(&data, sizeof(data), false);
         }
 
         cpu_outb(port, data & 0xff);
@@ -771,13 +772,14 @@ void helper_outb(uint32_t port, uint32_t data)
 target_ulong helper_inb(uint32_t port)
 {
     if (g_s2e_concretize_io_addresses) {
-        port = klee_get_value(port);
+        tcg_llvm_get_value(&port, sizeof(port), false);
     }
 
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         char label[64];
+        uint8_t res;
         trace_port(label, "inb", port, env->eip);
-        uint8_t res = klee_int8(label);
+        tcg_llvm_make_symbolic(&res, sizeof (uint8_t), label);
         tcg_llvm_trace_port_access(port, res, 8, 0);
         return res;
     }
@@ -790,13 +792,14 @@ target_ulong helper_inb(uint32_t port)
 void helper_outw(uint32_t port, uint32_t data)
 {
     if (g_s2e_concretize_io_addresses) {
-        port = klee_get_value(port);
+        tcg_llvm_get_value(&port, sizeof(port), false);
     }
 
     tcg_llvm_trace_port_access(port, data, 16, 1);
     if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         if (g_s2e_concretize_io_writes) {
-            data = klee_get_value(data & 0xFFFF);
+            data &= 0xFFFF; 
+            tcg_llvm_get_value(&data, sizeof(data), false);
         }
 
         cpu_outw(port, data & 0xffff);
@@ -806,13 +809,14 @@ void helper_outw(uint32_t port, uint32_t data)
 target_ulong helper_inw(uint32_t port)
 {
     if (g_s2e_concretize_io_addresses) {
-        port = klee_get_value(port);
+        tcg_llvm_get_value(&port, sizeof(port), false);
     }
 
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         char label[64];
+        uint16_t res;
         trace_port(label, "inw", port, env->eip);
-        uint16_t res = klee_int16(label);
+        tcg_llvm_make_symbolic(&res, sizeof (uint16_t), label);
         tcg_llvm_trace_port_access(port, res, 16, 0);
         return res;
     }
@@ -824,13 +828,14 @@ target_ulong helper_inw(uint32_t port)
 void helper_outl(uint32_t port, uint32_t data)
 {
     if (g_s2e_concretize_io_addresses) {
-        port = klee_get_value(port);
+        tcg_llvm_get_value(&port, sizeof(port), false);
     }
 
     tcg_llvm_trace_port_access(port, data, 32, 1);
     if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         if (g_s2e_concretize_io_writes) {
-            data = klee_get_value(data);
+            data &= 0xFFFFFFFF;
+            tcg_llvm_get_value(&data, sizeof(data), false);
         }
 
         cpu_outl(port, data);
@@ -840,13 +845,14 @@ void helper_outl(uint32_t port, uint32_t data)
 target_ulong helper_inl(uint32_t port)
 {
     if (g_s2e_concretize_io_addresses) {
-        port = klee_get_value(port);
+        tcg_llvm_get_value(&port, sizeof(port), false);
     }
 
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         char label[64];
+        uint32_t res;
         trace_port(label, "inl", port, env->eip);
-        uint32_t res = klee_int32(label);
+        tcg_llvm_make_symbolic(&res, sizeof (uint32_t), label);
         tcg_llvm_trace_port_access(port, res, 32, 0);
         return res;
     }

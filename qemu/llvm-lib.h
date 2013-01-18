@@ -43,30 +43,11 @@
 
 #define LLVMLIB_H
 
-void klee_make_symbolic(void *addr, unsigned nbytes, const char *name);
-uint8_t klee_int8(const char *name);
-uint16_t klee_int16(const char *name);
-uint32_t klee_int32(const char *name);
 void uint32_to_string(uint32_t n, char *str);
 void trace_port(char *buf, const char *prefix, uint32_t port, uint32_t pc);
 
-uint8_t klee_int8(const char *name) {
-    uint8_t ret;
-    klee_make_symbolic(&ret, sizeof(ret), name);
-    return ret;
-}
-
-uint16_t klee_int16(const char *name) {
-    uint16_t ret;
-    klee_make_symbolic(&ret, sizeof(ret), name);
-    return ret;
-}
-
-uint32_t klee_int32(const char *name) {
-    uint32_t ret;
-    klee_make_symbolic(&ret, sizeof(ret), name);
-    return ret;
-}
+void tcg_llvm_make_symbolic(void *addr, unsigned nbytes, const char *name);
+void tcg_llvm_get_value(void *addr, unsigned nbytes, bool addConstraint);
 
 //Helpers to avoid relying on sprintf that does not work properly
 static char hextable[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b',
