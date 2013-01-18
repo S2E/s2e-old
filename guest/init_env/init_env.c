@@ -43,6 +43,8 @@
 
 #include <s2e.h>
 
+//When defined, DEBUG_NATIVE skips custom instructions
+//to allow testing on a normal non-S2E CPU.
 #ifdef DEBUG_NATIVE
 #define myprintf printf
 #else
@@ -228,8 +230,10 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     display_process_map(proc_map);
     register_module(proc_map, argv[0]);
     register_module(proc_map, "init_env.so");
-    s2e_codeselector_select_module("init_env.so");
 
+    #ifndef DEBUG_NATIVE
+    s2e_codeselector_select_module("init_env.so");
+    #endif
     // Recognize --help when it is the sole argument.
     if (argc == 2 && __streq(argv[1], "--help")) {
         __emit_error("s2e_init_env\n\n"
