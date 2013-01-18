@@ -210,7 +210,7 @@ public:
         return (*it).second;
     }
 
-    /** Returns true is this is the active state */
+    /** Returns true if this is the active state */
     bool isActive() const { return m_active; }
 
     bool isZombie() const { return m_zombie; }
