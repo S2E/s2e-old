@@ -176,7 +176,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
 
 inline DATA_TYPE glue(io_make_symbolic, SUFFIX)(const char *name) {
     uint8_t ret;
-    klee_make_symbolic(&ret, sizeof(ret), name);
+    tcg_llvm_make_symbolic(&ret, sizeof(ret), name);
     return ret;
 }
 

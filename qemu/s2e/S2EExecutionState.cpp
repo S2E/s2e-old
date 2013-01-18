@@ -405,6 +405,146 @@ void S2EExecutionState::writeCpuRegisterConcrete(unsigned offset,
     writeCpuRegister(offset, ConstantExpr::create(value, size*8));
 }
 
+/*
+ * Read bytes from this state given a KLEE address.
+ * Optionally store the result in the result array
+ * Optionally concretize the result and store it
+ * Optionally store a permanent constraint on the value if concretized
+ *
+ * kleeAddressExpr:  the Klee "address" of the memory object
+ * sizeInBytes:  the number of bytes to read.  If this is too large
+ *               read the maximum amount possible from one MemoryObject
+ * result: optional parameter (can be NULL) to store the result
+ * requireConcrete: if true, fail if the memory is not concrete
+ * concretize: if true, concretize the memory but don't necessarily
+ *             add a permanent constraint (i.e. get an example)
+ * addConstraint: permanently concretize the memory
+ */
+void S2EExecutionState::kleeReadMemory(ref<Expr> kleeAddressExpr,
+                                       uint64_t sizeInBytes,
+                                       std::vector<ref<Expr> > *result,
+                                       bool requireConcrete,
+                                       bool concretize,
+                                       bool addConstraint) {
+    ObjectPair op;
+    kleeAddressExpr = g_s2e->getExecutor()->toUnique(*this, kleeAddressExpr);
+    ref<klee::ConstantExpr> address = cast<klee::ConstantExpr>(kleeAddressExpr);
+    if (!addressSpace.resolveOne(address, op))
+        assert(0 && "kleeReadMemory: out of bounds / multiple resolution unhandled");
+
+    const MemoryObject *mo = op.first;
+    const ObjectState *os = op.second;
+
+    assert (requireConcrete ||
+            (!requireConcrete && concretize && addConstraint) ||
+            (!requireConcrete && concretize && !addConstraint) ||
+            (!requireConcrete && !concretize));
+    
+    // Read an array of bytes
+    unsigned i;
+    sizeInBytes = sizeInBytes >= mo->size ? mo->size : sizeInBytes;
+    for (i = 0; i < sizeInBytes; i++) {
+        ref<Expr> cur = os->read8(i);
+        if (requireConcrete) {
+            // Here, we demand concrete results
+            cur = g_s2e->getExecutor()->toUnique(*this, cur);
+            assert(isa<klee::ConstantExpr>(cur) &&
+                   "kleeReadMemory: hit symbolic char but expected concrete data");
+            if (result) {
+                result->push_back(cast<klee::ConstantExpr>(cur));
+            }
+        } else {
+            if (concretize && addConstraint) {
+                // Add constraint if necessary
+                cur = g_s2e->getExecutor()->toConstant(*this, cur, "kleeReadMemory");
+            } else if (concretize && !addConstraint) {
+                // Otherwise just get an example
+                cur = g_s2e->getExecutor()->toConstantSilent(*this, cur);
+            } else {
+                assert (false && "Expected reasonable parameters in kleeReadMemory");
+            }
+
+            if (result) {
+                result->push_back(cur);
+            }
+        }
+    }
+
+    if (result) {
+        assert (result->size() >= 1 && "Expected array to have results");
+    }
+}
+
+/*
+ * Write bytes to a given KLEE address.
+ * Assumes that only one memory object is involved and that
+ * the write does not span memory objects.
+ * 
+ * kleeAddressExpr:  the Klee "address" of the memory object
+ * bytes:  The bytes to write at that location.
+ */
+void S2EExecutionState::kleeWriteMemory(ref<Expr> kleeAddressExpr, /* Address */
+                                        std::vector<ref<Expr> > &bytes) {
+    ObjectPair op;
+    kleeAddressExpr = g_s2e->getExecutor()->toUnique(*this, kleeAddressExpr);
+    ref<klee::ConstantExpr> address = cast<klee::ConstantExpr>(kleeAddressExpr);
+    if (!addressSpace.resolveOne(address, op))
+        assert(0 && "kleeReadMemory: out of bounds / multiple resolution unhandled");
+
+    const MemoryObject *mo = op.first;
+    const ObjectState *os = op.second;
+    ObjectState *wos = addressSpace.getWriteable(mo, os);
+    assert(bytes.size() <= os->size && "Too many bytes supplied to kleeWriteMemory");
+
+    // Write an array of possibly-symbolic bytes
+    unsigned i;
+    for (i = 0; i < bytes.size(); i++) {
+        wos->write(i, bytes[i]);
+    }
+}
+
+void S2EExecutionState::makeSymbolic(std::vector< ref<Expr> > &args,
+                                     bool makeConcolic) {
+    assert(args.size() == 3);
+
+    // KLEE address of variable
+    ref<klee::ConstantExpr> kleeAddress = cast<klee::ConstantExpr>(args[0]);
+    
+    // Size in bytes
+    uint64_t sizeInBytes = cast<klee::ConstantExpr>(args[1])->getZExtValue();
+
+    // address of label and label string itself
+    ref<klee::Expr> labelKleeAddress = args[2];
+    std::vector<klee::ref<klee::Expr> > result;
+    kleeReadMemory(labelKleeAddress, 31, &result, true, false, false);
+    char *strBuf = new char[32];
+    assert(result.size() <= 31 && "Expected fewer bytes??  See kleeReadMemory");
+    unsigned i;
+    for (i = 0; i < result.size(); i++) {
+        strBuf[i] = cast<klee::ConstantExpr>(result[i])->getZExtValue(8);
+    }
+    strBuf[i] = 0;
+    std::string labelStr(strBuf);
+    delete [] strBuf;
+
+    // Now insert the symbolic/concolic data for this state
+    std::vector<ref<Expr> > existingData;
+    std::vector<uint8_t> concreteData;
+    std::vector<ref<Expr> > symb;
+
+    if (makeConcolic) {
+        kleeReadMemory(labelKleeAddress, sizeInBytes, &existingData, false, true, true);
+        for (unsigned i = 0; i < sizeInBytes; ++i) {
+            concreteData.push_back(cast<klee::ConstantExpr>(existingData[i])->getZExtValue(8));
+        }
+        symb = createConcolicArray(labelStr, sizeInBytes, concreteData);
+    } else {
+        symb = createSymbolicArray(labelStr, sizeInBytes);
+    }
+
+    kleeWriteMemory(kleeAddress, symb);
+}
+
 uint64_t S2EExecutionState::readCpuState(unsigned offset,
                                          unsigned width) const
 {

@@ -245,6 +245,16 @@ protected:
                                          klee::KInstruction* target,
                                          std::vector<klee::ref<klee::Expr> > &args);
 
+    static void handleMakeSymbolic(klee::Executor* executor,
+                                   klee::ExecutionState* state,
+                                   klee::KInstruction* target,
+                                   std::vector<klee::ref<klee::Expr> > &args);
+
+    static void handleGetValue(klee::Executor* executor,
+                               klee::ExecutionState* state,
+                               klee::KInstruction* target,
+                               std::vector<klee::ref<klee::Expr> > &args);
+    
     void prepareFunctionExecution(S2EExecutionState *state,
                            llvm::Function* function,
                            const std::vector<klee::ref<klee::Expr> >& args);
