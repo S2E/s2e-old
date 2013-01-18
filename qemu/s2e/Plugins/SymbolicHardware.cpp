@@ -547,6 +547,33 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
     return ret;
 }
 
+static int fakepci_post_load(void *opaque, int version_id) {
+    SymbolicPciDeviceState *hw1 = static_cast<SymbolicPciDeviceState*>(opaque);
+    SymbolicHardware *hw2 = (SymbolicHardware*)g_s2e->getPlugin("SymbolicHardware");
+    assert (hw1);
+    assert (hw2);
+
+    int i = 0;
+    for (i = 0; i < PCI_NUM_REGIONS; i++) {
+        if (hw1->dev.io_regions[i].memory == NULL ||
+            hw1->dev.io_regions[i].address_space == NULL) {
+            continue;
+        }
+
+        int type = hw1->dev.io_regions[i].type;
+
+        if (type & PCI_BASE_ADDRESS_SPACE_IO) {
+            // Port I/O
+            hw2->setSymbolicPortRange(hw1->dev.io_regions[i].addr, hw1->dev.io_regions[i].size, true);
+        } else {
+            // MMIO
+            // Left empty for now as we can handle I/O memory
+            // accesses via the code in softmmu_template.h
+        }
+    }
+
+    return 0;
+}
 
 void PciDeviceDescriptor::initializeQemuDevice()
 {
@@ -596,6 +623,7 @@ void PciDeviceDescriptor::initializeQemuDevice()
     m_vmState->minimum_version_id = 3,
     m_vmState->minimum_version_id_old = 3,
     m_vmState->fields = m_vmStateFields;
+    m_vmState->post_load = fakepci_post_load;
 
     type_register_static(m_devInfo);
 }
