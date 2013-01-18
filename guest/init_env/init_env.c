@@ -232,17 +232,17 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
 
     // Recognize --help when it is the sole argument.
     if (argc == 2 && __streq(argv[1], "--help")) {
-        __emit_error("s2e_init_env\n\n\
-                     usage: (s2e_init_env) [options] [program arguments]\n\
-                         -select-process           - Enable forking in the current process only\n\
-                         -select-process-userspace - Enable forking in userspace-code of the\n\
-                         current process only\n\
-                         -select-process-code      - Enable forking in the code section of the\n\
-                         current binary only\n\
-                         -concolic                 - Augment existing concrete arguments with symbolic values\n\
-                         -sym-arg <N>              - Replace by a symbolic argument of length N\n\
-                         -sym-args <MIN> <MAX> <N> - Replace by at least MIN arguments and at most\n\
-                         MAX arguments, each with maximum length N\n\n");
+        __emit_error("s2e_init_env\n\n"
+                     "usage: (s2e_init_env) [options] [program arguments]\n"
+                     "\n"
+                     "   -select-process           - Enable forking in the current process only\n"
+                     "   -select-process-userspace - Enable forking in userspace-code of the\n"
+                     "                               current process only\n"
+                     "   -select-process-code      - Enable forking in the code section of the current binary only\n"
+                     "   -concolic                 - Augment existing concrete arguments with symbolic values\n"
+                     "   -sym-arg <N>              - Replace by a symbolic argument of length N\n"
+                     "   -sym-args <MIN> <MAX> <N> - Replace by at least MIN arguments and at most\n"
+                     "                               MAX arguments, each with maximum length N\n\n");
     }
 
     #ifndef DEBUG_NATIVE
