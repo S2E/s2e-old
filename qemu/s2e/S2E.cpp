@@ -302,7 +302,7 @@ S2E::~S2E()
 
     // KModule wants to delete the llvm::Module in destroyer.
     // llvm::ModuleProvider wants to delete it too. We have to arbitrate.
-    //XXX: llvm 3.0. How doe it work?
+    //XXX: llvm 3.0. How does it work?
     //m_tcgLLVMContext->getModuleProvider()->releaseModule();
 
     //Make sure everything is clean
@@ -392,8 +392,8 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
 
 #ifndef _WIN32
     if (m_maxProcesses > 1) {
-        //Create one output directory per child process
-        //This prevents child processes to clobber each other's output
+        // Create one output directory per child process.
+        // This prevents child processes from clobbering each other's output.
         llvm::sys::Path dirPath(m_outputDirectory);
 
         ostringstream oss;
@@ -536,7 +536,7 @@ void S2E::initPlugins()
         const PluginInfo* pluginInfo = m_pluginsFactory->getPluginInfo(pluginName);
         if(!pluginInfo) {
             std::cerr << "ERROR: plugin '" << pluginName
-                      << "' does not exists in this S2E installation" << '\n';
+                      << "' does not exist in this S2E installation" << '\n';
             exit(1);
         } else if(getPlugin(pluginInfo->name)) {
             std::cerr << "ERROR: plugin '" << pluginInfo->name

@@ -29,7 +29,7 @@ all-release: stamps/qemu-make-release stamps/tools-make-release
 all-debug: stamps/qemu-make-debug stamps/tools-make-debug
 
 ifeq ($(shell ls qemu/vl.c 2>&1),qemu/vl.c)
-    $(error You should not run make in S2E source directory!)
+    $(error You should not run make in the S2E source directory!)
 endif
 
 
