@@ -69,7 +69,7 @@ The recommended method of building S2E is using the S2E Makefile::
 
 By default, the ``make`` command compiles S2E in release mode. The resulting
 binary is placed in ``$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu-system-i386``.
-To compile in Debug mode, use ``make all-debug``. The makefile automatically
+To compile in Debug mode, use ``make all-debug``. The Makefile automatically
 uses the maximum number of available processors in order to speed up compilation.
 
 You can also build each component of S2E manually, as described in `Building

@@ -40,7 +40,7 @@ coverage.</li>
 anywhere in the system). For this, tracers need to know when execution enters and leaves the modules of interest.
 Tracers rely on the ModuleExecutionDetector plugin to obtain this information. ModuleExecutionDetector relies itself
 on OS monitor plugins to be notified whenever the OS loads or unloads the modules.</p>
-<p>Here is an end-to-end  example of how to generate an execution trace for the <tt class="docutils literal">echo</tt> utility and using the <a class="reference external" href="../Howtos/init_env.html">init_env.so</a> library.
+<p>Here is an end-to-end example of how to generate an execution trace for the <tt class="docutils literal">echo</tt> utility using the <a class="reference external" href="../Howtos/init_env.html">init_env.so</a> library.
 The trace will contain all memory accesses done by <tt class="docutils literal">echo</tt>, as well as the list of executed translation blocks and test cases.</p>
 <div class="section" id="minimal-configuration-file">
 <h1>1. Minimal Configuration File</h1>

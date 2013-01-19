@@ -54,7 +54,7 @@ Compiling the Program in the Guest
 
 Before testing the program in S2E, compile and run it in the native QEMU build
 (the one in the ``i386-softmmu`` directory).
-Launch QEMU with with the following command::
+Launch QEMU with the following command::
 
    $ $S2EDIR/build/i386-softmmu/qemu-system-i386 your_image.qcow2
 
@@ -205,7 +205,7 @@ disabled. Then, save a snapshot and load it in the S2E::
 
    $ $S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu-system-i386 your_image.qcow2 -loadvm 1 \
                               -s2e-config-file config.lua -s2e-verbose
-   > Wait the snapshot is resumed, then type in the guest
+   > Wait until the snapshot is resumed, then type in the guest
    guest$ ./tutorial1
    > Notice that we use i386-s2e-softmmu, which is the build with S2E ENABLED.
 

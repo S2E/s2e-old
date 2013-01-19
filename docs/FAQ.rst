@@ -151,13 +151,14 @@ Look for "Elapsed time" in the logs.
 What do the various fields in ``run.stats`` mean?
 -------------------------------------------------
 
-You can open ``run.stats`` in a spreadsheet as a CVS file.
+You can open ``run.stats`` in a spreadsheet as a CSV file.
 Most of the fields are self-explanatory. Here are the trickiest ones:
 
 * ``QueryTime`` shows how much time KLEE spent in the STP solver.
 
 * ``CexCacheTime`` adds to that time also the time spent while looking
-  for a solution in a counter-example cache (which is enabled by ``--use-cex-cache`` KLEE option).
+  for a solution in a counter-example cache (which is enabled by the
+  ``--use-cex-cache`` KLEE option).
   SolverTime shows how much time KLEE spent in total while solving queries
   (this includes all the solver optimizations that could be enabled by various solver-related KLEE options).
 

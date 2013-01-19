@@ -3,11 +3,11 @@ Using SystemTap with S2E
 ========================
 
 SystemTap is a powerful tracing framework on Linux. It can intercept any function calls or instructions
-in the kernel and invoke a custom scripts. Such scripts have full access to the system state, can leverage
+in the kernel and invoke custom scripts. Such scripts have full access to the system state, can leverage
 debugging information, etc.
 
 SystemTap provides S2E users a flexible way of controlling symbolic execution.
-The user writes a SystemTap scripts with embedded calls to S2E custom instructions.
+The user writes a SystemTap script with embedded calls to S2E custom instructions.
 This allows to inject symbolic values in any place, kill states based on complex
 conditions, etc.
 
@@ -40,8 +40,8 @@ Building SystemTap in the ``chroot`` environment of the host
 ============================================================
 
 We will compile SystemTap and the scripts in the *chrooted* and *32-bit* environment, upload
-the scripts in the VM, and run them there. The ``chroot`` environment makes it easy
-to compile to 32-bit mode when your host is 64-bit and isolates your production
+the scripts to the VM, and run them there. The ``chroot`` environment makes it easy
+to compile in 32-bit mode when your host is 64-bit and isolates your production
 environment from mistakes.
 
 We could also compile the scripts directly inside
@@ -149,7 +149,7 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
    # you need them
    
    # Terminate current state.
-   # This is a SystemTap function, that can be called from SystemTap code
+   # This is a SystemTap function that can be called from SystemTap code.
    function s2e_kill_state(status:long, message: string) %{
      __asm__ __volatile__(
        ".byte 0x0f, 0x3f\n"
@@ -159,8 +159,8 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
      );
    %}
 
-   # Print message to the S2E log
-   # This is a SystemTap function, that can be called from SystemTap code
+   # Print message to the S2E log.
+   # This is a SystemTap function that can be called from SystemTap code.
    function s2e_message(message:string) %{
      __asm__ __volatile__(
        ".byte 0x0f, 0x3f\n"
@@ -174,8 +174,8 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
    # This is useful when calling other C functions.
 
    %{
-   //Make the specified buffer symbolic, and assign a name to it
-   static inline void s2e_make_symbolic(void* buf, int size, const char* name)
+   // Make the specified buffer symbolic and assign a name to it.
+   static inline void s2e_make_symbolic(void *buf, int size, const char *name)
    {
      __asm__ __volatile__(
        ".byte 0x0f, 0x3f\n"

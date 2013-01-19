@@ -160,8 +160,8 @@ Counting Instructions
 We would like to count how many times that particular instruction is executed.
 There are two options:
 
-  1) Count how many times it was executed across all path
-  2) Count how many times it was executed in each path
+  1) Count how many times it was executed across all paths.
+  2) Count how many times it was executed in each path.
 
 The first option is trivial to implement. Simply add an additional member
 to the class and increment it every time the ``onInstructionExecution`` callback is invoked.

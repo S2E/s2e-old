@@ -65,7 +65,7 @@ for <tt class="docutils literal">RawMonitor</tt>, <tt class="docutils literal">M
 <p>The <tt class="docutils literal">init_env</tt> library needs to be pre-loaded to your binary using
 <tt class="docutils literal">LD_PRELOAD</tt>. <tt class="docutils literal">init_env</tt> intercepts the program's entry point invocation, parses
 the command line arguments of the program, configures symbolic execution, and removes <tt class="docutils literal">init_env</tt>-related
-parameters, before invoking the origin program's entry point.</p>
+parameters, before invoking the original program's entry point.</p>
 <p>For example, the following invokes <tt class="docutils literal">echo</tt> from GNU CoreUtils, using up to two
 symbolic command line arguments, selecting only code from the <tt class="docutils literal">echo</tt>
 binary, and terminating the execution path after <tt class="docutils literal">echo</tt> returns:</p>
@@ -88,7 +88,7 @@ the <tt class="docutils literal"><span class="pre">--select-process-code</span><
                                current process only
 --select-process-code          Enable forking in the code section of the
                                current binary only
---concolic                     Augments all concrete arguments with symbolic values
+--concolic                     Augment all concrete arguments with symbolic values
 --sym-arg &lt;N&gt;                  Replace by a symbolic argument of length N
 --sym-args &lt;MIN&gt; &lt;MAX&gt; &lt;N&gt;     Replace by at least MIN arguments and at most
                                MAX arguments, each with maximum length N

@@ -12,10 +12,10 @@
 <h1 class="title">Using SystemTap with S2E</h1>
 
 <p>SystemTap is a powerful tracing framework on Linux. It can intercept any function calls or instructions
-in the kernel and invoke a custom scripts. Such scripts have full access to the system state, can leverage
+in the kernel and invoke custom scripts. Such scripts have full access to the system state, can leverage
 debugging information, etc.</p>
 <p>SystemTap provides S2E users a flexible way of controlling symbolic execution.
-The user writes a SystemTap scripts with embedded calls to S2E custom instructions.
+The user writes a SystemTap script with embedded calls to S2E custom instructions.
 This allows to inject symbolic values in any place, kill states based on complex
 conditions, etc.</p>
 <p>In this tutorial, we describe how to build and run SystemTap. We also give several
@@ -51,8 +51,8 @@ for a list of detailed steps.</p>
 <div class="section" id="building-systemtap-in-the-chroot-environment-of-the-host">
 <h1>Building SystemTap in the <tt class="docutils literal">chroot</tt> environment of the host</h1>
 <p>We will compile SystemTap and the scripts in the <em>chrooted</em> and <em>32-bit</em> environment, upload
-the scripts in the VM, and run them there. The <tt class="docutils literal">chroot</tt> environment makes it easy
-to compile to 32-bit mode when your host is 64-bit and isolates your production
+the scripts to the VM, and run them there. The <tt class="docutils literal">chroot</tt> environment makes it easy
+to compile in 32-bit mode when your host is 64-bit and isolates your production
 environment from mistakes.</p>
 <p>We could also compile the scripts directly inside
 the VM, but it is much slower.</p>
@@ -143,7 +143,7 @@ and replace the content of the IP header field with symbolic values.</p>
 <span class="cp"># you need them</span>
 
 <span class="cp"># Terminate current state.</span>
-<span class="cp"># This is a SystemTap function, that can be called from SystemTap code</span>
+<span class="cp"># This is a SystemTap function that can be called from SystemTap code.</span>
 <span class="n">function</span> <span class="n">s2e_kill_state</span><span class="p">(</span><span class="n">status</span><span class="o">:</span><span class="kt">long</span><span class="p">,</span> <span class="n">message</span><span class="o">:</span> <span class="n">string</span><span class="p">)</span> <span class="o">%</span><span class="p">{</span>
   <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
     <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
@@ -153,8 +153,8 @@ and replace the content of the IP header field with symbolic values.</p>
   <span class="p">);</span>
 <span class="o">%</span><span class="p">}</span>
 
-<span class="cp"># Print message to the S2E log</span>
-<span class="cp"># This is a SystemTap function, that can be called from SystemTap code</span>
+<span class="cp"># Print message to the S2E log.</span>
+<span class="cp"># This is a SystemTap function that can be called from SystemTap code.</span>
 <span class="n">function</span> <span class="n">s2e_message</span><span class="p">(</span><span class="n">message</span><span class="o">:</span><span class="n">string</span><span class="p">)</span> <span class="o">%</span><span class="p">{</span>
   <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
     <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
@@ -168,8 +168,8 @@ and replace the content of the IP header field with symbolic values.</p>
 <span class="cp"># This is useful when calling other C functions.</span>
 
 <span class="o">%</span><span class="p">{</span>
-<span class="c1">//Make the specified buffer symbolic, and assign a name to it</span>
-<span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span> <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">name</span><span class="p">)</span>
+<span class="c1">// Make the specified buffer symbolic and assign a name to it.</span>
+<span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span> <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">name</span><span class="p">)</span>
 <span class="p">{</span>
   <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
     <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>

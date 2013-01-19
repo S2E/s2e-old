@@ -20,7 +20,7 @@ S2E supports only 32-bit guest systems for now.
 There will be compatibility problems if you use QEMU that comes with your system (especially
 when saving/restoring snapshots).
 
-``$S2EDIR`` refers to the directory were S2E is installed. The paths below assume you
+``$S2EDIR`` refers to the directory where S2E is installed. The paths below assume you
 followed the installation tutorials.
 
 ::
@@ -29,7 +29,7 @@ followed the installation tutorials.
    $ $S2EDIR/build/qemu-release/qemu-img create -f raw s2e_disk.raw 2G
 
    $ # Download debian install CD
-   $ wget http://cdimage.debian.org/debian-cd/6.0.2.1/i386/iso-cd/debian-6.0.2.1-i386-businesscard.iso
+   $ wget http://cdimage.debian.org/debian-cd/current/i386/iso-cd/debian-6.0.6-i386-businesscard.iso
 
    $ # Run QEMU and install the OS
    $ $S2EDIR/build/qemu-release/qemu-system-i386 s2e_disk.raw -cdrom debian-6.0.2.1-i386-businesscard.iso
@@ -40,7 +40,7 @@ followed the installation tutorials.
    $ # inside the guest to install C and C++ compilers
    guest$ su -c "apt-get install build-essential"
 
-You have just setup a disk image in RAW format. You need to convert it to QCOW2 for optimal use
+You have just set up a disk image in RAW format. You need to convert it to QCOW2 for optimal use
 with S2E (the reasons for this are described in the next section).
 
 ::
@@ -65,7 +65,7 @@ Here is a checklist we recommend to follow:
 
 * Keep a fresh copy of your OS installation. It is recommended to start with a fresh copy for each analysis task. For instance, if you use an image to test a device driver, avoid using this same image to analyze some spreadsheet component. One image = one analysis. It is easier to manage and your results will be easier to reproduce.
 
-* Once your (QCOW2) image is setup and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a (very) long time.
+* Once your (QCOW2) image is set up and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a (very) long time.
 
 * It is recommended to use 128MiB of RAM for the guest OS (or less). S2E is not limited by the amount of memory in any way (it is 64-bit),  but your physical machine is.
 
@@ -76,5 +76,5 @@ The following checklist is specific to Windows guests. All common tips also appl
 
 * Disable fancy desktop themes. Windows has a GUI, which consumes resources. Disabling all visual effects will make program analysis faster.
 * Disable the screen saver.
-* Disable unnecessary services to save memory and speedup the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.
+* Disable unnecessary services to save memory and speed up the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.
 

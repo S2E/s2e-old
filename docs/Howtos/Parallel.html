@@ -38,7 +38,7 @@ $ /home/s2e/tools/Release/bin/forkprofiler -outputdir=s2e-last/ \
 <li>S2E can only run on a shared-memory architecture. S2E cannot start on one machine and fork new instances on other machines for now.
 This limitation will be removed soon.</li>
 <li>It is not possible to have a separate S2E window for each process for now. If you start with <tt class="docutils literal"><span class="pre">-nographic</span></tt>, you will not be able
-to manipulate the console. To start the program that you want to symbex in the guest, use the <a class="reference external" href="../UsingS2EGet.html">HostFiles</a> plugin or
+to manipulate the console. To start the program that you want to symbolically execute in the guest, use the <a class="reference external" href="../UsingS2EGet.html">HostFiles</a> plugin or
 the <tt class="docutils literal"><span class="pre">-vnc</span> :1</tt> option.</li>
 <li>Because S2E uses the <tt class="docutils literal">fork</tt> system call, S2E cannot run on Windows in multi-core mode.</li>
 </ul>

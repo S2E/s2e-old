@@ -58,7 +58,7 @@ for ``RawMonitor``, ``ModuleExecutionDetector``, or ``CodeSelector``.
 The ``init_env`` library needs to be pre-loaded to your binary using
 ``LD_PRELOAD``. ``init_env`` intercepts the program's entry point invocation, parses
 the command line arguments of the program, configures symbolic execution, and removes ``init_env``-related
-parameters, before invoking the origin program's entry point.
+parameters, before invoking the original program's entry point.
 
 For example, the following invokes ``echo`` from GNU CoreUtils, using up to two
 symbolic command line arguments, selecting only code from the ``echo``
@@ -85,7 +85,7 @@ the ``--select-process-code`` or ``--sym-args`` argument.
                                    current process only
     --select-process-code          Enable forking in the code section of the
                                    current binary only
-    --concolic                     Augments all concrete arguments with symbolic values
+    --concolic                     Augment all concrete arguments with symbolic values
     --sym-arg <N>                  Replace by a symbolic argument of length N
     --sym-args <MIN> <MAX> <N>     Replace by at least MIN arguments and at most
                                    MAX arguments, each with maximum length N

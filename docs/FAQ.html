@@ -148,12 +148,13 @@ Look for &quot;Elapsed time&quot; in the logs.</p>
 </div>
 <div class="section" id="what-do-the-various-fields-in-run-stats-mean">
 <h2>1.6&nbsp;&nbsp;&nbsp;What do the various fields in <tt class="docutils literal">run.stats</tt> mean?</h2>
-<p>You can open <tt class="docutils literal">run.stats</tt> in a spreadsheet as a CVS file.
+<p>You can open <tt class="docutils literal">run.stats</tt> in a spreadsheet as a CSV file.
 Most of the fields are self-explanatory. Here are the trickiest ones:</p>
 <ul class="simple">
 <li><tt class="docutils literal">QueryTime</tt> shows how much time KLEE spent in the STP solver.</li>
 <li><tt class="docutils literal">CexCacheTime</tt> adds to that time also the time spent while looking
-for a solution in a counter-example cache (which is enabled by <tt class="docutils literal"><span class="pre">--use-cex-cache</span></tt> KLEE option).
+for a solution in a counter-example cache (which is enabled by the
+<tt class="docutils literal"><span class="pre">--use-cex-cache</span></tt> KLEE option).
 SolverTime shows how much time KLEE spent in total while solving queries
 (this includes all the solver optimizations that could be enabled by various solver-related KLEE options).</li>
 <li><tt class="docutils literal">ResolveTime</tt> represents time that KLEE spent resolving symbolic

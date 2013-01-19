@@ -28,7 +28,7 @@ You can convert results to kcachegrind-readable format with the following comman
 
     $ opreport -gdf | op2calltree
 
-However, callgraph information is not preserved by this convertion tool.
+However, callgraph information is not preserved by this conversion tool.
 
 Generating callgraphs with ``gprof2dot`` and ``graphviz``
 =========================================================
