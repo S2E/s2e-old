@@ -22,6 +22,7 @@ JOBS := $(patsubst hw.ncpu:%,%,$(shell sysctl hw.ncpu))
 else ifeq ($(OS),Linux)
 JOBS := $(shell grep -c ^processor /proc/cpuinfo)
 endif
+MAKE = make -j$(JOBS)
 
 all: all-release
 
@@ -50,7 +51,7 @@ clean:
 	rm -Rf stamps
 
 guestclean:
-	make -C $(S2ESRC)/guest clean
+	$(MAKE) -C $(S2ESRC)/guest clean
 
 distclean: clean guestclean
 	rm -Rf guest-tools llvm llvm-native stp stp-asan tools
@@ -111,7 +112,7 @@ stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-n
 	touch $@
 
 stamps/llvm-make-release-native: stamps/llvm-configure-native
-	cd llvm-native && make ENABLE_OPTIMIZED=1 -j$(JOBS)
+	cd llvm-native && $(MAKE) ENABLE_OPTIMIZED=1
 	touch $@
 
 
@@ -126,11 +127,11 @@ stamps/llvm-configure: stamps/llvm-make-release-native | llvm
 	touch $@
 
 stamps/llvm-make-debug: stamps/llvm-configure
-	cd llvm && make ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1 -j$(JOBS)
+	cd llvm && $(MAKE) ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 	touch $@
 
 stamps/llvm-make-release: stamps/llvm-configure
-	cd llvm && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
+	cd llvm && $(MAKE) ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 	touch $@
 
 
@@ -144,7 +145,7 @@ stamps/stp-configure: | stamps stp
 	touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
-	cd stp && make 
+	cd stp && $(MAKE)
 	touch $@
 
 stp/include/stp/c_interface.h: stamps/stp-configure
@@ -160,7 +161,7 @@ stamps/stp-configure-asan: | stamps stp-asan
 	touch $@
 
 stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
-	cd stp-asan && make -j$(JOBS)
+	cd stp-asan && $(MAKE)
 	touch $@
 
 
@@ -183,11 +184,11 @@ stamps/klee-configure: stamps/llvm-configure \
 	touch $@
 
 stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-make ALWAYS
-	cd klee && make ENABLE_OPTIMIZED=0 CXXFLAGS="-g -O0" -j$(JOBS)
+	cd klee && $(MAKE) ENABLE_OPTIMIZED=0 CXXFLAGS="-g -O0"
 	touch $@
 
 stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/stp-make ALWAYS
-	cd klee && make ENABLE_OPTIMIZED=1 -j$(JOBS)
+	cd klee && $(MAKE) ENABLE_OPTIMIZED=1
 	touch $@
 
 
@@ -203,11 +204,11 @@ stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan | klee
 
 
 stamps/klee-make-release-asan: stamps/klee-configure-asan stamps/stp-make-asan
-	cd klee-asan && make ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS) -j$(JOBS)
+	cd klee-asan && $(MAKE) ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
 stamps/klee-make-debug-asan: stamps/llvm-make-debug stamps/klee-configure-asan stamps/stp-make-asan
-	cd klee-asan && make ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS) -j$(JOBS)
+	cd klee-asan && $(MAKE) ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
 
@@ -251,11 +252,11 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 	touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug
-	cd qemu-debug && make -j$(JOBS)
+	cd qemu-debug && $(MAKE)
 	touch $@
 
 stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
-	cd qemu-release && make -j$(JOBS)
+	cd qemu-release && $(MAKE)
 	touch $@
 
 #ASAN-enabled QEMU
@@ -278,11 +279,11 @@ stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan | qemu-debug-asan
 	touch $@
 
 stamps/qemu-make-debug-asan: stamps/qemu-configure-debug-asan stamps/klee-make-debug-asan
-	cd qemu-debug-asan && make -j$(JOBS)
+	cd qemu-debug-asan && $(MAKE)
 	touch $@
 
 stamps/qemu-make-release-asan: stamps/qemu-configure-release-asan stamps/klee-make-release-asan
-	cd qemu-release-asan && make -j$(JOBS)
+	cd qemu-release-asan && $(MAKE)
 	touch $@
 
 
@@ -302,11 +303,11 @@ stamps/tools-configure: stamps/llvm-configure | tools
 	touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS
-	cd tools && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
+	cd tools && $(MAKE) ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 	touch $@
 
 stamps/tools-make-debug: stamps/tools-configure ALWAYS
-	cd tools && make ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1 -j$(JOBS)
+	cd tools && $(MAKE) ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 	touch $@
 
 
@@ -315,5 +316,5 @@ stamps/tools-make-debug: stamps/tools-configure ALWAYS
 ############
 
 stamps/guest-tools: ALWAYS | guest-tools stamps
-	cd $(S2ESRC)/guest && make install BUILD_DIR=$(S2EBUILD)/guest-tools
+	cd $(S2ESRC)/guest && $(MAKE) install BUILD_DIR=$(S2EBUILD)/guest-tools
 	touch $@
