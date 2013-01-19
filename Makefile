@@ -205,7 +205,7 @@ stamps/klee-configure: stamps/llvm-configure \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp \
 		--target=x86_64 \
-		--enable-exceptions --enable-assertions \
+		--enable-exceptions \
                 CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
 		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 	mkdir -p stamps && touch $@
@@ -229,7 +229,7 @@ stamps/klee-configure-asan: stamps/llvm-make-release-asan stamps/stp-make-asan \
 		--with-llvmobj=$(S2EBUILD)/llvm-instr-asan \
 		--with-stp=$(S2EBUILD)/stp-asan \
 		--target=x86_64 \
-		--enable-exceptions --enable-assertions \
+		--enable-exceptions \
                 CC=$(ASAN_CC) \
 		CXX=$(ASAN_CXX) CXXFLAGS="-O1 -faddress-sanitizer" LDFLAGS="-faddress-sanitizer"
 	mkdir -p stamps && touch $@
@@ -319,7 +319,7 @@ stamps/tools-configure: stamps/llvm-configure
 		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-s2esrc=$(S2ESRC)/qemu \
-		--target=x86_64 --enable-assertions \
+		--target=x86_64 \
 		CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
 		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 	mkdir -p stamps && touch $@
