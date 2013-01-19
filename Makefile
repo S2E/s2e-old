@@ -324,7 +324,7 @@ stamps/tools-configure: stamps/llvm-configure
 		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-s2esrc=$(S2ESRC)/qemu \
-		--target=x86_64 --enable-assertions \
+		--target=x86_64 \
 		CC=$(CLANG_CC) \
 		CXX=$(CLANG_CXX)
 	mkdir -p stamps && touch $@
