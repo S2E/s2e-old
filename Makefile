@@ -112,7 +112,7 @@ stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-n
 	touch $@
 
 stamps/llvm-make-release-native: stamps/llvm-configure-native
-	cd llvm-native && $(MAKE) ENABLE_OPTIMIZED=1
+	$(MAKE) -C llvm-native ENABLE_OPTIMIZED=1
 	touch $@
 
 
@@ -127,11 +127,11 @@ stamps/llvm-configure: stamps/llvm-make-release-native | llvm
 	touch $@
 
 stamps/llvm-make-debug: stamps/llvm-configure
-	cd llvm && $(MAKE) ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
+	$(MAKE) -C llvm ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 	touch $@
 
 stamps/llvm-make-release: stamps/llvm-configure
-	cd llvm && $(MAKE) ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
+	$(MAKE) -C llvm ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 	touch $@
 
 
@@ -145,7 +145,7 @@ stamps/stp-configure: | stamps stp
 	touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
-	cd stp && $(MAKE)
+	$(MAKE) -C stp
 	touch $@
 
 stp/include/stp/c_interface.h: stamps/stp-configure
@@ -161,7 +161,7 @@ stamps/stp-configure-asan: | stamps stp-asan
 	touch $@
 
 stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
-	cd stp-asan && $(MAKE)
+	$(MAKE) -C stp-asan
 	touch $@
 
 
@@ -184,11 +184,11 @@ stamps/klee-configure: stamps/llvm-configure \
 	touch $@
 
 stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-make ALWAYS
-	cd klee && $(MAKE) ENABLE_OPTIMIZED=0 CXXFLAGS="-g -O0"
+	$(MAKE) -C klee ENABLE_OPTIMIZED=0 CXXFLAGS="-g -O0"
 	touch $@
 
 stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/stp-make ALWAYS
-	cd klee && $(MAKE) ENABLE_OPTIMIZED=1
+	$(MAKE) -C klee ENABLE_OPTIMIZED=1
 	touch $@
 
 
@@ -204,11 +204,11 @@ stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan | klee
 
 
 stamps/klee-make-release-asan: stamps/klee-configure-asan stamps/stp-make-asan
-	cd klee-asan && $(MAKE) ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS)
+	$(MAKE) -C klee-asan ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
 stamps/klee-make-debug-asan: stamps/llvm-make-debug stamps/klee-configure-asan stamps/stp-make-asan
-	cd klee-asan && $(MAKE) ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS)
+	$(MAKE) -C klee-asan ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
 
@@ -252,11 +252,11 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 	touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug
-	cd qemu-debug && $(MAKE)
+	$(MAKE) -C qemu-debug
 	touch $@
 
 stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
-	cd qemu-release && $(MAKE)
+	$(MAKE) -C qemu-release
 	touch $@
 
 #ASAN-enabled QEMU
@@ -279,11 +279,11 @@ stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan | qemu-debug-asan
 	touch $@
 
 stamps/qemu-make-debug-asan: stamps/qemu-configure-debug-asan stamps/klee-make-debug-asan
-	cd qemu-debug-asan && $(MAKE)
+	$(MAKE) -C qemu-debug-asan
 	touch $@
 
 stamps/qemu-make-release-asan: stamps/qemu-configure-release-asan stamps/klee-make-release-asan
-	cd qemu-release-asan && $(MAKE)
+	$(MAKE) -C qemu-release-asan
 	touch $@
 
 
@@ -303,11 +303,11 @@ stamps/tools-configure: stamps/llvm-configure | tools
 	touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS
-	cd tools && $(MAKE) ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
+	$(MAKE) -C tools ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 	touch $@
 
 stamps/tools-make-debug: stamps/tools-configure ALWAYS
-	cd tools && $(MAKE) ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
+	$(MAKE) -C tools ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 	touch $@
 
 
@@ -316,5 +316,5 @@ stamps/tools-make-debug: stamps/tools-configure ALWAYS
 ############
 
 stamps/guest-tools: ALWAYS | guest-tools stamps
-	cd $(S2ESRC)/guest && $(MAKE) install BUILD_DIR=$(S2EBUILD)/guest-tools
+	$(MAKE) -C $(S2ESRC)/guest install BUILD_DIR=$(S2EBUILD)/guest-tools
 	touch $@
