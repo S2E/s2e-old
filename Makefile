@@ -60,6 +60,11 @@ distclean: clean guestclean
 
 ALWAYS:
 
+stamps:
+	mkdir -p $@
+
+
+
 #############
 # Downloads #
 #############
@@ -99,16 +104,16 @@ LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --enable-jit --enable-optimized \
 
 #First build it with the system's compiler
-stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR)
+stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | stamps
 	mkdir -p llvm-native
 	cd llvm-native && $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
 		$(LLVM_CONFIGURE_FLAGS) \
 		--disable-assertions #compiler-rt won't build if we specify explicit targets...
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/llvm-make-release-native: stamps/llvm-configure-native
 	cd llvm-native && make ENABLE_OPTIMIZED=1 -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 
 #Then, build LLVM with the clang compiler.
@@ -120,28 +125,29 @@ stamps/llvm-configure: stamps/llvm-make-release-native
 	--target=x86_64 --enable-targets=x86 \
 	CC=$(CLANG_CC) \
 	CXX=$(CLANG_CXX)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/llvm-make-debug: stamps/llvm-configure
 	cd llvm && make ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1 -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/llvm-make-release: stamps/llvm-configure
 	cd llvm && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
+
 
 
 #######
 # STP #
 #######
 
-stamps/stp-configure: | stp
+stamps/stp-configure: | stamps stp
 	cd stp && scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
 	cd stp && make 
-	mkdir -p stamps && touch $@
+	touch $@
 
 stp/include/stp/c_interface.h: stamps/stp-configure
 
@@ -151,13 +157,13 @@ stp/lib/libstp.a: stamps/stp-make
 #ASAN-enabled STP
 #XXX: need to fix the STP build to actually use ASAN...
 
-stamps/stp-configure-asan: | stp-asan
+stamps/stp-configure-asan: | stamps stp-asan
 	cd stp-asan && scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-address-sanitizer
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
 	cd stp-asan && make -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 
 ########
@@ -177,15 +183,15 @@ stamps/klee-configure: stamps/llvm-configure \
 	cd klee && $(S2ESRC)/klee/configure \
 		--with-stp=$(S2EBUILD)/stp \
 		$(KLEE_CONFIGURE_FLAGS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-make ALWAYS
 	cd klee && make ENABLE_OPTIMIZED=0 CXXFLAGS="-g -O0" -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/stp-make ALWAYS
 	cd klee && make ENABLE_OPTIMIZED=1 -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 
 #ASAN-enabled KLEE
@@ -197,15 +203,16 @@ stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan
 		--with-stp=$(S2EBUILD)/stp-asan \
 		$(KLEE_CONFIGURE_FLAGS) \
 		$(ASAN_CXX_LD_FLAGS)
-	mkdir -p stamps && touch $@
+	touch $@
+
 
 stamps/klee-make-release-asan: stamps/klee-configure-asan stamps/stp-make-asan
 	cd klee-asan && make ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS) -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/klee-make-debug-asan: stamps/llvm-make-debug stamps/klee-configure-asan stamps/stp-make-asan
 	cd klee-asan && make ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS) -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 
 ########
@@ -239,7 +246,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
 	mkdir -p qemu-release
@@ -247,15 +254,15 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug
 	cd qemu-debug && make -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
 	cd qemu-release && make -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 #ASAN-enabled QEMU
 QEMU_ASAN_FLAGS = --enable-address-sanitizer \
@@ -268,7 +275,7 @@ stamps/qemu-configure-release-asan: stamps/klee-make-release-asan
 		--with-klee=$(S2EBUILD)/klee-asan/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
 		$(QEMU_ASAN_FLAGS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan
 	mkdir -p qemu-debug-asan
@@ -276,15 +283,15 @@ stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan
 		--with-klee=$(S2EBUILD)/klee-asan/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
 		$(QEMU_ASAN_FLAGS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/qemu-make-debug-asan: stamps/qemu-configure-debug-asan stamps/klee-make-debug-asan
 	cd qemu-debug-asan && make -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/qemu-make-release-asan: stamps/qemu-configure-release-asan stamps/klee-make-release-asan
 	cd qemu-release-asan && make -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 
 
@@ -301,20 +308,21 @@ stamps/tools-configure: stamps/llvm-configure
 		--target=x86_64 \
 		CC=$(CLANG_CC) \
 		CXX=$(CLANG_CXX)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS
 	cd tools && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 stamps/tools-make-debug: stamps/tools-configure ALWAYS
 	cd tools && make ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1 -j$(JOBS)
-	mkdir -p stamps && touch $@
+	touch $@
 
 
 ############
 #Guest tools
 ############
-stamps/guest-tools: ALWAYS
+
+stamps/guest-tools: ALWAYS | stamps
 	mkdir -p guest-tools && cd $(S2ESRC)/guest && make install BUILD_DIR=$(S2EBUILD)/guest-tools
-	mkdir -p stamps && touch $@
+	touch $@
