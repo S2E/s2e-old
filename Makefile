@@ -60,7 +60,7 @@ distclean: clean guestclean
 
 ALWAYS:
 
-stamps:
+guest-tools klee klee-asan llvm llvm-instr-asan llvm-native qemu-debug qemu-debug-asan qemu-release qemu-release-asan stamps tools:
 	mkdir -p $@
 
 
@@ -104,8 +104,7 @@ LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --enable-jit --enable-optimized \
 
 #First build it with the system's compiler
-stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | stamps
-	mkdir -p llvm-native
+stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-native stamps
 	cd llvm-native && $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
 		$(LLVM_CONFIGURE_FLAGS) \
 		--disable-assertions #compiler-rt won't build if we specify explicit targets...
@@ -118,8 +117,7 @@ stamps/llvm-make-release-native: stamps/llvm-configure-native
 
 #Then, build LLVM with the clang compiler.
 #Note that we build LLVM without clang and compiler-rt, because S2E does not need them.
-stamps/llvm-configure: stamps/llvm-make-release-native
-	mkdir -p llvm
+stamps/llvm-configure: stamps/llvm-make-release-native | llvm
 	cd llvm && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 	$(LLVM_CONFIGURE_FLAGS) \
 	--target=x86_64 --enable-targets=x86 \
@@ -178,8 +176,7 @@ KLEE_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
 
 stamps/klee-configure: stamps/llvm-configure \
                        stp/include/stp/c_interface.h \
-                       stp/lib/libstp.a
-	mkdir -p klee
+                       stp/lib/libstp.a | klee
 	cd klee && $(S2ESRC)/klee/configure \
 		--with-stp=$(S2EBUILD)/stp \
 		$(KLEE_CONFIGURE_FLAGS)
@@ -197,8 +194,7 @@ stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/
 #ASAN-enabled KLEE
 ASAN_CXX_LD_FLAGS = CXXFLAGS="-O0 -g -fsanitize=address" LDFLAGS="-g -fsanitize=address"
 
-stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan
-	mkdir -p klee-asan
+stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan | klee-asan
 	cd klee-asan && $(S2ESRC)/klee/configure \
 		--with-stp=$(S2EBUILD)/stp-asan \
 		$(KLEE_CONFIGURE_FLAGS) \
@@ -240,16 +236,14 @@ QEMU_DEBUG_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
 
 QEMU_RELEASE_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Release+Asserts
 
-stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
-	mkdir -p qemu-debug
+stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config | qemu-debug
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
 	touch $@
 
-stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
-	mkdir -p qemu-release
+stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config | qemu-release
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
@@ -269,16 +263,14 @@ QEMU_ASAN_FLAGS = --enable-address-sanitizer \
                   --with-stp=$(S2EBUILD)/stp \
                   $(QEMU_COMMON_FLAGS)
 
-stamps/qemu-configure-release-asan: stamps/klee-make-release-asan
-	mkdir -p qemu-release-asan
+stamps/qemu-configure-release-asan: stamps/klee-make-release-asan | qemu-release-asan
 	cd qemu-release-asan && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee-asan/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
 		$(QEMU_ASAN_FLAGS)
 	touch $@
 
-stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan
-	mkdir -p qemu-debug-asan
+stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan | qemu-debug-asan
 	cd qemu-debug-asan && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee-asan/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
@@ -299,8 +291,7 @@ stamps/qemu-make-release-asan: stamps/qemu-configure-release-asan stamps/klee-ma
 # Tools #
 #########
 
-stamps/tools-configure: stamps/llvm-configure
-	mkdir -p tools
+stamps/tools-configure: stamps/llvm-configure | tools
 	cd tools && $(S2ESRC)/tools/configure \
 		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
@@ -323,6 +314,6 @@ stamps/tools-make-debug: stamps/tools-configure ALWAYS
 #Guest tools
 ############
 
-stamps/guest-tools: ALWAYS | stamps
-	mkdir -p guest-tools && cd $(S2ESRC)/guest && make install BUILD_DIR=$(S2EBUILD)/guest-tools
+stamps/guest-tools: ALWAYS | guest-tools stamps
+	cd $(S2ESRC)/guest && make install BUILD_DIR=$(S2EBUILD)/guest-tools
 	touch $@
