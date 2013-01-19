@@ -189,6 +189,8 @@ stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/
 
 
 #ASAN-enabled KLEE
+ASAN_CXX_LD_FLAGS = CXXFLAGS="-O0 -g -fsanitize=address" LDFLAGS="-g -fsanitize=address"
+
 stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan
 	mkdir -p klee-asan
 	cd klee-asan && $(S2ESRC)/klee/configure \
@@ -200,16 +202,15 @@ stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan
 		--enable-exceptions \
 	    CC=$(CLANG_CC) \
 		CXX=$(CLANG_CXX)\
-		CXXFLAGS="-O0 -g -fsanitize=address" \
-		LDFLAGS="-g -fsanitize=address"
+		$(ASAN_CXX_LD_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/klee-make-release-asan: stamps/klee-configure-asan stamps/stp-make-asan
-	cd klee-asan && make ENABLE_OPTIMIZED=1 CXXFLAGS="-O0 -g -fsanitize=address" LDFLAGS="-g -fsanitize=address" -j$(JOBS)
+	cd klee-asan && make ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS) -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 stamps/klee-make-debug-asan: stamps/llvm-make-debug stamps/klee-configure-asan stamps/stp-make-asan
-	cd klee-asan && make ENABLE_OPTIMIZED=0 CXXFLAGS="-g -fsanitize=address" LDFLAGS="-g -fsanitize=address" -j$(JOBS)
+	cd klee-asan && make ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS) -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 
