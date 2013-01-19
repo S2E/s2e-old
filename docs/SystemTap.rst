@@ -257,14 +257,14 @@ Create the ``tcpip.lua`` configuration file with the following content:
   
 
 To prepare a snapshot for S2E: start the vanilla QEMU with port forwarding enabled
-by adding ``-redir tcp:2222::22 -redir udp:2222::22`` to the QEMU command line.
-This will redirect ports 2222 from ``localhost`` to the guest port 22. Adapt the
-name of the disk image to suite your needs.
+by adding ``-net user,hostfwd=tcp::2222-:22,hostfwd=udp::2222-:22`` to the QEMU command line.
+This will redirect port 2222 from ``localhost`` to guest port 22. Adapt the
+name of the disk image to suit your needs.
 
 ::
 
-   $ $S2EBUILD/qemu-release/i386-softmmu/qemu-system-i386 -rtc clock=vm -net user \
-       -net nic,model=pcnet -redir tcp:2222::22 -redir udp:2222::22 \
+   $ $S2EBUILD/qemu-release/i386-softmmu/qemu-system-i386 -rtc clock=vm \
+       -net nic,model=pcnet -net user,hostfwd=tcp::2222-:22,hostfwd=udp::2222-:22 \
        -hda s2e_disk.qcow2
    # Press Ctrl-Alt-2 to reach the QEMU monitor, then save the snapshot with a tag (e.g., ready)
    $ savevm ready
@@ -276,8 +276,8 @@ name of the disk image to suite your needs.
 Start the S2E-enabled QEMU with port forwarding enabled:
 ::
 
-   $ $S2EBUILD/qemu-release/i386-s2e-softmmu/qemu-system-i386 -rtc clock=vm -net user \
-       -net nic,model=pcnet -redir tcp:2222::22 -redir udp:2222::22 \
+   $ $S2EBUILD/qemu-release/i386-s2e-softmmu/qemu-system-i386 -rtc clock=vm \
+       -net nic,model=pcnet -net user,hostfwd=tcp::2222-:22,hostfwd=udp::2222-:22 \
        -hda s2e_disk.qcow2 -s2e-config-file tcpip.lua -loadvm ready
 
 Once you uploaded the ``pcnet_probe.ko`` module to the guest OS, run the following command in the guest:
