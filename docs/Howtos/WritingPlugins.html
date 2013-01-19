@@ -94,10 +94,11 @@ In S2E, plugins can retrieve the configuration at any time. In our case, we do i
 
 <span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">initialize</span><span class="p">()</span>
 <span class="p">{</span>
-    <span class="n">m_address</span> <span class="o">=</span> <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getConfig</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getInt</span><span class="p">(</span><span class="n">getConfigKey</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;.addressToTrack&quot;</span><span class="p">);</span>
+    <span class="n">m_address</span> <span class="o">=</span> <span class="p">(</span><span class="kt">uint64_t</span><span class="p">)</span> <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getConfig</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getInt</span><span class="p">(</span><span class="n">getConfigKey</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;.addressToTrack&quot;</span><span class="p">);</span>
 <span class="p">}</span>
 </pre></div>
-<p>Do not forget to add <tt class="docutils literal">uint64_t m_address;</tt>  to the private members of <tt class="docutils literal">InstructionTracker.h</tt>.</p>
+<p>Do not forget to add <tt class="docutils literal">uint64_t m_address;</tt> to the private members of class <tt class="docutils literal">InstructionTracker</tt>
+in <tt class="docutils literal">InstructionTracker.h</tt>.</p>
 </div>
 <div class="section" id="instrumenting-instructions">
 <h1>Instrumenting Instructions</h1>
@@ -175,10 +176,10 @@ It  must also implement a <tt class="docutils literal">clone</tt> method which S
         <span class="k">return</span> <span class="n">new</span> <span class="n">InstructionTrackerState</span><span class="p">(</span><span class="o">*</span><span class="n">this</span><span class="p">);</span>
     <span class="p">}</span>
 
-    <span class="kt">int</span> <span class="n">increment</span><span class="p">()</span> <span class="p">{</span> <span class="o">++</span><span class="n">m_count</span><span class="p">;</span> <span class="p">}</span>
+    <span class="kt">void</span> <span class="n">increment</span><span class="p">()</span> <span class="p">{</span> <span class="o">++</span><span class="n">m_count</span><span class="p">;</span> <span class="p">}</span>
     <span class="kt">int</span> <span class="n">get</span><span class="p">()</span> <span class="p">{</span> <span class="k">return</span> <span class="n">m_count</span><span class="p">;</span> <span class="p">}</span>
 
-<span class="p">}</span>
+<span class="p">};</span>
 </pre></div>
 <p>Plugin code can refer to this state using the <tt class="docutils literal">DECLARE_PLUGINSTATE</tt> macro, like this:</p>
 <div class="highlight"><pre><span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onInstructionExecution</span><span class="p">(</span><span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>

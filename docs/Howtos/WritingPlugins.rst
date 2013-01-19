@@ -104,10 +104,11 @@ In S2E, plugins can retrieve the configuration at any time. In our case, we do i
 
     void InstructionTracker::initialize()
     {
-        m_address = s2e()->getConfig()->getInt(getConfigKey() + ".addressToTrack");
+        m_address = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".addressToTrack");
     }
 
-Do not forget to add ``uint64_t m_address;``  to the private members of ``InstructionTracker.h``.
+Do not forget to add ``uint64_t m_address;`` to the private members of class ``InstructionTracker``
+in ``InstructionTracker.h``.
 
 
 Instrumenting Instructions
@@ -196,10 +197,10 @@ Here is how ``InstructionTracker`` could implement the plugin state.
             return new InstructionTrackerState(*this);
         }
 
-        int increment() { ++m_count; }
+        void increment() { ++m_count; }
         int get() { return m_count; }
 
-    }
+    };
 
 
 Plugin code can refer to this state using the ``DECLARE_PLUGINSTATE`` macro, like this:
