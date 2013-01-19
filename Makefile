@@ -216,10 +216,6 @@ stamps/klee-make-debug-asan: stamps/llvm-make-debug stamps/klee-configure-asan s
 # QEMU #
 ########
 
-klee/Debug/bin/klee-config: stamps/klee-make-debug
-
-klee/Release/bin/klee-config: stamps/klee-make-release
-
 QEMU_COMMON_FLAGS = --prefix=$(S2EBUILD)/opt\
                     --cc=$(CLANG_CC) \
                     --cxx=$(CLANG_CXX) \
@@ -237,14 +233,14 @@ QEMU_DEBUG_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
 
 QEMU_RELEASE_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Release+Asserts
 
-stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config | qemu-debug
+stamps/qemu-configure-debug: stamps/klee-make-debug | qemu-debug
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
 	touch $@
 
-stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config | qemu-release
+stamps/qemu-configure-release: stamps/klee-make-release | qemu-release
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
