@@ -45,7 +45,6 @@ COMPILER_RT_SRC_DIR=compiler-rt-$(LLVM_VERSION).src
 clean:
 	rm -Rf tools qemu-release qemu-debug klee stp llvm
 	rm -Rf llvm-$(LLVM_VERSION)
-	rm -Rf $(LLVM_GCC_SRC)
 	rm -Rf stamps
 
 .PHONY: all all-debug all-release clean
