@@ -32,7 +32,6 @@ CLANG_SRC_DIR=clang-$(LLVM_VERSION).src
 clean:
 	rm -Rf tools qemu-release qemu-debug klee stp llvm
 	rm -Rf llvm-$(LLVM_VERSION)
-	rm -Rf $(LLVM_GCC_SRC)
 	rm -Rf stamps
 
 .PHONY: all all-debug all-release clean
