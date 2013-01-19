@@ -18,8 +18,8 @@ Add the following lines to your ``config.lua`` file:
 .. code-block:: lua
 
    plugins = {
-      ...
-      "HostFiles"
+     ...
+     "HostFiles"
    }
 
    pluginsConfig.HostFiles = {

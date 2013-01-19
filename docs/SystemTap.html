@@ -145,23 +145,23 @@ and replace the content of the IP header field with symbolic values.</p>
 <span class="cp"># Terminate current state.</span>
 <span class="cp"># This is a SystemTap function, that can be called from SystemTap code</span>
 <span class="n">function</span> <span class="n">s2e_kill_state</span><span class="p">(</span><span class="n">status</span><span class="o">:</span><span class="kt">long</span><span class="p">,</span> <span class="n">message</span><span class="o">:</span> <span class="n">string</span><span class="p">)</span> <span class="o">%</span><span class="p">{</span>
-   <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
-     <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="s">&quot;.byte 0x00, 0x06, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="s">&quot;.byte 0x00, 0x00, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="o">:</span> <span class="o">:</span> <span class="s">&quot;a&quot;</span> <span class="p">((</span><span class="kt">uint32_t</span><span class="p">)</span><span class="n">THIS</span><span class="o">-&gt;</span><span class="n">status</span><span class="p">),</span> <span class="s">&quot;b&quot;</span> <span class="p">(</span><span class="n">THIS</span><span class="o">-&gt;</span><span class="n">message</span><span class="p">)</span>
-   <span class="p">);</span>
+  <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
+    <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="s">&quot;.byte 0x00, 0x06, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="s">&quot;.byte 0x00, 0x00, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="o">:</span> <span class="o">:</span> <span class="s">&quot;a&quot;</span> <span class="p">((</span><span class="kt">uint32_t</span><span class="p">)</span><span class="n">THIS</span><span class="o">-&gt;</span><span class="n">status</span><span class="p">),</span> <span class="s">&quot;b&quot;</span> <span class="p">(</span><span class="n">THIS</span><span class="o">-&gt;</span><span class="n">message</span><span class="p">)</span>
+  <span class="p">);</span>
 <span class="o">%</span><span class="p">}</span>
 
 <span class="cp"># Print message to the S2E log</span>
 <span class="cp"># This is a SystemTap function, that can be called from SystemTap code</span>
 <span class="n">function</span> <span class="n">s2e_message</span><span class="p">(</span><span class="n">message</span><span class="o">:</span><span class="n">string</span><span class="p">)</span> <span class="o">%</span><span class="p">{</span>
-   <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
-     <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="s">&quot;.byte 0x00, 0x10, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="s">&quot;.byte 0x00, 0x00, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="o">:</span> <span class="o">:</span> <span class="s">&quot;a&quot;</span> <span class="p">(</span><span class="n">THIS</span><span class="o">-&gt;</span><span class="n">message</span><span class="p">)</span>
-   <span class="p">);</span>
+  <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
+    <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="s">&quot;.byte 0x00, 0x10, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="s">&quot;.byte 0x00, 0x00, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="o">:</span> <span class="o">:</span> <span class="s">&quot;a&quot;</span> <span class="p">(</span><span class="n">THIS</span><span class="o">-&gt;</span><span class="n">message</span><span class="p">)</span>
+  <span class="p">);</span>
 <span class="o">%</span><span class="p">}</span>
 
 <span class="cp"># SystemTap also allows to paste arbitrary C code.</span>
@@ -171,12 +171,12 @@ and replace the content of the IP header field with symbolic values.</p>
 <span class="c1">//Make the specified buffer symbolic, and assign a name to it</span>
 <span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span> <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">name</span><span class="p">)</span>
 <span class="p">{</span>
-   <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
-     <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="s">&quot;.byte 0x00, 0x03, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="s">&quot;.byte 0x00, 0x00, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
-     <span class="o">:</span> <span class="o">:</span> <span class="s">&quot;a&quot;</span> <span class="p">(</span><span class="n">buf</span><span class="p">),</span> <span class="s">&quot;b&quot;</span> <span class="p">(</span><span class="n">size</span><span class="p">),</span> <span class="s">&quot;c&quot;</span> <span class="p">(</span><span class="n">name</span><span class="p">)</span>
-   <span class="p">);</span>
+  <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
+    <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="s">&quot;.byte 0x00, 0x03, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="s">&quot;.byte 0x00, 0x00, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="o">:</span> <span class="o">:</span> <span class="s">&quot;a&quot;</span> <span class="p">(</span><span class="n">buf</span><span class="p">),</span> <span class="s">&quot;b&quot;</span> <span class="p">(</span><span class="n">size</span><span class="p">),</span> <span class="s">&quot;c&quot;</span> <span class="p">(</span><span class="n">name</span><span class="p">)</span>
+  <span class="p">);</span>
 <span class="p">}</span>
 <span class="o">%</span><span class="p">}</span>
 

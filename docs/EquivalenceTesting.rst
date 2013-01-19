@@ -103,8 +103,8 @@ the corresponding execution path.
    -- File: config.lua
    s2e = {
      kleeArgs = {
-        --Switch states only when the current one terminates
-        "--use-dfs-search"
+       --Switch states only when the current one terminates
+       "--use-dfs-search"
      }
    }
    plugins = {

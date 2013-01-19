@@ -35,7 +35,7 @@ You can copy/paste the <tt class="docutils literal">Example</tt> plugin that shi
 <span class="p">{</span>
     <span class="n">S2E_PLUGIN</span>
 <span class="nl">public:</span>
-    <span class="n">InstructionTracker</span><span class="p">(</span><span class="n">S2E</span><span class="o">*</span> <span class="n">s2e</span><span class="p">)</span><span class="o">:</span> <span class="n">Plugin</span><span class="p">(</span><span class="n">s2e</span><span class="p">)</span> <span class="p">{}</span>
+    <span class="n">InstructionTracker</span><span class="p">(</span><span class="n">S2E</span> <span class="o">*</span><span class="n">s2e</span><span class="p">)</span><span class="o">:</span> <span class="n">Plugin</span><span class="p">(</span><span class="n">s2e</span><span class="p">)</span> <span class="p">{}</span>
 
     <span class="kt">void</span> <span class="n">initialize</span><span class="p">();</span>
 <span class="p">};</span>
@@ -111,14 +111,14 @@ There are many other core events to which a plugin can register. These events ar
     <span class="c1">//This indicates that our plugin is interested in monitoring instruction translation.</span>
     <span class="c1">//For this, the plugin registers a callback with the onTranslateInstruction signal.</span>
     <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getCorePlugin</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">onTranslateInstructionStart</span><span class="p">.</span><span class="n">connect</span><span class="p">(</span>
-            <span class="n">sigc</span><span class="o">::</span><span class="n">mem_fun</span><span class="p">(</span><span class="o">*</span><span class="n">this</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onTranslateInstruction</span><span class="p">));</span>
+        <span class="n">sigc</span><span class="o">::</span><span class="n">mem_fun</span><span class="p">(</span><span class="o">*</span><span class="n">this</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onTranslateInstruction</span><span class="p">));</span>
 <span class="p">}</span>
 
 
 <span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onTranslateInstruction</span><span class="p">(</span><span class="n">ExecutionSignal</span> <span class="o">*</span><span class="n">signal</span><span class="p">,</span>
-                                      <span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span>
-                                      <span class="n">TranslationBlock</span> <span class="o">*</span><span class="n">tb</span><span class="p">,</span>
-                                      <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>
+                                                <span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span>
+                                                <span class="n">TranslationBlock</span> <span class="o">*</span><span class="n">tb</span><span class="p">,</span>
+                                                <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="k">if</span><span class="p">(</span><span class="n">m_address</span> <span class="o">==</span> <span class="n">pc</span><span class="p">)</span> <span class="p">{</span>
         <span class="c1">//When we find an interesting address, ask S2E to invoke our</span>

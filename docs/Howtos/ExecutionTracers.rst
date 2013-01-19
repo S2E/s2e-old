@@ -44,17 +44,17 @@ The trace will contain all memory accesses done by ``echo``, as well as the list
         }
 
         plugins = {
-                "BaseInstructions",
-                "ExecutionTracer",
-                "ModuleTracer",
+          "BaseInstructions",
+          "ExecutionTracer",
+          "ModuleTracer",
 
-                "RawMonitor",
-                "ModuleExecutionDetector",
+          "RawMonitor",
+          "ModuleExecutionDetector",
 
-                --The following plugins can be enabled as needed
-                "MemoryTracer",
-                "TestCaseGenerator",
-                "TranslationBlockTracer"
+          --The following plugins can be enabled as needed
+          "MemoryTracer",
+          "TestCaseGenerator",
+          "TranslationBlockTracer"
         }
 
         pluginsConfig = {}

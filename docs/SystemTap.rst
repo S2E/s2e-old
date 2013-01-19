@@ -151,23 +151,23 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
    # Terminate current state.
    # This is a SystemTap function, that can be called from SystemTap code
    function s2e_kill_state(status:long, message: string) %{
-      __asm__ __volatile__(
-        ".byte 0x0f, 0x3f\n"
-        ".byte 0x00, 0x06, 0x00, 0x00\n"
-        ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" ((uint32_t)THIS->status), "b" (THIS->message)
-      );
+     __asm__ __volatile__(
+       ".byte 0x0f, 0x3f\n"
+       ".byte 0x00, 0x06, 0x00, 0x00\n"
+       ".byte 0x00, 0x00, 0x00, 0x00\n"
+       : : "a" ((uint32_t)THIS->status), "b" (THIS->message)
+     );
    %}
 
    # Print message to the S2E log
    # This is a SystemTap function, that can be called from SystemTap code
    function s2e_message(message:string) %{
-      __asm__ __volatile__(
-        ".byte 0x0f, 0x3f\n"
-        ".byte 0x00, 0x10, 0x00, 0x00\n"
-        ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (THIS->message)
-      );
+     __asm__ __volatile__(
+       ".byte 0x0f, 0x3f\n"
+       ".byte 0x00, 0x10, 0x00, 0x00\n"
+       ".byte 0x00, 0x00, 0x00, 0x00\n"
+       : : "a" (THIS->message)
+     );
    %}
 
    # SystemTap also allows to paste arbitrary C code.
@@ -177,12 +177,12 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
    //Make the specified buffer symbolic, and assign a name to it
    static inline void s2e_make_symbolic(void* buf, int size, const char* name)
    {
-      __asm__ __volatile__(
-        ".byte 0x0f, 0x3f\n"
-        ".byte 0x00, 0x03, 0x00, 0x00\n"
-        ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (buf), "b" (size), "c" (name)
-      );
+     __asm__ __volatile__(
+       ".byte 0x0f, 0x3f\n"
+       ".byte 0x00, 0x03, 0x00, 0x00\n"
+       ".byte 0x00, 0x00, 0x00, 0x00\n"
+       : : "a" (buf), "b" (size), "c" (name)
+     );
    }
    %}
 

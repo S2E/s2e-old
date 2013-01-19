@@ -33,7 +33,7 @@ Create a file named ``InstructionTracker.h`` in the ``/qemu/s2e/Plugins`` direct
     {
         S2E_PLUGIN
     public:
-        InstructionTracker(S2E* s2e): Plugin(s2e) {}
+        InstructionTracker(S2E *s2e): Plugin(s2e) {}
 
         void initialize();
     };
@@ -127,14 +127,14 @@ Extend your code as follows. Do not forget to add all new member functions to th
         //This indicates that our plugin is interested in monitoring instruction translation.
         //For this, the plugin registers a callback with the onTranslateInstruction signal.
         s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
-                sigc::mem_fun(*this, &InstructionTracker::onTranslateInstruction));
+            sigc::mem_fun(*this, &InstructionTracker::onTranslateInstruction));
     }
 
 
     void InstructionTracker::onTranslateInstruction(ExecutionSignal *signal,
-                                          S2EExecutionState *state,
-                                          TranslationBlock *tb,
-                                          uint64_t pc)
+                                                    S2EExecutionState *state,
+                                                    TranslationBlock *tb,
+                                                    uint64_t pc)
     {
         if(m_address == pc) {
             //When we find an interesting address, ask S2E to invoke our
