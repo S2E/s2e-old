@@ -548,6 +548,8 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
             //Will have to reexecute handleForkAndConcretize in the speculative state
             sp.second->pc = sp.second->prevPC;
         }
+    } else {
+        state->addConstraint(condition);
     }
 
     s2eExecutor->bindLocal(target, *state, concreteAddress);
