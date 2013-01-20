@@ -94,7 +94,6 @@ CLANG_LIB=$(S2EBUILD)/llvm-native/Release/lib
 #First build it with the system's compiler
 stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack stamps/compiler-rt-unpack
 	mkdir -p llvm-native
-	echo $(S2EBUILD) $(S2ESRC)
 	cd llvm-native && $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--enable-jit --enable-optimized --disable-assertions #compiler-rt won't build if we specify explicit targets...
