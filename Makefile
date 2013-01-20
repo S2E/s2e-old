@@ -104,7 +104,6 @@ CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 #First build it with the system's compiler
 stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack
 	mkdir -p llvm-native
-	echo $(S2EBUILD) $(S2ESRC)
 	cd llvm-native && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--target=x86_64 --enable-targets=x86 --enable-jit \
