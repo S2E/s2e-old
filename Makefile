@@ -76,7 +76,9 @@ $(LLVM_SRC_DIR): $(LLVM_SRC)
 $(CLANG_SRC_DIR) $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR):
 	tar -xmzf $<
 
+stp stp-asan: $(S2ESRC)/stp
 $(LLVM_NATIVE_SRC_DIR): $(LLVM_SRC_DIR)
+$(LLVM_NATIVE_SRC_DIR) stp stp-asan:
 	cp -r $< $@
 
 $(CLANG_DEST_DIR): $(CLANG_SRC_DIR) $(LLVM_SRC_DIR)
@@ -133,11 +135,7 @@ stamps/llvm-make-release: stamps/llvm-configure
 # STP #
 #######
 
-stamps/stp-copy:
-	cp -Rp $(S2ESRC)/stp stp
-	mkdir -p stamps && touch $@
-
-stamps/stp-configure: stamps/stp-copy
+stamps/stp-configure: | stp
 	cd stp && scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
 	mkdir -p stamps && touch $@
 
@@ -153,11 +151,7 @@ stp/lib/libstp.a: stamps/stp-make
 #ASAN-enabled STP
 #XXX: need to fix the STP build to actually use ASAN...
 
-stamps/stp-copy-asan:
-	cp -Rp $(S2ESRC)/stp stp-asan
-	mkdir -p stamps && touch $@
-
-stamps/stp-configure-asan: stamps/stp-copy-asan
+stamps/stp-configure-asan: | stp-asan
 	cd stp-asan && scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-address-sanitizer
 	mkdir -p stamps && touch $@
 
