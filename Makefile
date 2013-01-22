@@ -80,14 +80,14 @@ stamps/compiler-rt-unpack: $(COMPILER_RT_SRC) stamps/llvm-unpack
 	mv $(COMPILER_RT_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)/projects/compiler-rt
 	mkdir -p stamps && touch $@
 
-CLANG_CC=$(S2EBUILD)/llvm-native/Release/bin/clang
-CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
-CLANG_LIB=$(S2EBUILD)/llvm-native/Release/lib
+
 
 ########
 # LLVM #
 ########
 
+CLANG_CC=$(S2EBUILD)/llvm-native/Release/bin/clang
+CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 
 #First build it with the system's compiler
 stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack stamps/compiler-rt-unpack
