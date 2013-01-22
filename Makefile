@@ -150,7 +150,7 @@ stp/lib/libstp.a: stamps/stp-make
 #XXX: need to fix the STP build to actually use ASAN...
 
 stamps/stp-copy-asan:
-	cp -Rup $(S2ESRC)/stp stp-asan
+	$(CP) -Rup $(S2ESRC)/stp stp-asan
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure-asan: stamps/stp-copy-asan
