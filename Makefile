@@ -61,18 +61,22 @@ LLVM_SRC_URL = http://llvm.org/releases/$(LLVM_VERSION)/
 $(CLANG_SRC) $(COMPILER_RT_SRC) $(LLVM_SRC):
 	wget $(LLVM_SRC_URL)$@
 
+stamps/clang-unpack: $(CLANG_SRC) stamps/llvm-unpack
+stamps/compiler-rt-unpack: $(COMPILER_RT_SRC) stamps/llvm-unpack
 stamps/llvm-unpack: $(LLVM_SRC)
-	tar -zxf $(LLVM_SRC)
+stamps/clang-unpack stamps/compiler-rt-unpack stamps/llvm-unpack:
+	tar -zxf $<
+	mkdir -p stamps && touch $@
+
+stamps/llvm-copy: stamps/llvm-unpack
 	cp -r $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 	mkdir -p stamps && touch $@
 
-stamps/clang-unpack: $(CLANG_SRC) stamps/llvm-unpack
-	tar -zxf $(CLANG_SRC)
+stamps/clang-move: stamps/clang-unpack stamps/llvm-copy
 	mv $(CLANG_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)/tools/clang
 	mkdir -p stamps && touch $@
 
-stamps/compiler-rt-unpack: $(COMPILER_RT_SRC) stamps/llvm-unpack
-	tar -zxf $(COMPILER_RT_SRC)
+stamps/compiler-rt-move: stamps/compiler-rt-unpack stamps/llvm-copy
 	mv $(COMPILER_RT_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)/projects/compiler-rt
 	mkdir -p stamps && touch $@
 
@@ -89,7 +93,7 @@ LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --enable-jit --enable-optimized \
 
 #First build it with the system's compiler
-stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack stamps/compiler-rt-unpack
+stamps/llvm-configure-native: stamps/clang-move stamps/compiler-rt-move
 	mkdir -p llvm-native
 	cd llvm-native && $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
 		$(LLVM_CONFIGURE_FLAGS) \
