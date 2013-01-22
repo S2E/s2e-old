@@ -86,7 +86,7 @@ stamps/asan-get-thirdparty: stamps/llvm-trunk-build
 stamps/asan-makeinstall: stamps/asan-get-thirdparty
 	cd llvm-asan/projects/compiler-rt/lib/asan && make -f Makefile.old -j$(JOBS)
 	cd llvm-asan/projects/compiler-rt/lib/asan && make -f Makefile.old install -j$(JOBS)
-	cp llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/clang/linux/x86_64/libclang_rt.asan.a llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/libasan64.a
+	$(CP) llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/clang/linux/x86_64/libclang_rt.asan.a llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/libasan64.a
 	mkdir -p stamps && touch $@
 
 ASAN_DIR=$(S2EBUILD)/llvm-asan/projects/compiler-rt/lib/asan_clang_linux
@@ -175,7 +175,7 @@ stp/lib/libstp.a: stamps/stp-make
 #ASAN-enabled STP
 
 stamps/stp-copy-asan:
-	cp -Rup $(S2ESRC)/stp stp-asan
+	$(CP) -Rup $(S2ESRC)/stp stp-asan
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure-asan: stamps/stp-copy-asan
