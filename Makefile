@@ -239,14 +239,14 @@ QEMU_DEBUG_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
 
 QEMU_RELEASE_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Release+Asserts
 
-stamps/qemu-configure-debug: stamps/klee-make-debug | qemu-debug
+stamps/qemu-configure-debug: | qemu-debug
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
 	touch $@
 
-stamps/qemu-configure-release: stamps/klee-make-release | qemu-release
+stamps/qemu-configure-release: | qemu-release
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
@@ -266,14 +266,14 @@ QEMU_ASAN_FLAGS = --enable-address-sanitizer \
                   --with-stp=$(S2EBUILD)/stp-asan \
                   $(QEMU_COMMON_FLAGS)
 
-stamps/qemu-configure-release-asan: stamps/klee-make-release-asan | qemu-release-asan
+stamps/qemu-configure-release-asan: | qemu-release-asan
 	cd qemu-release-asan && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee-asan/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
 		$(QEMU_ASAN_FLAGS)
 	touch $@
 
-stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan | qemu-debug-asan
+stamps/qemu-configure-debug-asan: | qemu-debug-asan
 	cd qemu-debug-asan && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee-asan/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
