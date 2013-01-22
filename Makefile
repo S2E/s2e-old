@@ -138,7 +138,6 @@ stamps/stp-configure: stamps/stp-copy
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
-	$(CP) -Rup $(S2ESRC)/stp stp
 	cd stp && make 
 	mkdir -p stamps && touch $@
 
@@ -159,7 +158,6 @@ stamps/stp-configure-asan: stamps/stp-copy-asan
 	mkdir -p stamps && touch $@
 
 stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
-	cp -Rup $(S2ESRC)/stp stp-asan
 	cd stp-asan && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
