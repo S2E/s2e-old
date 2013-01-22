@@ -177,11 +177,11 @@ stamps/stp-make-asan: stamps/stp-configure-asan
 # KLEE #
 ########
 
+stamps/klee-make-debug stamps/klee-make-debug-asan: stamps/llvm-make-debug
+stamps/klee-make-release stamps/klee-make-release-asan: stamps/llvm-make-release
 stamps/klee-make-debug stamps/klee-make-debug-asan stamps/klee-make-release stamps/klee-make-release-asan: ALWAYS
 stamps/klee-make-debug stamps/klee-make-release: stamps/stp-make stamps/klee-configure
 stamps/klee-make-debug-asan stamps/klee-make-release-asan: stamps/stp-make-asan stamps/klee-configure-asan
-stamps/klee-make-debug stamps/klee-make-debug-asan: stamps/llvm-make-debug
-stamps/klee-make-release stamps/klee-make-release-asan: stamps/llvm-make-release
 
 KLEE_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
