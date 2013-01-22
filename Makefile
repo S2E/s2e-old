@@ -29,13 +29,13 @@ MAKE = make -j$(JOBS)
 
 all: all-release
 
-all-release all-release-asan: stamps/tools-make-release
-all-release: stamps/qemu-make-release
-all-release-asan: stamps/qemu-make-release-asan
+all-release all-release-asan: stamps/tools-release-make
+all-release: stamps/qemu-release-make
+all-release-asan: stamps/qemu-release-asan-make
 
-all-debug all-debug-asan: stamps/tools-make-debug
-all-debug: stamps/qemu-make-debug
-all-debug-asan: stamps/qemu-make-debug-asan
+all-debug all-debug-asan: stamps/tools-debug-make
+all-debug: stamps/qemu-debug-make
+all-debug-asan: stamps/qemu-debug-asan-make
 
 ifeq ($(wildcard qemu/vl.c),qemu/vl.c)
     $(error You should not run make in the S2E source directory!)
@@ -114,13 +114,13 @@ LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --enable-jit --enable-optimized \
 
 #First build it with the system's compiler
-stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-native stamps
+stamps/llvm-native-configure: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-native stamps
 	cd llvm-native && $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
 		$(LLVM_CONFIGURE_FLAGS) \
 		--disable-assertions #compiler-rt won't build if we specify explicit targets...
 	touch $@
 
-$(CLANG_CXX): stamps/llvm-configure-native
+$(CLANG_CXX): stamps/llvm-native-configure
 	$(MAKE) -C llvm-native ENABLE_OPTIMIZED=1
 
 
@@ -134,13 +134,13 @@ stamps/llvm-configure: $(CLANG_CXX) | llvm
 	CXX=$(CLANG_CXX)
 	touch $@
 
-stamps/llvm-make-debug stamps/llvm-make-release: stamps/llvm-configure
+stamps/llvm-debug-make stamps/llvm-release-make: stamps/llvm-configure
 
-stamps/llvm-make-debug:
+stamps/llvm-debug-make:
 	$(MAKE) -C llvm ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 	touch $@
 
-stamps/llvm-make-release:
+stamps/llvm-release-make:
 	$(MAKE) -C llvm ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 	touch $@
 
@@ -150,8 +150,8 @@ stamps/llvm-make-release:
 # STP #
 #######
 
-stamps/stp-configure stamps/stp-configure-asan: | stamps
-stamps/stp-make stamps/stp-make-asan: ALWAYS
+stamps/stp-configure stamps/stp-asan-configure: | stamps
+stamps/stp-make stamps/stp-asan-make: ALWAYS
 
 STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
                       --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) \
@@ -168,11 +168,11 @@ stamps/stp-make: $(CLANG_CXX) stamps/stp-configure
 #ASAN-enabled STP
 #XXX: need to fix the STP build to actually use ASAN...
 
-stamps/stp-configure-asan: | stp-asan
+stamps/stp-asan-configure: | stp-asan
 	cd stp-asan && scripts/configure $(STP_CONFIGURE_FLAGS) --with-address-sanitizer
 	touch $@
 
-stamps/stp-make-asan: $(CLANG_CXX) stamps/stp-configure-asan
+stamps/stp-asan-make: $(CLANG_CXX) stamps/stp-asan-configure
 	$(MAKE) -C stp-asan
 	touch $@
 
@@ -181,11 +181,11 @@ stamps/stp-make-asan: $(CLANG_CXX) stamps/stp-configure-asan
 # KLEE #
 ########
 
-stamps/klee-make-debug stamps/klee-make-debug-asan: stamps/llvm-make-debug
-stamps/klee-make-release stamps/klee-make-release-asan: stamps/llvm-make-release
-stamps/klee-make-debug stamps/klee-make-debug-asan stamps/klee-make-release stamps/klee-make-release-asan: ALWAYS
-stamps/klee-make-debug stamps/klee-make-release: stamps/stp-make stamps/klee-configure
-stamps/klee-make-debug-asan stamps/klee-make-release-asan: stamps/stp-make-asan stamps/klee-configure-asan
+stamps/klee-debug-make stamps/klee-debug-asan-make: stamps/llvm-debug-make
+stamps/klee-release-make stamps/klee-release-asan-make: stamps/llvm-release-make
+stamps/klee-debug-make stamps/klee-debug-asan-make stamps/klee-release-make stamps/klee-release-asan-make: ALWAYS
+stamps/klee-debug-make stamps/klee-release-make: stamps/stp-make stamps/klee-configure
+stamps/klee-debug-asan-make stamps/klee-release-asan-make: stamps/stp-asan-make stamps/klee-asan-configure
 
 KLEE_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
@@ -199,29 +199,29 @@ stamps/klee-configure: | klee
 		$(KLEE_CONFIGURE_FLAGS)
 	touch $@
 
-stamps/klee-make-debug:
+stamps/klee-debug-make:
 	$(MAKE) -C klee ENABLE_OPTIMIZED=0 CXXFLAGS="-g -O0"
 	touch $@
 
-stamps/klee-make-release:
+stamps/klee-release-make:
 	$(MAKE) -C klee ENABLE_OPTIMIZED=1
 	touch $@
 
 #ASAN-enabled KLEE
 ASAN_CXX_LD_FLAGS = CXXFLAGS="-O0 -g -fsanitize=address" LDFLAGS="-g -fsanitize=address"
 
-stamps/klee-configure-asan: | klee-asan
+stamps/klee-asan-configure: | klee-asan
 	cd klee-asan && $(S2ESRC)/klee/configure \
 		--with-stp=$(S2EBUILD)/stp-asan \
 		$(KLEE_CONFIGURE_FLAGS) \
 		$(ASAN_CXX_LD_FLAGS)
 	touch $@
 
-stamps/klee-make-release-asan:
+stamps/klee-release-asan-make:
 	$(MAKE) -C klee-asan ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
-stamps/klee-make-debug-asan:
+stamps/klee-debug-asan-make:
 	$(MAKE) -C klee-asan ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
@@ -247,25 +247,25 @@ QEMU_DEBUG_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
 
 QEMU_RELEASE_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Release+Asserts
 
-stamps/qemu-configure-debug: | qemu-debug
+stamps/qemu-debug-configure: | qemu-debug
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
 	touch $@
 
-stamps/qemu-configure-release: | qemu-release
+stamps/qemu-release-configure: | qemu-release
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
 		$(QEMU_CONFIGURE_FLAGS)
 	touch $@
 
-stamps/qemu-make-debug: stamps/klee-make-debug stamps/qemu-configure-debug
+stamps/qemu-debug-make: stamps/klee-debug-make stamps/qemu-debug-configure
 	$(MAKE) -C qemu-debug
 	touch $@
 
-stamps/qemu-make-release: stamps/klee-make-release stamps/qemu-configure-release
+stamps/qemu-release-make: stamps/klee-release-make stamps/qemu-release-configure
 	$(MAKE) -C qemu-release
 	touch $@
 
@@ -274,25 +274,25 @@ QEMU_ASAN_FLAGS = --enable-address-sanitizer \
                   --with-stp=$(S2EBUILD)/stp-asan \
                   $(QEMU_COMMON_FLAGS)
 
-stamps/qemu-configure-release-asan: | qemu-release-asan
+stamps/qemu-release-asan-configure: | qemu-release-asan
 	cd qemu-release-asan && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee-asan/Release+Asserts \
 		$(QEMU_RELEASE_FLAGS) \
 		$(QEMU_ASAN_FLAGS)
 	touch $@
 
-stamps/qemu-configure-debug-asan: | qemu-debug-asan
+stamps/qemu-debug-asan-configure: | qemu-debug-asan
 	cd qemu-debug-asan && $(S2ESRC)/qemu/configure \
 		--with-klee=$(S2EBUILD)/klee-asan/Debug+Asserts \
 		$(QEMU_DEBUG_FLAGS) \
 		$(QEMU_ASAN_FLAGS)
 	touch $@
 
-stamps/qemu-make-debug-asan: stamps/klee-make-debug-asan stamps/qemu-configure-debug-asan
+stamps/qemu-debug-asan-make: stamps/klee-debug-asan-make stamps/qemu-debug-asan-configure
 	$(MAKE) -C qemu-debug-asan
 	touch $@
 
-stamps/qemu-make-release-asan: stamps/klee-make-release-asan stamps/qemu-configure-release-asan
+stamps/qemu-release-asan-make: stamps/klee-release-asan-make stamps/qemu-release-asan-configure
 	$(MAKE) -C qemu-release-asan
 	touch $@
 
@@ -302,7 +302,7 @@ stamps/qemu-make-release-asan: stamps/klee-make-release-asan stamps/qemu-configu
 # Tools #
 #########
 
-stamps/tools-make-debug stamps/tools-make-release: stamps/tools-configure ALWAYS
+stamps/tools-debug-make stamps/tools-release-make: stamps/tools-configure ALWAYS
 
 stamps/tools-configure: | tools
 	cd tools && $(S2ESRC)/tools/configure \
@@ -314,13 +314,14 @@ stamps/tools-configure: | tools
 		CXX=$(CLANG_CXX)
 	touch $@
 
-stamps/tools-make-release: stamps/llvm-make-release
+stamps/tools-release-make: stamps/llvm-release-make
 	$(MAKE) -C tools ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 	touch $@
 
-stamps/tools-make-debug: stamps/llvm-make-debug
+stamps/tools-debug-make: stamps/llvm-debug-make
 	$(MAKE) -C tools ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 	touch $@
+
 
 
 ############
