@@ -162,7 +162,6 @@ stamps/stp-copy:
 
 stamps/stp-configure: stamps/stp-copy
 	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC)
-	#cd stp && cp src/c_interface/c_interface.h include/stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
@@ -182,7 +181,6 @@ stamps/stp-copy-asan:
 
 stamps/stp-configure-asan: stamps/stp-copy-asan
 	cd stp-asan && bash scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-g++=$(ASAN_CXX) --with-gcc=$(ASAN_CC) --with-address-sanitizer
-	cd stp-asan && cp src/c_interface/c_interface.h include/stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
