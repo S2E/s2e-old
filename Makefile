@@ -148,11 +148,6 @@ stamps/stp-make: stamps/stp-configure ALWAYS
 	$(MAKE) -C stp
 	touch $@
 
-stp/include/stp/c_interface.h: stamps/stp-configure
-
-stp/lib/libstp.a: stamps/stp-make
-
-
 #ASAN-enabled STP
 #XXX: need to fix the STP build to actually use ASAN...
 
@@ -175,9 +170,7 @@ KLEE_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --target=x86_64 --enable-exceptions \
                        CC=$(CLANG_CC) CXX=$(CLANG_CXX)
 
-stamps/klee-configure: stamps/llvm-configure \
-                       stp/include/stp/c_interface.h \
-                       stp/lib/libstp.a | klee
+stamps/klee-configure: stamps/llvm-configure stamps/stp-make | klee
 	cd klee && $(S2ESRC)/klee/configure \
 		--with-stp=$(S2EBUILD)/stp \
 		$(KLEE_CONFIGURE_FLAGS)
