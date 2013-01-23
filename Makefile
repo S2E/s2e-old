@@ -56,14 +56,10 @@ ALWAYS:
 # Downloads #
 #############
 
-$(CLANG_SRC):
-	wget http://llvm.org/releases/$(LLVM_VERSION)/$(CLANG_SRC)
+LLVM_SRC_URL = http://llvm.org/releases/$(LLVM_VERSION)/
 
-$(LLVM_SRC):
-	wget http://llvm.org/releases/$(LLVM_VERSION)/$(LLVM_SRC)
-
-$(COMPILER_RT_SRC):
-	wget http://llvm.org/releases/$(LLVM_VERSION)/$(COMPILER_RT_SRC)
+$(CLANG_SRC) $(COMPILER_RT_SRC) $(LLVM_SRC):
+	wget $(LLVM_SRC_URL)$@
 
 stamps/llvm-unpack: $(LLVM_SRC)
 	tar -zxf $(LLVM_SRC)
