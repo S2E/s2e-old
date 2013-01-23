@@ -134,7 +134,7 @@ stamps/stp-copy:
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
-	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
+	cd stp && scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
@@ -154,7 +154,7 @@ stamps/stp-copy-asan:
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure-asan: stamps/stp-copy-asan
-	cd stp-asan && bash scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-address-sanitizer
+	cd stp-asan && scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-address-sanitizer
 	mkdir -p stamps && touch $@
 
 stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
