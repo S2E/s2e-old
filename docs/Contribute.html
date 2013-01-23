@@ -18,22 +18,14 @@ However, we get a lot of patches, and so we have some guidelines about submittin
 If you follow these, you'll help make our task of code review easier and your patch is likely to be committed faster.</p>
 <p>Since S2E is based on QEMU, patch submissions mostly follow the QEMU <a class="reference external" href="http://wiki.qemu.org/Contribute/SubmitAPatch">guidelines</a>
 (most of the text is taken from the QEMU wiki). Here are the relevant parts applicable to S2E.</p>
-<p>All contributions to S2E must be <strong>sent as patches</strong> to the s2e-dev.
-Patch contributions should not be posted on the bug tracker, posted on forums, or externally hosted and linked to.</p>
-<p>Send patches to the mailing list and <strong>CC the relevant maintainer</strong> -- look in the MAINTAINERS file to find out who that is.</p>
-<p><strong>Send patches inline</strong> so they are easy to reply to with review comments.  Do not put patches in attachments.</p>
-<p><strong>Use the right patch format</strong>. <a class="reference external" href="http://git-scm.com/docs/git-format-patch">git format-patch</a>
-will produce patch emails in the right format (check the documentation to find out how to drive it).
-You can then edit the cover letter before using <tt class="docutils literal">git <span class="pre">send-email</span></tt> to mail the files to the mailing list.
-(We recommend <a class="reference external" href="http://git-scm.com/docs/git-send-email">git send-email</a> because mail clients
-often mangle patches by wrapping long lines or messing up whitespace.)</p>
-<p><strong>Patch emails must include a Signed-off-by: line</strong>.  For more information see
+<p>All contributions to S2E must be <strong>sent as pull requests</strong> on GitHub. Please create an account and create a private fork of S2E.
+Patch contributions should not be posted on the mailing list, bug tracker, posted on forums, or externally hosted and linked to.</p>
+<p><strong>Patches must include a Signed-off-by: line</strong>.  For more information see
 <a class="reference external" href="http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=blob;f=Documentation/SubmittingPatches;h=689e2371095cc5dfea9927120009341f369159aa;hb=f6f94e2ab1b33f0082ac22d71f66385a60d8157f#l297">SubmittingPatches 1.12</a>. This is vital or we will not be able to apply your patch! Please use your real name to sign a patch (not an alias name).</p>
 <p><strong>Correct English</strong> is appreciated. If you are not sure, <a class="reference external" href="http://wiki.qemu.org/Contribute/SpellCheck">codespell</a> or other programs
 help finding the most common spelling mistakes in code and documentation.</p>
 <p><strong>Patches should be against current git master</strong>. There's no point submitting a patch which is based on a
-released version of S2E because development will have moved on from then and it probably won't even apply to master.
-We only apply selected bugfixes to release branches and then only as backports once the code has gone into master.</p>
+released version of S2E because development will have moved on from then and it probably won't even apply to master.</p>
 <p><strong>Split up longer patches</strong> into a patch series of logical code changes.  Each change should compile and execute successfully.
 For instance, don't add a file to the makefile in patch one and then add the file itself in patch two.
 (This rule is here so that people can later use tools like <a class="reference external" href="http://git-scm.com/docs/git-bisect">git bisect</a>
@@ -50,36 +42,11 @@ the first line (which becomes the email subject line) is &quot;single line summa
 Then there is a blank line and a more detailed description of the patch, another blank and your
 Signed-off-by: line. Don't include comments like &quot;This is a suggestion for fixing this bug&quot;
 (they can go below the &quot;---&quot; line in the email so they don't go into the final commit message).</p>
-<p>When replying to comments on your patches <strong>reply to all and not just the sender</strong> --
-keeping discussion on the mailing list means everybody can follow it.</p>
-<p>If you fix issues that are raised during review <strong>resend the entire patch series</strong>
-not just the one patch that was changed. This allows maintainers to easily apply
-the fixed series without having to manually identify which patches are relevant.</p>
-<p><strong>When resending patches add a v2/v3 suffix</strong> (eg [PATCH v2]). This means people can easily
-identify whether they're looking at the most recent version. (The first version of a patch need not say &quot;v1&quot;,
-just [PATCH] is sufficient.) For patch series, the version applies to the whole series --
-even if you only change one patch, you resend the entire series and mark it as &quot;v2&quot;.
-Don't try to track versions of different patches in the series separately.</p>
-<p>For later versions of patches <strong>include a summary of changes from previous versions, but not
-in the commit message itself</strong>. In an email formatted as a git patch, the commit message is
-the part above the &quot;---&quot; line, and this will go into the git changelog when the patch is committed.
-This part should be a self-contained description of what this version of the patch does, written
-to make sense to anybody who comes back to look at this commit in git in six months' time.
-The part below the &quot;---&quot; line and above the patch proper (git format-patch puts the diffstat here)
-is a good place to put remarks for people reading the patch email, and this is where the
-&quot;changes since previous version&quot; summary belongs.</p>
 </div>
 <div class="section" id="submitting-larger-contributions">
 <h1>Submitting larger contributions</h1>
-<p>In case you would like to contribute a new feature, it is easier to use gitorious for the review process.</p>
-<ol class="arabic simple">
-<li>Subscribe to the s2e-dev mailing list</li>
-<li>Request a login/password to the S2E repository</li>
-<li>Create a private clone of the S2E repository (using the Gitorious interface)</li>
-<li>Work on your private clone</li>
-<li>Send a merge request from the gitorious interface</li>
-<li>We will review the merge request</li>
-</ol>
+<p>The process for submitting larger contributions is the same as submitting bug fixes.
+Everything goes through GitHub.</p>
 <p>To be accepted, your code must follow the following rules:</p>
 <ol class="arabic">
 <li><p class="first">All files prefixed with the S2E copyright header. All contributions
@@ -90,7 +57,7 @@ must use the BSD 3-clause license..</p>
 <div class="highlight"><pre><span class="cm">/*</span>
 <span class="cm"> * S2E Selective Symbolic Execution Platform</span>
 <span class="cm"> *</span>
-<span class="cm"> * Copyright (c) 2011, ***** YOUR COPYRIGHT ******</span>
+<span class="cm"> * Copyright (c) 2013, ***** YOUR COPYRIGHT ******</span>
 <span class="cm"> * All rights reserved.</span>
 <span class="cm"> *</span>
 <span class="cm"> * Redistribution and use in source and binary forms, with or without</span>
