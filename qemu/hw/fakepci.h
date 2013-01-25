@@ -16,6 +16,10 @@ typedef struct _fake_pci_t {
     int num_resources;
     PCIIORegion resources[PCI_NUM_REGIONS];
     int mmioidx;
+
+    int cap_pm;
+    int cap_msi;
+    int cap_pcie;
 }fake_pci_t;
 
 enum fake_bus_type_t {
