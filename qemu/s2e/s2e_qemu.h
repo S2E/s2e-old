@@ -294,7 +294,7 @@ void s2e_execute_cmd(const char *cmd);
 
 void s2e_on_device_registration(struct S2E *s2e);
 void s2e_on_device_activation(struct S2E *s2e, int bus_type, void *bus);
-
+void s2e_on_pci_device_update_mappings(void *pci_device);
 
 //Used by port IO for now
 void s2e_switch_to_symbolic(struct S2E *s2e, struct S2EExecutionState *state);

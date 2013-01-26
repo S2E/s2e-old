@@ -388,6 +388,10 @@ void s2e_on_device_activation(S2E *s2e, int bus_type, void *bus)
     s2e->getCorePlugin()->onDeviceActivation.emit(bus_type, bus);
 }
 
+void s2e_on_pci_device_update_mappings(void *pci_device)
+{
+    g_s2e->getCorePlugin()->onPciDeviceMappingUpdate.emit(g_s2e_state, pci_device);
+}
 
 void s2e_trace_port_access(
         S2E *s2e, S2EExecutionState* state,

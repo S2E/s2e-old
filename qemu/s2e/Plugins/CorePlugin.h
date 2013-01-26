@@ -253,6 +253,10 @@ public:
                  void *> /* bus */
             onDeviceActivation;
 
+    sigc::signal<void, S2EExecutionState *,
+                 void *> /* PCIDevice * */
+            onPciDeviceMappingUpdate;
+
     /**
      * The current execution privilege level was changed (e.g., kernel-mode=>user-mode)
      * previous and current are privilege levels. The meaning of the value may
