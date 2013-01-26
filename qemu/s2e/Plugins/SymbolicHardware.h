@@ -88,6 +88,10 @@ public:
         m_qemuDev = qemuDev;
     }
 
+    void *getDevice() const {
+        return m_qemuDev;
+    }
+
     const std::string &getId() const { return m_id; }
 
     virtual void print(llvm::raw_ostream &os) const {}
@@ -227,7 +231,7 @@ private:
 
     void onDeviceRegistration();
     void onDeviceActivation(int bus_type, void *bus);
-
+    void onDeviceUpdateMappings(S2EExecutionState *state, void *pci_device);
 };
 
 class SymbolicHardwareState : public PluginState
