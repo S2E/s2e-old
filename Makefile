@@ -40,8 +40,10 @@ LLVM_SRC_DIR=llvm-$(LLVM_VERSION).src
 LLVM_NATIVE_SRC_DIR=llvm-$(LLVM_VERSION).src.native
 CLANG_SRC=clang-$(LLVM_VERSION).src.tar.gz
 CLANG_SRC_DIR=clang-$(LLVM_VERSION).src
+CLANG_DEST_DIR=$(LLVM_SRC_DIR)/tools/clang
 COMPILER_RT_SRC=compiler-rt-$(LLVM_VERSION).src.tar.gz
 COMPILER_RT_SRC_DIR=compiler-rt-$(LLVM_VERSION).src
+COMPILER_RT_DEST_DIR=$(LLVM_NATIVE_SRC_DIR)/projects/compiler-rt
 
 clean:
 	rm -Rf klee klee-asan qemu-debug qemu-debug-asan qemu-release qemu-release-asan
@@ -67,24 +69,20 @@ LLVM_SRC_URL = http://llvm.org/releases/$(LLVM_VERSION)/
 $(CLANG_SRC) $(COMPILER_RT_SRC) $(LLVM_SRC):
 	wget $(LLVM_SRC_URL)$@
 
-stamps/clang-unpack: $(CLANG_SRC) stamps/llvm-unpack
-stamps/compiler-rt-unpack: $(COMPILER_RT_SRC) stamps/llvm-unpack
-stamps/llvm-unpack: $(LLVM_SRC)
-stamps/clang-unpack stamps/compiler-rt-unpack stamps/llvm-unpack:
-	tar -zxf $<
-	mkdir -p stamps && touch $@
+.INTERMEDIATE: $(CLANG_SRC_DIR) $(COMPILER_RT_SRC_DIR)
+$(CLANG_SRC_DIR): $(CLANG_SRC)
+$(COMPILER_RT_SRC_DIR): $(COMPILER_RT_SRC)
+$(LLVM_SRC_DIR): $(LLVM_SRC)
+$(CLANG_SRC_DIR) $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR):
+	tar -xmzf $<
 
-stamps/llvm-copy: stamps/llvm-unpack
-	cp -r $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
-	mkdir -p stamps && touch $@
+$(LLVM_NATIVE_SRC_DIR): $(LLVM_SRC_DIR)
+	cp -r $< $@
 
-stamps/clang-move: stamps/clang-unpack stamps/llvm-copy
-	mv $(CLANG_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)/tools/clang
-	mkdir -p stamps && touch $@
-
-stamps/compiler-rt-move: stamps/compiler-rt-unpack stamps/llvm-copy
-	mv $(COMPILER_RT_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)/projects/compiler-rt
-	mkdir -p stamps && touch $@
+$(CLANG_DEST_DIR): $(CLANG_SRC_DIR) $(LLVM_SRC_DIR)
+$(COMPILER_RT_DEST_DIR): $(COMPILER_RT_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
+$(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR):
+	mv $< $@
 
 
 
@@ -99,7 +97,7 @@ LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --enable-jit --enable-optimized \
 
 #First build it with the system's compiler
-stamps/llvm-configure-native: stamps/clang-move stamps/compiler-rt-move
+stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR)
 	mkdir -p llvm-native
 	cd llvm-native && $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
 		$(LLVM_CONFIGURE_FLAGS) \
