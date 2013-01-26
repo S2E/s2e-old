@@ -992,6 +992,10 @@ static void pci_update_mappings(PCIDevice *d)
                                                 r->addr, r->memory, 1);
         }
     }
+
+#ifdef CONFIG_S2E
+    s2e_on_pci_device_update_mappings(d);
+#endif
 }
 
 static inline int pci_irq_disabled(PCIDevice *d)
