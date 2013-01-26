@@ -42,8 +42,6 @@ Here is an explanation of the command line.
 
 * **-fake-pci-resource-mem 0x20**: specifies that the device uses 64 bytes of memory-mapped I/O space. Same remarks as for *-fake-pci-resource-io*.
 
-* **-rtc clock=vm**: the real-time clock of QEMU must be set to VM to make symbolic execution work. **TBD: Explain why.**
-
 * **-hda /home/s2e/vm/windows_pcntpci5.sys.raw**: specifies the path to the disk image. Note that we use a RAW image here during set up.
 
 * **-net user -net nic,model=ne2k_pci**: instructs QEMU that we want to use the NE2K virtual NIC adapter. This NIC adapter is not to be confused with the fake PCI device we set up in previous options. This NE2K adapter is a real one, and we will use it to upload files to the virtual machine.
@@ -56,7 +54,7 @@ Copying files
 -------------
 
 Copy the *devcon.exe* utility in the Windows image.
-Then, copy the following script into *c:\s2e\pcnet.bat* (or to any location you wish) in the guest OS.
+Then, copy the following script into *c:\\s2e\\pcnet.bat* (or to any location you wish) in the guest OS.
 You may beed to setup and ftp server on your host machine to do the file transfer. The NE2K card we set up previously
 should have an address obtained by DHCP. The gateway should be 10.0.2.2. Refer to the QEMU documentation for more details.
 
@@ -218,7 +216,14 @@ Refer to the corresponding section of the documentation for more information abo
         kleeArgs = {
             "--use-batching-search",
             "--use-random-path",
+
+            --Optimizations for faster execution
+            "--state-shared-memory",
             "--flush-tbs-on-state-switch=false",
+
+            --Concolic mode for hardware is not supported yet
+            "--use-concolic-execution=false",
+            "--use-fast-helpers=false"
         }
     }
 
@@ -246,8 +251,10 @@ we briefly present each of the plugins.
         "TranslationBlockTracer",
 
         "WindowsDriverExerciser",
+
+        "ConsistencyModels",
         "NtoskrnlHandlers",
-        "NdisHandlers"
+        "NdisHandlers",
 
         "BlueScreenInterceptor",
         "WindowsCrashDumpGenerator",
@@ -268,7 +275,7 @@ Configure ``WindowsMonitor`` as follows:
     pluginsConfig = {}
 
     pluginsConfig.WindowsMonitor = {
-        version="sp3",
+        version="XPSP3",
         userMode=true,
         kernelMode=true,
         checked=false,
@@ -302,23 +309,22 @@ The configuration section looks as follows:
 
 ::
 
-    g_consistency = "strict"
+    pluginsConfig.ConsistencyModels = {
+        model="strict"
+    }
+
 
     pluginsConfig.WindowsDriverExerciser = {
         moduleIds = {"pcntpci5_sys_1"},
-        consistency = g_consistency,
         unloadAction = "kill"
     }
 
     pluginsConfig.NdisHandlers = {
         moduleIds = {"pcntpci5_sys_1"},
         hwId = "pcnetf",
-        consistency = g_consistency,
     }
 
     pluginsConfig.NtoskrnlHandlers = {
-        consistency = g_consistency,
-
         -- It is also possible to have a different consistency
         -- for specific API functions
         functionConsistencies = {

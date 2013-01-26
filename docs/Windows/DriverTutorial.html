@@ -65,7 +65,6 @@ $./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-
 <li><strong>-fake-pci-class-code 2 -fake-pci-revision-id 0x7</strong>: some additional data that will populate the PCI device descriptor. This data is device-specific and may be used by the driver.</li>
 <li><strong>-fake-pci-resource-io 0x20</strong>: specifies that the device uses 64 bytes of I/O address space. The base address is assigned by the OS/BIOS at startup. S2E intercepts all accesses in the assigned I/O range and returns symbolic values upon read. Writes to the range are discarded.</li>
 <li><strong>-fake-pci-resource-mem 0x20</strong>: specifies that the device uses 64 bytes of memory-mapped I/O space. Same remarks as for <em>-fake-pci-resource-io</em>.</li>
-<li><strong>-rtc clock=vm</strong>: the real-time clock of QEMU must be set to VM to make symbolic execution work. <strong>TBD: Explain why.</strong></li>
 <li><strong>-hda /home/s2e/vm/windows_pcntpci5.sys.raw</strong>: specifies the path to the disk image. Note that we use a RAW image here during set up.</li>
 <li><strong>-net user -net nic,model=ne2k_pci</strong>: instructs QEMU that we want to use the NE2K virtual NIC adapter. This NIC adapter is not to be confused with the fake PCI device we set up in previous options. This NE2K adapter is a real one, and we will use it to upload files to the virtual machine.</li>
 <li><strong>-monitor telnet:localhost:4444,server,nowait</strong>: QEMU will listen on the port 4444 for connections to the monitor. This is useful to take snapshots of the VM.</li>
@@ -75,7 +74,7 @@ $./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-
 <div class="section" id="copying-files">
 <h2>1.2&nbsp;&nbsp;&nbsp;Copying files</h2>
 <p>Copy the <em>devcon.exe</em> utility in the Windows image.
-Then, copy the following script into <em>c:s2epcnet.bat</em> (or to any location you wish) in the guest OS.
+Then, copy the following script into <em>c:\s2e\pcnet.bat</em> (or to any location you wish) in the guest OS.
 You may beed to setup and ftp server on your host machine to do the file transfer. The NE2K card we set up previously
 should have an address obtained by DHCP. The gateway should be 10.0.2.2. Refer to the QEMU documentation for more details.</p>
 <pre class="literal-block">
@@ -280,7 +279,14 @@ s2e = {
     kleeArgs = {
         &quot;--use-batching-search&quot;,
         &quot;--use-random-path&quot;,
+
+        --Optimizations for faster execution
+        &quot;--state-shared-memory&quot;,
         &quot;--flush-tbs-on-state-switch=false&quot;,
+
+        --Concolic mode for hardware is not supported yet
+        &quot;--use-concolic-execution=false&quot;,
+        &quot;--use-fast-helpers=false&quot;
     }
 }
 </pre>
@@ -306,8 +312,10 @@ plugins = {
     &quot;TranslationBlockTracer&quot;,
 
     &quot;WindowsDriverExerciser&quot;,
+
+    &quot;ConsistencyModels&quot;,
     &quot;NtoskrnlHandlers&quot;,
-    &quot;NdisHandlers&quot;
+    &quot;NdisHandlers&quot;,
 
     &quot;BlueScreenInterceptor&quot;,
     &quot;WindowsCrashDumpGenerator&quot;,
@@ -325,7 +333,7 @@ when it detects specific modules.</p>
 pluginsConfig = {}
 
 pluginsConfig.WindowsMonitor = {
-    version=&quot;sp3&quot;,
+    version=&quot;XPSP3&quot;,
     userMode=true,
     kernelMode=true,
     checked=false,
@@ -352,23 +360,22 @@ In this tutorial, we show how to set the <strong>strict</strong> model, in which
 Feel free to experiment with other models.</p>
 <p>The configuration section looks as follows:</p>
 <pre class="literal-block">
-g_consistency = &quot;strict&quot;
+pluginsConfig.ConsistencyModels = {
+    model=&quot;strict&quot;
+}
+
 
 pluginsConfig.WindowsDriverExerciser = {
     moduleIds = {&quot;pcntpci5_sys_1&quot;},
-    consistency = g_consistency,
     unloadAction = &quot;kill&quot;
 }
 
 pluginsConfig.NdisHandlers = {
     moduleIds = {&quot;pcntpci5_sys_1&quot;},
     hwId = &quot;pcnetf&quot;,
-    consistency = g_consistency,
 }
 
 pluginsConfig.NtoskrnlHandlers = {
-    consistency = g_consistency,
-
     -- It is also possible to have a different consistency
     -- for specific API functions
     functionConsistencies = {
