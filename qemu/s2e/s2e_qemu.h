@@ -331,12 +331,6 @@ void s2e_on_initialization_complete(void);
 
 void s2e_on_monitor_event(struct QDict *ret);
 
-//XXX: Provide a means of including KLEE header
-/* Return a possible constant value for the input expression. This
-   allows programs to forcibly concretize values on their own. */
-unsigned klee_get_value(unsigned expr);
-
-
 //Used by S2E.h to reinitialize timers in the forked process
 int init_timer_alarm(int register_exit_handler);
 

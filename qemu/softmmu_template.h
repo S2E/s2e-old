@@ -538,11 +538,11 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phys_ad
     //Since we do not handle symbolic devices for now, we offer the
     //option of concretizing the arguments to I/O helpers.
     if (g_s2e_concretize_io_writes) {
-        val = klee_get_value(val);
+        tcg_llvm_get_value(&val, sizeof(val), true);
     }
 
     if (g_s2e_concretize_io_addresses) {
-        addr = klee_get_value(addr);
+        tcg_llvm_get_value(&addr, sizeof(addr), true);
     }
 
     //By default, call the original io_write function, which is external
