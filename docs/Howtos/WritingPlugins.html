@@ -107,7 +107,7 @@ There are many other core events to which a plugin can register. These events ar
 <p>Extend your code as follows. Do not forget to add all new member functions to the (private) section of the class declaration.</p>
 <div class="highlight"><pre><span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">initialize</span><span class="p">()</span>
 <span class="p">{</span>
-    <span class="n">m_address</span> <span class="o">=</span> <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getConfig</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getInt</span><span class="p">(</span><span class="n">getConfigKey</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;.addressToTrack&quot;</span><span class="p">);</span>
+    <span class="n">m_address</span> <span class="o">=</span> <span class="p">(</span><span class="kt">uint64_t</span><span class="p">)</span> <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getConfig</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getInt</span><span class="p">(</span><span class="n">getConfigKey</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;.addressToTrack&quot;</span><span class="p">);</span>
 
     <span class="c1">//This indicates that our plugin is interested in monitoring instruction translation.</span>
     <span class="c1">//For this, the plugin registers a callback with the onTranslateInstruction signal.</span>
@@ -233,7 +233,7 @@ otherwise other plugins will not be able to register.</p>
 
     <span class="c1">//Fire the event</span>
     <span class="k">if</span> <span class="p">((</span><span class="n">plgState</span><span class="o">-&gt;</span><span class="n">get</span><span class="p">()</span> <span class="o">%</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="n">onPeriodicEvent</span><span class="p">.</span><span class="n">emit</span><span class="p">();</span>
+        <span class="n">onPeriodicEvent</span><span class="p">.</span><span class="n">emit</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">pc</span><span class="p">);</span>
     <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
