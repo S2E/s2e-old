@@ -123,7 +123,7 @@ Extend your code as follows. Do not forget to add all new member functions to th
 
     void InstructionTracker::initialize()
     {
-        m_address = s2e()->getConfig()->getInt(getConfigKey() + ".addressToTrack");
+        m_address = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".addressToTrack");
 
         //This indicates that our plugin is interested in monitoring instruction translation.
         //For this, the plugin registers a callback with the onTranslateInstruction signal.
@@ -269,7 +269,7 @@ Second, we add some logic to fire the event and call all the registered callback
 
         //Fire the event
         if ((plgState->get() % 10) == 0) {
-            onPeriodicEvent.emit();
+            onPeriodicEvent.emit(state, pc);
         }
     }
 
