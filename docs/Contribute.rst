@@ -57,8 +57,8 @@ Everything goes through GitHub.
 
 To be accepted, your code must follow the following rules:
 
-1. All files prefixed with the S2E copyright header. All contributions
-   must use the BSD 3-clause license..
+1. All files must be prefixed with the S2E copyright header.
+   All contributions must use the BSD 3-clause license.
 
    You can use the following template:
 
