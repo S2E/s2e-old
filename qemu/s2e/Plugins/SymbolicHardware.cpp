@@ -402,8 +402,8 @@ IsaDeviceDescriptor::~IsaDeviceDescriptor()
 void IsaDeviceDescriptor::print(llvm::raw_ostream &os) const
 {
     os << "ISA Device Descriptor id=" << m_id << '\n';
-    os << "Base=" << hexval(m_isaResource.portBase) <<
-            " Size=" << hexval(m_isaResource.portSize) << '\n';
+    os << "Base=" << hexval(m_isaResource.portBase)
+       << " Size=" << hexval(m_isaResource.portSize) << '\n';
     os << '\n';
 }
 
@@ -608,7 +608,7 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 
 static int fakepci_post_load(void *opaque, int version_id) {
     SymbolicPciDeviceState *hw1 = static_cast<SymbolicPciDeviceState*>(opaque);
-    SymbolicHardware *hw2 = (SymbolicHardware*)g_s2e->getPlugin("SymbolicHardware");
+    SymbolicHardware *hw2 = static_cast<SymbolicHardware*>(g_s2e->getPlugin("SymbolicHardware"));
     assert (hw1);
     assert (hw2);
 
@@ -739,14 +739,14 @@ PciDeviceDescriptor::~PciDeviceDescriptor()
 void PciDeviceDescriptor::print(llvm::raw_ostream &os) const
 {
     os << "PCI Device Descriptor id=" << m_id << '\n';
-    os << "VID=" << hexval(m_vid) <<
-            " PID=" << hexval(m_pid) <<
-        " SS_VID=0x" << m_ss_vid <<
-        " SS_ID=0x" << m_ss_id <<
-            " RevID=" << hexval(m_revisionId) << '\n';
+    os << "VID=" << hexval(m_vid)
+       << " PID=" << hexval(m_pid)
+       << " SS_VID=0x" << m_ss_vid
+       << " SS_ID=0x" << m_ss_id
+       << " RevID=" << hexval(m_revisionId) << '\n';
 
-    os << "Class=" << hexval(m_classCode) <<
-            " INT=" << hexval(m_interruptPin) << '\n';
+    os << "Class=" << hexval(m_classCode)
+       << "INT=" << hexval(m_interruptPin) << '\n';
     os << "capPM=" << hexval(m_capPM) << "\n";
     os << "capMSI=" << hexval(m_capMSI) << "\n";
     os << "capPCIE=" << hexval(m_capPCIE) << "\n";
