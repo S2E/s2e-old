@@ -30,17 +30,29 @@
 static inline void mulu64(uint64_t *plow, uint64_t *phigh,
                           uint64_t a, uint64_t b)
 {
+#if defined(CONFIG_S2E)
+    unsigned __int128 r = (unsigned __int128)a * (unsigned __int128)b;
+    *phigh = r >> 64;
+    *plow  = r & (uint64_t)-1;
+#else
     __asm__ ("mul %0\n\t"
              : "=d" (*phigh), "=a" (*plow)
              : "a" (a), "0" (b));
+#endif /* CONFIG_S2E */
 }
 #define __HAVE_FAST_MULS64__
 static inline void muls64(uint64_t *plow, uint64_t *phigh,
                           int64_t a, int64_t b)
 {
+#if defined(CONFIG_S2E)
+    __int128 r = (__int128)a * (__int128)b;
+    *phigh = r >> 64;
+    *plow  = r & (uint64_t)-1;
+#else
     __asm__ ("imul %0\n\t"
              : "=d" (*phigh), "=a" (*plow)
              : "a" (a), "0" (b));
+#endif /* CONFIG_S2E */
 }
 #else
 void muls64(uint64_t *phigh, uint64_t *plow, int64_t a, int64_t b);
