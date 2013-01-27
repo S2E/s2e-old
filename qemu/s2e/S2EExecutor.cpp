@@ -569,7 +569,8 @@ void S2EExecutor::handleGetValue(klee::Executor* executor,
                                  klee::KInstruction* target,
                                  std::vector<klee::ref<klee::Expr> > &args) {
     S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
-    assert(args.size() == 3);
+    assert(args.size() == 3 &&
+           "Expected three args to tcg_llvm_get_value: addr, size, add_constraint");
 
     // KLEE address of variable
     ref<klee::ConstantExpr> kleeAddress = cast<klee::ConstantExpr>(args[0]);
@@ -577,10 +578,13 @@ void S2EExecutor::handleGetValue(klee::Executor* executor,
     // Size in bytes
     uint64_t sizeInBytes = cast<klee::ConstantExpr>(args[1])->getZExtValue();
 
+    // Add a constraint permanently?
+    bool add_constraint = cast<klee::ConstantExpr>(args[2])->getZExtValue();
+
     // Read the value and concretize it.
     // The value will be stored at kleeAddress
     std::vector<ref<Expr> > result;
-    s2eState->kleeReadMemory(kleeAddress, sizeInBytes, NULL, false, true, true);
+    s2eState->kleeReadMemory(kleeAddress, sizeInBytes, NULL, false, true, add_constraint);
 }
 
 S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
