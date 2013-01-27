@@ -89,7 +89,7 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <llvm/Instructions.h>
 #include <llvm/Constants.h>
 #include <llvm/PassManager.h>
-#include <llvm/Target/TargetData.h>
+#include <llvm/DataLayout.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/Support/DynamicLibrary.h>
@@ -601,7 +601,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     // XXX: how to get data layout without without ExecutionEngine ?
     m_tcgLLVMContext->getModule()->setDataLayout(
             m_tcgLLVMContext->getExecutionEngine()
-                ->getTargetData()->getStringRepresentation());
+                ->getDataLayout()->getStringRepresentation());
 
     /* Define globally accessible functions */
 #define __DEFINE_EXT_FUNCTION(name) \
@@ -746,7 +746,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     /* This catches obvious LLVM misconfigurations */
     Module *M = m_tcgLLVMContext->getModule();
-    TargetData TD(M);
+    DataLayout TD(M);
     assert(M->getPointerSize() == Module::Pointer64 && "Something is broken in your LLVM build: LLVM thinks pointers are 32-bits!");
 
     s2e->getDebugStream() << "Current data layout: " << m_tcgLLVMContext->getModule()->getDataLayout() << '\n';
@@ -1485,7 +1485,7 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
             // not defined in this module; if it isn't resolvable then it
             // should be null.
             if (f->hasExternalWeakLinkage() &&
-                    !externalDispatcher->resolveSymbol(f->getNameStr())) {
+                    !externalDispatcher->resolveSymbol(f->getName())) {
                 addr = Expr::createPointer(0);
             } else {
                 addr = Expr::createPointer((uintptr_t) (void*) f);
@@ -1529,7 +1529,7 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 
     if ( S2EDebugInstructions ) {
     m_s2e->getDebugStream(state) << "executing "
-              << ki->inst->getParent()->getParent()->getNameStr()
+              << ki->inst->getParent()->getParent()->getName().str()
               << ": " << *ki->inst << '\n';
     }
 
@@ -1634,7 +1634,7 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
     if (VerboseTbFinalize) {
         m_s2e->getDebugStream() << "Finalizing TB execution " << state->getID() << '\n';
         foreach(const StackFrame& fr, state->stack) {
-            m_s2e->getDebugStream() << fr.kf->function->getNameStr() << '\n';
+            m_s2e->getDebugStream() << fr.kf->function->getName().str() << '\n';
         }
     }
 
@@ -2124,7 +2124,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
     if (VerboseFork) {
         m_s2e->getDebugStream() << "Stack frame at fork:" << '\n';
         foreach(const StackFrame& fr, originalState->stack) {
-            m_s2e->getDebugStream() << fr.kf->function->getNameStr() << '\n';
+            m_s2e->getDebugStream() << fr.kf->function->getName().str() << '\n';
         }
     }
 

@@ -22,7 +22,7 @@
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
@@ -172,7 +172,7 @@ void CreateOptimizePasses(PassManagerBase& Passes, Module* M) {
     Passes.add(createVerifierPass());
 
   // Add an appropriate TargetData instance for this module...
-  addPass(Passes, new TargetData(M));
+  addPass(Passes, new DataLayout(M));
 
   // DWD - Run the opt standard pass list as well.
   AddStandardCompilePasses(Passes);
@@ -182,7 +182,7 @@ void CreateOptimizePasses(PassManagerBase& Passes, Module* M) {
     // for a main function.  If main is defined, mark all other functions
     // internal.
     if (!DisableInternalize)
-      addPass(Passes, createInternalizePass(true));
+      addPass(Passes, createInternalizePass(std::vector<const char *>(1, "main")));
 
     // Propagate constants at call sites into the functions they call.  This
     // opens opportunities for globalopt (and inlining) by substituting function

@@ -306,7 +306,7 @@ public:
     bool registerAnnotation(S2EExecutionState *state, uint64_t address, typename T::Callback handler)
     {
         AnnotationsState *plgState = static_cast<AnnotationsState*>(getPluginState(state, &AnnotationsState::factory));
-        return plgState->registerAnnotation<T>(address, m_windowsMonitor->getPid(state, address), handler);
+        return plgState->template registerAnnotation<T>(address, m_windowsMonitor->getPid(state, address), handler);
     }
 
     /////////////////////////////////////////////////////////////////////////////

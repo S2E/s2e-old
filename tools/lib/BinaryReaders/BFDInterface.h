@@ -37,6 +37,7 @@
 #define S2ETOOLS_BFDINTERFACE_H
 
 extern "C" {
+#include "s2etools/config.h"
 #include <bfd.h>
 }
 

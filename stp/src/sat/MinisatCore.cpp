@@ -22,7 +22,7 @@ namespace BEEV
   bool
   MinisatCore<T>::addClause(const SATSolver::vec_literals& ps) // Add a clause to the solver.
   {
-    s->addClause(ps);
+    return s->addClause(ps);
   }
 
   template <class T>
@@ -60,7 +60,7 @@ namespace BEEV
   template <class T>
   int MinisatCore<T>::setVerbosity(int v)
   {
-    s->verbosity = v;
+    return s->verbosity = v;
   }
 
     template <class T>

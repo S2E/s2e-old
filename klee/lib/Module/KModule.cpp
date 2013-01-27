@@ -39,7 +39,7 @@
 #if !(LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
 #include "llvm/Support/raw_os_ostream.h"
 #endif
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Transforms/Scalar.h"
 
 #include <sstream>
@@ -98,7 +98,7 @@ struct KModulePrivate {
   llvm::FunctionPassManager fpmOptimize, fpm3, fpm4;
 
   KModulePrivate(llvm::Module *module,
-                 llvm::TargetData *targetData)
+                 llvm::DataLayout *targetData)
           :
             fpmOptimize(module),
             fpm3(module),
@@ -144,7 +144,7 @@ struct KModulePrivate {
 
 KModule::KModule(Module *_module) 
   : module(_module),
-    targetData(new TargetData(module)),
+    targetData(new DataLayout(module)),
     dbgStopPointFn(0),
     kleeMergeFn(0),
     infos(0),

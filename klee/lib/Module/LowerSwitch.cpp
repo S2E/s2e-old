@@ -114,9 +114,9 @@ void LowerSwitchPass::processSwitchInst(SwitchInst *SI) {
   }
   
   CaseVector cases;
-  for (unsigned i = 1; i < SI->getNumSuccessors(); ++i)
-    cases.push_back(SwitchCase(SI->getSuccessorValue(i),
-                               SI->getSuccessor(i)));
+  for (SwitchInst::CaseIt i = SI->case_begin(), e = SI->case_end(); i != e; ++i)
+    cases.push_back(SwitchCase(i.getCaseValue(),
+                               i.getCaseSuccessor()));
   
   // reverse cases, as switchConvert constructs a chain of
   //   basic blocks by appending to the front. if we reverse,

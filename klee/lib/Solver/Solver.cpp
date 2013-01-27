@@ -32,6 +32,7 @@
 
 #include <errno.h>
 #include <signal.h>
+#include <unistd.h>
 
 #ifndef __MINGW32__
 #include <sys/wait.h>
