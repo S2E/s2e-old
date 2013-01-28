@@ -4036,17 +4036,17 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                    potential bugs */
                 if (l >= 4 && ((addr1 & 3) == 0)) {
                     /* 32 bit write access */
-                    val = ldl_raw(buf);
+                    val = ldl_p(buf);
                     io_mem_write(section->mr, addr1, val, 4);
                     l = 4;
                 } else if (l >= 2 && ((addr1 & 1) == 0)) {
                     /* 16 bit write access */
-                    val = lduw_raw(buf);
+                    val = lduw_p(buf);
                     io_mem_write(section->mr, addr1, val, 2);
                     l = 2;
                 } else {
                     /* 8 bit write access */
-                    val = ldub_raw(buf);
+                    val = ldub_p(buf);
                     io_mem_write(section->mr, addr1, val, 1);
                     l = 1;
                 }
@@ -4078,17 +4078,17 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                 if (l >= 4 && ((addr1 & 3) == 0)) {
                     /* 32 bit read access */
                     val = io_mem_read(section->mr, addr1, 4);
-                    stl_raw(buf, val);
+                    stl_p(buf, val);
                     l = 4;
                 } else if (l >= 2 && ((addr1 & 1) == 0)) {
                     /* 16 bit read access */
                     val = io_mem_read(section->mr, addr1, 2);
-                    stw_raw(buf, val);
+                    stw_p(buf, val);
                     l = 2;
                 } else {
                     /* 8 bit read access */
                     val = io_mem_read(section->mr, addr1, 1);
-                    stb_raw(buf, val);
+                    stb_p(buf, val);
                     l = 1;
                 }
             } else {
