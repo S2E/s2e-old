@@ -339,7 +339,7 @@ DeviceDescriptor::~DeviceDescriptor()
         delete m_vmState;
 
     if (m_vmStateFields)
-        delete m_vmStateFields;
+        delete [] m_vmStateFields;
 }
 
 DeviceDescriptor *DeviceDescriptor::create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key)
