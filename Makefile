@@ -32,7 +32,6 @@ CLANG_SRC_DIR=clang-$(LLVM_VERSION).src
 clean:
 	rm -Rf tools qemu-release qemu-debug klee stp llvm
 	rm -Rf llvm-$(LLVM_VERSION)
-	rm -Rf $(LLVM_GCC_SRC)
 	rm -Rf stamps
 
 .PHONY: all all-debug all-release clean
@@ -87,7 +86,7 @@ stamps/asan-get-thirdparty: stamps/llvm-trunk-build
 stamps/asan-makeinstall: stamps/asan-get-thirdparty
 	cd llvm-asan/projects/compiler-rt/lib/asan && make -f Makefile.old -j$(JOBS)
 	cd llvm-asan/projects/compiler-rt/lib/asan && make -f Makefile.old install -j$(JOBS)
-	cp llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/clang/linux/x86_64/libclang_rt.asan.a llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/libasan64.a
+	$(CP) llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/clang/linux/x86_64/libclang_rt.asan.a llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/libasan64.a
 	mkdir -p stamps && touch $@
 
 ASAN_DIR=$(S2EBUILD)/llvm-asan/projects/compiler-rt/lib/asan_clang_linux
@@ -105,7 +104,6 @@ CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 #First build it with the system's compiler
 stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack
 	mkdir -p llvm-native
-	echo $(S2EBUILD) $(S2ESRC)
 	cd llvm-native && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--target=x86_64 --enable-targets=x86 --enable-jit \
@@ -164,11 +162,9 @@ stamps/stp-copy:
 
 stamps/stp-configure: stamps/stp-copy
 	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC)
-	#cd stp && cp src/c_interface/c_interface.h include/stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
-	$(CP) -Rup $(S2ESRC)/stp stp
 	cd stp && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
@@ -179,16 +175,14 @@ stp/lib/libstp.a: stamps/stp-make
 #ASAN-enabled STP
 
 stamps/stp-copy-asan:
-	cp -Rup $(S2ESRC)/stp stp-asan
+	$(CP) -Rup $(S2ESRC)/stp stp-asan
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure-asan: stamps/stp-copy-asan
 	cd stp-asan && bash scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-g++=$(ASAN_CXX) --with-gcc=$(ASAN_CC) --with-address-sanitizer
-	cd stp-asan && cp src/c_interface/c_interface.h include/stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
-	cp -Rup $(S2ESRC)/stp stp-asan
 	cd stp-asan && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
@@ -207,7 +201,7 @@ stamps/klee-configure: stamps/llvm-configure \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp \
 		--target=x86_64 \
-		--enable-exceptions --enable-assertions \
+		--enable-exceptions \
                 CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
 		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 	mkdir -p stamps && touch $@
@@ -231,7 +225,7 @@ stamps/klee-configure-asan: stamps/llvm-make-release-asan stamps/stp-make-asan \
 		--with-llvmobj=$(S2EBUILD)/llvm-instr-asan \
 		--with-stp=$(S2EBUILD)/stp-asan \
 		--target=x86_64 \
-		--enable-exceptions --enable-assertions \
+		--enable-exceptions \
                 CC=$(ASAN_CC) \
 		CXX=$(ASAN_CXX) CXXFLAGS="-O1 -faddress-sanitizer" LDFLAGS="-faddress-sanitizer"
 	mkdir -p stamps && touch $@
@@ -321,7 +315,7 @@ stamps/tools-configure: stamps/llvm-configure
 		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-s2esrc=$(S2ESRC)/qemu \
-		--target=x86_64 --enable-assertions \
+		--target=x86_64 \
 		CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
 		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 	mkdir -p stamps && touch $@
