@@ -1,20 +1,22 @@
-DIRECTORIES:=init_env s2ecmd s2eget demos
+BINARIES = demos/quicksort init_env/init_env.so s2ecmd/s2ecmd s2eget/s2eget
+CFLAGS   = -Iinclude -Wall -m32
+LDLIBS   = -ldl
 
-all:
-	for dir in $(DIRECTORIES); \
-	do \
-	    cd $$dir; make; cd ..; \
-	done
+all: $(BINARIES)
 
-.PHONY: .clean
+demos/quicksort init_env/init_env.so: CFLAGS+=-g -O0 -std=c99
+s2ecmd/s2ecmd s2eget/s2eget: include/s2e.h
+
+%: %.c
+	$(CC) $(CFLAGS) $< -o $@
+
+%.so: %.c
+	$(CC) $(CFLAGS) -fPIC -shared $^ -o $@ $(LDLIBS)
+
 clean:
-	for dir in $(DIRECTORIES); \
-	do \
-	    cd $$dir; make clean; cd ..; \
-	done
+	rm -f $(BINARIES)
 
-install:
-	for dir in $(DIRECTORIES); \
-	do \
-		cd $$dir; make install; cd ..; \
-	done
+install: $(BINARIES)
+	cp $(BINARIES) $(BUILD_DIR)
+
+.PHONY: all clean install

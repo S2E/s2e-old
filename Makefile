@@ -19,7 +19,7 @@ all-release: stamps/qemu-make-release stamps/tools-make-release
 all-debug: stamps/qemu-make-debug stamps/tools-make-debug
 
 ifeq ($(shell ls qemu/vl.c 2>&1),qemu/vl.c)
-    $(error You should not run make in S2E source directory!)
+    $(error You should not run make in the S2E source directory!)
 endif
 
 
@@ -259,9 +259,9 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
-		--enable-llvm \
-		--enable-s2e \
-		--enable-debug --compile-all-with-clang \
+		--enable-llvm --compile-all-with-clang \
+		--enable-s2e --prefix=$(S2EBUILD)/opt --with-pkgversion=S2E \
+		--enable-debug \
                 $(EXTRA_QEMU_FLAGS)
 
 	mkdir -p stamps && touch $@
@@ -275,8 +275,8 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
-		--enable-llvm \
-		--enable-s2e --compile-all-with-clang \
+		--enable-llvm --compile-all-with-clang \
+		--enable-s2e --prefix=$(S2EBUILD)/opt --with-pkgversion=S2E \
                 $(EXTRA_QEMU_FLAGS)
 
 	mkdir -p stamps && touch $@

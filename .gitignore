@@ -1,2 +1,6 @@
+guest/demos/quicksort
+guest/init_env/init_env.so
+guest/s2ecmd/s2ecmd
+guest/s2eget/s2eget
 s2e.creator.user
 *~

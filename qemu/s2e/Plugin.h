@@ -63,12 +63,12 @@ public:
 
     virtual ~Plugin() {}
 
-    /** Return assosiated S2E instance */
+    /** Return associated S2E instance. */
     S2E* s2e() { return m_s2e; }
     const S2E* s2e() const { return m_s2e; }
 
     /** Initialize plugin. This function is called on initialization
-        after all plugin instances have already be instantied */
+        after all plugin instances have already been instantiated. */
     virtual void initialize();
 
     /** Return PluginInfo for this class. Defined by S2E_PLUGIN macro */
