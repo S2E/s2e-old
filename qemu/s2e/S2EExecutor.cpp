@@ -1522,7 +1522,8 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
         bindArgument(kf, i, *state, args[i]);
 }
 
-inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
+//Return true if should exit CPU loop
+inline bool S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 {
     ++state->m_stats.m_statInstructionCountSymbolic;
 
@@ -1568,21 +1569,20 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         state->writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
         state->zombify();
         m_forkProcTerminateCurrentState = false;
-        cpu_enable_ticks();
-        throw CpuExitException();
+        return true;
     }
 
     //S2E doesn't know if the current state can be run
     //if concolic fork marks it as speculative.
     if (state->isSpeculative()) {
-        cpu_enable_ticks();
-        throw CpuExitException();
+        return true;
     }
 
     if(shouldExitCpu) {
-        cpu_enable_ticks();
-        throw CpuExitException();
+        return true;
     }
+
+    return false;
 }
 
 void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
@@ -1609,7 +1609,10 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
 
     cpu_disable_ticks();
     while(state->stack.size() != 1) {
-        executeOneInstruction(state);
+        if (executeOneInstruction(state)) {
+            cpu_enable_ticks();
+            throw CpuExitException();
+        }
     }
     cpu_enable_ticks();
 
@@ -1688,7 +1691,10 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
     /* Execute */
     while(state->stack.size() != 1) {
-        executeOneInstruction(state);
+        if (executeOneInstruction(state)) {
+            cpu_enable_ticks();
+            throw CpuExitException();
+        }
     }
 
     state->prevPC = 0;
