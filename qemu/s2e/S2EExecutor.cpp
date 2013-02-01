@@ -1522,65 +1522,54 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
         bindArgument(kf, i, *state, args[i]);
 }
 
-//Return true if should exit CPU loop
-inline bool S2EExecutor::executeOneInstruction(S2EExecutionState *state)
+inline bool S2EExecutor::executeInstructions(S2EExecutionState *state, unsigned callerStackSize)
 {
-    ++state->m_stats.m_statInstructionCountSymbolic;
+    cpu_disable_ticks();
 
-    //int64_t start_clock = get_clock();
-    //cpu_disable_ticks();
-
-    KInstruction *ki = state->pc;
-
-    if ( S2EDebugInstructions ) {
-    m_s2e->getDebugStream(state) << "executing "
-              << ki->inst->getParent()->getParent()->getNameStr()
-              << ": " << *ki->inst << '\n';
-    }
-
-    stepInstruction(*state);
-
-    bool shouldExitCpu = false;
     try {
-        executeInstruction(*state, ki);
+        while(state->stack.size() != callerStackSize) {
+            ++state->m_stats.m_statInstructionCountSymbolic;
 
-#ifdef S2E_TRACE_EFLAGS
-        ref<Expr> efl = state->readCpuRegister(offsetof(CPUState, cc_src), klee::Expr::Int32);
-        m_s2e->getDebugStream() << std::hex << state->getPc() << "  CC_SRC " << efl << '\n';
-#endif
+            KInstruction *ki = state->pc;
 
-    } catch(CpuExitException&) {
-        // Instruction that forks should never be interrupted
-        // (and, consequently, restarted)
+            if ( S2EDebugInstructions ) {
+                m_s2e->getDebugStream(state) << "executing "
+                      << ki->inst->getParent()->getParent()->getName().str()
+                      << ": " << *ki->inst << '\n';
+            }
+
+            stepInstruction(*state);
+            executeInstruction(*state, ki);
+
+            updateStates(state);
+
+            //S2E doesn't know if the current state can be run
+            //if concolic fork marks it as speculative.
+            if (state->isSpeculative()) {
+                return true;
+            }
+
+            //Handle the case where we killed the current state inside processFork
+            if (m_forkProcTerminateCurrentState) {
+                state->writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
+                state->zombify();
+                m_forkProcTerminateCurrentState = false;
+                return true;
+            }
+        }
+    } catch (CpuExitException &) {
         assert(addedStates.empty());
-        shouldExitCpu = true;
-    }
-
-    updateStates(state);
-
-    // assume that symbex is 50 times slower
-    //cpu_enable_ticks();
-
-    //int64_t inst_clock = get_clock() - start_clock;
-    //cpu_adjust_clock(- inst_clock*(1-0.02));
-
-    //Handle the case where we killed the current state inside processFork
-    if (m_forkProcTerminateCurrentState) {
-        state->writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
-        state->zombify();
-        m_forkProcTerminateCurrentState = false;
+        cpu_enable_ticks();
         return true;
     }
 
-    //S2E doesn't know if the current state can be run
-    //if concolic fork marks it as speculative.
-    if (state->isSpeculative()) {
-        return true;
+    //The TB finished executing normally
+    if (callerStackSize == 1) {
+        state->prevPC = 0;
+        state->pc = m_dummyMain->instructions;
     }
 
-    if(shouldExitCpu) {
-        return true;
-    }
+    cpu_enable_ticks();
 
     return false;
 }
@@ -1607,17 +1596,9 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
     /*      however, GETPC is not used in S2E anyway */
     //g_s2e_exec_ret_addr = 0; //state->getTb()->tc_ptr;
 
-    cpu_disable_ticks();
-    while(state->stack.size() != 1) {
-        if (executeOneInstruction(state)) {
-            cpu_enable_ticks();
-            throw CpuExitException();
-        }
-    }
-    cpu_enable_ticks();
 
-    state->prevPC = 0;
-    state->pc = m_dummyMain->instructions;
+    bool ret = executeInstructions(state);
+    assert(!ret);
 
     //copyOutConcretes(*state);
 
@@ -1687,20 +1668,9 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
             tb->llvm_function, std::vector<ref<Expr> >(1,
                 Expr::createPointer((uint64_t) tb_function_args)));
 
-    cpu_disable_ticks();
-
-    /* Execute */
-    while(state->stack.size() != 1) {
-        if (executeOneInstruction(state)) {
-            cpu_enable_ticks();
-            throw CpuExitException();
-        }
+    if (executeInstructions(state)) {
+        throw CpuExitException();
     }
-
-    state->prevPC = 0;
-    state->pc = m_dummyMain->instructions;
-
-    cpu_enable_ticks();
 
     /* Get return value */
     ref<Expr> resExpr =
@@ -1930,8 +1900,8 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
     prepareFunctionExecution(state, function, args);
 
     /* Execute */
-    while(state->stack.size() != callerStackSize) {
-        executeOneInstruction(state);
+    if (executeInstructions(state, callerStackSize)) {
+        throw CpuExitException();
     }
 
     if(callerPC == m_dummyMain->instructions) {
