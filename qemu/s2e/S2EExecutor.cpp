@@ -1555,46 +1555,6 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         shouldExitCpu = true;
     }
 
-    if (getMaxMemory()) {
-      if ((stats::instructions & 0xFFFF) == 0) {
-        // We need to avoid calling GetMallocUsage() often because it
-        // is O(elts on freelist). This is really bad since we start
-        // to pummel the freelist once we hit the memory cap.
-        unsigned mbs = sys::Process::GetTotalMemoryUsage() >> 20;
-
-        if (mbs > getMaxMemory()) {
-          if (mbs > getMaxMemory() + 100) {
-            // just guess at how many to kill
-            unsigned numStates = states.size();
-            unsigned toKill = std::max(1U, numStates - numStates*getMaxMemory()/mbs);
-
-            if (getMaxMemoryInhibit())
-              klee_warning("killing %d states (over memory cap)",
-                           toKill);
-
-            std::vector<ExecutionState*> arr(states.begin(), states.end());
-            for (unsigned i=0,N=arr.size(); N && i<toKill; ++i,--N) {
-              unsigned idx = rand() % N;
-
-              // Make two pulls to try and not hit a state that
-              // covered new code.
-              if (arr[idx]->coveredNew)
-                idx = rand() % N;
-
-              std::swap(arr[idx], arr[N-1]);
-              terminateStateEarly(*arr[N-1], "memory limit");
-            }
-          }
-          atMemoryLimit = true;
-        } else {
-          atMemoryLimit = false;
-        }
-      }
-    }
-
-    /* TODO: timers */
-    /* TODO: MaxMemory */
-
     updateStates(state);
 
     // assume that symbex is 50 times slower
