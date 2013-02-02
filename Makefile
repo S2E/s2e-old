@@ -141,7 +141,7 @@ stamps/stp-configure: stamps/stp-copy
 
 stamps/stp-make: stamps/stp-configure ALWAYS
 	$(CP) -Rup $(S2ESRC)/stp stp
-	cd stp && make -j$(JOBS) CFLAGS_M32=
+	cd stp && make 
 	mkdir -p stamps && touch $@
 
 stp/include/stp/c_interface.h: stamps/stp-configure
