@@ -197,6 +197,10 @@ public:
     //assigned to the program counter register
     Value* handleSymbolicPcAssignment(Value *orig) {
 #ifdef CONFIG_S2E
+        if (isa<ConstantInt>(orig)) {
+            return orig;
+        }
+
         Value *valueToStore = m_builder.CreateCall3(m_helperForkAndConcretize,
                             m_builder.CreateZExt(orig, intType(64)),
                             ConstantInt::get(intType(64), 0),
