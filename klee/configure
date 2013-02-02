@@ -2506,7 +2506,7 @@ llvm_package_version=`grep PACKAGE_VERSION= $with_llvmsrc/configure | cut -d\' -
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $llvm_package_version" >&5
 $as_echo "$llvm_package_version" >&6; }
 
-llvm_version_split=`python -c "import re; print '\t'.join(map(str, re.match('([0-9]+).([0-9]+)(svn)?', \"$llvm_package_version\").groups()))"`
+llvm_version_split=`python -c "import re; print('\t'.join(map(str, re.match('([0-9]+).([0-9]+)(svn)?', \"$llvm_package_version\").groups())))"`
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking llvm version major" >&5
 $as_echo_n "checking llvm version major... " >&6; }
