@@ -1241,13 +1241,13 @@ void S2EExecutor::stateSwitchTimerCallback(void *opaque)
         }
     }
 
-    qemu_mod_timer(c->m_stateSwitchTimer, qemu_get_clock_ms(rt_clock) + 100);
+    qemu_mod_timer(c->m_stateSwitchTimer, qemu_get_clock_ms(host_clock) + 100);
 }
 
 void S2EExecutor::initializeStateSwitchTimer()
 {
-    m_stateSwitchTimer = qemu_new_timer_ms(rt_clock, &stateSwitchTimerCallback, this);
-    qemu_mod_timer(m_stateSwitchTimer, qemu_get_clock_ms(rt_clock) + 100);
+    m_stateSwitchTimer = qemu_new_timer_ms(host_clock, &stateSwitchTimerCallback, this);
+    qemu_mod_timer(m_stateSwitchTimer, qemu_get_clock_ms(host_clock) + 100);
 }
 
 void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
