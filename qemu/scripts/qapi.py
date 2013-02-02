@@ -9,7 +9,11 @@
 # This work is licensed under the terms of the GNU GPLv2.
 # See the COPYING.LIB file in the top-level directory.
 
-from ordereddict import OrderedDict
+try:
+    from collections import OrderedDict
+except ImportError:
+    #Fallback for Python 2
+    from ordereddict import OrderedDict
 
 def tokenize(data):
     while len(data):
@@ -59,7 +63,7 @@ def parse(tokens):
         return tokens[0], tokens[1:]
 
 def evaluate(string):
-    return parse(map(lambda x: x, tokenize(string)))[0]
+    return parse([x for x in tokenize(string)])[0]
 
 def parse_schema(fp):
     exprs = []
@@ -74,9 +78,9 @@ def parse_schema(fp):
             expr += line
         elif expr:
             expr_eval = evaluate(expr)
-            if expr_eval.has_key('enum'):
+            if 'enum' in expr_eval:
                 add_enum(expr_eval['enum'])
-            elif expr_eval.has_key('union'):
+            elif 'union' in expr_eval:
                 add_enum('%sKind' % expr_eval['union'])
             exprs.append(expr_eval)
             expr = line
@@ -85,9 +89,9 @@ def parse_schema(fp):
 
     if expr:
         expr_eval = evaluate(expr)
-        if expr_eval.has_key('enum'):
+        if 'enum' in expr_eval:
             add_enum(expr_eval['enum'])
-        elif expr_eval.has_key('union'):
+        elif 'union' in expr_eval:
             add_enum('%sKind' % expr_eval['union'])
         exprs.append(expr_eval)
 
@@ -193,7 +197,7 @@ def pop_indent(indent_amount=4):
 def cgen(code, **kwds):
     indent = genindent(indent_level)
     lines = code.split('\n')
-    lines = map(lambda x: indent + x, lines)
+    lines = [indent + x for x in lines]
     return '\n'.join(lines) % kwds + '\n'
 
 def mcgen(code, **kwds):

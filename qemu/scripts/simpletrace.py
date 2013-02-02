@@ -144,8 +144,8 @@ if __name__ == '__main__':
             self.last_timestamp = timestamp
 
             fields = [event[0], '%0.3f' % (delta_ns / 1000.0)]
-            for i in xrange(1, len(event)):
+            for i in range(1, len(event)):
                 fields.append('%s=0x%x' % (event[i], rec[i + 1]))
-            print ' '.join(fields)
+            print(' '.join(fields))
 
     run(Formatter())
