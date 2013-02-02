@@ -20,7 +20,7 @@ def isnull(ptr):
     return ptr == gdb.Value(0).cast(ptr.type)
 
 def int128(p):
-    return long(p['lo']) + (long(p['hi']) << 64)
+    return int(p['lo']) + (int(p['hi']) << 64)
 
 class QemuCommand(gdb.Command):
     '''Prefix for QEMU debug support commands'''
@@ -45,11 +45,11 @@ class MtreeCommand(gdb.Command):
     def process_queue(self):
         while self.queue:
             ptr = self.queue.pop(0)
-            if long(ptr) in self.seen:
+            if int(ptr) in self.seen:
                 continue
             self.print_item(ptr)
     def print_item(self, ptr, offset = gdb.Value(0), level = 0):
-        self.seen.add(long(ptr))
+        self.seen.add(int(ptr))
         addr = ptr['addr']
         addr += offset
         size = int128(ptr['size'])
@@ -63,8 +63,8 @@ class MtreeCommand(gdb.Command):
             klass = ' (RAM)'
         gdb.write('%s%016x-%016x %s%s (@ %s)\n'
                   % ('  ' * level,
-                     long(addr),
-                     long(addr + (size - 1)),
+                     int(addr),
+                     int(addr + (size - 1)),
                      ptr['name'].string(),
                      klass,
                      ptr,
