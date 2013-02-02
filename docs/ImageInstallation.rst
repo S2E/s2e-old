@@ -32,7 +32,7 @@ followed the installation tutorials.
    $ wget http://cdimage.debian.org/debian-cd/current/i386/iso-cd/debian-6.0.6-i386-businesscard.iso
 
    $ # Run QEMU and install the OS
-   $ $S2EDIR/build/qemu-release/qemu-system-i386 s2e_disk.raw -cdrom debian-6.0.2.1-i386-businesscard.iso
+   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.raw -cdrom debian-6.0.2.1-i386-businesscard.iso
    > Follow on-screen instructions to install Debian Linux inside VM
    > Select only "Standard System" component to install
 
