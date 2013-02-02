@@ -27,7 +27,16 @@ typedef struct TimersState {
     int64_t cpu_clock_offset;
     int32_t cpu_ticks_enabled;
     int64_t dummy;
+
+    /* S2E: tell the vm clock to go slower by a factor x */
+    int32_t clock_scale_enable;
+    int32_t clock_scale;
+    int64_t cpu_clock_prev;
+    int64_t cpu_clock_prev_scaled;
+
 } TimersState;
+
+void cpu_enable_scaling(int scale);
 
 extern TimersState timers_state;
 

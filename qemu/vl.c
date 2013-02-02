@@ -2376,6 +2376,8 @@ int main(int argc, char **argv, char **envp)
 
     init_clocks();
 
+    cpu_enable_scaling(1);
+
     //S2E requires vm clock.
     rtc_clock = vm_clock;
 

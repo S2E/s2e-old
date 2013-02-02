@@ -209,6 +209,13 @@ namespace {
     UseFastHelpers("use-fast-helpers",
                    cl::desc("Replaces LLVM bitcode with fast symbolic-aware equivalent native helpers"),  cl::init(false));
 
+    cl::opt<unsigned>
+    ClockSlowDown("clock-slow-down",
+                   cl::desc("Slow down factor when interpreting LLVM code"),  cl::init(101));
+
+    cl::opt<unsigned>
+    ClockSlowDownFastHelpers("clock-slow-down-fast-helpers",
+                   cl::desc("Slow down factor when interpreting LLVM code and using fast helpers"),  cl::init(11));
 }
 
 //The logs may be flooded with messages when switching execution mode.
@@ -1524,8 +1531,6 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
 
 inline bool S2EExecutor::executeInstructions(S2EExecutionState *state, unsigned callerStackSize)
 {
-    cpu_disable_ticks();
-
     try {
         while(state->stack.size() != callerStackSize) {
             ++state->m_stats.m_statInstructionCountSymbolic;
@@ -1559,7 +1564,6 @@ inline bool S2EExecutor::executeInstructions(S2EExecutionState *state, unsigned 
         }
     } catch (CpuExitException &) {
         assert(addedStates.empty());
-        cpu_enable_ticks();
         return true;
     }
 
@@ -1568,8 +1572,6 @@ inline bool S2EExecutor::executeInstructions(S2EExecutionState *state, unsigned 
         state->prevPC = 0;
         state->pc = m_dummyMain->instructions;
     }
-
-    cpu_enable_ticks();
 
     return false;
 }
@@ -1841,6 +1843,10 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 
         TimerStatIncrementer t(stats::symbolicModeTime);
 
+        //XXX: adapt scaling dynamically.
+        int slowdown = UseFastHelpers ? ClockSlowDownFastHelpers : ClockSlowDown;
+        cpu_enable_scaling(slowdown);
+
         return executeTranslationBlockKlee(state, tb);
 
     } else {
@@ -1851,6 +1857,12 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         if (!((++doStatsIncrementCount) & 0xFFF)) {
             TimerStatIncrementer t(stats::concreteModeTime);
         }
+
+        int new_scaling = timers_state.clock_scale / 2;
+        if (new_scaling == 0) {
+            new_scaling = 1;
+        }
+        cpu_enable_scaling(new_scaling);
 
         return executeTranslationBlockConcrete(state, tb);
     }

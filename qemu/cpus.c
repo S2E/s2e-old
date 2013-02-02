@@ -121,11 +121,51 @@ int64_t cpu_get_clock(void)
 {
     int64_t ti;
     if (!timers_state.cpu_ticks_enabled) {
+        if (timers_state.clock_scale_enable) {
+            return timers_state.cpu_clock_prev_scaled;
+        }
+
         return timers_state.cpu_clock_offset;
     } else {
-        ti = get_clock();
-        return ti + timers_state.cpu_clock_offset;
+        if (timers_state.clock_scale_enable) {
+            /* Compute how much real time elapsed since last request */
+            int64_t cur_clock = get_clock() + timers_state.cpu_clock_offset;
+            int64_t increment = cur_clock - timers_state.cpu_clock_prev;
+
+            /* Slow the clock down according to the scale */
+            int64_t result = timers_state.cpu_clock_prev_scaled + increment / timers_state.clock_scale;
+
+            /* Check that monotonicity is not violated */
+            assert(cur_clock >= 0 && cur_clock >= timers_state.cpu_clock_prev);
+            assert(result >= 0 && result >= timers_state.cpu_clock_prev_scaled);
+
+            /* Save the current time stamp */
+            timers_state.cpu_clock_prev_scaled = result;
+            timers_state.cpu_clock_prev = cur_clock;
+            assert(result >= 0);
+            return result;
+        } else {
+            ti = get_clock();
+            return ti + timers_state.cpu_clock_offset;
+        }
     }
+}
+
+/**
+ * Allows S2E to slow down the VM clock while executing LLVM instructions.
+ * Assumes that rt_clock == vm_clock.
+ * scale == 1 is the normal speed.
+ */
+void cpu_enable_scaling(int scale)
+{
+    assert(scale >= 1);
+    if (!timers_state.clock_scale_enable) {
+        timers_state.cpu_clock_prev = cpu_get_clock();
+        timers_state.cpu_clock_prev_scaled = timers_state.cpu_clock_prev;
+    }
+
+    timers_state.clock_scale = scale;
+    timers_state.clock_scale_enable = 1;
 }
 
 /* enable cpu_get_ticks() */
@@ -135,6 +175,12 @@ void cpu_enable_ticks(void)
         timers_state.cpu_ticks_offset -= cpu_get_real_ticks();
         timers_state.cpu_clock_offset -= get_clock();
         timers_state.cpu_ticks_enabled = 1;
+
+        if (timers_state.clock_scale_enable) {
+            //Fast-forward suspended clocks
+            timers_state.cpu_clock_prev = get_clock() + timers_state.cpu_clock_offset;
+            timers_state.cpu_clock_prev_scaled = timers_state.cpu_clock_prev;
+        }
     }
 }
 
