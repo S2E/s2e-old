@@ -10,7 +10,19 @@
 # This work is licensed under the terms of the GNU GPLv2.
 # See the COPYING.LIB file in the top-level directory.
 
-from ordereddict import OrderedDict
+try:
+    from collections import OrderedDict
+except ImportError:
+    #Fallback for Python 2
+    from ordereddict import OrderedDict
+    
+#Works for Python >= 2.6  
+import sys
+if sys.version_info < (3,):  
+    from io import BytesIO as DummyIO
+else:
+    from io import StringIO as DummyIO
+
 from qapi import *
 import sys
 import os
@@ -114,7 +126,7 @@ void visit_type_%(name)s(Visitor *m, %(name)s * obj, const char *name, Error **e
                  name=name)
 
 def generate_visit_union(name, members):
-    ret = generate_visit_enum('%sKind' % name, members.keys())
+    ret = generate_visit_enum('%sKind' % name, list(members.keys()))
 
     ret += mcgen('''
 
@@ -185,8 +197,8 @@ void visit_type_%(name)s(Visitor *m, %(name)s * obj, const char *name, Error **e
 try:
     opts, args = getopt.gnu_getopt(sys.argv[1:], "chp:o:",
                                    ["source", "header", "prefix=", "output-dir="])
-except getopt.GetoptError, err:
-    print str(err)
+except getopt.GetoptError as err:
+    print(str(err))
     sys.exit(1)
 
 output_dir = ""
@@ -216,7 +228,7 @@ h_file = output_dir + prefix + h_file
 
 try:
     os.makedirs(output_dir)
-except os.error, e:
+except os.error as e:
     if e.errno != errno.EEXIST:
         raise
 
@@ -224,8 +236,7 @@ def maybe_open(really, name, opt):
     if really:
         return open(name, opt)
     else:
-        import StringIO
-        return StringIO.StringIO()
+        return DummyIO()
 
 fdef = maybe_open(do_c, c_file, 'w')
 fdecl = maybe_open(do_h, h_file, 'w')
@@ -277,22 +288,22 @@ fdecl.write(mcgen('''
 exprs = parse_schema(sys.stdin)
 
 for expr in exprs:
-    if expr.has_key('type'):
+    if 'type' in expr:
         ret = generate_visit_struct(expr['type'], expr['data'])
         ret += generate_visit_list(expr['type'], expr['data'])
         fdef.write(ret)
 
         ret = generate_declaration(expr['type'], expr['data'])
         fdecl.write(ret)
-    elif expr.has_key('union'):
+    elif 'union' in expr:
         ret = generate_visit_union(expr['union'], expr['data'])
         ret += generate_visit_list(expr['union'], expr['data'])
         fdef.write(ret)
 
-        ret = generate_decl_enum('%sKind' % expr['union'], expr['data'].keys())
+        ret = generate_decl_enum('%sKind' % expr['union'], list(expr['data'].keys()))
         ret += generate_declaration(expr['union'], expr['data'])
         fdecl.write(ret)
-    elif expr.has_key('enum'):
+    elif 'enum' in expr:
         ret = generate_visit_enum(expr['enum'], expr['data'])
         fdef.write(ret)
 

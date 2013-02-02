@@ -10,7 +10,19 @@
 # This work is licensed under the terms of the GNU GPLv2.
 # See the COPYING.LIB file in the top-level directory.
 
-from ordereddict import OrderedDict
+try:
+    from collections import OrderedDict
+except ImportError:
+    #Fallback for Python 2
+    from ordereddict import OrderedDict
+
+#Works for Python >= 2.6  
+import sys
+if sys.version_info < (3,):  
+    from io import BytesIO as DummyIO
+else:
+    from io import StringIO as DummyIO
+    
 from qapi import *
 import sys
 import os
@@ -375,8 +387,8 @@ try:
     opts, args = getopt.gnu_getopt(sys.argv[1:], "chp:o:m",
                                    ["source", "header", "prefix=",
                                     "output-dir=", "type=", "middle"])
-except getopt.GetoptError, err:
-    print str(err)
+except getopt.GetoptError as err:
+    print(str(err))
     sys.exit(1)
 
 output_dir = ""
@@ -414,18 +426,17 @@ def maybe_open(really, name, opt):
     if really:
         return open(name, opt)
     else:
-        import StringIO
-        return StringIO.StringIO()
+        return DummyIO()
 
 try:
     os.makedirs(output_dir)
-except os.error, e:
+except os.error as e:
     if e.errno != errno.EEXIST:
         raise
 
 exprs = parse_schema(sys.stdin)
-commands = filter(lambda expr: expr.has_key('command'), exprs)
-commands = filter(lambda expr: not expr.has_key('gen'), commands)
+commands = [expr for expr in exprs if 'command' in expr]
+commands = [expr for expr in commands if 'gen' not in expr]
 
 if dispatch_type == "sync":
     fdecl = maybe_open(do_h, h_file, 'w')
@@ -438,9 +449,9 @@ if dispatch_type == "sync":
     for cmd in commands:
         arglist = []
         ret_type = None
-        if cmd.has_key('data'):
+        if 'data' in cmd:
             arglist = cmd['data']
-        if cmd.has_key('returns'):
+        if 'returns' in cmd:
             ret_type = cmd['returns']
         ret = generate_command_decl(cmd['command'], arglist, ret_type) + "\n"
         fdecl.write(ret)
