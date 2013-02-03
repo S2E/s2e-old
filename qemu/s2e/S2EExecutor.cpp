@@ -1707,112 +1707,39 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
     ++state->m_stats.m_statTranslationBlockSymbolic;
 
-    /* Update state */
-    //if (!copyInConcretes(*state)) {
-    //    std::cerr << "external modified read-only object" << '\n';
-    //    exit(1);
-    //}
+    /* Generate LLVM code if necessary */
+    if(!tb->llvm_function) {
+        cpu_gen_llvm(env, tb);
+        assert(tb->llvm_function);
+    }
 
-    /* loop until TB chain is not broken */
-    do {
-        /* Make sure to init tb_next value */
-        tcg_llvm_runtime.goto_tb = 0xff;
+    if(tb->s2e_tb != state->m_lastS2ETb) {
+        unrefS2ETb(state->m_lastS2ETb);
+        state->m_lastS2ETb = tb->s2e_tb;
+        state->m_lastS2ETb->refCount += 1;
+    }
 
-        /* Generate LLVM code if necessary */
-        if(!tb->llvm_function) {
-            cpu_gen_llvm(env, tb);
-            assert(tb->llvm_function);
-        }
+    /* Prepare function execution */
+    prepareFunctionExecution(state,
+            tb->llvm_function, std::vector<ref<Expr> >(1,
+                Expr::createPointer((uint64_t) tb_function_args)));
 
-        if(tb->s2e_tb != state->m_lastS2ETb) {
-            unrefS2ETb(state->m_lastS2ETb);
-            state->m_lastS2ETb = tb->s2e_tb;
-            state->m_lastS2ETb->refCount += 1;
-        }
+    cpu_disable_ticks();
 
-        /* Prepare function execution */
-        prepareFunctionExecution(state,
-                tb->llvm_function, std::vector<ref<Expr> >(1,
-                    Expr::createPointer((uint64_t) tb_function_args)));
+    /* Execute */
+    while(state->stack.size() != 1) {
+        executeOneInstruction(state);
+    }
 
-        /* Information for GETPC() macro */
-        //g_s2e_exec_ret_addr = tb->tc_ptr;
-
-
-        cpu_disable_ticks();
-        /* Execute */
-        while(state->stack.size() != 1) {
-            executeOneInstruction(state);
-
-            /* Check to goto_tb request */
-            if(tcg_llvm_runtime.goto_tb != 0xff) {
-                assert(tcg_llvm_runtime.goto_tb < 2);
-
-                /* The next should be atomic with respect to signals */
-                /* XXX: what else should we block ? */
-#ifdef _WIN32
-                //Timers can run in different threads...
-                s2e_disable_signals(NULL);
-#else
-                sigset_t set, oldset;
-                sigfillset(&set);
-                sigprocmask(SIG_BLOCK, &set, &oldset);
-#endif
-
-                TranslationBlock* next_tb =
-                        tb->s2e_tb_next[tcg_llvm_runtime.goto_tb];
-
-                if(next_tb) {
-#ifndef NDEBUG
-                    TranslationBlock* old_tb = tb;
-#endif
-
-                    assert(state->stack.size() == 2);
-                    state->popFrame();
-
-                    tb = next_tb;
-                    env->s2e_current_tb = tb;
-                    //g_s2e_exec_ret_addr = tb->tc_ptr;
-
-                    /* assert that blocking works */
-#ifdef _WIN32
-                    assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
-                    cleanupTranslationBlock(state, tb);
-                    s2e_enable_signals(NULL);
-                    break;
-#else
-                    assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
-                    cleanupTranslationBlock(state, tb);
-                    sigprocmask(SIG_SETMASK, &oldset, NULL);
-                    break;
-#endif
-                }
-
-                /* the block was unchained by signal handler */
-                tcg_llvm_runtime.goto_tb = 0xff;
-#ifdef _WIN32
-                s2e_enable_signals(NULL);
-#else
-                sigprocmask(SIG_SETMASK, &oldset, NULL);
-#endif
-            }
-
-        }
-        state->prevPC = 0;
-        state->pc = m_dummyMain->instructions;
-
-    } while(tcg_llvm_runtime.goto_tb != 0xff);
+    state->prevPC = 0;
+    state->pc = m_dummyMain->instructions;
 
     cpu_enable_ticks();
-
-    //g_s2e_exec_ret_addr = 0;
 
     /* Get return value */
     ref<Expr> resExpr =
             getDestCell(*state, state->pc).value;
     assert(isa<klee::ConstantExpr>(resExpr));
-
-    //copyOutConcretes(*state);
 
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
 }
