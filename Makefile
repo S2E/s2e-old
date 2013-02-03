@@ -1,3 +1,13 @@
+#Environment variables:
+#
+#  BUILD_ARCH=corei7, etc...
+#      Overrides the default clang -march settings.
+#      Useful to build S2E in VirtualBox or in other VMs that do not support
+#      some advanced instruction sets.
+#      Used by STP only for now.
+#
+#
+
 S2ESRC:=$(CURDIR)/../s2e
 S2EBUILD:=$(CURDIR)
 

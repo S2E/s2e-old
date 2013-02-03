@@ -981,6 +981,14 @@ case "$cpu" in
            ;;
 esac
 
+if [ "x$BUILD_ARCH" != "x" ]; then
+    CFLAGS="-march=$BUILD_ARCH $CFLAGS"
+    CXXFLAGS="-march=$BUILD_ARCH $CXXFLAGS"
+else
+    CFLAGS="-march=native $CFLAGS"
+    CXXFLAGS="-march=native $CXXFLAGS"
+fi
+
 if [ "x$address_sanitizer" = "xyes" ]; then
     CFLAGS="-fstack-protector-all -fsanitize=address $CFLAGS"
     CXXFLAGS="-fstack-protector-all -Wno-mismatched-tags -fsanitize=address $CXXFLAGS"

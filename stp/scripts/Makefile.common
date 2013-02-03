@@ -10,9 +10,10 @@
 
 -include $(TOP)/scripts/config.info
 
-# use -march=native if it works correctly (it's broken in GCC on OS X)
-ifeq ($(shell $(CXX) -march=native -E - < /dev/null >/dev/null 2>&1 && echo 1),1)
-    OPTIMIZE_MARCH_NATIVE = -march=native
+ifeq ($(BUILD_ARCH),)
+    OPTIMIZE_MARCH_NATIVE := -march=native
+else
+    OPTIMIZE_MARCH_NATIVE := -march=$(BUILD_ARCH)
 endif
 
 # Optimization
