@@ -160,8 +160,9 @@ static int pci_fake_init(PCIDevice *pci_dev)
 static int pci_fake_uninit(PCIDevice *dev)
 {
     PCIFakeState *d = DO_UPCAST(PCIFakeState, dev, dev);
+    int i;
 
-    for (int i=0; i<d->fake_pci.num_resources; ++i) {
+    for (i=0; i<d->fake_pci.num_resources; ++i) {
         memory_region_destroy(&d->io[i]);
     }
 

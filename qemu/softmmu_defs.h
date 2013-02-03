@@ -136,9 +136,6 @@ void io_writel_mmu_symb(target_phys_addr_t physaddr, uint32_t val, target_ulong 
 uint64_t io_readq_mmu_symb(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 void io_writeq_mmu_symb(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
-uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr);
-int s2e_ismemfunc(struct MemoryRegion *mr, int isWrite);
-
 #endif
 
 

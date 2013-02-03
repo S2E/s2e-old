@@ -255,7 +255,7 @@ void s2e_tb_free(struct S2E* s2e, struct TranslationBlock *tb);
     in order to update tb->s2e_tb->llvm_function */
 void s2e_set_tb_function(struct S2E* s2e, struct TranslationBlock *tb);
 
-void s2e_flush_tb_cache();
+void s2e_flush_tb_cache(void);
 void s2e_flush_tlb_cache(void);
 void s2e_flush_tlb_cache_page(void *objectState, int mmu_idx, int index);
 
@@ -331,11 +331,8 @@ void s2e_on_initialization_complete(void);
 
 void s2e_on_monitor_event(struct QDict *ret);
 
-//Used by S2E.h to reinitialize timers in the forked process
-int init_timer_alarm(int register_exit_handler);
-
-int s2e_is_load_balancing();
-int s2e_is_forking();
+int s2e_is_load_balancing(void);
+int s2e_is_forking(void);
 
 /******************************************************/
 /* Prototypes for special functions used in LLVM code */
