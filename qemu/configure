@@ -114,16 +114,14 @@ interp_prefix="/usr/gnemul/qemu-%M"
 static="no"
 sparc_cpu=""
 cross_prefix=""
-cc="gcc"
-asancc=""
-cxx="g++"
-asancxx=""
+cc="clang"
+cxx="clang++"
 asm="nasm"
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16 hda"
 audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus hda"
 block_drv_whitelist=""
-host_cc="gcc"
+host_cc="clang"
 helper_cflags=""
 libs_softmmu=""
 libs_tools=""
@@ -277,7 +275,6 @@ done
 # Using uname is really, really broken.  Once we have the right set of checks
 # we can eliminate its usage altogether.
 
-cc="${CC-${cross_prefix}gcc}"
 ar="${AR-${cross_prefix}ar}"
 objcopy="${OBJCOPY-${cross_prefix}objcopy}"
 ld="${LD-${cross_prefix}ld}"
@@ -613,8 +610,6 @@ for opt do
   ;;
   --asancxx=*)
   ;;
-  --compile-all-with-clang) compileallwithclang="yes"
-  ;;
   --host-cc=*) host_cc="$optarg"
   ;;
   --make=*) make="$optarg"
@@ -772,8 +767,6 @@ for opt do
   --with-klee=*) kleedir="$optarg"
   ;;
   --with-stp=*) stpdir="$optarg"
-  ;;
-  --with-clang=*) clang="$optarg"
   ;;
   --disable-kvm) kvm="no"
   ;;
@@ -989,12 +982,11 @@ case "$cpu" in
 esac
 
 if [ "x$address_sanitizer" = "xyes" ]; then
-    CFLAGS="-fstack-protector-all $CFLAGS"
-    CXXFLAGS="-fstack-protector-all -Wno-mismatched-tags $CXXFLAGS"
+    CFLAGS="-fstack-protector-all -fsanitize=address $CFLAGS"
+    CXXFLAGS="-fstack-protector-all -Wno-mismatched-tags -fsanitize=address $CXXFLAGS"
     #This is required for probing LLVM and KLEE, as they
     #might be compiled with AddressSanitizer instrumentation.
-    ASANLIBPATH="-L$(dirname $asancc)/../lib"
-    LDASAN="-lasan64 -ldl"
+	LDFLAGS="$LDFLAGS -fsanitize=address"
 fi
 
 [ -z "$guest_base" ] && guest_base="$host_guest_base"
@@ -1091,8 +1083,6 @@ echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --cxx=CXX                use C++ compiler CXX [$cxx]"
-echo "  --asancc=CC              use AddressSanitizer C compiler CC [$asancc]"
-echo "  --asancxx=CXX            use AddressSanitizer C++ compiler CXX [$asancxx]"
 echo "  --host-cc=CC             use C compiler CC [$host_cc] for dyngen etc."
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CCFLAGS"
 echo "  --extra-cxxflags=CXXFLAGS append extra CXX compiler flags QEMU_CXXFLAGS"
@@ -1158,8 +1148,6 @@ echo "  --enable-s2e             enable S2E"
 echo "  --s2e-ext-plugins-dir    location of the external plugins source folder"
 echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
 echo "  --with-stp=PATH          STP path (PATH/lib/libstp.a must exist)"
-echo "  --with-clang=PATH        path to Clang"
-echo "  --compile-all-with-clang builds S2E with clang"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
 echo "  --enable-tcg-interpreter enable TCG with bytecode interpreter (TCI)"
@@ -2280,27 +2268,6 @@ EOF
 fi
 
 ##########################################
-# s2e probe: clang
-
-if test "$s2e" != "no" ; then
-  if test -z "$clang"; then
-    clang=`which clang`
-  fi
-  if [ -x "$clang" ]; then
-    : clang found
-  else
-    feature_not_found "clang (required for s2e)"
-    exit 1
-  fi
-
-  if test "$llvmdir" != ""; then
-      llvmar="$llvmdir/bin/llvm-ar"
-  else
-      llvmar="llvm-ar"
-  fi
-fi
-
-##########################################
 # libcap probe
 
 if test "$cap" != "no" ; then
@@ -3306,12 +3273,6 @@ fi
 if test "$debug" = "yes" ; then
   echo "CONFIG_DEBUG_EXEC=y" >> $config_host_mak
 fi
-if [ $address_sanitizer = "yes" ]; then
-  echo "CONFIG_ASAN=y" >> $config_host_mak
-  echo "ASAN_FLAGS=-faddress-sanitizer" >> $config_host_mak
-  echo "ASAN_LDFLAGS=$LDASAN" >> $config_host_mak
-  echo "ASAN_LIBPATH=$ASANLIBPATH" >> $config_host_mak
-fi
 if test "$strip_opt" = "yes" ; then
   echo "STRIP=${strip}" >> $config_host_mak
 fi
@@ -3520,11 +3481,6 @@ if test "$llvm" = "yes" ; then
   echo "CONFIG_LLVM=y" >> $config_host_mak
   echo "LLVM_CXXFLAGS=\$(filter-out $FILTERFLAGS,$llvm_cxxflags)" >> $config_host_mak
 fi
-if test "$compileallwithclang" = "yes"; then
-  echo "CONFIG_CLANG=y" >> $config_host_mak
-  echo "LLVMCC:=$clang" >> $config_host_mak
-  echo "LLVMCXX:=${clang}++" >> $config_host_mak
-fi
 if test "$xen" = "yes" ; then
   echo "CONFIG_XEN_BACKEND=y" >> $config_host_mak
   echo "CONFIG_XEN_CTRL_INTERFACE_VERSION=$xen_ctrl_version" >> $config_host_mak
@@ -3677,8 +3633,6 @@ echo "PYTHON=$python" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
 echo "CC_I386=$cc_i386" >> $config_host_mak
 echo "CXX=$cxx" >> $config_host_mak
-echo "ASANCC=$asancc" >> $config_host_mak
-echo "ASANCXX=$asancxx" >> $config_host_mak
 echo "ASM=$asm" >> $config_host_mak
 echo "LINKER=$linker" >> $config_host_mak
 echo "HOST_CC=$host_cc" >> $config_host_mak
@@ -4091,7 +4045,6 @@ if test "$target_s2e" = "yes" ; then
   echo "S2E_CXXFLAGS:=\$(filter-out $llvm_cxxflags $FILTERFLAGS, $klee_cxxflags)" >> $config_target_mak
   echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_target_mak
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
-  echo "LLVMCC:=$clang" >> $config_target_mak
   echo "LLVMAR:=$llvmar" >> $config_target_mak
   echo "S2E_PLUGIN_DIR=$s2e_plugin_dir" >> $config_target_mak
   if test "$boost" = "yes"; then
@@ -4305,6 +4258,9 @@ if test "$compileallwithclang" = "yes"; then
     echo "QEMU_CFLAGS+=-Wno-initializer-overrides" >> $config_target_mak
     echo "QEMU_CFLAGS+=-Wno-initializer-overrides" >> $config_host_mak
 fi
+
+echo "QEMU_CFLAGS+=-Wno-initializer-overrides" >> $config_target_mak
+echo "QEMU_CFLAGS+=-Wno-initializer-overrides" >> $config_host_mak
 
 done # for target in $targets
 
