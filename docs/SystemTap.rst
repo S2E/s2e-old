@@ -58,8 +58,8 @@ In the ``chroot`` 32-bit environment you use to compile your kernel, do the foll
    # Install initramfs-tools and its dependencies
    $ apt-get install initramfs-tools klibc-utils libklibc udev libvolume-id0
    
-   # Set up the Linux image (an INITRD image will be created in /boot/ as well).
-   # Adapt all the filenames accordingly 
+   # Set up the Linux image (an initrd image will be created in /boot/ as well).
+   # Adapt all the filenames accordingly.
    $ dpkg -i linux-image-2.6.26.8-s2e.deb linux-headers-2.6.26.8-s2e.deb   
 
    # Install packages on which SystemTap depends:
@@ -81,7 +81,7 @@ Build SystemTap dependencies and fetch SystemTap source:
 
 ::
 
-   # Boot the OS image in the vanilla QEMU and login as root
+   # Boot the OS image in the vanilla QEMU and login as root.
    $ $S2EBUILD/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.qcow2
    
    # Get packages on which SystemTap depends and install them:
@@ -103,10 +103,10 @@ Install and boot your new kernel on the guest:
    # the filenames accordingly)
    $ dpkg -i linux-image-2.6.26.8-s2e.deb linux-headers-2.6.26.8-s2e.deb
    # Reboot your QEMU machine, choose your 2.6.26.8-s2e kernel from the
-   # grub menu and login as root
+   # grub menu and login as root.
    $ reboot
 
-   # Verify that the new version of your kernel rebooted
+   # Verify that the new version of your kernel rebooted.
    $ uname -a
 
    # Note: If this is a re-install of a kernel package that you have already
@@ -115,8 +115,8 @@ Install and boot your new kernel on the guest:
    # the dpkg -i of the new ones:
    $ dpkg -r linux-image-2.6.26.8-s2e.deb
 
-   # You can use the -I option to dpkg to list info about the package file,
-   # including its name (used in the -r option)
+   # You can use the -I option of dpkg to list info about the package file,
+   # including its name (used in the -r option).
 
 Install SystemTap with the following steps:
 
@@ -146,7 +146,7 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
    # We use the embedded C support of SystemTap to access the S2E
    # custom instructions. A comprehensive set of such instructions can
    # be found in s2e.h. You can adapt them to SystemTap, in case
-   # you need them
+   # you need them.
    
    # Terminate current state.
    # This is a SystemTap function that can be called from SystemTap code.
@@ -220,7 +220,7 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
    }
 
 
-Compile the script with SystemTap in the ``chroot`` environment, adjusting the kernel revision to suite your needs.
+Compile the script with SystemTap in the ``chroot`` environment, adjusting the kernel version to suit your needs.
 
 ::
 
