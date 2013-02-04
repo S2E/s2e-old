@@ -2,7 +2,7 @@
 RawMonitor
 ==========
 
-The RawMonitor plugin lets uses specify via a custom instruction whenever a module of interest is loaded or unloaded.
+The RawMonitor plugin lets users specify via a custom instruction whenever a module of interest is loaded or unloaded.
 It is useful when using S2E on a new OS for which there is no plugin that automatically extracts this information.
 RawMonitor can also be used to analyze raw pieces of code, such as the BIOS, firmware, etc.
 
