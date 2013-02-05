@@ -53,6 +53,9 @@ extern "C" {
 // XXX
 struct CPUX86State;
 #define CPU_OFFSET(field) offsetof(CPUX86State, field)
+#define CPU_REG_SIZE sizeof(target_ulong)
+#define CPU_REG_OFFSET(index) \
+        (offsetof(CPUX86State, regs) + (index) * CPU_REG_SIZE)
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SmallVector.h>
