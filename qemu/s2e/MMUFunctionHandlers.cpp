@@ -294,7 +294,7 @@ ref<Expr> S2EExecutor::handle_ldst_mmu(Executor* executor,
     Expr::Width width = data_size * 8;
 
     target_ulong addr = constantAddress->getZExtValue();
-    int object_index, index;
+    target_ulong object_index, index;
     ref<Expr> value;
     target_ulong tlb_addr, addr1, addr2;
     target_phys_addr_t addend, ioaddr;
@@ -498,7 +498,7 @@ void S2EExecutor::handle_ldst_kernel(Executor* executor,
     Expr::Width width = data_size * 8;
 
     target_ulong addr = constantAddress->getZExtValue();
-    int object_index, page_index;
+    target_ulong object_index, page_index;
     ref<Expr> value;
     uintptr_t physaddr;
 
