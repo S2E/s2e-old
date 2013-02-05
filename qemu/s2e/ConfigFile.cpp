@@ -37,6 +37,8 @@ extern "C" {
 #include <qemu-common.h>
 #include <cpu-all.h>
 #include <exec-all.h>
+
+extern struct CPUX86State *env;
 }
 
 
@@ -420,7 +422,8 @@ S2ELUAExecutionState::~S2ELUAExecutionState()
 }
 
 
-//Reads a concrete value from the stack
+// Reads a concrete value from the stack
+// XXX Not correct for function parameters for 32 bit linux kernel
 int S2ELUAExecutionState::readParameter(lua_State *L)
 {
     uint32_t param = luaL_checkint(L, 1);
@@ -428,33 +431,76 @@ int S2ELUAExecutionState::readParameter(lua_State *L)
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Reading parameter " << param
             << " from stack" << '\n';
 
-    uint32_t val=0;
-    uint32_t sp = m_state->getSp() + (param+1) * sizeof(uint32_t);
-    bool b = m_state->readMemoryConcrete(sp, &val, sizeof(val));
-    if (!b) {
-        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read parameter " << param <<
-                " at "<< hexval(sp) << '\n';
+    target_ulong val = 0;
+    uint32_t size = sizeof (uint32_t);
+    target_ulong sp = m_state->getSp() + (param + 1) * size;
+
+#ifdef TARGET_X86_64
+    if ((env->hflags & HF_CS64_MASK) && param > 5) {
+        sp = m_state->getSp() + (param - 5) * CPU_REG_SIZE;
+    }
+    if ((env->hflags & HF_CS64_MASK) && param < 6) {
+        unsigned int offset = 0;
+        switch (param) {
+        default:
+        case 0: offset = CPU_OFFSET(regs[R_EDI]); break;
+        case 1: offset = CPU_OFFSET(regs[R_ESI]); break;
+        case 2: offset = CPU_OFFSET(regs[R_EDX]); break;
+        case 3: offset = CPU_OFFSET(regs[R_ECX]); break;
+        case 4: offset = CPU_OFFSET(regs[8]);     break;
+        case 5: offset = CPU_OFFSET(regs[9]);     break;
+        }
+
+        if (!m_state->readCpuRegisterConcrete(offset, &val, sizeof (val)))
+            g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read"
+                " parameter " << param <<
+                " at CPU->regs[" << hexval(CPU_OFFSET(eip) - offset) << "]\n";
+    } else
+#endif /* TARGET_X86_64 */
+    if (!m_state->readMemoryConcrete(sp, &val, size)) {
+        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read"
+                " parameter " << param << " at "<< hexval(sp) << '\n';
     }
 
     lua_pushnumber(L, val);        /* first result */
     return 1;
 }
 
-//Reads a concrete value from the stack
+// Writes a concrete value to the stack
+// XXX Not correct for function parameters for 32 bit linux kernel
 int S2ELUAExecutionState::writeParameter(lua_State *L)
 {
     uint32_t param = luaL_checkint(L, 1);
-    uint32_t val=luaL_checkint(L, 2);
+    target_ulong val = luaL_checkint(L, 2);
+    uint32_t size = sizeof (uint32_t);
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing parameter " << param
             << " from stack" << '\n';
 
+    target_ulong sp = m_state->getSp() + (param + 1) * size;
 
-    uint32_t sp = m_state->getSp() + (param+1) * sizeof(uint32_t);
-    bool b = m_state->writeMemoryConcrete(sp, &val, sizeof(val));
-    if (!b) {
-        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not write parameter " << param <<
-                " at "<< hexval(sp) << '\n';
+#ifdef TARGET_X86_64
+    if ((env->hflags & HF_CS64_MASK) && param > 5) {
+        sp = m_state->getSp() + (param - 5) * CPU_REG_SIZE;
+    }
+    if ((env->hflags & HF_CS64_MASK) && param < 6) {
+        unsigned int offset = 0;
+        switch (param) {
+        default:
+        case 0: offset = CPU_OFFSET(regs[R_EDI]); break;
+        case 1: offset = CPU_OFFSET(regs[R_ESI]); break;
+        case 2: offset = CPU_OFFSET(regs[R_EDX]); break;
+        case 3: offset = CPU_OFFSET(regs[R_ECX]); break;
+        case 4: offset = CPU_OFFSET(regs[8]);     break;
+        case 5: offset = CPU_OFFSET(regs[9]);     break;
+        }
+
+        m_state->writeCpuRegisterConcrete(offset, &val, sizeof (val));
+    } else
+#endif /* TARGET_X86_64 */
+    if (!m_state->writeMemoryConcrete(sp, &val, size)) {
+        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not write"
+                " parameter " << param << " at "<< hexval(sp) << '\n';
     }
 
     return 0;
@@ -462,11 +508,12 @@ int S2ELUAExecutionState::writeParameter(lua_State *L)
 
 int S2ELUAExecutionState::readMemory(lua_State *L)
 {
-    uint32_t address = luaL_checkint(L, 1);
+    target_ulong address = luaL_checkint(L, 1);
     uint32_t size = luaL_checkint(L, 2);
 
-    uint32_t ret;
+    target_ulong ret;
     size = size <= 4 ? size : 4;
+    size = size > sizeof (ret) ? sizeof (ret) : size;
 
     m_state->readMemoryConcrete(address, &ret, size);
     lua_pushnumber(L, ret);        /* first result */
@@ -475,17 +522,14 @@ int S2ELUAExecutionState::readMemory(lua_State *L)
 
 int S2ELUAExecutionState::writeMemory(lua_State *L)
 {
-    uint32_t address = luaL_checkint(L, 1);
+    target_ulong address = luaL_checkint(L, 1);
     uint32_t size = luaL_checkint(L, 2);
-    uint32_t value = luaL_checkint(L, 3);
+    target_ulong value = luaL_checkint(L, 3);
 
     if (size > sizeof(value)) {
         g_s2e->getDebugStream() << "writeMemory: size is too big" << hexval(size);
-    }
-
-    if (!m_state->writeMemoryConcrete(address, &value, size)) {
+    } else if (!m_state->writeMemoryConcrete(address, &value, size)) {
         g_s2e->getDebugStream() << "writeMemory: Could not write to memory at address " << hexval(address);
-        return 0;
     }
 
     return 0;
@@ -494,7 +538,7 @@ int S2ELUAExecutionState::writeMemory(lua_State *L)
 int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
 {
     std::string name = luaL_checkstring(L, 1);
-    uint32_t address = luaL_checkint(L, 2);
+    target_ulong address = luaL_checkint(L, 2);
     uint32_t size = luaL_checkint(L, 3);
 
     bool writeRange = false;
@@ -549,28 +593,28 @@ static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32
 {
     if (regstr == "eax") {
         regIndex = R_EAX;
-        size = 4;
+        size = CPU_REG_SIZE;
     }else if (regstr == "ebx") {
         regIndex = R_EBX;
-        size = 4;
+        size = CPU_REG_SIZE;
     }else if (regstr == "ecx") {
         regIndex = R_ECX;
-        size = 4;
+        size = CPU_REG_SIZE;
     }else if (regstr == "edx") {
         regIndex = R_EDX;
-        size = 4;
+        size = CPU_REG_SIZE;
     }else if (regstr == "edi") {
         regIndex = R_EDI;
-        size = 4;
+        size = CPU_REG_SIZE;
     }else if (regstr == "esi") {
         regIndex = R_ESI;
-        size = 4;
+        size = CPU_REG_SIZE;
     }else if (regstr == "esp") {
         regIndex = R_ESP;
-        size = 4;
+        size = CPU_REG_SIZE;
     }else if (regstr == "ebp") {
         regIndex = R_EBP;
-        size = 4;
+        size = CPU_REG_SIZE;
     }else {
         return false;
     }
@@ -580,7 +624,7 @@ static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32
 int S2ELUAExecutionState::writeRegister(lua_State *L)
 {
     std::string regstr = luaL_checkstring(L, 1);
-    uint32_t value = luaL_checkint(L, 2);
+    target_ulong value = luaL_checkint(L, 2);
 
     unsigned regIndex=0, size=0;
 
@@ -594,7 +638,7 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
         lua_error(L);
     }
 
-    m_state->writeCpuRegisterConcrete(offsetof(CPUX86State, regs) + regIndex*4, &value, size);
+    m_state->writeCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
 
     return 0;                   /* number of results */
 }
@@ -603,6 +647,8 @@ int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
 {
     std::string regstr = luaL_checkstring(L, 1);
     std::string namestr = luaL_checkstring(L, 2);
+
+    const klee::Expr::Width width = sizeof (target_ulong) << 3;
 
     unsigned regIndex=0, size=0;
 
@@ -616,8 +662,8 @@ int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
         lua_error(L);
     }
 
-    klee::ref<klee::Expr> val = m_state->createSymbolicValue(namestr, klee::Expr::Int32);
-    m_state->writeCpuRegister(offsetof(CPUX86State, regs) + regIndex*4, val);
+    klee::ref<klee::Expr> val = m_state->createSymbolicValue(namestr, width);
+    m_state->writeCpuRegister(CPU_REG_OFFSET(regIndex), val);
 
     return 0;                   /* number of results */
 }
@@ -638,8 +684,8 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
         lua_error(L);
     }
 
-    uint32_t value = 0;
-    m_state->readCpuRegisterConcrete(offsetof(CPUX86State, regs) + regIndex*4, &value, size);
+    target_ulong value = 0;
+    m_state->readCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
 
     lua_pushnumber(L, value);        /* first result */
     return 1;
