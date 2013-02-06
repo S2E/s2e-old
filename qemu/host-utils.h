@@ -25,34 +25,85 @@
 
 #include "compiler.h"   /* QEMU_GNUC_PREREQ */
 
-#if defined(__x86_64__)
+#if defined(CONFIG_S2E)
+static inline void
+_s2e_add128 (uint64_t *plow, uint64_t *phigh, uint64_t a, uint64_t b)
+{
+    *plow += a;
+    /* carry test */
+    if (*plow < a)
+        (*phigh)++;
+    *phigh += b;
+}
+
+static inline void
+_s2e_neg128 (uint64_t *plow, uint64_t *phigh)
+{
+    *plow = ~*plow;
+    *phigh = ~*phigh;
+    _s2e_add128(plow, phigh, 1, 0);
+}
+
+/* Unsigned 64x64 -> 128 multiplication */
+static inline void mulu64(uint64_t *plow, uint64_t *phigh,
+                          uint64_t a, uint64_t b)
+{
+    uint32_t a0, a1, b0, b1;
+    uint64_t v;
+
+    a0 = a;
+    a1 = a >> 32;
+
+    b0 = b;
+    b1 = b >> 32;
+
+    v = (uint64_t)a0 * (uint64_t)b0;
+    *plow = v;
+    *phigh = 0;
+
+    v = (uint64_t)a0 * (uint64_t)b1;
+    _s2e_add128(plow, phigh, v << 32, v >> 32);
+
+    v = (uint64_t)a1 * (uint64_t)b0;
+    _s2e_add128(plow, phigh, v << 32, v >> 32);
+
+    v = (uint64_t)a1 * (uint64_t)b1;
+    *phigh += v;
+}
+
+/* Signed 64x64 -> 128 multiplication */
+static inline void muls64(uint64_t *plow, uint64_t *phigh,
+                          int64_t a, int64_t b)
+{
+    int sa, sb;
+
+    sa = (a < 0);
+    if (sa)
+        a = -a;
+    sb = (b < 0);
+    if (sb)
+        b = -b;
+    mulu64(plow, phigh, a, b);
+    if (sa ^ sb) {
+        _s2e_neg128(plow, phigh);
+    }
+}
+#elif defined(__x86_64__)
 #define __HAVE_FAST_MULU64__
 static inline void mulu64(uint64_t *plow, uint64_t *phigh,
                           uint64_t a, uint64_t b)
 {
-#if defined(CONFIG_S2E)
-    unsigned __int128 r = (unsigned __int128)a * (unsigned __int128)b;
-    *phigh = r >> 64;
-    *plow  = r & (uint64_t)-1;
-#else
     __asm__ ("mul %0\n\t"
              : "=d" (*phigh), "=a" (*plow)
              : "a" (a), "0" (b));
-#endif /* CONFIG_S2E */
 }
 #define __HAVE_FAST_MULS64__
 static inline void muls64(uint64_t *plow, uint64_t *phigh,
                           int64_t a, int64_t b)
 {
-#if defined(CONFIG_S2E)
-    __int128 r = (__int128)a * (__int128)b;
-    *phigh = r >> 64;
-    *plow  = r & (uint64_t)-1;
-#else
     __asm__ ("imul %0\n\t"
              : "=d" (*phigh), "=a" (*plow)
              : "a" (a), "0" (b));
-#endif /* CONFIG_S2E */
 }
 #else
 void muls64(uint64_t *phigh, uint64_t *plow, int64_t a, int64_t b);
