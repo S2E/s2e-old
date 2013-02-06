@@ -252,6 +252,11 @@ extern "C" {
     int g_s2e_fork_on_symbolic_address = 0;
     int g_s2e_concretize_io_addresses = 1;
     int g_s2e_concretize_io_writes = 1;
+
+    void s2e_print_instructions(int v);
+    void s2e_print_instructions(int v) {
+        S2EDebugInstructions = v;
+    }
 }
 
 
