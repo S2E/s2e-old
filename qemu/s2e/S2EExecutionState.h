@@ -38,7 +38,7 @@
 
 #include <klee/ExecutionState.h>
 #include <klee/Memory.h>
-
+#include "S2EDeviceState.h"
 #include "S2EStatsTracker.h"
 #include "MemoryCache.h"
 #include "s2e_config.h"
@@ -141,7 +141,7 @@ protected:
     static klee::MemoryObject* m_dirtyMask;
     klee::ObjectState *m_dirtyMaskObject;
 
-    S2EDeviceState *m_deviceState;
+    S2EDeviceState m_deviceState;
 
     mutable S2EMemoryCache m_memcache;
 
@@ -190,8 +190,8 @@ public:
 
     int getID() const { return m_stateID; }
 
-    S2EDeviceState *getDeviceState() const {
-        return m_deviceState;
+    S2EDeviceState *getDeviceState() {
+        return &m_deviceState;
     }
 
     TranslationBlock *getTb() const;

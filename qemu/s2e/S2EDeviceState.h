@@ -45,6 +45,9 @@ extern "C" {
 #include <map>
 #include <set>
 #include <stdint.h>
+#include <llvm/ADT/SmallVector.h>
+
+#include <klee/AddressSpace.h>
 
 #include "s2e_block.h"
 
@@ -54,34 +57,46 @@ class S2EExecutionState;
 
 class S2EDeviceState {
 private:
-    typedef std::map<int64_t, uint8_t *> SectorMap;
-    typedef std::map<BlockDriverState *, SectorMap> BlockDeviceToSectorMap;
+    static const unsigned SECTOR_SIZE = 512;
+
+    /* Give 64GB of KLEE address space for each block device */
+    static const uint64_t BLOCK_DEV_AS = (1024 * 1024 * 1024) * 64;
 
     static std::vector<void *> s_devices;
     static std::set<std::string> s_customDevices;
     static bool s_devicesInited;
 
-    QEMUFile *m_memFile;
-    unsigned char *m_state;
-    unsigned int m_stateSize;
+    static QEMUFile *s_memFile;
 
-    static unsigned int s_preferedStateSize;
+    /* Scratch buffer for the first snapshot */
+    static uint8_t *s_tempStateBuffer;
 
-    S2EDeviceState *m_parent;
-    BlockDeviceToSectorMap m_blockDevices;
-    
+    /* Once determined, the size of the device state is constant */
+    static unsigned s_tempStateSize;
+    static unsigned s_finalStateSize;
+
+    uint8_t *m_stateBuffer;
+
+
+    static llvm::SmallVector<struct BlockDriverState*, 5> s_blockDevices;
+    klee::AddressSpace m_deviceState;
+
     void allocateBuffer(unsigned int Sz);
 
-    void cloneDiskState();
+    static unsigned getBlockDeviceId(struct BlockDriverState* dev);
+    static uint64_t getBlockDeviceStart(struct BlockDriverState* dev);
 
-    S2EDeviceState(const S2EDeviceState &);
+    void initFirstSnapshot();
+
 public:
-    static S2EDeviceState *s_currentDeviceState;
-
-    S2EDeviceState();
+    S2EDeviceState(klee::ExecutionState *state);
+    S2EDeviceState(const S2EDeviceState &state);
     ~S2EDeviceState();
 
-    void clone(S2EDeviceState **state1, S2EDeviceState **state2);
+    void setExecutionState(klee::ExecutionState *state) {
+        m_deviceState.state = state;
+    }
+
     void initDeviceState();
 
     //From QEMU to KLEE

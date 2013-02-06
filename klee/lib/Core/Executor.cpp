@@ -706,12 +706,20 @@ void Executor::initializeGlobals(ExecutionState &state) {
   }
 }
 
+void Executor::notifyBranch(ExecutionState &state)
+{
+    //Should not get here
+    assert(false && "Must go through S2E");
+}
+
 void Executor::branch(ExecutionState &state, 
                       const std::vector< ref<Expr> > &conditions,
                       std::vector<ExecutionState*> &result) {
   TimerStatIncrementer timer(stats::forkTime);
   unsigned N = conditions.size();
   assert(N);
+
+  notifyBranch(state);
 
   stats::forks += N-1;
 
@@ -837,6 +845,8 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
             }
         }
     }
+
+    notifyBranch(current);
 
     ExecutionState *trueState, *falseState, *branchedState;
     branchedState = current.branch();
@@ -1077,6 +1087,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
 
     ++stats::forks;
 
+    notifyBranch(*trueState);
     falseState = trueState->branch();
     addedStates.insert(falseState);
 

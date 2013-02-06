@@ -98,11 +98,13 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_symbexEnabled(true), m_startSymbexAtPC((uint64_t) -1),
         m_active(true), m_zombie(false), m_yielded(false), m_runningConcrete(true),
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
-        m_qemuIcount(0), m_lastS2ETb(NULL),
+        m_deviceState(this),
+        m_qemuIcount(0),
+        m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1),
         m_needFinalizeTBExec(false), m_nextSymbVarId(0), m_runningExceptionEmulationCode(false)
 {
-    m_deviceState = new S2EDeviceState();
+    //XXX: make this a struct, not a pointer...
     m_timersState = new TimersState;
     m_dirtyMaskObject = NULL;
 }
@@ -130,6 +132,7 @@ S2EExecutionState::~S2EExecutionState()
 
     delete m_timersState;
 }
+
 
 void S2EExecutionState::enableSymbolicExecution()
 {
@@ -294,11 +297,7 @@ ExecutionState* S2EExecutionState::clone()
 
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->addressSpace.state = ret;
-
-    S2EDeviceState *dev1, *dev2;
-    m_deviceState->clone(&dev1, &dev2);
-    m_deviceState = dev1;
-    ret->m_deviceState = dev2;
+    ret->m_deviceState.setExecutionState(ret);
 
     if(m_lastS2ETb)
         m_lastS2ETb->refCount += 1;

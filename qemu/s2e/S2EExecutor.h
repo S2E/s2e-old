@@ -304,6 +304,8 @@ protected:
               const std::vector< klee::ref<klee::Expr> > &conditions,
               std::vector<klee::ExecutionState*> &result);
 
+    void notifyBranch(klee::ExecutionState &state);
+
     /** Kills the specified state and raises an exception to exit the cpu loop */
     virtual void terminateState(klee::ExecutionState &state);
 

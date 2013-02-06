@@ -289,6 +289,12 @@ protected:
               const std::vector< ref<Expr> > &conditions,
               std::vector<ExecutionState*> &result);
 
+
+  /// The current state is about to be branched.
+  /// Give a chance to S2E to checkpoint the current device state
+  /// so that the branched state gets it as well.
+  virtual void notifyBranch(ExecutionState &state);
+
   /// Add the given (boolean) condition as a constraint on state. This
   /// function is a wrapper around the state's addConstraint function
   /// which also manages manages propogation of implied values,

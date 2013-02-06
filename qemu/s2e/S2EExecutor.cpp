@@ -1281,6 +1281,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     //load/save_vmstate, so it should work reliably
     qemu_aio_flush();
     bdrv_flush_all();
+    cpu_disable_ticks();
 
     m_s2e->getMessagesStream(oldState)
             << "Switching from state " << (oldState ? oldState->getID() : -1)
@@ -1356,6 +1357,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         totalCopied += mo->size;
         objectsCopied++;
     }
+
+    cpu_enable_ticks();
 
     if (VerboseStateSwitching) {
         s2e_debug_print("Copied %d (count=%d)\n", totalCopied, objectsCopied);
@@ -1962,9 +1965,6 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
     out << "Forking state " << originalState->getID()
             << " at pc = " << hexval(originalState->getPc()) << '\n';
 
-    qemu_aio_flush();
-    bdrv_flush_all();
-
     for(unsigned i = 0; i < newStates.size(); ++i) {
         S2EExecutionState* newState = newStates[i];
 
@@ -1975,33 +1975,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
         if(newState != originalState) {
             newState->m_needFinalizeTBExec = true;
-
-            //XXX: How do we make this stuff atomic? Disable all signals?
-            //vm_stop(RUN_STATE_SAVE_VM);
-            newState->getDeviceState()->saveDeviceState();
-            //vm_start();
-
-            //newState->m_qemuIcount = qemu_icount;
-            *newState->m_timersState = timers_state;
-
-            /* Save CPU state */
-            const MemoryObject* cpuMo = newState->m_cpuSystemState;
-            uint8_t *cpuStore = newState->m_cpuSystemObject->getConcreteStore();
-            memcpy(cpuStore, (uint8_t*) cpuMo->address, cpuMo->size);
             newState->m_active = false;
-
-            /* Save all other objects */
-            foreach(MemoryObject* mo, m_saveOnContextSwitch) {
-                if(mo == cpuMo)
-                    continue;
-
-                const ObjectState *os = newState->addressSpace.findObject(mo);
-                ObjectState *wos = newState->addressSpace.getWriteable(mo, os);
-                uint8_t *store = wos->getConcreteStore();
-
-                assert(store);
-                memcpy(store, (uint8_t*) mo->address, mo->size);
-            }
         }
     }
 
@@ -2014,7 +1988,6 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,
                                              newStates, newConditions);
-
 }
 
 S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
@@ -2051,12 +2024,44 @@ S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
     return res;
 }
 
+/**
+ * Called from klee::Executor when the engine is about to fork
+ * the current state.
+ */
+void S2EExecutor::notifyBranch(ExecutionState &state)
+{
+    S2EExecutionState *s2eState = dynamic_cast<S2EExecutionState*>(&state);
+
+    /* Checkpoint the device state before branching */
+    qemu_aio_flush();
+    bdrv_flush_all();
+    //s2eState->m_tlb.clearTlbOwnership();
+
+    /* Save CPU state */
+    const MemoryObject* cpuMo = s2eState->m_cpuSystemState;
+    uint8_t *cpuStore = s2eState->m_cpuSystemObject->getConcreteStore();
+    memcpy(cpuStore, (uint8_t*) cpuMo->address, cpuMo->size);
+
+    cpu_disable_ticks();
+    s2eState->getDeviceState()->saveDeviceState();
+    *s2eState->m_timersState = timers_state;
+    cpu_enable_ticks();
+
+    foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+        const ObjectState *os = s2eState->addressSpace.findObject(mo);
+        ObjectState *wos = s2eState->addressSpace.getWriteable(mo, os);
+        uint8_t *store = wos->getConcreteStore();
+        assert(store);
+        memcpy(store, (uint8_t*) mo->address, mo->size);
+    }
+}
+
 void S2EExecutor::branch(klee::ExecutionState &state,
           const vector<ref<Expr> > &conditions,
           vector<ExecutionState*> &result)
 {
-    assert(dynamic_cast<S2EExecutionState*>(&state));
-    assert(!static_cast<S2EExecutionState*>(&state)->m_runningConcrete);
+    S2EExecutionState *s2eState = dynamic_cast<S2EExecutionState*>(&state);
+    assert(!s2eState->m_runningConcrete);
 
     Executor::branch(state, conditions, result);
 
