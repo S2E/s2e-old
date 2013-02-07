@@ -140,7 +140,7 @@ static procmap_entry_t* load_process_map()
     unsigned nb_entries = 0;
     char executable;
     while (fgets(line, sizeof(line), maps)) {
-        int matches = sscanf(line, "%x-%x %*c%*c%c%*c %*x %*s %*d %127[^\n]",
+        int matches = sscanf(line, "%" SCNxPTR "-%" SCNxPTR " %*c%*c%c%*c %*x %*s %*d %127[^\n]",
                              &current_entry.base, &current_entry.limit, &executable, path);
         if (matches != 4) {
             continue;
@@ -173,7 +173,8 @@ static void display_process_map(procmap_entry_t *map)
 {
     myprintf("Process map:\n");
     while (map->base && map->limit) {
-        myprintf("Base=%#x Limit=%#x Name=%s\n", map->base, map->limit, map->name);
+        myprintf("Base=0x%"PRIxPTR" Limit=0x%"PRIxPTR" Name=%s\n",
+                 map->base, map->limit, map->name);
         ++map;
     }
 }
@@ -196,7 +197,7 @@ static void register_module(procmap_entry_t *proc_map, const char *name)
     procmap_entry_t* cur_proc = search_process_map(proc_map, name);
     if (cur_proc) {
         const char *base = __base_name(cur_proc->name);
-        myprintf("Registering module: %s (%s) %x %x\n",
+        myprintf("Registering module: %s (%s) %"PRIxPTR" %"PRIxPTR"\n",
                  cur_proc->name, base, cur_proc->base, cur_proc->limit);
 
         ///XXX: Also figure out the real native base and the address of the entry point.
