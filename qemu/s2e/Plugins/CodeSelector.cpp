@@ -187,8 +187,9 @@ void CodeSelector::onPrivilegeChange(
 void CodeSelector::opSelectProcess(S2EExecutionState *state)
 {
     bool ok = true;
-    uint32_t isUserSpace;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &isUserSpace, 4);
+    target_ulong isUserSpace;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &isUserSpace,
+                                                    sizeof isUserSpace);
 
 
     if (isUserSpace) {
@@ -212,8 +213,9 @@ void CodeSelector::opSelectProcess(S2EExecutionState *state)
 void CodeSelector::opUnselectProcess(S2EExecutionState *state)
 {
     bool ok = true;
-    uint32_t pid;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &pid, 4);
+    target_ulong pid;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &pid,
+                                         sizeof pid);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -236,9 +238,9 @@ void CodeSelector::opUnselectProcess(S2EExecutionState *state)
 bool CodeSelector::opSelectModule(S2EExecutionState *state)
 {
     bool ok = true;
-    //XXX: 32-bits guests only
-    uint32_t moduleId;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &moduleId, sizeof(moduleId));
+    target_ulong moduleId;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &moduleId,
+                                         sizeof moduleId);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
