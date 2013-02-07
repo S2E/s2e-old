@@ -644,15 +644,15 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
         return false;
     }
 
-    target_ulong newSp = getSp() + CPU_REG_SIZE;
+    target_ulong newSp = getSp();
 #ifdef TARGET_X86_64
     if (env->hflags & HF_CS64_MASK) {
     // First six parameters in x86_64 are passed in registers, with the rest on
     // the stack
-        newSp += (paramCount > 6) ? (paramCount - 6) * CPU_REG_SIZE : 0;
+        newSp += (paramCount > 6) ? (paramCount - 5) * CPU_REG_SIZE : CPU_REG_SIZE;
     } else
 #else
-        newSp += paramCount * CPU_REG_SIZE;
+        newSp += (paramCount + 1) * sizeof (uint32_t);
 #endif
 
     setSp(newSp);
@@ -664,9 +664,13 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
 //XXX: assumes x86 architecture
 bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 {
-    target_ulong t_retAddr;
+    target_ulong t_retAddr = 0;
+    target_ulong size = sizeof (uint32_t);
+#ifdef TARGET_X86_64
+    if (env->hflags & HF_CS64_MASK) size = CPU_REG_SIZE;
+#endif /* TARGET_X86_64 */
     *retAddr = 0;
-    if (!readMemoryConcrete(getSp(), &t_retAddr, sizeof(target_ulong))) {
+    if (!readMemoryConcrete(getSp(), &t_retAddr, size)) {
         g_s2e->getDebugStream() << "Could not get the return address " << '\n';
         return false;
     }
@@ -1401,8 +1405,12 @@ void S2EExecutionState::undoCallAndJumpToSymbolic()
 {
     if (needToJumpToSymbolic()) {
         //Undo the call
+        target_ulong size = sizeof (uint32_t);
+#ifdef TARGET_X86_64
+        if (env->hflags & HF_CS64_MASK) size = CPU_REG_SIZE;
+#endif /* TARGET_X86_64 */
         assert(getTb()->pcOfLastInstr);
-        setSp(getSp() + sizeof(target_ulong));
+        setSp(getSp() + size);
         setPc(getTb()->pcOfLastInstr);
         jumpToSymbolicCpp();
     }
