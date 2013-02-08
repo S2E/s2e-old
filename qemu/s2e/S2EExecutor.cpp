@@ -2175,7 +2175,7 @@ void S2EExecutor::yieldState(ExecutionState &s)
     g_s2e->getDebugStream().flush();
 
     // Skip the opcode
-    state.writeCpuState(CPU_OFFSET(eip), state.getPc() + 10, 32);
+    state.writeCpuState(CPU_OFFSET(eip), state.getPc() + 10, CPU_REG_SIZE << 3);
 
     // Stop current execution
     state.writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
@@ -2322,8 +2322,9 @@ void S2EExecutor::queueStateForMerge(S2EExecutionState *state)
 
     state->m_lastMergeICount = state->getTotalInstructionCount();
 
-    uint64_t mergePoint = 0;
-    if(!state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &mergePoint, 8)) {
+    target_ulong mergePoint = 0;
+    if(!state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &mergePoint,
+                                                               CPU_REG_SIZE)) {
         m_s2e->getWarningsStream(state)
                 << "Warning: merge request for a state with symbolic ESP" << '\n';
     }
