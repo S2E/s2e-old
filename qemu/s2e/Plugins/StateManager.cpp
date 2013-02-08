@@ -561,13 +561,14 @@ void StateManager::onCustomInstruction(S2EExecutionState* state, uint64_t opcode
         //Count the number of successful states across all nodes
         case GET_SUCCESSFUL_STATE_COUNT: {
             StateManagerShared *s = m_shared.acquire();
-            uint32_t count=0;
+            target_ulong count=0;
             for (unsigned i=0;i<s2e()->getMaxProcesses(); ++i) {
                 count += s->successCount[i];
             }
             m_shared.release();
 
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count,
+                                                                CPU_REG_SIZE);
         }
 
         default:

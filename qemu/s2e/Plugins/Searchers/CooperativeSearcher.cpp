@@ -146,14 +146,15 @@ void CooperativeSearcher::onCustomInstruction(S2EExecutionState* state, uint64_t
     opcode >>= 8;
 
     bool ok = true;
-    uint32_t nextState = 0;
+    target_ulong nextState = 0;
 
     CoopSchedulerOpcodes opc = (CoopSchedulerOpcodes)op;
     switch(opc) {
         //Pick the next state specified by the EAX register
         case ScheduleNext:
         {
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &nextState, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                 &nextState, sizeof nextState);
             if(!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op "
@@ -174,7 +175,8 @@ void CooperativeSearcher::onCustomInstruction(S2EExecutionState* state, uint64_t
                     "CooperativeSearcher picked the state " << nextState << '\n';
 
             //Force rescheduling
-            state->writeCpuState(CPU_OFFSET(eip), state->getPc() + 10, 32);
+            state->writeCpuState(CPU_OFFSET(eip), state->getPc() + 10,
+                                                            CPU_REG_SIZE << 3);
             throw CpuExitException();
             break;
         }
@@ -195,7 +197,8 @@ void CooperativeSearcher::onCustomInstruction(S2EExecutionState* state, uint64_t
             }
 
             //Force rescheduling
-            state->writeCpuState(CPU_OFFSET(eip), state->getPc() + 10, 32);
+            state->writeCpuState(CPU_OFFSET(eip), state->getPc() + 10,
+                                                            CPU_REG_SIZE << 3);
             throw CpuExitException();
             break;
         }
