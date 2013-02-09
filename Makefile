@@ -237,6 +237,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--enable-llvm \
 		--enable-s2e \
 		--enable-debug \
+		--with-pkgversion=S2E \
 		$(EXTRA_QEMU_FLAGS)
 
 	mkdir -p stamps && touch $@
@@ -253,6 +254,7 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e\
+		--with-pkgversion=S2E \
 		$(EXTRA_QEMU_FLAGS)
 
 	mkdir -p stamps && touch $@
@@ -278,6 +280,7 @@ stamps/qemu-configure-release-asan: stamps/klee-make-release-asan
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e --enable-address-sanitizer \
+		--with-pkgversion=S2E \
 		$(EXTRA_QEMU_FLAGS)
 
 	mkdir -p stamps && touch $@
@@ -293,7 +296,9 @@ stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan
 		--with-klee=$(S2EBUILD)/klee-asan/Debug+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
-		--enable-s2e --enable-address-sanitizer --enable-debug
+		--enable-s2e --enable-address-sanitizer \
+		--enable-debug \
+		--with-pkgversion=S2E
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug-asan: stamps/qemu-configure-debug-asan stamps/klee-make-debug-asan
