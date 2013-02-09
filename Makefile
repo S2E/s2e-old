@@ -6,6 +6,9 @@
 #      some advanced instruction sets.
 #      Used by STP only for now.
 #
+#  EXTRA_QEMU_FLAGS=...
+#      Pass additional flags to QEMU's configure script.
+#
 #
 
 S2ESRC:=$(CURDIR)/../s2e
