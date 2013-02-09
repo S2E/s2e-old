@@ -298,7 +298,8 @@ stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan
 		--enable-llvm \
 		--enable-s2e --enable-address-sanitizer \
 		--enable-debug \
-		--with-pkgversion=S2E
+		--with-pkgversion=S2E \
+		$(EXTRA_QEMU_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug-asan: stamps/qemu-configure-debug-asan stamps/klee-make-debug-asan
