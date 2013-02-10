@@ -622,6 +622,8 @@ for opt do
   ;;
   --extra-cflags=*)
   ;;
+  --extra-cxxflags=*)
+  ;;
   --extra-ldflags=*)
   ;;
   --enable-debug-info)

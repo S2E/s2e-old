@@ -31,7 +31,7 @@ all-release: stamps/qemu-make-release stamps/tools-make-release
 
 all-debug: stamps/qemu-make-debug stamps/tools-make-debug
 
-ifeq ($(shell ls qemu/vl.c 2>&1),qemu/vl.c)
+ifeq ($(wildcard qemu/vl.c),qemu/vl.c)
     $(error You should not run make in the S2E source directory!)
 endif
 
@@ -94,7 +94,6 @@ CLANG_LIB=$(S2EBUILD)/llvm-native/Release/lib
 #First build it with the system's compiler
 stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack stamps/compiler-rt-unpack
 	mkdir -p llvm-native
-	echo $(S2EBUILD) $(S2ESRC)
 	cd llvm-native && $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--enable-jit --enable-optimized --disable-assertions #compiler-rt won't build if we specify explicit targets...
@@ -135,12 +134,10 @@ stamps/stp-copy:
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
-	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
-	#cd stp && cp src/c_interface/c_interface.h include/stp
+	cd stp && scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
-	$(CP) -Rup $(S2ESRC)/stp stp
 	cd stp && make 
 	mkdir -p stamps && touch $@
 
@@ -153,15 +150,14 @@ stp/lib/libstp.a: stamps/stp-make
 #XXX: need to fix the STP build to actually use ASAN...
 
 stamps/stp-copy-asan:
-	cp -Rup $(S2ESRC)/stp stp-asan
+	$(CP) -Rup $(S2ESRC)/stp stp-asan
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure-asan: stamps/stp-copy-asan
-	cd stp-asan && bash scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-address-sanitizer
+	cd stp-asan && scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-address-sanitizer
 	mkdir -p stamps && touch $@
 
 stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
-	cp -Rup $(S2ESRC)/stp stp-asan
 	cd stp-asan && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
@@ -325,7 +321,7 @@ stamps/tools-configure: stamps/llvm-configure
 		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-s2esrc=$(S2ESRC)/qemu \
-		--target=x86_64 --enable-assertions \
+		--target=x86_64 \
 		CC=$(CLANG_CC) \
 		CXX=$(CLANG_CXX)
 	mkdir -p stamps && touch $@
