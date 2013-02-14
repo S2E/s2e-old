@@ -1,0 +1,42 @@
+Index: lib/asan/asan_malloc_linux.cc
+===================================================================
+--- lib/asan/asan_malloc_linux.cc	(revision 175159)
++++ lib/asan/asan_malloc_linux.cc	(working copy)
+@@ -76,7 +76,7 @@
+ INTERCEPTOR(void*, calloc, uptr nmemb, uptr size) {
+   if (!asan_inited) {
+     // Hack: dlsym calls calloc before REAL(calloc) is retrieved from dlsym.
+-    const uptr kCallocPoolSize = 1024;
++    const uptr kCallocPoolSize = 4096;
+     static uptr calloc_memory_for_dlsym[kCallocPoolSize];
+     static uptr allocated;
+     uptr size_in_words = ((nmemb * size) + kWordSize - 1) / kWordSize;
+Index: lib/asan/asan_malloc_mac.cc
+===================================================================
+--- lib/asan/asan_malloc_mac.cc	(revision 175159)
++++ lib/asan/asan_malloc_mac.cc	(working copy)
+@@ -146,7 +146,7 @@
+ void *mz_calloc(malloc_zone_t *zone, size_t nmemb, size_t size) {
+   if (!asan_inited) {
+     // Hack: dlsym calls calloc before REAL(calloc) is retrieved from dlsym.
+-    const size_t kCallocPoolSize = 1024;
++    const size_t kCallocPoolSize = 4096;
+     static uptr calloc_memory_for_dlsym[kCallocPoolSize];
+     static size_t allocated;
+     size_t size_in_words = ((nmemb * size) + kWordSize - 1) / kWordSize;
+Index: lib/asan/asan_rtl.cc
+===================================================================
+--- lib/asan/asan_rtl.cc	(revision 175159)
++++ lib/asan/asan_rtl.cc	(working copy)
+@@ -273,7 +273,10 @@
+   CHECK(curr_thread);
+   uptr top = curr_thread->stack_top();
+   uptr bottom = ((uptr)&local_stack - kPageSize) & ~(kPageSize-1);
+-  PoisonShadow(bottom, top - bottom, 0);
++  uptr local_stack_val = (uptr) &local_stack;
++  if (local_stack_val <= top && local_stack_val >= curr_thread->stack_bottom()) {
++    PoisonShadow(bottom, top - bottom, 0);
++  }
+ }
+ 
+ void NOINLINE __asan_set_death_callback(void (*callback)(void)) {
