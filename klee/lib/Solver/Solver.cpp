@@ -35,7 +35,6 @@
 #include <unistd.h>
 
 #ifndef __MINGW32__
-#include <unistd.h>
 #include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
