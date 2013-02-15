@@ -55,6 +55,33 @@ socreate(Slirp *slirp)
   return(so);
 }
 
+/**
+ * It may happen that a socket is still referenced in various
+ * mbufs at the time it is freed. Clear all references to the
+ * socket here.
+ */
+static void soremovefromqueues(struct socket *so)
+{
+    if (!so->so_queued) {
+        return;
+    }
+
+    Slirp *slirp = so->slirp;
+    struct mbuf *ifm;
+
+    for (ifm = slirp->if_fastq.ifq_next; ifm != &slirp->if_fastq; ifm = ifm->ifq_next) {
+        if (ifm->ifq_so == so) {
+            ifm->ifq_so = NULL;
+        }
+    }
+
+    for (ifm = slirp->if_batchq.ifq_next; ifm != &slirp->if_batchq; ifm = ifm->ifq_next) {
+        if (ifm->ifq_so == so) {
+            ifm->ifq_so = NULL;
+        }
+    }
+}
+
 /*
  * remque and free a socket, clobber cache
  */
@@ -78,6 +105,8 @@ sofree(struct socket *so)
 
   if(so->so_next && so->so_prev)
     remque(so);  /* crashes if so is not in a queue */
+
+  soremovefromqueues(so);
 
   free(so);
 }
