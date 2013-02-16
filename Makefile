@@ -166,19 +166,19 @@ stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
 # KLEE #
 ########
 
+KLEE_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
+                       --with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
+                       --with-llvmobj=$(S2EBUILD)/llvm \
+                       --target=x86_64 --enable-exceptions \
+                       CC=$(CLANG_CC) CXX=$(CLANG_CXX)
+
 stamps/klee-configure: stamps/llvm-configure \
                        stp/include/stp/c_interface.h \
                        stp/lib/libstp.a
 	mkdir -p klee
 	cd klee && $(S2ESRC)/klee/configure \
-		--prefix=$(S2EBUILD)/opt \
-		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
-		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp \
-		--target=x86_64 \
-		--enable-exceptions \
-		CC=$(CLANG_CC) \
-		CXX=$(CLANG_CXX)
+		$(KLEE_CONFIGURE_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-make ALWAYS
@@ -196,14 +196,8 @@ ASAN_CXX_LD_FLAGS = CXXFLAGS="-O0 -g -fsanitize=address" LDFLAGS="-g -fsanitize=
 stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan
 	mkdir -p klee-asan
 	cd klee-asan && $(S2ESRC)/klee/configure \
-		--prefix=$(S2EBUILD)/opt \
-		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
-		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp-asan \
-		--target=x86_64 \
-		--enable-exceptions \
-	    CC=$(CLANG_CC) \
-		CXX=$(CLANG_CXX)\
+		$(KLEE_CONFIGURE_FLAGS) \
 		$(ASAN_CXX_LD_FLAGS)
 	mkdir -p stamps && touch $@
 
