@@ -17,9 +17,7 @@ S2EBUILD:=$(CURDIR)
 OS := $(shell uname)
 JOBS:=2
 
-CP=cp
 ifeq ($(OS),Darwin)
-CP=gcp
 JOBS := $(patsubst hw.ncpu:%,%,$(shell sysctl hw.ncpu))
 else ifeq ($(OS),Linux)
 JOBS := $(shell grep -c ^processor /proc/cpuinfo)
@@ -130,7 +128,7 @@ stamps/llvm-make-release: stamps/llvm-configure
 #######
 
 stamps/stp-copy:
-	$(CP) -Rup $(S2ESRC)/stp stp
+	cp -Rp $(S2ESRC)/stp stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
@@ -150,7 +148,7 @@ stp/lib/libstp.a: stamps/stp-make
 #XXX: need to fix the STP build to actually use ASAN...
 
 stamps/stp-copy-asan:
-	$(CP) -Rup $(S2ESRC)/stp stp-asan
+	cp -Rp $(S2ESRC)/stp stp-asan
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure-asan: stamps/stp-copy-asan
