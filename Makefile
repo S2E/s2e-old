@@ -89,12 +89,15 @@ stamps/compiler-rt-unpack: $(COMPILER_RT_SRC) stamps/llvm-unpack
 CLANG_CC=$(S2EBUILD)/llvm-native/Release/bin/clang
 CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 
+LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
+                       --enable-jit --enable-optimized \
+
 #First build it with the system's compiler
 stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack stamps/compiler-rt-unpack
 	mkdir -p llvm-native
 	cd llvm-native && $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
-		--prefix=$(S2EBUILD)/opt \
-		--enable-jit --enable-optimized --disable-assertions #compiler-rt won't build if we specify explicit targets...
+		$(LLVM_CONFIGURE_FLAGS) \
+		--disable-assertions #compiler-rt won't build if we specify explicit targets...
 	mkdir -p stamps && touch $@
 
 stamps/llvm-make-release-native: stamps/llvm-configure-native
@@ -107,9 +110,8 @@ stamps/llvm-make-release-native: stamps/llvm-configure-native
 stamps/llvm-configure: stamps/llvm-make-release-native
 	mkdir -p llvm
 	cd llvm && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
-	--prefix=$(S2EBUILD)/opt \
-	--target=x86_64 --enable-targets=x86 --enable-jit \
-	--enable-optimized \
+	$(LLVM_CONFIGURE_FLAGS) \
+	--target=x86_64 --enable-targets=x86 \
 	CC=$(CLANG_CC) \
 	CXX=$(CLANG_CXX)
 	mkdir -p stamps && touch $@
