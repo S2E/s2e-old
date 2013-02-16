@@ -218,39 +218,37 @@ klee/Debug/bin/klee-config: stamps/klee-make-debug
 
 klee/Release/bin/klee-config: stamps/klee-make-release
 
+QEMU_COMMON_FLAGS = --prefix=$(S2EBUILD)/opt\
+                    --cc=$(CLANG_CC) \
+                    --cxx=$(CLANG_CXX) \
+                    --target-list=i386-s2e-softmmu,i386-softmmu \
+                    --enable-llvm \
+                    --enable-s2e \
+                    --with-pkgversion=S2E \
+                    $(EXTRA_QEMU_FLAGS)
+
+QEMU_CONFIGURE_FLAGS = --with-stp=$(S2EBUILD)/stp \
+                       $(QEMU_COMMON_FLAGS)
+
+QEMU_DEBUG_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
+                   --enable-debug
+
+QEMU_RELEASE_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Release+Asserts
+
 stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 	mkdir -p qemu-debug
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
-		--prefix=$(S2EBUILD)/opt \
-		--with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
-		--cc=$(CLANG_CC) \
-		--cxx=$(CLANG_CXX) \
-		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
-		--target-list=i386-s2e-softmmu,i386-softmmu \
-		--enable-llvm \
-		--enable-s2e \
-		--enable-debug \
-		--with-pkgversion=S2E \
-		$(EXTRA_QEMU_FLAGS)
-
+		$(QEMU_DEBUG_FLAGS) \
+		$(QEMU_CONFIGURE_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
 	mkdir -p qemu-release
 	cd qemu-release && $(S2ESRC)/qemu/configure \
-		--prefix=$(S2EBUILD)/opt \
-		--with-llvm=$(S2EBUILD)/llvm/Release+Asserts \
-		--cc=$(CLANG_CC) \
-		--cxx=$(CLANG_CXX) \
-		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
-		--target-list=i386-s2e-softmmu,i386-softmmu \
-		--enable-llvm \
-		--enable-s2e\
-		--with-pkgversion=S2E \
-		$(EXTRA_QEMU_FLAGS)
-
+		$(QEMU_RELEASE_FLAGS) \
+		$(QEMU_CONFIGURE_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug
@@ -262,38 +260,24 @@ stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
 	mkdir -p stamps && touch $@
 
 #ASAN-enabled QEMU
+QEMU_ASAN_FLAGS = --enable-address-sanitizer \
+                  --with-stp=$(S2EBUILD)/stp \
+                  $(QEMU_COMMON_FLAGS)
+
 stamps/qemu-configure-release-asan: stamps/klee-make-release-asan
 	mkdir -p qemu-release-asan
 	cd qemu-release-asan && $(S2ESRC)/qemu/configure \
-		--prefix=$(S2EBUILD)/opt \
-		--with-llvm=$(S2EBUILD)/llvm/Release+Asserts \
-		--cc=$(CLANG_CC) \
-		--cxx=$(CLANG_CXX) \
-		--with-stp=$(S2EBUILD)/stp-asan \
 		--with-klee=$(S2EBUILD)/klee-asan/Release+Asserts \
-		--target-list=i386-s2e-softmmu,i386-softmmu \
-		--enable-llvm \
-		--enable-s2e --enable-address-sanitizer \
-		--with-pkgversion=S2E \
-		$(EXTRA_QEMU_FLAGS)
-
+		$(QEMU_RELEASE_FLAGS) \
+		$(QEMU_ASAN_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan
 	mkdir -p qemu-debug-asan
 	cd qemu-debug-asan && $(S2ESRC)/qemu/configure \
-		--prefix=$(S2EBUILD)/opt \
-		--with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
-		--cc=$(CLANG_CC) \
-		--cxx=$(CLANG_CXX) \
-		--with-stp=$(S2EBUILD)/stp-asan \
 		--with-klee=$(S2EBUILD)/klee-asan/Debug+Asserts \
-		--target-list=i386-s2e-softmmu,i386-softmmu \
-		--enable-llvm \
-		--enable-s2e --enable-address-sanitizer \
-		--enable-debug \
-		--with-pkgversion=S2E \
-		$(EXTRA_QEMU_FLAGS)
+		$(QEMU_DEBUG_FLAGS) \
+		$(QEMU_ASAN_FLAGS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug-asan: stamps/qemu-configure-debug-asan stamps/klee-make-debug-asan
