@@ -286,7 +286,7 @@ stamps/qemu-configure-debug-asan: stamps/klee-make-debug-asan
 	mkdir -p qemu-debug-asan
 	cd qemu-debug-asan && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--with-llvm=$(S2EBUILD)/llvm/Release+Asserts \
+		--with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
 		--cc=$(CLANG_CC) \
 		--cxx=$(CLANG_CXX) \
 		--with-stp=$(S2EBUILD)/stp-asan \
