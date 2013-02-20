@@ -193,7 +193,7 @@ void MemoryTracer::onModuleTransition(S2EExecutionState *state,
                                        const ModuleDescriptor *prevModule,
                                        const ModuleDescriptor *nextModule)
 {
-    if(nextModule) {
+    if (nextModule && !m_memoryMonitor.connected()) {
         m_memoryMonitor =
             s2e()->getCorePlugin()->onDataMemoryAccess.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onDataMemoryAccess)
