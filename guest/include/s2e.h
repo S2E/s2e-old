@@ -258,6 +258,17 @@ static inline void s2e_kill_state(int status, const char *message)
     );
 }
 
+/* Outputs a formatted string as an S2E message */
+static inline void s2e_kill_state_printf(int status, const char *message, ...)
+{
+    char buffer[512];
+    va_list args;
+    va_start(args, message);
+    vsnprintf(buffer, sizeof(buffer), message, args);
+    va_end(args);
+    s2e_kill_state(status, buffer);
+}
+
 /** Disable timer interrupt in the guest. */
 static inline void s2e_disable_timer_interrupt(void)
 {
