@@ -486,11 +486,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         }
 
         case 5: { /* s2e_get_path_id */
-#ifdef TARGET_X86_64
-            const klee::Expr::Width width = klee::Expr::Int64;
-#else
-            const klee::Expr::Width width = klee::Expr::Int32;
-#endif
+            const klee::Expr::Width width = sizeof (target_ulong) << 3;
             state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
                 klee::ConstantExpr::create(state->getID(), width));
             break;
