@@ -45,14 +45,16 @@ COMPILER_RT_SRC_DIR=compiler-rt-$(LLVM_VERSION).src
 
 clean:
 	rm -Rf klee klee-asan qemu-debug qemu-debug-asan qemu-release qemu-release-asan
-	rm -Rf guest-tools llvm llvm-native stp stp-asan tools
-	rm -Rf $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 	rm -Rf stamps
 
 guestclean:
 	make -C $(S2ESRC)/guest clean
 
-.PHONY: all all-debug all-release clean guestclean
+distclean: clean guestclean
+	rm -Rf guest-tools llvm llvm-native stp stp-asan tools
+	rm -Rf $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
+
+.PHONY: all all-debug all-release clean distclean guestclean
 
 ALWAYS:
 
