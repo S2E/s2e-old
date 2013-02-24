@@ -44,8 +44,9 @@ COMPILER_RT_SRC=compiler-rt-$(LLVM_VERSION).src.tar.gz
 COMPILER_RT_SRC_DIR=compiler-rt-$(LLVM_VERSION).src
 
 clean:
-	rm -Rf tools qemu-release qemu-debug klee stp llvm llvm-native
-	rm -Rf llvm-$(LLVM_VERSION) $(LLVM_SRC_DIR) $(CLANG_SRC_DIR)
+	rm -Rf klee klee-asan qemu-debug qemu-debug-asan qemu-release qemu-release-asan
+	rm -Rf guest-tools llvm llvm-native stp stp-asan tools
+	rm -Rf $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 	rm -Rf stamps
 
 .PHONY: all all-debug all-release clean
