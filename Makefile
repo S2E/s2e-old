@@ -49,7 +49,10 @@ clean:
 	rm -Rf $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 	rm -Rf stamps
 
-.PHONY: all all-debug all-release clean
+guestclean:
+	make -C $(S2ESRC)/guest clean
+
+.PHONY: all all-debug all-release clean guestclean
 
 ALWAYS:
 
@@ -319,5 +322,5 @@ stamps/tools-make-debug: stamps/tools-configure ALWAYS
 #Guest tools
 ############
 stamps/guest-tools: ALWAYS
-	mkdir -p guest-tools && cd $(S2ESRC)/guest && make clean && make install BUILD_DIR=$(S2EBUILD)/guest-tools
+	mkdir -p guest-tools && cd $(S2ESRC)/guest && make install BUILD_DIR=$(S2EBUILD)/guest-tools
 	mkdir -p stamps && touch $@
