@@ -149,6 +149,7 @@ void HostFiles::read(S2EExecutionState *state)
 {
     target_ulong guestFd, bufAddr, count;
     target_ulong ret = (target_ulong) -1;
+    ssize_t read_ret = -1;
 
     bool ok = true;
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd,
@@ -180,9 +181,10 @@ void HostFiles::read(S2EExecutionState *state)
     int fd = m_openFiles[guestFd];
     char buf[count];
 
-    ret = ::read(fd, buf, count);
-    if(ret == (uint32_t) -1)
+    read_ret = ::read(fd, buf, count);
+    if(-1 == read_ret)
         return;
+    ret = read_ret;
 
     ok = state->writeMemoryConcrete(bufAddr, buf, ret);
     if(!ok) {
