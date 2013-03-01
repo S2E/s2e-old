@@ -204,8 +204,9 @@ public:
         Value *valueToStore = m_builder.CreateCall3(m_helperForkAndConcretize,
                             m_builder.CreateZExt(orig, intType(64)),
                             ConstantInt::get(intType(64), 0),
-                            ConstantInt::get(intType(64), 0xffffffff));
-        valueToStore = m_builder.CreateTrunc(valueToStore, intType(32));
+                            ConstantInt::get(intType(64), (target_ulong)-1));
+        valueToStore = m_builder.CreateTrunc(valueToStore,
+                                             intType(TARGET_LONG_BITS));
         return valueToStore;
 #else
         return orig;
@@ -968,7 +969,9 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         assert(getValue(args[1])->getType() == wordType());         \
         Value* valueToStore = getValue(args[0]);                    \
                                                                     \
-        if (memBits == 32 && !execute_llvm && args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) { \
+        if (TARGET_LONG_BITS == memBits && !execute_llvm            \
+            && args[1] == 0                                         \
+            && args[2] == offsetof(CPUX86State, eip)) { \
             valueToStore = handleSymbolicPcAssignment(valueToStore);\
         }                                                           \
                                                                     \
@@ -1240,6 +1243,36 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         setValue(args[0], ret);
     }
     break;
+#if TCG_TARGET_REG_BITS == 64
+    case INDEX_op_deposit_i64: {
+        Value *arg1 = getValue(args[1]);
+        Value *arg2 = getValue(args[2]);
+        arg2 = m_builder.CreateTrunc(arg2, intType(64));
+
+        uint32_t ofs = args[3];
+        uint32_t len = args[4];
+
+        if (0 == ofs && 64 == len) {
+            setValue(args[0], arg2);
+            break;
+        }
+
+        uint64_t mask = (1u << len) - 1;
+        Value *t1, *ret;
+
+        if (ofs + len < 64) {
+            t1 = m_builder.CreateAnd(arg2, APInt(64, mask));
+            t1 = m_builder.CreateShl(t1, APInt(64, ofs));
+        } else {
+            t1 = m_builder.CreateShl(arg2, APInt(64, ofs));
+        }
+
+        ret = m_builder.CreateAnd(arg1, APInt(64, ~(mask << ofs)));
+        ret = m_builder.CreateOr(ret, t1);
+        setValue(args[0], ret);
+    }
+    break;
+#endif
 
     default:
         std::cerr << "ERROR: unknown TCG micro operation '"

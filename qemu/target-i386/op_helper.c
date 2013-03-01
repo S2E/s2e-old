@@ -966,11 +966,11 @@ static int exeption_has_error_code(int intno)
 #define SET_ESP(val, sp_mask)\
 do {\
     if ((sp_mask) == 0xffff)\
-        ESP = (ESP & ~0xffff) | ((val) & 0xffff);\
+        ESP_W((ESP & ~0xffff) | ((val) & 0xffff));\
     else if ((sp_mask) == 0xffffffffLL)\
-        ESP = (uint32_t)(val);\
+        ESP_W((uint32_t)(val));\
     else\
-        ESP = (val);\
+        ESP_W(val);\
 } while (0)
 #else
 #define SET_ESP(val, sp_mask) ESP_W((ESP & ~(sp_mask)) | ((val) & (sp_mask)))
@@ -1353,7 +1353,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
         ss = 0 | dpl;
         cpu_x86_load_seg_cache(env, R_SS, ss, 0, 0, 0);
     }
-    ESP = esp;
+    ESP_W(esp);
 
     selector = (selector & ~3) | dpl;
     cpu_x86_load_seg_cache(env, R_CS, selector,
@@ -1416,7 +1416,7 @@ void helper_syscall(int next_eip_addend)
         else
             env->eip = env->cstar;
     } else {
-        ECX = (uint32_t)(env->eip + next_eip_addend);
+        ECX_W((uint32_t)(env->eip + next_eip_addend));
 
         cpu_x86_set_cpl(env, 0);
         cpu_x86_load_seg_cache(env, R_CS, selector & 0xfffc,
@@ -1995,14 +1995,14 @@ void helper_rsm(void)
     env->tr.limit = ldl_phys(sm_state + 0x7e94);
     env->tr.flags = (lduw_phys(sm_state + 0x7e92) & 0xf0ff) << 8;
 
-    EAX = ldq_phys(sm_state + 0x7ff8);
-    ECX = ldq_phys(sm_state + 0x7ff0);
-    EDX = ldq_phys(sm_state + 0x7fe8);
-    EBX = ldq_phys(sm_state + 0x7fe0);
-    ESP = ldq_phys(sm_state + 0x7fd8);
-    EBP = ldq_phys(sm_state + 0x7fd0);
-    ESI = ldq_phys(sm_state + 0x7fc8);
-    EDI = ldq_phys(sm_state + 0x7fc0);
+    EAX_W(ldq_phys(sm_state + 0x7ff8));
+    ECX_W(ldq_phys(sm_state + 0x7ff0));
+    EDX_W(ldq_phys(sm_state + 0x7fe8));
+    EBX_W(ldq_phys(sm_state + 0x7fe0));
+    ESP_W(ldq_phys(sm_state + 0x7fd8));
+    EBP_W(ldq_phys(sm_state + 0x7fd0));
+    ESI_W(ldq_phys(sm_state + 0x7fc8));
+    EDI_W(ldq_phys(sm_state + 0x7fc0));
     for(i = 8; i < 16; i++)
         WR_cpu(env, regs[i], ldq_phys(sm_state + 0x7ff8 - i * 8));
     env->eip = ldq_phys(sm_state + 0x7f78);
@@ -2367,11 +2367,11 @@ void helper_cmpxchg16b(target_ulong a0)
         /* always do the store */
         stq(a0, d0); 
         stq(a0 + 8, d1); 
-        EDX = d1;
-        EAX = d0;
+        EDX_W(d1);
+        EAX_W(d0);
         eflags &= ~CC_Z;
     }
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 #endif
 
@@ -2813,7 +2813,7 @@ void helper_lcall_protected(int new_cs, target_ulong new_eip,
             PUSHQ(rsp, env->segs[R_CS].selector);
             PUSHQ(rsp, next_eip);
             /* from this point, not restartable */
-            ESP = rsp;
+            ESP_W(rsp);
             cpu_x86_load_seg_cache(env, R_CS, (new_cs & 0xfffc) | cpl,
                                    get_seg_base(e1, e2),
                                    get_seg_limit(e1, e2), e2);
@@ -5143,10 +5143,10 @@ void helper_mulq_EAX_T0(target_ulong t0)
     uint64_t r0, r1;
 
     mulu64(&r0, &r1, EAX, t0);
-    EAX = r0;
-    EDX = r1;
-    CC_DST = r0;
-    CC_SRC = r1;
+    EAX_W(r0);
+    EDX_W(r1);
+    CC_DST_W(r0);
+    CC_SRC_W(r1);
 }
 
 void helper_imulq_EAX_T0(target_ulong t0)
@@ -5154,10 +5154,10 @@ void helper_imulq_EAX_T0(target_ulong t0)
     uint64_t r0, r1;
 
     muls64(&r0, &r1, EAX, t0);
-    EAX = r0;
-    EDX = r1;
-    CC_DST = r0;
-    CC_SRC = ((int64_t)r1 != ((int64_t)r0 >> 63));
+    EAX_W(r0);
+    EDX_W(r1);
+    CC_DST_W(r0);
+    CC_SRC_W(((int64_t)r1 != ((int64_t)r0 >> 63)));
 }
 
 target_ulong helper_imulq_T0_T1(target_ulong t0, target_ulong t1)
@@ -5165,8 +5165,8 @@ target_ulong helper_imulq_T0_T1(target_ulong t0, target_ulong t1)
     uint64_t r0, r1;
 
     muls64(&r0, &r1, t0, t1);
-    CC_DST = r0;
-    CC_SRC = ((int64_t)r1 != ((int64_t)r0 >> 63));
+    CC_DST_W(r0);
+    CC_SRC_W(((int64_t)r1 != ((int64_t)r0 >> 63)));
     return r0;
 }
 
@@ -5180,8 +5180,8 @@ void helper_divq_EAX(target_ulong t0)
     r1 = EDX;
     if (div64(&r0, &r1, t0))
         raise_exception(EXCP00_DIVZ);
-    EAX = r0;
-    EDX = r1;
+    EAX_W(r0);
+    EDX_W(r1);
 }
 
 void helper_idivq_EAX(target_ulong t0)
@@ -5194,8 +5194,8 @@ void helper_idivq_EAX(target_ulong t0)
     r1 = EDX;
     if (idiv64(&r0, &r1, t0))
         raise_exception(EXCP00_DIVZ);
-    EAX = r0;
-    EDX = r1;
+    EAX_W(r0);
+    EDX_W(r1);
 }
 #endif
 

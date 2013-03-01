@@ -607,7 +607,7 @@ bool S2EExecutionState::isRamSharedConcrete(uint64_t hostAddress)
 //Allows plugins to retrieve it in a hardware-independent manner.
 uint64_t S2EExecutionState::getPc() const
 {
-    return readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
+    return readCpuState(CPU_OFFSET(eip), 8 * CPU_REG_SIZE);
 }
 
 uint64_t S2EExecutionState::getFlags()
@@ -620,18 +620,17 @@ uint64_t S2EExecutionState::getFlags()
 
 void S2EExecutionState::setPc(uint64_t pc)
 {
-    writeCpuState(CPU_OFFSET(eip), pc, sizeof(target_ulong)*8);
+    writeCpuState(CPU_OFFSET(eip), pc, CPU_REG_SIZE * 8);
 }
 
 void S2EExecutionState::setSp(uint64_t sp)
 {
-    writeCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &sp, sizeof(target_ulong));
+    writeCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &sp, CPU_REG_SIZE);
 }
 
 uint64_t S2EExecutionState::getSp() const
 {
-    ref<Expr> e = readCpuRegister(CPU_OFFSET(regs[R_ESP]),
-                                  8*sizeof(target_ulong));
+    ref<Expr> e = readCpuRegister(CPU_OFFSET(regs[R_ESP]), 8 * CPU_REG_SIZE);
     return cast<ConstantExpr>(e)->getZExtValue(64);
 }
 
@@ -645,7 +644,16 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
         return false;
     }
 
-    uint32_t newSp = getSp() + (paramCount+1)*sizeof(uint32_t);
+    target_ulong newSp = getSp();
+#ifdef TARGET_X86_64
+    if (env->hflags & HF_CS64_MASK) {
+    // First six parameters in x86_64 are passed in registers, with the rest on
+    // the stack
+        newSp += (paramCount > 6) ? (paramCount - 5) * CPU_REG_SIZE : CPU_REG_SIZE;
+    } else
+#else
+        newSp += (paramCount + 1) * sizeof (uint32_t);
+#endif
 
     setSp(newSp);
     setPc(retAddr);
@@ -656,11 +664,17 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
 //XXX: assumes x86 architecture
 bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 {
+    target_ulong t_retAddr = 0;
+    target_ulong size = sizeof (uint32_t);
+#ifdef TARGET_X86_64
+    if (env->hflags & HF_CS64_MASK) size = CPU_REG_SIZE;
+#endif /* TARGET_X86_64 */
     *retAddr = 0;
-    if (!readMemoryConcrete(getSp(), retAddr, sizeof(uint32_t))) {
+    if (!readMemoryConcrete(getSp(), &t_retAddr, size)) {
         g_s2e->getDebugStream() << "Could not get the return address " << '\n';
         return false;
     }
+    *retAddr = static_cast<uint64_t>(t_retAddr);
     return true;
 }
 
@@ -718,19 +732,31 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
         return 0;
 
     uint64_t mask = 0;
+    uint64_t offset = 0;
     /* XXX: x86-specific */
-    for(int i = 0; i < 8; ++i) { /* regs */
-        if(!os->isConcrete(i*sizeof(target_ulong), sizeof(target_ulong)*8))
+    for (int i = 0; i < CPU_NB_REGS; ++i) { /* regs */
+        if (!os->isConcrete(offset, sizeof(*env->regs) << 3)) {
             mask |= (1 << (i+5));
+        }
+        offset += sizeof (*env->regs);
     }
-    if(!os->isConcrete(offsetof(CPUX86State, cc_op), sizeof(env->cc_op)*8)) // cc_op
+
+    if (!os->isConcrete(offsetof(CPUX86State, cc_op),
+                        sizeof(env->cc_op) << 3)) {
         mask |= _M_CC_OP;
-    if(!os->isConcrete(offsetof(CPUX86State, cc_src), sizeof(env->cc_src)*8)) // cc_src
+    }
+    if (!os->isConcrete(offsetof(CPUX86State, cc_src),
+                        sizeof(env->cc_src) << 3)) {
         mask |= _M_CC_SRC;
-    if(!os->isConcrete(offsetof(CPUX86State, cc_dst), sizeof(env->cc_dst)*8)) // cc_dst
+    }
+    if (!os->isConcrete(offsetof(CPUX86State, cc_dst),
+                        sizeof(env->cc_dst) << 3)) {
         mask |= _M_CC_DST;
-    if(!os->isConcrete(offsetof(CPUX86State, cc_tmp), sizeof(env->cc_tmp)*8)) // cc_tmp
+    }
+    if (!os->isConcrete(offsetof(CPUX86State, cc_tmp),
+                        sizeof(env->cc_tmp) << 3)) {
         mask |= _M_CC_TMP;
+    }
     return mask;
 }
 
@@ -1379,8 +1405,12 @@ void S2EExecutionState::undoCallAndJumpToSymbolic()
 {
     if (needToJumpToSymbolic()) {
         //Undo the call
+        target_ulong size = sizeof (uint32_t);
+#ifdef TARGET_X86_64
+        if (env->hflags & HF_CS64_MASK) size = CPU_REG_SIZE;
+#endif /* TARGET_X86_64 */
         assert(getTb()->pcOfLastInstr);
-        setSp(getSp() + sizeof(uint32_t));
+        setSp(getSp() + size);
         setPc(getTb()->pcOfLastInstr);
         jumpToSymbolicCpp();
     }

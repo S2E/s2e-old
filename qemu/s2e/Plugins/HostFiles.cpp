@@ -84,13 +84,16 @@ void HostFiles::initialize()
 
 void HostFiles::open(S2EExecutionState *state)
 {
-    uint32_t fnamePtr, flags;
-    uint32_t guestFd = (uint32_t) -1;
+    target_ulong fnamePtr = 0, flags = 0;
+    target_ulong guestFd = (target_ulong) -1;
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &fnamePtr, 4);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &flags, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &fnamePtr,
+                                                                 CPU_REG_SIZE);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &flags,
+                                                                 CPU_REG_SIZE);
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd, 4);
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd,
+                                                                 CPU_REG_SIZE);
 
     if (!ok) {
         s2e()->getWarningsStream(state)
@@ -134,7 +137,8 @@ void HostFiles::open(S2EExecutionState *state)
     if(fd != -1) {
         m_openFiles.push_back(fd);
         guestFd = m_openFiles.size()-1;
-        state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd, 4);
+        state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd,
+                                                                CPU_REG_SIZE);
     }else {
         s2e()->getWarningsStream(state) <<
                 "HostFiles could not open " << path.c_str() << "(errno " << errno << ")" << '\n';
@@ -143,15 +147,20 @@ void HostFiles::open(S2EExecutionState *state)
 
 void HostFiles::read(S2EExecutionState *state)
 {
-    uint32_t guestFd, bufAddr, count;
-    uint32_t ret = (uint32_t) -1;
+    target_ulong guestFd, bufAddr, count;
+    target_ulong ret = (target_ulong) -1;
+    ssize_t read_ret = -1;
 
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd, 4);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &bufAddr, 4);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EDX]), &count, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd,
+                                                                CPU_REG_SIZE);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &bufAddr,
+                                                                CPU_REG_SIZE);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EDX]), &count,
+                                                                CPU_REG_SIZE);
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret,
+                                                                CPU_REG_SIZE);
 
     if (!ok) {
         s2e()->getWarningsStream(state)
@@ -172,9 +181,10 @@ void HostFiles::read(S2EExecutionState *state)
     int fd = m_openFiles[guestFd];
     char buf[count];
 
-    ret = ::read(fd, buf, count);
-    if(ret == (uint32_t) -1)
+    read_ret = ::read(fd, buf, count);
+    if(-1 == read_ret)
         return;
+    ret = read_ret;
 
     ok = state->writeMemoryConcrete(bufAddr, buf, ret);
     if(!ok) {
@@ -183,18 +193,20 @@ void HostFiles::read(S2EExecutionState *state)
         return;
     }
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, CPU_REG_SIZE);
 }
 
 void HostFiles::close(S2EExecutionState *state)
 {
-    uint32_t guestFd;
-    uint32_t ret = (uint32_t) -1;
+    target_ulong guestFd;
+    target_ulong ret = (target_ulong) -1;
 
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd,
+                                                                CPU_REG_SIZE);
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret,
+                                                                CPU_REG_SIZE);
 
     if (!ok) {
         s2e()->getWarningsStream(state)
@@ -205,7 +217,8 @@ void HostFiles::close(S2EExecutionState *state)
     if(guestFd < m_openFiles.size() && m_openFiles[guestFd] != -1) {
         ret = ::close(m_openFiles[guestFd]);
         m_openFiles[guestFd] = -1;
-        state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, 4);
+        state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret,
+                                                                CPU_REG_SIZE);
     } else {
         s2e()->getWarningsStream(state)
             << "ERROR: invalid file handle passed to HostFiles\n";

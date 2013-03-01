@@ -197,6 +197,19 @@ void S2EExecutor::handle_ldl_mmu(Executor* executor,
     s2eExecutor->bindLocal(target, *state, value);
 }
 
+void S2EExecutor::handle_ldq_mmu(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
+    assert(args.size() == 2);
+    ref<Expr> value = handle_ldst_mmu(executor, state, target, args, false, 8,
+                                      false, false);
+    assert(value->getWidth() == Expr::Int64);
+    s2eExecutor->bindLocal(target, *state, value);
+}
+
 void S2EExecutor::handle_stb_mmu(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
@@ -224,6 +237,14 @@ void S2EExecutor::handle_stl_mmu(Executor* executor,
     handle_ldst_mmu(executor, state, target, args, true, 4, false, false);
 }
 
+void S2EExecutor::handle_stq_mmu(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 3);
+    handle_ldst_mmu(executor, state, target, args, true, 8, false, false);
+}
 
 ref<ConstantExpr> S2EExecutor::handleForkAndConcretizeNative(Executor* executor,
                                            ExecutionState* state,
@@ -273,7 +294,7 @@ ref<Expr> S2EExecutor::handle_ldst_mmu(Executor* executor,
     Expr::Width width = data_size * 8;
 
     target_ulong addr = constantAddress->getZExtValue();
-    int object_index, index;
+    target_ulong object_index, index;
     ref<Expr> value;
     target_ulong tlb_addr, addr1, addr2;
     target_phys_addr_t addend, ioaddr;
@@ -419,6 +440,16 @@ void S2EExecutor::handle_ldl_kernel(Executor* executor,
 
 }
 
+void S2EExecutor::handle_ldq_kernel(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 1);
+    handle_ldst_kernel(executor, state, target, args, false, 8, false, false);
+
+}
+
 void S2EExecutor::handle_lduw_kernel(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
@@ -441,6 +472,15 @@ void S2EExecutor::handle_stl_kernel(Executor* executor,
     handle_ldst_kernel(executor, state, target, args, true, 4, false, false);
 }
 
+void S2EExecutor::handle_stq_kernel(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector< ref<Expr> > &args)
+{
+    assert(args.size() == 2);
+    handle_ldst_kernel(executor, state, target, args, true, 8, false, false);
+}
+
 void S2EExecutor::handle_ldst_kernel(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
@@ -458,7 +498,7 @@ void S2EExecutor::handle_ldst_kernel(Executor* executor,
     Expr::Width width = data_size * 8;
 
     target_ulong addr = constantAddress->getZExtValue();
-    int object_index, page_index;
+    target_ulong object_index, page_index;
     ref<Expr> value;
     uintptr_t physaddr;
 
@@ -536,6 +576,13 @@ add("lduw_kernel", handle_lduw_kernel),
 add("ldl_kernel", handle_ldl_kernel),
 //add("stb_kernel", handle_stb_kernel),
 add("stl_kernel", handle_stl_kernel),
+
+#ifdef TARGET_X86_64
+add("__stq_mmu", handle_stq_mmu),
+add("__ldq_mmu", handle_ldq_mmu),
+add("ldq_kernel", handle_ldq_kernel),
+add("stq_kernel", handle_stq_kernel),
+#endif /* TARGET_X86_64 */
 
 #undef add
 };

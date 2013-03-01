@@ -159,10 +159,19 @@ static inline void s2e_make_symbolic(void *buf, int size, const char *name)
     __s2e_touch_string(name);
     __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rdx, %%rbx\n"
+#else
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
+#endif
         S2E_INSTRUCTION_SIMPLE(03)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
         "popl %%ebx\n"
+#endif
         : : "a" (buf), "d" (size), "c" (name) : "memory"
     );
 }
@@ -173,10 +182,19 @@ static inline void s2e_make_concolic(void *buf, int size, const char *name)
     __s2e_touch_string(name);
     __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rdx, %%rbx\n"
+#else
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
+#endif
         S2E_INSTRUCTION_SIMPLE(11)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
         "popl %%ebx\n"
+#endif
         : : "a" (buf), "d" (size), "c" (name) : "memory"
     );
 }
@@ -209,10 +227,19 @@ static inline void s2e_concretize(void *buf, int size)
 {
     __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rdx, %%rbx\n"
+#else
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
+#endif
         S2E_INSTRUCTION_SIMPLE(20)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
         "popl %%ebx\n"
+#endif
         : : "a" (buf), "d" (size) : "memory"
     );
 }
@@ -222,10 +249,19 @@ static inline void s2e_get_example(void *buf, int size)
 {
     __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rdx, %%rbx\n"
+#else
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
+#endif
         S2E_INSTRUCTION_SIMPLE(21)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
         "popl %%ebx\n"
+#endif
         : : "a" (buf), "d" (size) : "memory"
     );
 }
@@ -236,10 +272,19 @@ static inline unsigned s2e_get_example_uint(unsigned val)
 {
     unsigned buf = val;
     __asm__ __volatile__(
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rdx, %%rbx\n"
+#else
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
+#endif
         S2E_INSTRUCTION_SIMPLE(21)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
         "popl %%ebx\n"
+#endif
         : : "a" (&buf), "d" (sizeof(buf)) : "memory"
     );
     return buf;
@@ -250,10 +295,19 @@ static inline void s2e_kill_state(int status, const char *message)
 {
     __s2e_touch_string(message);
     __asm__ __volatile__(
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rdx, %%rbx\n"
+#else
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
+#endif
         S2E_INSTRUCTION_SIMPLE(06)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
         "popl %%ebx\n"
+#endif
         : : "a" (status), "d" (message)
     );
 }
@@ -358,10 +412,19 @@ static inline int s2e_read(int fd, char *buf, int count)
     int res;
     __s2e_touch_buffer(buf, count);
     __asm__ __volatile__(
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rsi, %%rbx\n"
+#else
         "pushl %%ebx\n"
         "movl %%esi, %%ebx\n"
+#endif
         S2E_INSTRUCTION_COMPLEX(EE, 02)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
         "popl %%ebx\n"
+#endif
         : "=a" (res) : "a" (-1), "S" (fd), "c" (buf), "d" (count)
     );
     return res;
@@ -390,16 +453,25 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
 {
     __s2e_touch_string(name);
     __asm__ __volatile__(
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rdx, %%rbx\n"
+#else
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
+#endif
         S2E_INSTRUCTION_SIMPLE(AA)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
         "popl %%ebx\n"
+#endif
         : : "a" (name), "d" (loadbase), "c" (size)
     );
 }
 
 typedef struct _s2e_opcode_module_config_t {
-    uint32_t name;
+    uint64_t name;
     uint64_t nativeBase;
     uint64_t loadBase;
     uint64_t entryPoint;
@@ -418,7 +490,7 @@ static inline void s2e_rawmon_loadmodule2(const char *name,
                                           unsigned kernelMode)
 {
     s2e_opcode_module_config_t cfg;
-    cfg.name = (uint32_t) name;
+    cfg.name = (uintptr_t) name;
     cfg.nativeBase = nativebase;
     cfg.loadBase = loadbase;
     cfg.entryPoint = entrypoint;

@@ -64,7 +64,7 @@ public:
     };
 
     struct OpcodeModuleConfig {
-        uint32_t name;
+        uint64_t name;
         uint64_t nativeBase;
         uint64_t loadBase;
         uint64_t entryPoint;

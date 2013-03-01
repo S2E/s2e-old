@@ -30,7 +30,7 @@
 //#define DEBUG_MULDIV
 
 /* Long integer helpers */
-#if !defined(__x86_64__)
+#if !defined(__x86_64__) && !defined(CONFIG_S2E)
 static void add128 (uint64_t *plow, uint64_t *phigh, uint64_t a, uint64_t b)
 {
     *plow += a;
@@ -102,4 +102,4 @@ void muls64 (uint64_t *plow, uint64_t *phigh, int64_t a, int64_t b)
            a, b, *phigh, *plow);
 #endif
 }
-#endif /* !defined(__x86_64__) */
+#endif /* !defined(__x86_64__) && !defined(CONFIG_S2E) */

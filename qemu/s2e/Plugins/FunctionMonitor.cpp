@@ -267,10 +267,10 @@ void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, Functi
         return;
     }
 
-    uint32_t esp;
+    target_ulong esp;
 
     bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
-                                             &esp, sizeof(target_ulong));
+                                             &esp, sizeof esp);
     if(!ok) {
         m_plugin->s2e()->getWarningsStream(state)
             << "Function call with symbolic ESP!\n"

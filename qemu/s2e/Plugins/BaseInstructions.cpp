@@ -77,14 +77,14 @@ void BaseInstructions::initialize()
 
 void BaseInstructions::makeSymbolic(S2EExecutionState *state, bool makeConcolic)
 {
-    uint32_t address, size, name; // XXX
+    target_ulong address, size, name;
     bool ok = true;
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                         &address, 4);
+                                         &address, sizeof address);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                         &size, 4);
+                                         &size, sizeof size);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &name, 4);
+                                         &name, sizeof name);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -173,10 +173,20 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
 void BaseInstructions::killState(S2EExecutionState *state)
 {
     std::string message;
-    uint32_t messagePtr;
+    target_ulong messagePtr;
+
+#ifdef TARGET_X86_64
+    const klee::Expr::Width width = klee::Expr::Int64;
+#else
+    const klee::Expr::Width width = klee::Expr::Int32;
+#endif
+
     bool ok = true;
-    klee::ref<klee::Expr> status = state->readCpuRegister(CPU_OFFSET(regs[R_EAX]), klee::Expr::Int32);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr, 4);
+    klee::ref<klee::Expr> status =
+                                state->readCpuRegister(CPU_OFFSET(regs[R_EAX]),
+                                                       width);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr,
+                                         sizeof messagePtr);
 
     if (!ok) {
         s2e()->getWarningsStream(state)
@@ -201,11 +211,18 @@ void BaseInstructions::killState(S2EExecutionState *state)
 void BaseInstructions::printExpression(S2EExecutionState *state)
 {
     //Print the expression
-    uint32_t name; //xxx
+#ifdef TARGET_X86_64
+    const klee::Expr::Width width = klee::Expr::Int64;
+#else
+    const klee::Expr::Width width = klee::Expr::Int32;
+#endif
+
+    target_ulong name;
     bool ok = true;
-    ref<Expr> val = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
+    ref<Expr> val = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
+                                           width);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &name, 4);
+                                         &name, sizeof name);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -233,14 +250,14 @@ void BaseInstructions::printExpression(S2EExecutionState *state)
 
 void BaseInstructions::printMemory(S2EExecutionState *state)
 {
-    uint32_t address, size, name; // XXX should account for 64 bits archs
+    target_ulong address, size, name;
     bool ok = true;
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                         &address, 4);
+                                         &address, sizeof address);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                         &size, 4);
+                                         &size, sizeof size);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &name, 4);
+                                         &name, sizeof name);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -272,13 +289,13 @@ void BaseInstructions::printMemory(S2EExecutionState *state)
 
 void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
 {
-    uint32_t address, size;
+    target_ulong address, size;
 
     bool ok = true;
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                         &address, 4);
+                                         &address, sizeof address);
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                         &size, 4);
+                                         &size, sizeof size);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -309,8 +326,9 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
 
 void BaseInstructions::sleep(S2EExecutionState *state)
 {
-    uint32_t duration = 0;
-    state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration, sizeof(uint32_t));
+    target_ulong duration = 0;
+    state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration,
+                                   sizeof duration);
     s2e()->getDebugStream() << "Sleeping " << duration << " seconds\n";
 
     llvm::sys::TimeValue startTime = llvm::sys::TimeValue::now();
@@ -326,9 +344,9 @@ void BaseInstructions::sleep(S2EExecutionState *state)
 
 void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
 {
-    uint32_t address = 0; //XXX
+    target_ulong address = 0;
     bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                                &address, 4);
+                                                &address, sizeof address);
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
@@ -357,10 +375,10 @@ void BaseInstructions::invokePlugin(S2EExecutionState *state)
     BaseInstructionsPluginInvokerInterface *iface = NULL;
     Plugin *plugin;
     std::string pluginName;
-    uint32_t pluginNamePointer = 0; //XXX
-    uint32_t dataPointer = 0; //XXX
-    uint32_t dataSize = 0;
-    uint32_t result = 0;
+    target_ulong pluginNamePointer = 0;
+    target_ulong dataPointer = 0;
+    target_ulong dataSize = 0;
+    target_ulong result = 0;
     bool ok = true;
 
     ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &pluginNamePointer, sizeof(pluginNamePointer));
@@ -449,8 +467,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 {
     switch((opcode>>8) & 0xFF) {
         case 0: { /* s2e_check */
-                uint32_t v = 1;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &v, 4);
+                target_ulong v = 1;
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &v,
+                                                sizeof v);
             }
             break;
         case 1: state->enableSymbolicExecution(); break;
@@ -467,8 +486,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         }
 
         case 5: { /* s2e_get_path_id */
+            const klee::Expr::Width width = sizeof (target_ulong) << 3;
             state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
-                klee::ConstantExpr::create(state->getID(), klee::Expr::Int32));
+                klee::ConstantExpr::create(state->getID(), width));
             break;
         }
 
@@ -532,14 +552,16 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         }
 
         case 0x30: { /* Get number of active states */
-            uint32_t count = s2e()->getExecutor()->getStatesCount();
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+            target_ulong count = s2e()->getExecutor()->getStatesCount();
+            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count,
+                                            sizeof(count));
             break;
         }
 
         case 0x31: { /* Get number of active S2E instances */
-            uint32_t count = s2e()->getCurrentProcessCount();
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+            target_ulong count = s2e()->getCurrentProcessCount();
+            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count,
+                                            sizeof(count));
             break;
         }
         case 0x32: { /* Sleep for a given number of seconds */
@@ -569,8 +591,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         }
 
         case 0x52: { /* Gets the current S2E memory object size (in power of 2) */
-                uint32_t size = S2E_RAM_OBJECT_BITS;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &size, 4);
+                target_ulong size = S2E_RAM_OBJECT_BITS;
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &size,
+                                                sizeof size);
                 break;
         }
 
