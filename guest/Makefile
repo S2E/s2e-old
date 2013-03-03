@@ -1,10 +1,10 @@
 BINARIES = demos/quicksort init_env/init_env.so s2ecmd/s2ecmd s2eget/s2eget
-CFLAGS   = -Iinclude -Wall -m32
+CFLAGS   = -Iinclude -Wall -g -O0 -std=c99
 LDLIBS   = -ldl
 
 all: $(BINARIES)
 
-demos/quicksort init_env/init_env.so: CFLAGS+=-g -O0 -std=c99
+demos/quicksort init_env/init_env.so s2ecmd/s2ecmd s2eget/s2eget : CFLAGS+=-m32
 s2ecmd/s2ecmd s2eget/s2eget: include/s2e.h
 
 %: %.c
