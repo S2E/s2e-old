@@ -38,6 +38,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #ifdef WIN32
 #include <windows.h>
@@ -101,6 +102,102 @@ void handler_symbwrite(const char **args)
     return;
 }
 
+void handler_symbfile(const char **args)
+{
+    const char *filename = args[0];
+
+    int fd = open(filename, O_RDWR);
+    if (fd < 0) {
+        s2e_kill_state_printf(-1, "symbfile: could not open %s\n", filename);
+        return;
+    }
+
+    /* Determine the size of the file */
+    off_t size = lseek(fd, 0, SEEK_END);
+    if (size < 0) {
+        s2e_kill_state_printf(-1, "symbfile: could not determine the size of %s\n", filename);
+        return;
+    }
+
+    char buffer[0x1000];
+
+    unsigned current_chunk = 0;
+    unsigned total_chunks = size / sizeof(buffer);
+    if (size % sizeof(buffer)) {
+        ++total_chunks;
+    }
+
+    /**
+     * Replace slashes in the filename with underscores.
+     * It should make it easier for plugins to generate
+     * concrete files, while preserving info about the original path
+     * and without having to deal with the slashes.
+     **/
+    char cleaned_name[512];
+    strncpy(cleaned_name, filename, sizeof(cleaned_name));
+    for (unsigned i = 0; cleaned_name[i]; ++i) {
+        if (cleaned_name[i] == '/') {
+            cleaned_name[i] = '_';
+        }
+    }
+
+    off_t offset = 0;
+    do {
+        /* Read the file in chunks of 4K and make them concolic */
+        char symbvarname[512];
+
+        if (lseek(fd, offset, SEEK_SET) < 0) {
+            s2e_kill_state_printf(-1, "symbfile: could not seek to position %d", offset);
+            return;
+        }
+
+        ssize_t totransfer = size > sizeof(buffer) ? sizeof(buffer) : size;
+
+        /* Read the data */
+        ssize_t read_count = read(fd, buffer, totransfer);
+        if (read_count < 0) {
+            s2e_kill_state_printf(-1, "symbfile: could not read from file %s", filename);
+            return;
+        }
+
+        /**
+         * Make the buffer concolic.
+         * The symbolic variable name encodes the original file name with its path
+         * as well as the chunk id contained in the buffer.
+         * A test case generator should therefore be able to reconstruct concrete
+         * files easily.
+         */
+        snprintf(symbvarname, sizeof(symbvarname), "__symfile___%s___%d_%d_symfile__",
+                 cleaned_name, current_chunk, total_chunks);
+        s2e_make_concolic(buffer, read_count, symbvarname);
+
+        /* Write it back */
+        if (lseek(fd, offset, SEEK_SET) < 0) {
+            s2e_kill_state_printf(-1, "symbfile: could not seek to position %d", offset);
+            return;
+        }
+
+        ssize_t written_count = write(fd, buffer, read_count);
+        if (written_count < 0) {
+            s2e_kill_state_printf(-1, "symbfile: could not write to file %s", filename);
+            return;
+        }
+
+        if (read_count != written_count) {
+            /* XXX: should probably retry...*/
+            s2e_kill_state_printf(-1, "symbfile: could not write the read amount");
+            return;
+        }
+
+        offset += read_count;
+        size -= read_count;
+        ++current_chunk;
+
+    } while (size > 0);
+
+    close(fd);
+}
+
 void handler_exemplify(const char **args)
 {
     const unsigned int BUF_SIZE = 32;
@@ -128,6 +225,7 @@ static cmd_t s_commands[] = {
     COMMAND(message, 1, "Display a message"),
     COMMAND(wait, 0, "Wait for S2E mode"),
     COMMAND(symbwrite, 1, "Write n symbolic bytes to stdout"),
+    COMMAND(symbfile, 1, "Makes the specified file concolic. The file should be stored in a ramdisk."),
     COMMAND(exemplify, 0, "Read from stdin and write an example to stdout"),
     { NULL, NULL, 0 }
 };
