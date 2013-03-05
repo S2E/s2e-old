@@ -26,9 +26,13 @@ MAKE = make -j$(JOBS)
 
 all: all-release
 
-all-release: stamps/qemu-make-release stamps/tools-make-release
+all-release all-release-asan: stamps/tools-make-release
+all-release: stamps/qemu-make-release
+all-release-asan: stamps/qemu-make-release-asan
 
-all-debug: stamps/qemu-make-debug stamps/tools-make-debug
+all-debug all-debug-asan: stamps/tools-make-debug
+all-debug: stamps/qemu-make-debug
+all-debug-asan: stamps/qemu-make-debug-asan
 
 ifeq ($(wildcard qemu/vl.c),qemu/vl.c)
     $(error You should not run make in the S2E source directory!)
@@ -57,7 +61,8 @@ distclean: clean guestclean
 	rm -Rf guest-tools llvm llvm-native stp stp-asan tools
 	rm -Rf $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 
-.PHONY: all all-debug all-release clean distclean guestclean
+.PHONY: all all-debug all-debug-asan all-release all-release-asan
+.PHONY: clean distclean guestclean
 
 ALWAYS:
 
