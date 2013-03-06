@@ -236,6 +236,9 @@ comma := ,
 space := $(empty) $(empty)
 QEMU_S2E_ARCH := $(subst $(space),$(comma),$(strip $(QEMU_S2E_ARCH)))
 
+#HACK: LLVM does not recognize which processor features are supported, and uses SSE4 when it's not supported, so disable this
+EXTRA_QEMU_FLAGS += --extra-cflags=-mno-sse3 --extra-cxxflags=-mno-sse3
+
 QEMU_COMMON_FLAGS = --prefix=$(S2EBUILD)/opt\
                     --cc=$(CLANG_CC) \
                     --cxx=$(CLANG_CXX) \
