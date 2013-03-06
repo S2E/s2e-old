@@ -222,7 +222,7 @@ klee/Release/bin/klee-config: stamps/klee-make-release
 QEMU_COMMON_FLAGS = --prefix=$(S2EBUILD)/opt\
                     --cc=$(CLANG_CC) \
                     --cxx=$(CLANG_CXX) \
-                    --target-list=x86_64-s2e-softmmu,x86_64-softmmu,i386-s2e-softmmu,i386-softmmu \
+                    --target-list=x86_64-s2e-softmmu,x86_64-softmmu,i386-s2e-softmmu,i386-softmmu,arm-s2e-softmmu,arm-softmmu \
                     --enable-llvm \
                     --enable-s2e \
                     --with-pkgversion=S2E \

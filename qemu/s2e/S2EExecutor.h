@@ -38,11 +38,12 @@
 
 #include <klee/Executor.h>
 #include <llvm/Support/raw_ostream.h>
+#include <cpu.h>
 
 class TCGLLVMContext;
 
 struct TranslationBlock;
-struct CPUX86State;
+/* struct */ CPUArchState;
 
 namespace klee {
     class Query;
@@ -132,7 +133,14 @@ public:
     void initializeExecution(S2EExecutionState *initialState,
                              bool executeAlwaysKlee);
 
+#ifdef TARGET_ARM
+    void registerCpu(S2EExecutionState *initialState, CPUARMState *cpuEnv);
+#elif defined(TARGET_I386)
     void registerCpu(S2EExecutionState *initialState, CPUX86State *cpuEnv);
+#endif
+
+
+
     void registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
                         uint64_t hostAddress, bool isSharedConcrete,
@@ -170,8 +178,13 @@ public:
 
 
     void setCCOpEflags(S2EExecutionState *state);
-    void doInterrupt(S2EExecutionState *state, int intno, int is_int,
-                     int error_code, uint64_t next_eip, int is_hw);
+#ifdef TARGET_ARM
+    void doInterrupt(S2EExecutionState *state);
+#elif defined(TARGET_I386)
+    void doInterrupt(S2EExecutionState *state, int intno,
+                                         int is_int, int error_code,
+                                         uint64_t next_eip, int is_hw);
+#endif
 
     /** Suspend the given state (does not kill it) */
     bool suspendState(S2EExecutionState *state, bool onlyRemoveFromPtree = false);

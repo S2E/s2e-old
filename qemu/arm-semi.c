@@ -134,19 +134,19 @@ static void arm_semi_cb(CPUARMState *env, target_ulong ret, target_ulong err)
 #else
 	syscall_err = err;
 #endif
-        env->regs[0] = ret;
+        WR_cpu(env,regs[0],ret);
     } else {
         /* Fixup syscalls that use nonstardard return conventions.  */
-        switch (env->regs[0]) {
+        switch (RR_cpu(env,regs[0])) {
         case SYS_WRITE:
         case SYS_READ:
-            env->regs[0] = arm_semi_syscall_len - ret;
+            WR_cpu(env,regs[0],arm_semi_syscall_len - ret);
             break;
         case SYS_SEEK:
-            env->regs[0] = 0;
+            WR_cpu(env,regs[0],0);
             break;
         default:
-            env->regs[0] = ret;
+            WR_cpu(env,regs[0],ret);
             break;
         }
     }
@@ -157,8 +157,8 @@ static void arm_semi_flen_cb(CPUARMState *env, target_ulong ret, target_ulong er
     /* The size is always stored in big-endian order, extract
        the value. We assume the size always fit in 32 bits.  */
     uint32_t size;
-    cpu_memory_rw_debug(env, env->regs[13]-64+32, (uint8_t *)&size, 4, 0);
-    env->regs[0] = be32_to_cpu(size);
+    cpu_memory_rw_debug(env, (RR_cpu(env,regs[13])-64+32), (uint8_t *)&size, 4, 0);
+    WR_cpu(env,regs[0],be32_to_cpu(size));
 #ifdef CONFIG_USER_ONLY
     ((TaskState *)env->opaque)->swi_errno = err;
 #else
@@ -187,8 +187,8 @@ uint32_t do_arm_semihosting(CPUARMState *env)
     CPUARMState *ts = env;
 #endif
 
-    nr = env->regs[0];
-    args = env->regs[1];
+    nr = RR_cpu(env,regs[0]);
+    args = RR_cpu(env,regs[1]);
     switch (nr) {
     case SYS_OPEN:
         if (!(s = lock_user_string(ARG(0))))
@@ -205,7 +205,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_cb, "open,%s,%x,1a4", ARG(0),
 			   (int)ARG(2)+1, gdb_open_modeflags[ARG(1)]);
-            return env->regs[0];
+            return RR_cpu(env,regs[0]);
         } else {
             ret = set_swi_errno(ts, open(s, open_modeflags[ARG(1)], 0644));
         }
@@ -214,7 +214,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
     case SYS_CLOSE:
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_cb, "close,%x", ARG(0));
-            return env->regs[0];
+            return RR_cpu(env,regs[0]);
         } else {
             return set_swi_errno(ts, close(ARG(0)));
         }
@@ -228,7 +228,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
           /* Write to debug console.  stderr is near enough.  */
           if (use_gdb_syscalls()) {
                 gdb_do_syscall(arm_semi_cb, "write,2,%x,1", args);
-                return env->regs[0];
+                return RR_cpu(env,regs[0]);
           } else {
                 return write(STDERR_FILENO, &c, 1);
           }
@@ -240,7 +240,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
         len = strlen(s);
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_cb, "write,2,%x,%x\n", args, len);
-            ret = env->regs[0];
+            ret = RR_cpu(env,regs[0]);
         } else {
             ret = write(STDERR_FILENO, s, len);
         }
@@ -251,7 +251,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
         if (use_gdb_syscalls()) {
             arm_semi_syscall_len = len;
             gdb_do_syscall(arm_semi_cb, "write,%x,%x,%x", ARG(0), ARG(1), len);
-            return env->regs[0];
+            return RR_cpu(env,regs[0]);
         } else {
             if (!(s = lock_user(VERIFY_READ, ARG(1), len, 1)))
                 /* FIXME - should this error code be -TARGET_EFAULT ? */
@@ -267,7 +267,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
         if (use_gdb_syscalls()) {
             arm_semi_syscall_len = len;
             gdb_do_syscall(arm_semi_cb, "read,%x,%x,%x", ARG(0), ARG(1), len);
-            return env->regs[0];
+            return RR_cpu(env,regs[0]);
         } else {
             if (!(s = lock_user(VERIFY_WRITE, ARG(1), len, 0)))
                 /* FIXME - should this error code be -TARGET_EFAULT ? */
@@ -286,14 +286,14 @@ uint32_t do_arm_semihosting(CPUARMState *env)
     case SYS_ISTTY:
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_cb, "isatty,%x", ARG(0));
-            return env->regs[0];
+            return RR_cpu(env,regs[0]);
         } else {
             return isatty(ARG(0));
         }
     case SYS_SEEK:
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_cb, "lseek,%x,%x,0", ARG(0), ARG(1));
-            return env->regs[0];
+            return RR_cpu(env,regs[0]);
         } else {
             ret = set_swi_errno(ts, lseek(ARG(0), ARG(1), SEEK_SET));
             if (ret == (uint32_t)-1)
@@ -303,8 +303,8 @@ uint32_t do_arm_semihosting(CPUARMState *env)
     case SYS_FLEN:
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_flen_cb, "fstat,%x,%x",
-			   ARG(0), env->regs[13]-64);
-            return env->regs[0];
+			   ARG(0), (RR_cpu(env,regs[1])-64));
+            return RR_cpu(env,regs[0]);
         } else {
             struct stat buf;
             ret = set_swi_errno(ts, fstat(ARG(0), &buf));
@@ -318,7 +318,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
     case SYS_REMOVE:
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_cb, "unlink,%s", ARG(0), (int)ARG(1)+1);
-            ret = env->regs[0];
+            ret = RR_cpu(env,regs[0]);
         } else {
             if (!(s = lock_user_string(ARG(0))))
                 /* FIXME - should this error code be -TARGET_EFAULT ? */
@@ -331,7 +331,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_cb, "rename,%s,%s",
                            ARG(0), (int)ARG(1)+1, ARG(2), (int)ARG(3)+1);
-            return env->regs[0];
+            return RR_cpu(env,regs[0]);
         } else {
             char *s2;
             s = lock_user_string(ARG(0));
@@ -354,7 +354,7 @@ uint32_t do_arm_semihosting(CPUARMState *env)
     case SYS_SYSTEM:
         if (use_gdb_syscalls()) {
             gdb_do_syscall(arm_semi_cb, "system,%s", ARG(0), (int)ARG(1)+1);
-            return env->regs[0];
+            return RR_cpu(env,regs[0]);
         } else {
             if (!(s = lock_user_string(ARG(0))))
                 /* FIXME - should this error code be -TARGET_EFAULT ? */

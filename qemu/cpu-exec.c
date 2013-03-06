@@ -48,6 +48,11 @@ const int has_llvm_engine = 1;
 int generate_llvm = 0;
 int execute_llvm = 0;
 
+#if defined(CONFIG_S2E) && defined(TARGET_ARM)
+#define do_interrupt(env) \
+	s2e_do_interrupt()
+#endif
+
 int tb_invalidated_flag;
 
 //#define CONFIG_DEBUG_EXEC

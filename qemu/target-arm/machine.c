@@ -1,15 +1,71 @@
 #include "hw/hw.h"
 #include "hw/boards.h"
 
+/*
+ * S2E: just a helper for restoring concrete cpustate
+ */
+
+void cpsr_write_concrete(CPUARMState *env, uint32_t val, uint32_t mask)
+{
+
+    if (mask & CPSR_NZCV) {
+        env->ZF = (~val) & CPSR_Z;
+        env->NF = val;
+        env->CF = (val >> 29) & 1;
+        env->VF = (val << 3) & 0x80000000;
+    }
+    if (mask & CPSR_Q)
+        env->QF = ((val & CPSR_Q) != 0);
+    if (mask & CPSR_T)
+        env->thumb = ((val & CPSR_T) != 0);
+    if (mask & CPSR_IT_0_1) {
+        env->condexec_bits &= ~3;
+        env->condexec_bits |= (val >> 25) & 3;
+    }
+    if (mask & CPSR_IT_2_7) {
+        env->condexec_bits &= 3;
+        env->condexec_bits |= (val >> 8) & 0xfc;
+    }
+    if (mask & CPSR_GE) {
+        env->GE = (val >> 16) & 0xf;
+    }
+
+    if ((env->uncached_cpsr ^ val) & mask & CPSR_M) {
+        switch_mode(env, val & CPSR_M);
+    }
+    mask &= ~CACHED_CPSR_BITS;
+    env->uncached_cpsr = (env->uncached_cpsr & ~mask) | (val & mask);
+
+}
+
+/*
+ * S2E: just a helper for dumping concrete cpustate
+ */
+
+uint32_t cpsr_read_concrete(CPUARMState *env)
+{
+
+    int ZF;
+    ZF = (env->ZF == 0);
+    return env->uncached_cpsr | (env->NF & 0x80000000) | (ZF << 30) |
+        (env->CF << 29) | ((env->VF & 0x80000000) >> 3) | (env->QF << 27)
+        | (env->thumb << 5) | ((env->condexec_bits & 3) << 25)
+        | ((env->condexec_bits & 0xfc) << 8)
+        | (env->GE << 16);
+
+}
+
 void cpu_save(QEMUFile *f, void *opaque)
 {
     int i;
     CPUARMState *env = (CPUARMState *)opaque;
 
-    for (i = 0; i < 16; i++) {
-        qemu_put_be32(f, env->regs[i]);
+    for (i = 0; i < 15; i++) {
+    		qemu_put_be32(f, env->regs[i]);
     }
-    qemu_put_be32(f, cpsr_read(env));
+	qemu_put_be32(f, env->regs[15]);
+
+    qemu_put_be32(f, cpsr_read_concrete(env));
     qemu_put_be32(f, env->spsr);
     for (i = 0; i < 6; i++) {
         qemu_put_be32(f, env->banked_spsr[i]);
@@ -121,13 +177,15 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
     if (version_id != CPU_SAVE_VERSION)
         return -EINVAL;
 
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < 15; i++) {
         env->regs[i] = qemu_get_be32(f);
     }
+    env->regs[15] = qemu_get_be32(f);
+
     val = qemu_get_be32(f);
     /* Avoid mode switch when restoring CPSR.  */
     env->uncached_cpsr = val & CPSR_M;
-    cpsr_write(env, val, 0xffffffff);
+    cpsr_write_concrete(env, val, 0xffffffff);
     env->spsr = qemu_get_be32(f);
     for (i = 0; i < 6; i++) {
         env->banked_spsr[i] = qemu_get_be32(f);

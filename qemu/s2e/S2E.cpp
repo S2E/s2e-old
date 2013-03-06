@@ -39,7 +39,7 @@ extern "C" {
 #include <cpus.h>
 #include <main-loop.h>
 #include <sysemu.h>
-extern CPUX86State *env;
+extern CPUArchState *env;
 }
 
 #include <tcg-llvm.h>

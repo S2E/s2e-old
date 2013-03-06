@@ -3698,8 +3698,9 @@ int main(int argc, char **argv, char **envp)
 
 #ifdef CONFIG_S2E
     s2e_on_device_registration(g_s2e);
-#else
+#elif defined(TARGET_I386)
     fakepci_register_device(&g_fake_pci);
+// TODO: fakepci for ARM?
 #endif
 
     if (qemu_opts_foreach(qemu_find_opts("device"), device_help_func, NULL, 0) != 0)
