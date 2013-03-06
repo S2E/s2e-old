@@ -451,8 +451,7 @@ endif # CONFIG_SOFTMMU
 ifdef CONFIG_S2E
 $(call set-vpath, $(SRC_PATH))
 
-s2eobj-arm-y =
-s2eobj-arm-y += s2e/Plugins/BaseInstructionsArm.o
+s2eobj-arm-y = 
 
 s2eobj-i386-y =
 s2eobj-i386-y += s2e/Plugins/CodeSelector.o
@@ -461,7 +460,6 @@ s2eobj-i386-y += s2e/Plugins/FunctionMonitor.o
 s2eobj-i386-y += s2e/Plugins/StackMonitor.o
 s2eobj-i386-y += s2e/Plugins/LibraryCallMonitor.o
 s2eobj-i386-y += s2e/Plugins/InterruptInjector.o
-s2eobj-i386-y += s2e/Plugins/BaseInstructions.o
 s2eobj-i386-y += s2e/Plugins/X86ExceptionInterceptor.o
 s2eobj-i386-y += s2e/Plugins/HostFiles.o
 s2eobj-i386-y += s2e/Plugins/Searchers/CooperativeSearcher.o
@@ -494,6 +492,7 @@ s2eobj-win-y += s2e/Plugins/WindowsApi/WindowsDriverExerciser.o
 #s2eobj-y = s2e/Base.o
 s2eobj-y =
 s2eobj-y += s2e/Signals/signals.o
+s2eobj-y += s2e/Plugins/BaseInstructions.o
 s2eobj-y += s2e/Plugin.o s2e/Plugins/CorePlugin.o s2e/Plugins/Example.o
 #s2eobj-y += s2e/Plugins/PluginInterface.o
 s2eobj-y += s2e/Plugins/ConsistencyModels.o
@@ -548,8 +547,7 @@ s2e/Plugins/BranchCoverage.o s2e/Plugins/WindowsInterceptor/WindowsMonitor.o: QE
 s2e/Plugins/ExecutionTrace.o : QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/RawMonitor.o s2e/Plugins/FunctionMonitor.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/CacheSim.o: QEMU_CXXFLAGS+=-fno-inline
-s2e/Plugins/BaseInstructions: QEMU_CXXFLAGS+=-fno-inline
-s2e/Plugins/BaseInstructionsArm.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/BaseInstructions.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Debugger.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/ExecutionTracers/CallRetTracer.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/ExecutionTracers/InstructionCounter.o: QEMU_CXXFLAGS+=-fno-inline
