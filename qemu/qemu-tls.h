@@ -38,7 +38,7 @@
  * TODO: proper implementations via Win32 .tls sections and
  * POSIX pthread_getspecific.
  */
-#ifdef __linux__
+#if defined(__linux__) && !defined(CONFIG_S2E)
 #define DECLARE_TLS(type, x) extern DEFINE_TLS(type, x)
 #define DEFINE_TLS(type, x)  __thread __typeof__(type) tls__##x
 #define tls_var(x)           tls__##x
