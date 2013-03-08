@@ -1029,14 +1029,7 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
     /* Add registers and eflags area as a true symbolic area */
 
     initialState->m_cpuRegistersState =
-        addExternalObject(*initialState, cpuEnv,
-#ifdef TARGET_I386
-                      offsetof(CPUX86State, eip),
-#elif defined(TARGET_ARM)
-                      offsetof(CPUARMState, regs[15]),
-#else
-#error "Target architecture not supported"
-#endif
+        addExternalObject(*initialState, cpuEnv, CPU_CONC_LIMIT,
                       /* isReadOnly = */ false,
                       /* isUserSpecified = */ false,
                       /* isSharedConcrete = */ false);
@@ -1047,15 +1040,8 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
     /* Add the rest of the structure as concrete-only area */
     initialState->m_cpuSystemState =
         addExternalObject(*initialState,
-#ifdef TARGET_I386
-                      ((uint8_t*)cpuEnv) + offsetof(CPUX86State, eip),
-                      sizeof(CPUX86State) - offsetof(CPUX86State, eip),
-#elif defined(TARGET_ARM)
-                      ((uint8_t*)cpuEnv) + offsetof(CPUARMState, regs[15]),
-                      sizeof(CPUARMState) - offsetof(CPUARMState, regs[15]),
-#else
-#error "Target architecture not supported"
-#endif
+                      ((uint8_t*)cpuEnv) + CPU_CONC_LIMIT,
+                      sizeof(CPUArchState) - CPU_CONC_LIMIT,
                       /* isReadOnly = */ false,
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
@@ -2246,11 +2232,7 @@ void S2EExecutor::yieldState(ExecutionState &s)
     g_s2e->getDebugStream().flush();
 
     // Skip the opcode
-#ifdef TARGET_I386
-    state.writeCpuState(CPU_OFFSET(eip), state.getPc() + 10, CPU_REG_SIZE << 3);
-#elif defined(TARGET_ARM)
-    state.writeCpuState(CPU_OFFSET(regs[15]), state.getPc() + 10, CPU_REG_SIZE << 3);
-#endif
+    state.writeCpuState(CPU_OFFSET(PROG_COUNTER), state.getPc() + S2E_OPCODE_SIZE, CPU_REG_SIZE << 3);
 
     // Stop current execution
     state.writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));

@@ -209,21 +209,12 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
 
 
         CPUArchState* cpu;
-#ifdef TARGET_I386
         cpu = m_active ?
-                (CPUX86State*)(m_cpuSystemState->address
-                              - offsetof(CPUX86State, eip)) :
-                (CPUX86State*)(m_cpuSystemObject->getConcreteStore(true)
-                              - offsetof(CPUX86State, eip));
-#elif defined(TARGET_ARM)
-        cpu = m_active ?
-                (CPUARMState*)(m_cpuSystemState->address
-                              - offsetof(CPUARMState, regs[15])) :
-                (CPUARMState*)(m_cpuSystemObject->getConcreteStore(true)
-                              - offsetof(CPUARMState, regs[15]));
-#else
-#error "Target architecture not supported"
-#endif
+                (CPUArchState*)(m_cpuSystemState->address
+                              - CPU_CONC_LIMIT) :
+                (CPUArchState*)(m_cpuSystemObject->getConcreteStore(true)
+                              - CPU_CONC_LIMIT);
+
 
 #ifdef S2E_DEBUG_TLBCACHE
         g_s2e->getDebugStream(this) << std::dec << "Replacing " << oldState << " by " << newState <<  "\n";
@@ -298,13 +289,8 @@ ExecutionState* S2EExecutionState::clone()
     // This means that we must clean owned-by-us flag in S2E TLB
     assert(m_active && m_cpuSystemState);
 #ifdef S2E_ENABLE_S2E_TLB
-#ifdef TARGET_ARM
-    CPUARMState* cpu = (CPUARMState*)(m_cpuSystemState->address
-                          - offsetof(CPUARMState, regs[15]));
-#elif defined(TARGET_I386)
-    CPUX86State* cpu = (CPUX86State*)(m_cpuSystemState->address
-                          - offsetof(CPUX86State, eip));
-#endif
+    CPUArchState* cpu = (CPUArchState*)(m_cpuSystemState->address
+                          - CPU_CONC_LIMIT);
 
 
     foreach2(it, m_tlbMap.begin(), m_tlbMap.end()) {
@@ -364,11 +350,7 @@ ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
                                              Expr::Width width) const
 {
     assert((width == 1 || (width&7) == 0) && width <= 64);
-#ifdef TARGET_ARM
-    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(regs[15]));
-#elif defined(TARGET_I386)
-    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
-#endif
+    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_CONC_LIMIT);
 
     if(!m_runningConcrete || !m_cpuRegistersObject->isConcrete(offset, width)) {
         return m_cpuRegistersObject->read(offset, width);
@@ -386,11 +368,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
 {
     unsigned width = value->getWidth();
     assert((width == 1 || (width&7) == 0) && width <= 64);
-#ifdef TARGET_ARM
-    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(regs[15]));
-#elif defined(TARGET_I386)
-    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
-#endif
+    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_CONC_LIMIT);
 
 
     if(!m_runningConcrete || !m_cpuRegistersObject->isConcrete(offset, width)) {
@@ -414,11 +392,7 @@ void S2EExecutionState::writeCpuRegisterSymbolic(unsigned offset,
 {
     unsigned width = value->getWidth();
     assert((width == 1 || (width&7) == 0) && width <= 64);
-#ifdef TARGET_ARM
-    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(regs[15]));
-#elif defined(TARGET_I386)
-    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
-#endif
+    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_CONC_LIMIT);
 
     m_cpuRegistersObject->write(offset, value);
 }
@@ -587,32 +561,16 @@ uint64_t S2EExecutionState::readCpuState(unsigned offset,
                                          unsigned width) const
 {
     assert((width == 1 || (width&7) == 0) && width <= 64);
-#ifdef TARGET_ARM
-    assert(offset >= offsetof(CPUARMState, regs[15]));
-    assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUARMState));
+    assert(offset >= CPU_CONC_LIMIT);
+    assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUArchState));
 
     const uint8_t* address;
     if(m_active) {
-        address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(regs[15]);
+        address = (uint8_t*) m_cpuSystemState->address - CPU_CONC_LIMIT;
     } else {
         address = m_cpuSystemObject->getConcreteStore(); assert(address);
-        address -= CPU_OFFSET(regs[15]);
+        address -= CPU_CONC_LIMIT;
     }
-
-#elif defined(TARGET_I386)
-    assert(offset >= offsetof(CPUX86State, eip));
-    assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUX86State));
-
-    const uint8_t* address;
-    if(m_active) {
-        address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
-    } else {
-        address = m_cpuSystemObject->getConcreteStore(); assert(address);
-        address -= CPU_OFFSET(eip);
-    }
-#endif
-
-
 
     uint64_t ret = 0;
     small_memcpy((void*) &ret, address + offset, Expr::getMinBytesForWidth(width));
@@ -628,31 +586,16 @@ void S2EExecutionState::writeCpuState(unsigned offset, uint64_t value,
 {
 
 	assert((width == 1 || (width&7) == 0) && width <= 64);
-
-#ifdef TARGET_ARM
-	assert(offset >= offsetof(CPUARMState, regs[15]));
-	assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUARMState));
+	assert(offset >= CPU_CONC_LIMIT);
+	assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUArchState));
 
     uint8_t* address;
     if(m_active) {
-        address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(regs[15]);
+        address = (uint8_t*) m_cpuSystemState->address - CPU_CONC_LIMIT;
     } else {
         address = m_cpuSystemObject->getConcreteStore(); assert(address);
-        address -= CPU_OFFSET(regs[15]);
+        address -= CPU_CONC_LIMIT;
     }
-
-#elif defined(TARGET_I386)
-    assert(offset >= offsetof(CPUX86State, eip));
-    assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUX86State));
-
-    uint8_t* address;
-    if(m_active) {
-        address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
-    } else {
-        address = m_cpuSystemObject->getConcreteStore(); assert(address);
-        address -= CPU_OFFSET(eip);
-    }
-#endif
 
     if(width == 1)
         value &= 1;
@@ -678,11 +621,7 @@ bool S2EExecutionState::isRamSharedConcrete(uint64_t hostAddress)
 //Allows plugins to retrieve it in a hardware-independent manner.
 uint64_t S2EExecutionState::getPc() const
 {
-#ifdef TARGET_ARM
-    return readCpuState(CPU_OFFSET(regs[15]), 8 * CPU_REG_SIZE);
-#elif defined(TARGET_I386)
-    return readCpuState(CPU_OFFSET(eip), 8 * CPU_REG_SIZE);
-#endif
+    return readCpuState(CPU_OFFSET(PROG_COUNTER), 8 * CPU_REG_SIZE);
 }
 
 uint64_t S2EExecutionState::getFlags()
@@ -756,11 +695,7 @@ uint64_t S2EExecutionState::getFlags()
 
 void S2EExecutionState::setPc(uint64_t pc)
 {
-#ifdef TARGET_ARM
-    writeCpuState(CPU_OFFSET(regs[15]), pc, CPU_REG_SIZE * 8);
-#elif defined(TARGET_I386)
-    writeCpuState(CPU_OFFSET(eip), pc, CPU_REG_SIZE * 8);
-#endif
+    writeCpuState(CPU_OFFSET(PROG_COUNTER), pc, CPU_REG_SIZE * 8);
 }
 
 void S2EExecutionState::setSp(uint64_t sp)
@@ -1426,11 +1361,7 @@ void S2EExecutionState::readRegisterConcrete(
 {
     assert(m_active);
     assert(((uint64_t)cpuState) == m_cpuRegistersState->address);
-#ifdef TARGET_ARM
-    assert(offset + size <= CPU_OFFSET(regs[15]));
-#elif defined(TARGET_I386)
-    assert(offset + size <= CPU_OFFSET(eip));
-#endif
+    assert(offset + size <= CPU_CONC_LIMIT);
 
     if(!m_runningConcrete ||
             !m_cpuRegistersObject->isConcrete(offset, size*8)) {
@@ -1505,11 +1436,7 @@ void S2EExecutionState::writeRegisterConcrete(CPUArchState *cpuState,
 {
     assert(m_active);
     assert(((uint64_t)cpuState) == m_cpuRegistersState->address);
-#ifdef TARGET_ARM
-    assert(offset + size <= CPU_OFFSET(regs[15]));
-#elif defined(TARGET_I386)
-    assert(offset + size <= CPU_OFFSET(eip));
-#endif
+    assert(offset + size <= CPU_CONC_LIMIT);
 
     if(!m_runningConcrete ||
             !m_cpuRegistersObject->isConcrete(offset, size*8)) {
@@ -1810,26 +1737,14 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
 
     /* Check CPUArchState */
     {
-#ifdef TARGET_ARM
-        uint8_t* cpuStateA = m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(regs[15]);
-        uint8_t* cpuStateB = b.m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(regs[15]);
-        if(memcmp(cpuStateA + CPU_OFFSET(regs[15]), cpuStateB + CPU_OFFSET(regs[15]),
-                  CPU_OFFSET(current_tb) - CPU_OFFSET(regs[15]))) {
+        uint8_t* cpuStateA = m_cpuSystemObject->getConcreteStore() - CPU_CONC_LIMIT;
+        uint8_t* cpuStateB = b.m_cpuSystemObject->getConcreteStore() - CPU_CONC_LIMIT;
+        if(memcmp(cpuStateA + CPU_CONC_LIMIT, cpuStateB + CPU_CONC_LIMIT,
+                  CPU_OFFSET(current_tb) - CPU_CONC_LIMIT)) {
             if(DebugLogStateMerge)
                 s << "merge failed: different concrete cpu state" << "\n";
             return false;
         }
-#elif defined(TARGET_I386)
-        uint8_t* cpuStateA = m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip);
-        uint8_t* cpuStateB = b.m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip);
-        if(memcmp(cpuStateA + CPU_OFFSET(eip), cpuStateB + CPU_OFFSET(eip),
-                  CPU_OFFSET(current_tb) - CPU_OFFSET(eip))) {
-            if(DebugLogStateMerge)
-                s << "merge failed: different concrete cpu state" << '\n';
-            return false;
-        }
-#endif
-
     }
 
     // We cannot merge if addresses would resolve differently in the
@@ -1974,13 +1889,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
     // Flush TLB
     {
         CPUArchState * cpu;
-#ifdef TARGET_I386
-        cpu = (CPUX86State *) (m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip));
-#elif defined(TARGET_ARM)
-        cpu = (CPUARMState*) (m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(regs[15]));
-#else
-#error "Target architecture not supported"
-#endif
+        cpu = (CPUArchState *) (m_cpuSystemObject->getConcreteStore() - CPU_CONC_LIMIT);
         cpu->current_tb = NULL;
 
         for (int mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
@@ -1999,13 +1908,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
 CPUArchState *S2EExecutionState::getConcreteCpuState() const
 {
     CPUArchState * cpu;
-#ifdef TARGET_I386
-    cpu = (CPUArchState *) (m_cpuSystemState->address - CPU_OFFSET(eip));
-#elif defined(TARGET_ARM)
-    cpu = (CPUARMState*) (m_cpuSystemState->address - CPU_OFFSET(regs[15]));
-#else
-#error "Target architecture not supported"
-#endif
+    cpu = (CPUArchState *) (m_cpuSystemState->address - CPU_CONC_LIMIT);
     return cpu;
 }
 

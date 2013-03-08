@@ -152,11 +152,7 @@ static void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc, 
         TCGv_i32 tpc = tcg_temp_new_i32();
         TCGv_ptr cpu_env = MAKE_TCGV_PTR(0);
         tcg_gen_movi_i32(tpc, (tcg_target_ulong) nextpc);
-#ifdef TARGET_ARM
-        tcg_gen_st_i32(tpc, cpu_env, offsetof(CPUARMState, regs[15]));
-#elif defined(TARGET_I386)
-        tcg_gen_st_i32(tpc, cpu_env, offsetof(CPUX86State, eip));
-#endif
+        tcg_gen_st_i32(tpc, cpu_env, CPU_OFFSET(PROG_COUNTER));
 
         tcg_temp_free_i32(tpc);
 #endif

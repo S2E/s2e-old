@@ -552,11 +552,7 @@ void StateManager::onCustomInstruction(S2EExecutionState* state, uint64_t opcode
             //At this point, we must advance the program counter, otherwise
             //the current custom instruction will be executed again when the state resumes.
             target_ulong pc = state->getPc() + OPCODE_SIZE;
-#ifdef TARGET_ARM
-            state->writeCpuState(CPU_OFFSET(regs[15]), pc, 8*sizeof(uint32_t));
-#elif defined(TARGET_I386)
-            state->writeCpuState(CPU_OFFSET(eip), pc, 8*sizeof(target_ulong));
-#endif
+            state->writeCpuState(CPU_OFFSET(PROG_COUNTER), pc, 8 * sizeof(target_ulong));
 
             throw CpuExitException();
             break;
