@@ -83,23 +83,12 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state, bool makeConcolic)
     target_ulong address, size, name;
     bool ok = true;
 
-#ifdef TARGET_ARM
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
+    ok &= state->readCpuRegisterConcrete(MAKESYM_ADDRESS,
                                          &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
+    ok &= state->readCpuRegisterConcrete(MAKESYM_SIZE,
                                          &size, sizeof size);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]),
+    ok &= state->readCpuRegisterConcrete(MAKESYM_NAME,
                                          &name, sizeof name);
-#elif defined(TARGET_I386)
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                         &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                         &size, sizeof size);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &name, sizeof name);
-#else
-#error "Target architecture not supported"
-#endif
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -156,20 +145,12 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
     target_ulong result;
 
     bool ok = true;
-#ifdef TARGET_ARM
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]),
-                                         &address, sizeof(address));
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
-                                         &size, sizeof(size));
-#elif defined(TARGET_I386)
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+
+    ok &= state->readCpuRegisterConcrete(ISSYMB_ADDR,
                                          &address, sizeof(address));
 
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+    ok &= state->readCpuRegisterConcrete(ISSYMB_SIZE,
                                          &size, sizeof(size));
-#else
-#error "Target architecture not supported"
-#endif
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -191,13 +172,7 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
             << " and size " << size << " is symbolic: "
             << (result ? " true" : " false") << '\n';
 
-#ifdef TARGET_ARM
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]), &result, sizeof(result));
-#elif defined(TARGET_I386)
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, sizeof(result));
-#else
-#error "Target architecture not supported"
-#endif
+    state->writeCpuRegisterConcrete(ISSYMB_RETURN, &result, sizeof(result));
 }
 
 void BaseInstructions::killState(S2EExecutionState *state)
@@ -213,21 +188,11 @@ void BaseInstructions::killState(S2EExecutionState *state)
 
     bool ok = true;
 
-#ifdef TARGET_ARM
     klee::ref<klee::Expr> status =
-                                state->readCpuRegister(CPU_OFFSET(regs[0]),
+                                state->readCpuRegister(KILLSTATE_STATUS,
                                                        width);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]), &messagePtr,
+    ok &= state->readCpuRegisterConcrete(KILLSTATE_MSG, &messagePtr,
                                          sizeof messagePtr);
-#elif defined(TARGET_I386)
-    klee::ref<klee::Expr> status =
-                                state->readCpuRegister(CPU_OFFSET(regs[R_EAX]),
-                                                       width);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr,
-                                         sizeof messagePtr);
-#else
-#error "Target architecture not supported"
-#endif
 
     if (!ok) {
         s2e()->getWarningsStream(state)
@@ -260,19 +225,9 @@ void BaseInstructions::printExpression(S2EExecutionState *state)
 
     target_ulong name;
     bool ok = true;
-#ifdef TARGET_ARM
-    ref<Expr> val = state->readCpuRegister(CPU_OFFSET(regs[0]),
-                                           width);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
-                                         &name, sizeof name);
-#elif defined(TARGET_I386)
-    ref<Expr> val = state->readCpuRegister(CPU_OFFSET(regs[R_EAX]),
-                                           width);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &name, sizeof name);
-#else
-#error "Target architecture not supported"
-#endif
+
+    ref<Expr> val = state->readCpuRegister(PRINTEXPR_VAL, width);
+    ok &= state->readCpuRegisterConcrete(PRINTEXPR_NAME, &name, sizeof name);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -302,23 +257,13 @@ void BaseInstructions::printMemory(S2EExecutionState *state)
 {
     target_ulong address, size, name;
     bool ok = true;
-#ifdef TARGET_ARM
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
+
+    ok &= state->readCpuRegisterConcrete(PRINTMEM_ADDRESS,
                                          &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
+    ok &= state->readCpuRegisterConcrete(PRINTMEM_SIZE,
                                          &size, sizeof size);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]),
+    ok &= state->readCpuRegisterConcrete(PRINTMEM_NAME,
                                          &name, sizeof name);
-#elif defined(TARGET_I386)
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                         &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                         &size, sizeof size);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &name, sizeof name);
-#else
-#error "Target architecture not supported"
-#endif
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -353,19 +298,10 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
     target_ulong address, size;
 
     bool ok = true;
-#ifdef TARGET_ARM
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
+    ok &= state->readCpuRegisterConcrete(CONCRETIZE_ADDR,
                                          &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
+    ok &= state->readCpuRegisterConcrete(CONCRETIZE_SIZE,
                                          &size, sizeof size);
-#elif defined(TARGET_I386)
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                         &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                         &size, sizeof size);
-#else
-#error "Target architecture not supported"
-#endif
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -398,7 +334,7 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
 void BaseInstructions::sleep(S2EExecutionState *state)
 {
     target_ulong duration = 0;
-    state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration,
+    state->readCpuRegisterConcrete(SLEEP_DURATION, &duration,
                                    sizeof duration);
     s2e()->getDebugStream() << "Sleeping " << duration << " seconds\n";
 
@@ -417,15 +353,8 @@ void BaseInstructions::sleep(S2EExecutionState *state)
 void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
 {
     target_ulong address = 0;
-#ifdef TARGET_ARM
-    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
+    bool ok = state->readCpuRegisterConcrete(PRINTMSG_ADDR,
                                                 &address, sizeof address);
-#elif defined(TARGET_I386)
-    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                                &address, sizeof address);
-#else
-#error "Target architecture not supported"
-#endif
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -559,26 +488,14 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 	                        << "\n";
 #endif
 
-#ifdef TARGET_ARM
-    switch((opcode>>16) & 0xFF) {
-        case 0: {
-            /* s2e_check */
-            target_ulong v = 2;
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]), &v,
-                                                sizeof v);
-            break;
-        }
-#elif defined(TARGET_I386)
-    switch((opcode>>8) & 0xFF) {
+    switch((opcode>>OPSHIFT) & 0xFF) {
         case 0: { /* s2e_check */
                 target_ulong v = 1;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &v,
+                state->writeCpuRegisterConcrete(GETVERSION_RETURN, &v,
                                                 sizeof v);
             }
             break;
-#else
-#error "Target architecture not supported"
-#endif
+
         case 1: state->enableSymbolicExecution(); break;
         case 2: state->disableSymbolicExecution(); break;
 
@@ -594,13 +511,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
         case 5: { /* s2e_get_path_id */
             const klee::Expr::Width width = sizeof (target_ulong) << 3;
-#ifdef TARGET_ARM
-            state->writeCpuRegister(CPU_OFFSET(regs[0]),
-#elif defined(TARGET_I386)
-            state->writeCpuRegister(CPU_OFFSET(regs[R_EAX]),
-#else
-#error "Target architecture not supported"
-#endif
+            state->writeCpuRegister(GETPATH_RETURN,
                 klee::ConstantExpr::create(state->getID(), width));
             break;
         }
@@ -708,15 +619,8 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 #endif
         case 0x52: { /* Gets the current S2E memory object size (in power of 2) */
                 target_ulong size = S2E_RAM_OBJECT_BITS;
-#ifdef TARGET_ARM
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]), &size,
+                state->writeCpuRegisterConcrete(GETSIZE_RETURN, &size,
                                                 sizeof size);
-#elif defined(TARGET_I386)
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &size,
-                                                sizeof size);
-#else
-#error "Target architecture not supported"
-#endif
                 break;
         }
 
@@ -742,13 +646,9 @@ void BaseInstructions::onCustomInstruction(S2EExecutionState* state,
 	                        << hexval(opcode)
 	                        << " called."
 	                        << "\n";
-
-    uint8_t opc = (opcode>>16) & 0xFF;
-#elif defined(TARGET_I386)
-    uint8_t opc = (opcode>>8) & 0xFF;
-#else
-#error "Target architecture not supported"
 #endif
+
+    uint8_t opc = (opcode>>OPSHIFT) & 0xFF;
     if (opc <= 0x70) {
         handleBuiltInOps(state, opcode);
     }
