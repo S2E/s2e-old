@@ -177,7 +177,7 @@ the system in S2E.
      kleeArgs = {
        -- Pick a random path to execute among all the
        -- available paths.
-       "--use-random-path=true"
+       "--use-random-path=true",
 
        -- Run each state for at least 1 second before
        -- switching to the other:
