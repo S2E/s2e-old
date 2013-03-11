@@ -86,6 +86,12 @@ stmfd sp!,{r14}
 .word 0xFF210000
 ldmfd sp!,{r15}
 
+@requires r0: duration
+s2e_sleep:
+    stmfd sp!,{r14}
+    .word 0xFF320000
+    ldmfd sp!,{r15}
+
 
 s2e_get_ram_object_bits:
 stmfd sp!,{r14}

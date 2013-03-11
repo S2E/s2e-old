@@ -330,7 +330,6 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
     }
 }
 
-#ifdef TARGET_I386
 void BaseInstructions::sleep(S2EExecutionState *state)
 {
     target_ulong duration = 0;
@@ -348,7 +347,6 @@ void BaseInstructions::sleep(S2EExecutionState *state)
         #endif
     }
 }
-#endif
 
 void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
 {
@@ -582,11 +580,12 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                                             sizeof(count));
             break;
         }
+#endif
         case 0x32: { /* Sleep for a given number of seconds */
            sleep(state);
            break;
         }
-
+#ifdef TARGET_I386
         case 0x50: { /* disable/enable timer interrupt */
             uint64_t disabled = opcode >> 16;
             if(disabled)
