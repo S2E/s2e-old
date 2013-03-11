@@ -479,15 +479,6 @@ void BaseInstructions::assume(S2EExecutionState *state)
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {
 
-#ifdef TARGET_ARM
-	// TODO: arrange better for debug
-	s2e()->getWarningsStream(state)
-	                        << "handleBuildInOps with opcode "
-	                        << hexval(opcode)
-	                        << " called."
-	                        << "\n";
-#endif
-
     switch((opcode>>OPSHIFT) & 0xFF) {
         case 0: { /* s2e_check */
                 target_ulong v = 1;
@@ -639,14 +630,10 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode)
 {
-
-#ifdef TARGET_ARM
-	s2e()->getWarningsStream(state)
-	                        << "onCustomInstruction with opcode "
+	s2e()->getDebugStream(state)
+	                        << "BaseInstructions: custom instruction (opcode: "
 	                        << hexval(opcode)
-	                        << " called."
-	                        << "\n";
-#endif
+	                        << ") called.\n";
 
     uint8_t opc = (opcode>>OPSHIFT) & 0xFF;
     if (opc <= 0x70) {
