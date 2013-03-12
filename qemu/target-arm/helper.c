@@ -786,7 +786,7 @@ void switch_mode(CPUARMState *env, int mode)
     WR_cpu(env,banked_r14[i], RR_cpu(env,regs[14]));
     WR_cpu(env,banked_spsr[i], RR_cpu(env,spsr));
 
-    i = bank_number(env, old_mode);
+    i = bank_number(env, mode);
     WR_cpu(env,regs[13],RR_cpu(env,banked_r13[i]));
     WR_cpu(env,regs[14],RR_cpu(env,banked_r14[i]));
     WR_cpu(env,spsr,RR_cpu(env,banked_spsr[i]));
