@@ -523,26 +523,22 @@ static int bad_mode_switch(CPUARMState *env, int mode)
 uint32_t cpsr_read(CPUARMState *env)
 {
 
-//    int ZF;
-//    ZF = (RR_cpu(env,ZF) == 0);
-//    return env->uncached_cpsr | (RR_cpu(env,NF) & 0x80000000) | (ZF << 30) |
-//        (RR_cpu(env,CF) << 29) | ((RR_cpu(env,VF) & 0x80000000) >> 3) | (env->QF << 27)
-//        | (env->thumb << 5) | ((env->condexec_bits & 3) << 25)
-//        | ((env->condexec_bits & 0xfc) << 8)
-//        | (env->GE << 16);
-
-// For DEBUG purposes
-    int ZF;
-    target_ulong NF,CF,VF,QF, thumb, condex1, condex2, GE;
+    // These bits (ZF, NF, CF, VF) may be symbolic
+    target_ulong ZF, NF, CF, VF;
     ZF = (RR_cpu(env,ZF) == 0);
     NF = (RR_cpu(env,NF) & 0x80000000);
     CF = (RR_cpu(env,CF) << 29);
     VF = ((RR_cpu(env,VF) & 0x80000000) >> 3);
+
+    // These bits instead are are always concrete
+    target_ulong QF, thumb, condex1, condex2, GE;
     QF = (env->QF << 27);
     thumb = (env->thumb << 5);
     condex1 = ((env->condexec_bits & 3) << 25);
     condex2 = ((env->condexec_bits & 0xfc) << 8);
     GE = (env->GE << 16);
+
+    // Re-assemble the cpsr
     return env->uncached_cpsr | NF | (ZF << 30) |
         CF | VF | QF
         | thumb | condex1

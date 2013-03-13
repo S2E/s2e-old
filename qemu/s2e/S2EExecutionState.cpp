@@ -692,6 +692,63 @@ uint64_t S2EExecutionState::getFlags()
     WR_cpu(env, cc_src, cpu_cc_compute_all(env, CC_OP));
     WR_cpu(env, cc_op, CC_OP_EFLAGS);
     return cpu_get_eflags(env);
+#elif TARGET_ARM
+    // TODO: avoid duplication with cpsr_read()
+    uint8_t cpsr_symbolic = getSymbolicRegistersMask() & 0x0f;
+    if (cpsr_symbolic == 0) {
+        // Fast Path
+        return cpsr_read(reinterpret_cast<CPUArchState *>(m_cpuRegistersState->address));
+    } else {
+        // Check the symbolic bits
+        CPUArchState * s = reinterpret_cast<CPUArchState *>(m_cpuRegistersState->address);
+
+        // CF
+        target_ulong CF = 0;
+        if (cpsr_symbolic & 0x01) {
+            //TODO
+        } else {
+            CF = ((s->CF) << 29);
+        }
+
+        // VF
+        target_ulong VF = 0;
+        if (cpsr_symbolic & 0x02) {
+            //TODO
+        } else {
+            VF = ((s->VF & 0x80000000) >> 3);
+        }
+
+        // NF
+        target_ulong NF = 0;
+        if (cpsr_symbolic & 0x04) {
+            //TODO
+        } else {
+            NF = ((s->NF) & 0x80000000);
+        }
+
+        // ZF
+        target_ulong ZF = 0;
+        if (cpsr_symbolic & 0x08) {
+            //TODO
+        } else {
+            ZF = (s->ZF == 0);
+        }
+
+        // These bit are always concrete
+        target_ulong QF, thumb, condex1, condex2, GE;
+        QF = (env->QF << 27);
+        thumb = (env->thumb << 5);
+        condex1 = ((env->condexec_bits & 3) << 25);
+        condex2 = ((env->condexec_bits & 0xfc) << 8);
+        GE = (env->GE << 16);
+
+        // Re-assemble the cpsr
+        return env->uncached_cpsr | NF | (ZF << 30) |
+            CF | VF | QF
+            | thumb | condex1
+            | condex2
+            | GE;
+    }
 #else
     return 0;
 #endif
