@@ -926,8 +926,12 @@ static void do_interrupt_v7m(CPUARMState *env)
     env->thumb = addr & 1;
 }
 
+#ifdef CONFIG_S2E
+void s2e_helper_do_interrupt(CPUARMState *env)
+#else
 /* Handle a CPU exception.  */
 void do_interrupt(CPUARMState *env)
+#endif
 {
     uint32_t addr;
     uint32_t mask;

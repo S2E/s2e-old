@@ -31,13 +31,6 @@
 //S2E: Keep the environment in a variable
 struct CPUARMState* env = 0;
 
-uint64_t helper_do_interrupt(void);
-uint64_t helper_do_interrupt(void)
-{
-    do_interrupt(env);
-    return 0;
-}
-
 #if !defined(CONFIG_USER_ONLY)
 static void raise_exception(int tt)
 {
@@ -108,6 +101,13 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
 
 #ifdef CONFIG_S2E
 #include <s2e/s2e_qemu.h>
+
+/* This will be called from S2EExecutor if running concretely; It will
+   in turn call the real ARM IRQ handler with current CPUARMState.*/
+void s2e_do_interrupt(void)
+{
+    s2e_helper_do_interrupt(env);
+}
 #endif
 
 /* try to fill the TLB and return an exception if error. If retaddr is
