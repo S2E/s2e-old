@@ -1876,9 +1876,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     }
 }
 
-void S2EExecutor::cleanupTranslationBlock(
-        S2EExecutionState* state,
-        TranslationBlock* tb)
+void S2EExecutor::cleanupTranslationBlock(S2EExecutionState* state)
 {
     assert(state->m_active);
 
@@ -2412,10 +2410,9 @@ void s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
     }
 }
 
-void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
-                           struct TranslationBlock* tb)
+void s2e_qemu_cleanup_tb_exec()
 {
-    return s2e->getExecutor()->cleanupTranslationBlock(state, tb);
+    return g_s2e->getExecutor()->cleanupTranslationBlock(g_s2e_state);
 }
 
 void s2e_set_cc_op_eflags(struct CPUX86State *env1)

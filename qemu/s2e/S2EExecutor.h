@@ -161,8 +161,7 @@ public:
                                       TranslationBlock *tb);
     void finalizeTranslationBlockExec(S2EExecutionState *state);
 
-    void cleanupTranslationBlock(S2EExecutionState *state,
-                                 TranslationBlock *tb);
+    void cleanupTranslationBlock(S2EExecutionState *state);
 
     void updateStates(klee::ExecutionState *current) {
         klee::Executor::updateStates(current);

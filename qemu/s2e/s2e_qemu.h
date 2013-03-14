@@ -262,12 +262,9 @@ void s2e_flush_tlb_cache_page(void *objectState, int mmu_idx, int index);
 uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env1, struct TranslationBlock* tb);
 
 /* Called by QEMU when execution is aborted using longjmp */
-void s2e_qemu_cleanup_tb_exec(
-        struct S2E* s2e,
-        struct S2EExecutionState* state,
-        struct TranslationBlock* tb);
+void s2e_qemu_cleanup_tb_exec();
 
-void s2e_qemu_finalize_tb_exec(struct S2E *s2e, struct S2EExecutionState* state);
+int s2e_qemu_finalize_tb_exec(struct S2E *s2e, struct S2EExecutionState* state);
 
 void s2e_init_timers(struct S2E* s2e);
 
