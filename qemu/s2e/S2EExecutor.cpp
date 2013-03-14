@@ -1558,9 +1558,11 @@ inline bool S2EExecutor::executeInstructions(S2EExecutionState *state, unsigned 
 
             //S2E doesn't know if the current state can be run
             //if concolic fork marks it as speculative.
-            if (state->isSpeculative()) {
+            //XXX: Current state should *never* be speculative.
+            assert(!state->isSpeculative());
+            /*if (state->isSpeculative()) {
                 return true;
-            }
+            }*/
 
             //Handle the case where we killed the current state inside processFork
             if (m_forkProcTerminateCurrentState) {
