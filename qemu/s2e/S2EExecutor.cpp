@@ -1586,10 +1586,10 @@ inline bool S2EExecutor::executeInstructions(S2EExecutionState *state, unsigned 
     return false;
 }
 
-void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
+bool S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
 {
     if(!state->m_needFinalizeTBExec)
-        return;
+        return false;
 
     state->m_needFinalizeTBExec = false;
     assert(state->stack.size() != 1);
@@ -1609,11 +1609,17 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
     //g_s2e_exec_ret_addr = 0; //state->getTb()->tc_ptr;
 
 
+    /**
+     * TBs can fork anywhere and the remainder can also throw exceptions.
+     * Should exit the CPU loop in this case.
+     */
     bool ret = executeInstructions(state);
-    assert(!ret);
 
-    //copyOutConcretes(*state);
+    if (VerboseTbFinalize) {
+        m_s2e->getDebugStream(state) << "Done finalizing TB execution\n";
+    }
 
+    return ret;
 }
 
 #ifdef _WIN32
@@ -2384,7 +2390,6 @@ void s2e_register_dirty_mask(S2E *s2e, S2EExecutionState *initial_state,
     s2e->getExecutor()->registerDirtyMask(initial_state, host_address, size);
 }
 
-
 uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env1, struct TranslationBlock* tb)
 {
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
@@ -2402,14 +2407,9 @@ uintptr_t s2e_qemu_tb_exec(struct CPUX86State* env1, struct TranslationBlock* tb
     }
 }
 
-void s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
+int s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
 {
-    try {
-        s2e->getExecutor()->finalizeTranslationBlockExec(state);
-    } catch(s2e::CpuExitException&) {
-        s2e->getExecutor()->updateStates(state);
-        s2e_longjmp(env->jmp_env, 1);
-    }
+    return s2e->getExecutor()->finalizeTranslationBlockExec(state);
 }
 
 void s2e_qemu_cleanup_tb_exec()

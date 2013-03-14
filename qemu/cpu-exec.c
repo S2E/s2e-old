@@ -282,7 +282,10 @@ int cpu_exec(CPUArchState *env)
             #ifdef CONFIG_S2E
             assert(g_s2e_state);
             assert (env->exception_index != EXCP_S2E);
-            s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
+            if (s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state)) {
+                s2e_qemu_cleanup_tb_exec();
+                continue;
+            }
             #endif
 
             /* if an exception is pending, we execute it here */

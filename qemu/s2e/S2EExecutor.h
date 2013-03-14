@@ -159,7 +159,9 @@ public:
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
                                       TranslationBlock *tb);
-    void finalizeTranslationBlockExec(S2EExecutionState *state);
+
+    /* Returns true if the CPU loop must be exited */
+    bool finalizeTranslationBlockExec(S2EExecutionState *state);
 
     void cleanupTranslationBlock(S2EExecutionState *state);
 
