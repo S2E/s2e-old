@@ -11,8 +11,8 @@
 #
 #
 
-S2ESRC:=$(CURDIR)/../s2e
 S2EBUILD:=$(CURDIR)
+S2ESRC:=$(dir $(realpath $(S2EBUILD)/Makefile))
 
 OS := $(shell uname)
 JOBS:=2
