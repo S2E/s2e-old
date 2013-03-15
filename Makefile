@@ -296,11 +296,11 @@ stamps/tools-configure: stamps/llvm-configure | tools
 		CXX=$(CLANG_CXX)
 	touch $@
 
-stamps/tools-make-release: stamps/tools-configure ALWAYS
+stamps/tools-make-release: stamps/tools-configure stamps/llvm-make-release ALWAYS
 	$(MAKE) -C tools ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 	touch $@
 
-stamps/tools-make-debug: stamps/tools-configure ALWAYS
+stamps/tools-make-debug: stamps/tools-configure stamps/llvm-make-debug ALWAYS
 	$(MAKE) -C tools ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 	touch $@
 
