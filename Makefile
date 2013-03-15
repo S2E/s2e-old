@@ -255,7 +255,7 @@ stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
 
 #ASAN-enabled QEMU
 QEMU_ASAN_FLAGS = --enable-address-sanitizer \
-                  --with-stp=$(S2EBUILD)/stp \
+                  --with-stp=$(S2EBUILD)/stp-asan \
                   $(QEMU_COMMON_FLAGS)
 
 stamps/qemu-configure-release-asan: stamps/klee-make-release-asan | qemu-release-asan
