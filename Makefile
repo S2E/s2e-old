@@ -116,14 +116,13 @@ stamps/llvm-configure-native: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-n
 		--disable-assertions #compiler-rt won't build if we specify explicit targets...
 	touch $@
 
-stamps/llvm-make-release-native: stamps/llvm-configure-native
+$(CLANG_CXX): stamps/llvm-configure-native
 	$(MAKE) -C llvm-native ENABLE_OPTIMIZED=1
-	touch $@
 
 
 #Then, build LLVM with the clang compiler.
 #Note that we build LLVM without clang and compiler-rt, because S2E does not need them.
-stamps/llvm-configure: stamps/llvm-make-release-native | llvm
+stamps/llvm-configure: $(CLANG_CXX) | llvm
 	cd llvm && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 	$(LLVM_CONFIGURE_FLAGS) \
 	--target=x86_64 --enable-targets=x86 \
