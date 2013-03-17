@@ -185,7 +185,7 @@ KLEE_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --target=x86_64 --enable-exceptions \
                        CC=$(CLANG_CC) CXX=$(CLANG_CXX)
 
-stamps/klee-configure: stamps/llvm-configure stamps/stp-make | klee
+stamps/klee-configure: | klee
 	cd klee && $(S2ESRC)/klee/configure \
 		--with-stp=$(S2EBUILD)/stp \
 		$(KLEE_CONFIGURE_FLAGS)
@@ -202,7 +202,7 @@ stamps/klee-make-release:
 #ASAN-enabled KLEE
 ASAN_CXX_LD_FLAGS = CXXFLAGS="-O0 -g -fsanitize=address" LDFLAGS="-g -fsanitize=address"
 
-stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan | klee-asan
+stamps/klee-configure-asan: | klee-asan
 	cd klee-asan && $(S2ESRC)/klee/configure \
 		--with-stp=$(S2EBUILD)/stp-asan \
 		$(KLEE_CONFIGURE_FLAGS) \
@@ -296,7 +296,7 @@ stamps/qemu-make-release-asan: stamps/klee-make-release-asan stamps/qemu-configu
 
 stamps/tools-make-debug stamps/tools-make-release: stamps/tools-configure ALWAYS
 
-stamps/tools-configure: stamps/llvm-configure | tools
+stamps/tools-configure: | tools
 	cd tools && $(S2ESRC)/tools/configure \
 		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
