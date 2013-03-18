@@ -11,8 +11,8 @@
 #
 #
 
-S2ESRC:=$(CURDIR)/../s2e
 S2EBUILD:=$(CURDIR)
+S2ESRC:=$(dir $(realpath $(S2EBUILD)/Makefile))
 
 OS := $(shell uname)
 JOBS:=2
@@ -201,11 +201,11 @@ stamps/klee-configure-asan: stamps/llvm-make-release stamps/stp-make-asan | klee
 	touch $@
 
 
-stamps/klee-make-release-asan: stamps/klee-configure-asan stamps/stp-make-asan
+stamps/klee-make-release-asan: stamps/llvm-make-release stamps/klee-configure-asan stamps/stp-make-asan ALWAYS
 	$(MAKE) -C klee-asan ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
-stamps/klee-make-debug-asan: stamps/llvm-make-debug stamps/klee-configure-asan stamps/stp-make-asan
+stamps/klee-make-debug-asan: stamps/llvm-make-debug stamps/klee-configure-asan stamps/stp-make-asan ALWAYS
 	$(MAKE) -C klee-asan ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
@@ -255,7 +255,7 @@ stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
 
 #ASAN-enabled QEMU
 QEMU_ASAN_FLAGS = --enable-address-sanitizer \
-                  --with-stp=$(S2EBUILD)/stp \
+                  --with-stp=$(S2EBUILD)/stp-asan \
                   $(QEMU_COMMON_FLAGS)
 
 stamps/qemu-configure-release-asan: stamps/klee-make-release-asan | qemu-release-asan
