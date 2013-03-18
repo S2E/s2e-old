@@ -72,8 +72,8 @@ binary is placed in ``$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu-system-i3
 To compile in Debug mode, use ``make all-debug``. The Makefile automatically
 uses the maximum number of available processors in order to speed up compilation.
 
-You can also build each component of S2E manually, as described in `Building
-the S2E Framework Manually <BuildingS2EManually.html>`_.
+You can also build each component of S2E manually. Refer to the Makefile for
+the commands required to build all inidividual components.
 
 Updating S2E
 ============
