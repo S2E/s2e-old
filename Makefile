@@ -51,15 +51,15 @@ COMPILER_RT_SRC_DIR=compiler-rt-$(LLVM_VERSION).src
 COMPILER_RT_DEST_DIR=$(LLVM_NATIVE_SRC_DIR)/projects/compiler-rt
 
 clean:
-	rm -Rf klee klee-asan qemu-debug qemu-debug-asan qemu-release qemu-release-asan
-	rm -Rf stamps
+	-rm -Rf klee klee-asan qemu-debug qemu-debug-asan qemu-release qemu-release-asan
+	-rm -Rf stamps
 
 guestclean:
-	$(MAKE) -C $(S2ESRC)/guest clean
+	-$(MAKE) -C $(S2ESRC)/guest clean
 
 distclean: clean guestclean
-	rm -Rf guest-tools llvm llvm-native stp stp-asan tools
-	rm -Rf $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
+	-rm -Rf guest-tools llvm llvm-native stp stp-asan tools
+	-rm -Rf $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 
 .PHONY: all all-debug all-debug-asan all-release all-release-asan
 .PHONY: clean distclean guestclean
