@@ -22,18 +22,6 @@
  * THE SOFTWARE.
  */
 
-/*
- * The file was modified for S2E Selective Symbolic Execution Framework
- *
- * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
- *
- * Currently maintained by:
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
- *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
- *
- * All contributors are listed in the S2E-AUTHORS file.
- */
-
 #include "qemu-common.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
@@ -45,12 +33,6 @@
 //XXX: Hack to disable AIO.
 #define ENABLE_AIO
 #undef ENABLE_AIO
-
-int (*__hook_bdrv_read)(struct BlockDriverState *bs, int64_t sector_num,
-                  uint8_t *buf, int nb_sectors);
-
-int (*__hook_bdrv_write)(struct BlockDriverState *bs, int64_t sector_num,
-                   const uint8_t *buf, int nb_sectors);
 
 #ifdef CONFIG_COCOA
 #include <paths.h>
@@ -514,30 +496,6 @@ static int raw_read(BlockDriverState *bs, int64_t sector_num,
                     uint8_t *buf, int nb_sectors)
 {
     int ret;
-
-    if (__hook_bdrv_read) {
-        int read_count = 0;
-        while (nb_sectors) {
-            read_count = __hook_bdrv_read(bs, sector_num, buf, nb_sectors);
-            buf += 512 * read_count;
-            sector_num += read_count;
-            nb_sectors -= read_count;
-
-            if (nb_sectors > 0) {
-                ret = raw_pread(bs, (sector_num) * 512, buf, 1 * 512);
-                if (ret != 512) {
-                    return ret;
-                }
-
-                buf += 512;
-                ++sector_num;
-                --nb_sectors;
-            }
-        }
-        return 0;
-    }
-
-
     ret = raw_pread(bs, sector_num * 512, buf, nb_sectors * 512);
     if (ret == (nb_sectors * 512))
         ret = 0;
@@ -626,12 +584,6 @@ static int raw_write(BlockDriverState *bs, int64_t sector_num,
                      const uint8_t *buf, int nb_sectors)
 {
     int ret;
-
-    if (__hook_bdrv_write) {
-        ///XXX: only do when s2e is running
-        return __hook_bdrv_write(bs, sector_num, buf, nb_sectors);
-    }
-
     ret = raw_pwrite(bs, sector_num * 512, buf, nb_sectors * 512);
     if (ret == (nb_sectors * 512))
         ret = 0;
@@ -691,16 +643,6 @@ static BlockDriverAIOCB *raw_aio_readv(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
-    if (__hook_bdrv_aio_read) {
-        int fallback;
-        static BlockDriverAIOCB *ret;
-        ret = __hook_bdrv_aio_read(bs, sector_num, qiov->iov->iov_base, nb_sectors, cb, 
-            opaque, &fallback, &raw_read);
-        if (!fallback) {
-            return ret;
-        }
-    }
-
     return raw_aio_submit(bs, sector_num, qiov, nb_sectors,
                           cb, opaque, QEMU_AIO_READ);
 }
@@ -709,11 +651,6 @@ static BlockDriverAIOCB *raw_aio_writev(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
-    if (__hook_bdrv_aio_write) {
-        ///XXX: only do when s2e is running
-        return __hook_bdrv_aio_write(bs, sector_num, qiov->iov->iov_base, nb_sectors, cb, opaque);
-    }
-
     return raw_aio_submit(bs, sector_num, qiov, nb_sectors,
                           cb, opaque, QEMU_AIO_WRITE);
 }
