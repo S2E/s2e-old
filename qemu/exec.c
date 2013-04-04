@@ -4156,6 +4156,16 @@ typedef struct {
 
 static BounceBuffer bounce;
 
+#ifdef CONFIG_S2E
+/**
+ * Block devices may split big requests in chunks of 4K,
+ * each of them requiring one buffer.
+ * 32 is a magic number, but seems to be fine for now.
+ */
+static const unsigned s_max_bounce_buffers = 32;
+BounceBuffer s_bounce_buffers[s_max_bounce_buffers];
+#endif
+
 typedef struct MapClient {
     void *opaque;
     void (*callback)(void *opaque);
@@ -4205,7 +4215,7 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
                               target_phys_addr_t *plen,
                               int is_write)
 {
-#ifndef CONFIG_S2E
+#if !defined(CONFIG_S2E)
     target_phys_addr_t len = *plen;
     target_phys_addr_t todo = 0;
     int l;
@@ -4251,15 +4261,20 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
     return ret;
 #else
     // In S2E, memory should always be copied
-    if(bounce.buffer)
-        return NULL;
-    bounce.buffer = qemu_memalign(TARGET_PAGE_SIZE, *plen);
-    bounce.addr = addr;
-    bounce.len = *plen;
-    if (!is_write) {
-        cpu_physical_memory_rw(addr, bounce.buffer, *plen, 0);
+    //Find a free bounce buffer
+    for (int i = 0; i < s_max_bounce_buffers; ++i) {
+        if (!s_bounce_buffers[i].buffer) {
+            s_bounce_buffers[i].buffer = qemu_memalign(TARGET_PAGE_SIZE, *plen);
+            s_bounce_buffers[i].addr = addr;
+            s_bounce_buffers[i].len = *plen;
+            if (!is_write) {
+                cpu_physical_memory_rw(addr, s_bounce_buffers[i].buffer, *plen, 0);
+            }
+            return s_bounce_buffers[i].buffer;
+        }
     }
-    return bounce.buffer;
+
+    return NULL;
 #endif
 }
 
@@ -4270,6 +4285,21 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
 void cpu_physical_memory_unmap(void *buffer, target_phys_addr_t len,
                                int is_write, target_phys_addr_t access_len)
 {
+#ifdef CONFIG_S2E
+    //Look for bounce buffers first
+    for (int i = 0; i < s_max_bounce_buffers; ++i) {
+        if (s_bounce_buffers[i].buffer == buffer) {
+            if (is_write) {
+                cpu_physical_memory_write(s_bounce_buffers[i].addr, s_bounce_buffers[i].buffer, access_len);
+            }
+
+            qemu_vfree(s_bounce_buffers[i].buffer);
+            s_bounce_buffers[i].buffer = NULL;
+            cpu_notify_map_clients();
+            return;
+        }
+    }
+#endif
     if (buffer != bounce.buffer) {
         if (is_write) {
             ram_addr_t addr1 = qemu_ram_addr_from_host_nofail(buffer);
