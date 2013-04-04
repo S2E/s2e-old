@@ -3840,6 +3840,7 @@ int main(int argc, char **argv, char **envp)
     qemu_system_reset(VMRESET_SILENT);
     if (loadvm) {
         if (load_vmstate(loadvm) < 0) {
+            exit(-1);
             autostart = 0;
         }
     }
