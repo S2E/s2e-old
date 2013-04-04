@@ -11,7 +11,7 @@
 #
 #
 
-S2ESRC := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+S2ESRC := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 S2EBUILD:=$(CURDIR)
 
 OS := $(shell uname)
