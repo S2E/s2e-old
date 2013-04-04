@@ -56,6 +56,7 @@ clean:
 
 guestclean:
 	-$(MAKE) -C $(S2ESRC)/guest clean
+	-rm -f stamps/guest-tools
 
 distclean: clean guestclean
 	-rm -Rf guest-tools llvm llvm-native stp stp-asan tools
