@@ -64,6 +64,7 @@ extern int (*__hook_bdrv_write)(
                    const uint8_t *buf, int nb_sectors);
 
 
+void s2e_bdrv_fail();
 
 extern struct S2EExecutionState **g_block_s2e_state;
 

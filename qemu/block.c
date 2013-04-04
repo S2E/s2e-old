@@ -32,6 +32,9 @@
 #include "qmp-commands.h"
 #include "qemu-timer.h"
 
+int g_s2e_linked __attribute__((weak));
+void s2e_bdrv_fail(void) __attribute__((weak));
+
 #ifdef CONFIG_BSD
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -572,6 +575,12 @@ static int bdrv_open_common(BlockDriverState *bs, const char *filename,
     assert(drv != NULL);
 
     trace_bdrv_open_common(bs, filename, flags, drv->format_name);
+
+    if (g_s2e_linked) {
+        if (!strstr(filename, ".s2e")) {
+            s2e_bdrv_fail();
+        }
+    }
 
     bs->file = NULL;
     bs->total_sectors = 0;

@@ -858,6 +858,11 @@ void s2e_execute_cmd(const char *cmd)
 {
     g_s2e->getConfig()->invokeLuaCommand(cmd);
 }
+
+//Non-S2E modules can redeclare this variable with __attribute__((weak))
+//to check whether they run in S2E or not.
+int g_s2e_linked = 1;
+
 }
 
 

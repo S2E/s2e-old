@@ -377,4 +377,22 @@ int s2e_bdrv_write(BlockDriverState *bs, int64_t sector_num,
 
 }
 
+void s2e_bdrv_fail(void)
+{
+    fprintf(stderr,
+            "\n\033[31m========================================================================\n"
+            "You are using a disk image format not compatible with symbolic execution\n"
+            "(qcow2, etc.).\n\n"
+            "Please use the S2E image format for your VM when running in S2E mode.\n"
+            "The S2E format is identical to the RAW format, except that the filename\n"
+            "of the image ends with the .s2e extension and snapshots are saved in a\n"
+            "separate file, in the same folder as the base image.\n"
+            "The S2E image and snapshots are always read-only, multiple S2E instances\n"
+            "can use them at the same time.\n\n"
+            "Refer to the S2E documentation for more details.\n"
+            "========================================================================\033[0m\n"
+            );
+    exit(-1);
+}
+
 }
