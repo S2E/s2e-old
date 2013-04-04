@@ -124,8 +124,10 @@ static void dma_bdrv_cb(void *opaque, int ret)
         cur_addr = dbs->sg->sg[dbs->sg_cur_index].base + dbs->sg_cur_byte;
         cur_len = dbs->sg->sg[dbs->sg_cur_index].len - dbs->sg_cur_byte;
         mem = cpu_physical_memory_map(cur_addr, &cur_len, !dbs->to_dev);
-        if (!mem)
+        if (!mem) {
+            assert(0 && "Block device transfer failed");
             break;
+        }
         qemu_iovec_add(&dbs->iov, mem, cur_len);
         dbs->sg_cur_byte += cur_len;
         if (dbs->sg_cur_byte == dbs->sg->sg[dbs->sg_cur_index].len) {
