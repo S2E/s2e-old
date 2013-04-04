@@ -40,18 +40,45 @@ followed the installation tutorials.
    $ # inside the guest to install C and C++ compilers
    guest$ su -c "apt-get install build-essential"
 
-You have just set up a disk image in RAW format. You need to convert it to QCOW2 for optimal use
+You have just set up a disk image in RAW format. You need to convert it to the S2E format for use
 with S2E (the reasons for this are described in the next section).
+
+The S2E image format is identical to the RAW format, except that the
+image file name has the ".s2e" extension. Therefore, to convert from
+RAW to S2E, renaming the file is enough (a symlink is fine too).
 
 ::
 
-   $ $S2EDIR/build/qemu-release/qemu-img convert -O qcow2 s2e_disk.raw s2e_disk.qcow2
+   $ cp s2e_disk.raw s2e_disk.raw.s2e
+
+The S2E VM Image Format
+=======================
+
+Existing image formats are not suitable for multi-path execution, because
+they usually mutate internal bookkeeping structures on read operations.
+Worse, they may write these mutations back to the disk image file, causing
+VM image corruptions. QCOW2 is one example of such formats.
+
+The S2E image format, unlike the other formats, is multi-path aware.
+When in S2E mode, writes are local to each state and do not clobber other states.
+Moreover, writes are NEVER written to the image (or the snapshot). This makes it possible
+to share one disk image and snapshots among many instances of S2E.
+
+The S2E image format is identical to the RAW format, except that the
+image file name has the ``.s2e`` extension. Therefore, to convert from
+RAW to S2E, renaming the file is enough (a symlink is fine too).
+
+The S2E image format stores snapshots in a separate file, suffixed by the name of the
+snapshot. For example, if the base image is called "my_image.raw.s2e",
+the snapshot ``ready`` (as in ``savevm ready``) will be saved in the file
+``my_image.raw.s2e.ready`` in the same folder as ``my_image.raw.s2e``.
 
 
 General Requirements and Guidelines for VM Images
 =================================================
 
-There are no specific requirements for the OS image to make it runnable in S2E.
+When running in S2E mode, the image **must** be in S2E format. S2E does not support any other image format.
+
 Any x86 32-bit image that boots in vanilla QEMU will work in S2E. However, we enumerate a list of tips
 and optimizations that will make administration easier and symbolic execution faster.
 *These tips should be used as guidelines and are not mandatory.*
@@ -61,20 +88,15 @@ Here is a checklist we recommend to follow:
 
 * Install your operating system in the vanilla QEMU. It is the fastest approach. In general, all installation and setup tasks should be done in vanilla QEMU.
 
-* Always keep a *RAW* image file of your setup. QEMU tends to corrupt *QCOW2* images over time. You can easily convert a RAW image into *QCOW2* using the *qemu-img* tool. Corruptions manifest by weird crashes that did not use to happen before.
-
 * Keep a fresh copy of your OS installation. It is recommended to start with a fresh copy for each analysis task. For instance, if you use an image to test a device driver, avoid using this same image to analyze some spreadsheet component. One image = one analysis. It is easier to manage and your results will be easier to reproduce.
 
-* Once your (QCOW2) image is set up and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a (very) long time.
+* Once your image (in S2E format) is set up and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a (very) long time.
 
-* It is recommended to use 128MiB of RAM for the guest OS (or less). S2E is not limited by the amount of memory in any way (it is 64-bit),  but your physical machine is.
+* It is recommended to use 128MiB of RAM for the guest OS (or less). S2E is not limited by the amount of memory in any way (it is 64-bit), but your physical machine is.
 
+* Disable fancy desktop themes. Most OSes have a GUI, which consumes resources. Disabling all visual effects will make program analysis faster.
 
-The following checklist is specific to Windows guests. All common tips also apply here.
-
-
-
-* Disable fancy desktop themes. Windows has a GUI, which consumes resources. Disabling all visual effects will make program analysis faster.
 * Disable the screen saver.
+
 * Disable unnecessary services to save memory and speed up the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.
 

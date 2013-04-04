@@ -125,11 +125,11 @@ Converting the image
 
 1. Once you have set registry settings, make sure the adapter is disabled, then shutdown the guest OS.
 2. Save a copy of the *RAW* image
-3. Convert the *RAW* image to *QCOW2* with ``qemu-img``.
+3. `Convert the *RAW* image to *S2E* by renaming (or makeing a symlink) the image file <../ImageInstallation.html>`_.
 
    ::
 
-       qemu-img convert -O qcow2 /home/s2e/vm/windows_pcntpci5.sys.raw /home/s2e/vm/windows_pcntpci5.sys.qcow2
+       cp /home/s2e/vm/windows_pcntpci5.sys.raw /home/s2e/vm/windows_pcntpci5.sys.raw.s2e
 
 Preparing the image for symbolic execution
 ------------------------------------------
@@ -137,14 +137,14 @@ Preparing the image for symbolic execution
 In this step, we will show how to save a snapshot of the guest OS right before it invokes the very first instruction of the driver.
 We will use the remote target feature of GDB to connect to the guest OS, set a breakpoint in the kernel, and save a snapshot when a breakpoint is hit.
 
-1. Boot the image using the previous command line. Make sure to use the QCOW2 image, or you will not be able to save snapshots.
+1. Boot the image using the previous command line.
 
    ::
 
        $./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000 \\
         -fake-pci-class-code 2 -fake-pci-revision-id 0x7 -fake-pci-resource-io 0x20 -fake-pci-resource-mem 0x20 \\
         -rtc clock=vm -net user -net nic,model=ne2k_pci -monitor telnet:localhost:4444,server,nowait \\
-        -hda /home/s2e/vm/windows_pcntpci5.sys.qcow2 -s
+        -hda /home/s2e/vm/windows_pcntpci5.sys.raw.s2e -s
 
 2. Once the image is booted, open the command prompt, go to ``c:\s2e`` and type ``pcnet.bat``, **without** hitting enter yet.
 
@@ -187,7 +187,7 @@ We will use the remote target feature of GDB to connect to the guest OS, set a b
 
 7. Close QEMU with the ``quit`` command.
 
-8. At this point, you have two snapshots in the ``/home/s2e/vm/windows_pcntpci5.sys.qcow2``:
+8. At this point, you have two snapshots: ``/home/s2e/vm/windows_pcntpci5.sys.raw.s2e.ready`` and ``/home/s2e/vm/windows_pcntpci5.sys.raw.s2e.go``:
 
    a. A snapshot named **ready**, which is in the state right before loading the driver. Use this snapshot to make quick modifications to the guest between runs, if needed.
    b. A snapshot named **go**, which is about to execute the first instruction of the driver.
@@ -488,7 +488,7 @@ Notice that we use the S2E-enabled QEMU in the **i386-s2e-softmmu** folder.
 
 ::
 
-    $./i386-s2e-softmmu/qemu -rtc clock=vm -net user -net nic,model=ne2k_pci -hda pcntpci5.sys.qcow2 -s2e-config-file pcntpci5.sys.lua -loadvm go
+    $./i386-s2e-softmmu/qemu -rtc clock=vm -net user -net nic,model=ne2k_pci -hda pcntpci5.sys.raw.s2e -s2e-config-file pcntpci5.sys.lua -loadvm go
 
 This command will create an ``s2e-out-???`` folder, where ``???`` is the sequence number of the run.
 ``s2e-last`` is a symbolic link that points to the latest run.

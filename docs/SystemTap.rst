@@ -82,7 +82,7 @@ Build SystemTap dependencies and fetch SystemTap source:
 ::
 
    # Boot the OS image in the vanilla QEMU and login as root.
-   $ $S2EBUILD/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.qcow2
+   $ $S2EBUILD/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.raw
    
    # Get packages on which SystemTap depends and install them:
    $ wget http://ftp.au.debian.org/debian/pool/main/e/elfutils/libelf1_0.131-4_i386.deb
@@ -265,7 +265,7 @@ name of the disk image to suit your needs.
 
    $ $S2EBUILD/qemu-release/i386-softmmu/qemu-system-i386 -rtc clock=vm \
        -net nic,model=pcnet -net user,hostfwd=tcp::2222-:22,hostfwd=udp::2222-:22 \
-       -hda s2e_disk.qcow2
+       -hda s2e_disk.raw.s2e
    # Press Ctrl-Alt-2 to reach the QEMU monitor, then save the snapshot with a tag (e.g., ready)
    $ savevm ready
    # Press Ctrl-Alt-1 to return to the emulation screen, then shut down the QEMU machine
@@ -278,7 +278,7 @@ Start the S2E-enabled QEMU with port forwarding enabled:
 
    $ $S2EBUILD/qemu-release/i386-s2e-softmmu/qemu-system-i386 -rtc clock=vm \
        -net nic,model=pcnet -net user,hostfwd=tcp::2222-:22,hostfwd=udp::2222-:22 \
-       -hda s2e_disk.qcow2 -s2e-config-file tcpip.lua -loadvm ready
+       -hda s2e_disk.raw.s2e -s2e-config-file tcpip.lua -loadvm ready
 
 Once you uploaded the ``pcnet_probe.ko`` module to the guest OS, run the following command in the guest:
 

@@ -15,7 +15,8 @@
 <p class="topic-title first">Contents</p>
 <ul class="simple">
 <li><a class="reference internal" href="#preparing-a-linux-vm-image" id="id1">Preparing a Linux VM Image</a></li>
-<li><a class="reference internal" href="#general-requirements-and-guidelines-for-vm-images" id="id2">General Requirements and Guidelines for VM Images</a></li>
+<li><a class="reference internal" href="#the-s2e-vm-image-format" id="id2">The S2E VM Image Format</a></li>
+<li><a class="reference internal" href="#general-requirements-and-guidelines-for-vm-images" id="id3">General Requirements and Guidelines for VM Images</a></li>
 </ul>
 </div>
 <p>To run S2E, you need a QEMU-compatible virtual machine disk image. S2E can run
@@ -47,29 +48,46 @@ $ # When you system is installed and rebooted, run the following command
 $ # inside the guest to install C and C++ compilers
 guest$ su -c &quot;apt-get install build-essential&quot;
 </pre>
-<p>You have just set up a disk image in RAW format. You need to convert it to QCOW2 for optimal use
+<p>You have just set up a disk image in RAW format. You need to convert it to the S2E format for use
 with S2E (the reasons for this are described in the next section).</p>
+<p>The S2E image format is identical to the RAW format, except that the
+image file name has the &quot;.s2e&quot; extension. Therefore, to convert from
+RAW to S2E, renaming the file is enough (a symlink is fine too).</p>
 <pre class="literal-block">
-$ $S2EDIR/build/qemu-release/qemu-img convert -O qcow2 s2e_disk.raw s2e_disk.qcow2
+$ cp s2e_disk.raw s2e_disk.raw.s2e
 </pre>
+</div>
+<div class="section" id="the-s2e-vm-image-format">
+<h1>The S2E VM Image Format</h1>
+<p>Existing image formats are not suitable for multi-path execution, because
+they usually mutate internal bookkeeping structures on read operations.
+Worse, they may write these mutations back to the disk image file, causing
+VM image corruptions. QCOW2 is one example of such formats.</p>
+<p>The S2E image format, unlike the other formats, is multi-path aware.
+When in S2E mode, writes are local to each state and do not clobber other states.
+Moreover, writes are NEVER written to the image (or the snapshot). This makes it possible
+to share one disk image and snapshots among many instances of S2E.</p>
+<p>The S2E image format is identical to the RAW format, except that the
+image file name has the <tt class="docutils literal">.s2e</tt> extension. Therefore, to convert from
+RAW to S2E, renaming the file is enough (a symlink is fine too).</p>
+<p>The S2E image format stores snapshots in a separate file, suffixed by the name of the
+snapshot. For example, if the base image is called &quot;my_image.raw.s2e&quot;,
+the snapshot <tt class="docutils literal">ready</tt> (as in <tt class="docutils literal">savevm ready</tt>) will be saved in the file
+<tt class="docutils literal">my_image.raw.s2e.ready</tt> in the same folder as <tt class="docutils literal">my_image.raw.s2e</tt>.</p>
 </div>
 <div class="section" id="general-requirements-and-guidelines-for-vm-images">
 <h1>General Requirements and Guidelines for VM Images</h1>
-<p>There are no specific requirements for the OS image to make it runnable in S2E.
-Any x86 32-bit image that boots in vanilla QEMU will work in S2E. However, we enumerate a list of tips
+<p>When running in S2E mode, the image <strong>must</strong> be in S2E format. S2E does not support any other image format.</p>
+<p>Any x86 32-bit image that boots in vanilla QEMU will work in S2E. However, we enumerate a list of tips
 and optimizations that will make administration easier and symbolic execution faster.
 <em>These tips should be used as guidelines and are not mandatory.</em></p>
 <p>Here is a checklist we recommend to follow:</p>
 <ul class="simple">
 <li>Install your operating system in the vanilla QEMU. It is the fastest approach. In general, all installation and setup tasks should be done in vanilla QEMU.</li>
-<li>Always keep a <em>RAW</em> image file of your setup. QEMU tends to corrupt <em>QCOW2</em> images over time. You can easily convert a RAW image into <em>QCOW2</em> using the <em>qemu-img</em> tool. Corruptions manifest by weird crashes that did not use to happen before.</li>
 <li>Keep a fresh copy of your OS installation. It is recommended to start with a fresh copy for each analysis task. For instance, if you use an image to test a device driver, avoid using this same image to analyze some spreadsheet component. One image = one analysis. It is easier to manage and your results will be easier to reproduce.</li>
-<li>Once your (QCOW2) image is set up and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a (very) long time.</li>
-<li>It is recommended to use 128MiB of RAM for the guest OS (or less). S2E is not limited by the amount of memory in any way (it is 64-bit),  but your physical machine is.</li>
-</ul>
-<p>The following checklist is specific to Windows guests. All common tips also apply here.</p>
-<ul class="simple">
-<li>Disable fancy desktop themes. Windows has a GUI, which consumes resources. Disabling all visual effects will make program analysis faster.</li>
+<li>Once your image (in S2E format) is set up and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a (very) long time.</li>
+<li>It is recommended to use 128MiB of RAM for the guest OS (or less). S2E is not limited by the amount of memory in any way (it is 64-bit), but your physical machine is.</li>
+<li>Disable fancy desktop themes. Most OSes have a GUI, which consumes resources. Disabling all visual effects will make program analysis faster.</li>
 <li>Disable the screen saver.</li>
 <li>Disable unnecessary services to save memory and speed up the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.</li>
 </ul>
