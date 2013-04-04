@@ -9,7 +9,8 @@
 #  EXTRA_QEMU_FLAGS=...
 #      Pass additional flags to QEMU's configure script.
 #
-#
+# PARALLEL=no
+#      Turn off build parallelization.
 
 S2ESRC := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 S2EBUILD:=$(CURDIR)
@@ -17,7 +18,9 @@ S2EBUILD:=$(CURDIR)
 OS := $(shell uname)
 JOBS:=2
 
-ifeq ($(OS),Darwin)
+ifeq ($(PARALLEL),no)
+JOBS := 1
+else ifeq ($(OS),Darwin)
 JOBS := $(patsubst hw.ncpu:%,%,$(shell sysctl hw.ncpu))
 else ifeq ($(OS),Linux)
 JOBS := $(shell grep -c ^processor /proc/cpuinfo)
