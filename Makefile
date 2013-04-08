@@ -157,7 +157,7 @@ stamps/stp-configure: | stp
 	cd stp && scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
 	touch $@
 
-stamps/stp-make: stamps/stp-configure
+stamps/stp-make: $(CLANG_CXX) stamps/stp-configure
 	$(MAKE) -C stp
 	touch $@
 
@@ -168,7 +168,7 @@ stamps/stp-configure-asan: | stp-asan
 	cd stp-asan && scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-address-sanitizer
 	touch $@
 
-stamps/stp-make-asan: stamps/stp-configure-asan
+stamps/stp-make-asan: $(CLANG_CXX) stamps/stp-configure-asan
 	$(MAKE) -C stp-asan
 	touch $@
 
