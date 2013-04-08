@@ -56,19 +56,19 @@ typedef struct _cmd_t {
     char *description;
 } cmd_t;
 
-void handler_kill(const char **args)
+static void handler_kill(const char **args)
 {
     int status = atoi(args[0]);
     const char *message = args[1];
     s2e_kill_state(status, message);
 }
 
-void handler_message(const char **args)
+static void handler_message(const char **args)
 {
     s2e_message(args[0]);
 }
 
-void handler_wait(const char **args)
+static void handler_wait(const char **args)
 {
     s2e_message("Waiting for S2E...");
     while (!s2e_version()) {
@@ -77,7 +77,7 @@ void handler_wait(const char **args)
     s2e_message("Done waiting for S2E.");
 }
 
-void handler_symbwrite(const char **args)
+static void handler_symbwrite(const char **args)
 {
     int n_bytes = -1;
     int i;
@@ -102,7 +102,7 @@ void handler_symbwrite(const char **args)
     return;
 }
 
-void handler_symbfile(const char **args)
+static void handler_symbfile(const char **args)
 {
     const char *filename = args[0];
 
@@ -198,7 +198,7 @@ void handler_symbfile(const char **args)
     close(fd);
 }
 
-void handler_exemplify(const char **args)
+static void handler_exemplify(const char **args)
 {
     const unsigned int BUF_SIZE = 32;
     char buffer[BUF_SIZE];
@@ -230,7 +230,7 @@ static cmd_t s_commands[] = {
     { NULL, NULL, 0, NULL }
 };
 
-void print_commands(void)
+static void print_commands(void)
 {
     unsigned i = 0;
     printf("%-15s  %s %s\n\n", "Command name", "Argument count", "Description");
@@ -241,7 +241,7 @@ void print_commands(void)
     }
 }
 
-int find_command(const char *cmd)
+static int find_command(const char *cmd)
 {
     unsigned i = 0;
     while(s_commands[i].handler) {

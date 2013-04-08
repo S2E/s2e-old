@@ -210,7 +210,8 @@ static void register_module(procmap_entry_t *proc_map, const char *name)
     }
 }
 
-void __s2e_init_env(int* argcPtr, char*** argvPtr) {
+static void __s2e_init_env(int *argcPtr, char ***argvPtr)
+{
     int argc = *argcPtr;
     char** argv = *argvPtr;
 
