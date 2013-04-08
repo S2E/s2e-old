@@ -94,8 +94,7 @@ static int copy_file(const char *directory, const char *guest_file)
     }
 
     int fsize = 0;
-    char buf[1024*64];
-    memset(buf, 0, sizeof(buf));
+    char buf[1024 * 64] = { 0 };
 
     while(1) {
         int ret = s2e_read(s2e_fd, buf, sizeof(buf));

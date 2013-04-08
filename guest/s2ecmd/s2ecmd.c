@@ -200,10 +200,9 @@ static void handler_symbfile(const char **args)
 
 static void handler_exemplify(const char **args)
 {
-    const unsigned int BUF_SIZE = 32;
-    char buffer[BUF_SIZE];
+#define BUF_SIZE 32
+    char buffer[BUF_SIZE] = { 0 };
     unsigned int i;
-    memset(buffer, 0, sizeof(buffer));
 
     while (fgets(buffer, sizeof(buffer), stdin)) {
         for (i = 0; i < BUF_SIZE; ++i) {
