@@ -5,12 +5,12 @@
 
 #include <s2e.h>
 
-void swap(int *a, int *b)
+static void swap(int *a, int *b)
 {
   int t=*a; *a=*b; *b=t;
 }
 
-void sort(int arr[], int beg, int end)
+static void sort(int arr[], int beg, int end)
 {
   if (end > beg + 1)
   {

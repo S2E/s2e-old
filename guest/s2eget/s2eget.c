@@ -52,7 +52,7 @@ const char *g_target_dir = NULL;
 const char *g_file = NULL;
 
 /* file is a path relative to the HostFile's base directory */
-int copy_file(const char *directory, const char *guest_file)
+static int copy_file(const char *directory, const char *guest_file)
 {
     char *path = malloc(strlen(directory) + strlen(guest_file) + 1 + 1);
     if (!path) {
@@ -125,7 +125,7 @@ int copy_file(const char *directory, const char *guest_file)
     return 0;
 }
 
-int parse_arguments(int argc, const char **argv)
+static int parse_arguments(int argc, const char **argv)
 {
     unsigned i = 1;
     while(i < argc) {
@@ -141,7 +141,7 @@ int parse_arguments(int argc, const char **argv)
     return 0;
 }
 
-int validate_arguments()
+static int validate_arguments()
 {
     if (!g_target_dir) {
         g_target_dir = getcwd(NULL, 0);
@@ -158,7 +158,7 @@ int validate_arguments()
     return 0;
 }
 
-void print_usage(const char *prog_name)
+static void print_usage(const char *prog_name)
 {
     fprintf(stderr, "Usage: %s [options] file_name\n\n", prog_name);
 
