@@ -127,7 +127,7 @@ typedef struct _procmap_entry_t
 
 //Returns each executable line of /proc/self/maps
 //as an array of entries. The last one is null.
-static procmap_entry_t* load_process_map()
+static procmap_entry_t *load_process_map(void)
 {
     FILE* maps = fopen("/proc/self/maps", "r");
     if (!maps) {

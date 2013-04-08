@@ -141,7 +141,7 @@ static int parse_arguments(int argc, const char **argv)
     return 0;
 }
 
-static int validate_arguments()
+static int validate_arguments(void)
 {
     if (!g_target_dir) {
         g_target_dir = getcwd(NULL, 0);
