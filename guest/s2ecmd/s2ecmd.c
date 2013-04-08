@@ -227,7 +227,7 @@ static cmd_t s_commands[] = {
     COMMAND(symbwrite, 1, "Write n symbolic bytes to stdout"),
     COMMAND(symbfile, 1, "Makes the specified file concolic. The file should be stored in a ramdisk."),
     COMMAND(exemplify, 0, "Read from stdin and write an example to stdout"),
-    { NULL, NULL, 0 }
+    { NULL, NULL, 0, NULL }
 };
 
 void print_commands(void)
