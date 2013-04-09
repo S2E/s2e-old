@@ -63,6 +63,7 @@ static int copy_file(const char *directory, const char *guest_file)
     const char *file = basename((char*)guest_file);
     if (!file) {
         fprintf(stderr, "Could not allocate memory for file basename\n");
+        free(path);
         exit(1);
     }
 
