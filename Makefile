@@ -153,8 +153,11 @@ stamps/llvm-make-release:
 stamps/stp-configure stamps/stp-configure-asan: | stamps
 stamps/stp-make stamps/stp-make-asan: ALWAYS
 
+STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
+                      --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC)
+
 stamps/stp-configure: | stp
-	cd stp && scripts/configure --with-prefix=$(S2EBUILD)/stp --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-cryptominisat2
+	cd stp && scripts/configure $(STP_CONFIGURE_FLAGS) --with-cryptominisat2
 	touch $@
 
 stamps/stp-make: $(CLANG_CXX) stamps/stp-configure
@@ -165,7 +168,7 @@ stamps/stp-make: $(CLANG_CXX) stamps/stp-configure
 #XXX: need to fix the STP build to actually use ASAN...
 
 stamps/stp-configure-asan: | stp-asan
-	cd stp-asan && scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-fpic --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) --with-address-sanitizer
+	cd stp-asan && scripts/configure $(STP_CONFIGURE_FLAGS) --with-address-sanitizer
 	touch $@
 
 stamps/stp-make-asan: $(CLANG_CXX) stamps/stp-configure-asan
