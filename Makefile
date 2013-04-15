@@ -154,10 +154,11 @@ stamps/stp-configure stamps/stp-configure-asan: | stamps
 stamps/stp-make stamps/stp-make-asan: ALWAYS
 
 STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
-                      --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC)
+                      --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) \
+                      --with-cryptominisat2
 
 stamps/stp-configure: | stp
-	cd stp && scripts/configure $(STP_CONFIGURE_FLAGS) --with-cryptominisat2
+	cd stp && scripts/configure $(STP_CONFIGURE_FLAGS)
 	touch $@
 
 stamps/stp-make: $(CLANG_CXX) stamps/stp-configure
