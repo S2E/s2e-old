@@ -43,6 +43,20 @@
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/OSMonitor.h>
 
+#ifdef TARGET_I386
+
+#define PARAM0 regs[R_EAX]
+#define PARAM1 regs[R_EBX]
+#define PARAM2 regs[R_ECX]
+
+#elif TARGET_ARM
+
+#define PARAM0 regs[0]
+#define PARAM1 regs[1]
+#define PARAM2 regs[2]
+
+#endif
+
 #include <vector>
 
 namespace s2e {
