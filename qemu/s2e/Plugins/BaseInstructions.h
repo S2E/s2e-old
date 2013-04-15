@@ -96,8 +96,6 @@ private:
         SLEEP_DURATION = CPU_OFFSET(regs[0])
         };
 
-#define OPSHIFT 16
-
 #elif defined(TARGET_I386)
 
     enum opcodeRegs {
@@ -124,9 +122,6 @@ private:
         ISSYMB_RETURN = CPU_OFFSET(regs[R_EAX]),
         SLEEP_DURATION = CPU_OFFSET(regs[R_EAX])
         };
-
-#define OPSHIFT 8
-
 #else
 #error "Target architecture not supported"
 #endif
