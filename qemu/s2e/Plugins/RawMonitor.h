@@ -43,6 +43,28 @@
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/OSMonitor.h>
 
+#ifdef TARGET_I386
+
+#define MODNAME regs[R_EAX]
+#define LOADBASE regs[R_EBX]
+#define ENTRYPOINT regs[R_ECX]
+#define MODCONF regs[R_ECX]
+#define DLLNAME regs[R_EAX]
+#define FUNCNAME regs[R_EBX]
+#define FUNCPTR regs[R_ECX]
+
+#elif TARGET_ARM
+
+#define MODNAME regs[0]
+#define LOADBASE regs[1]
+#define ENTRYPOINT regs[2]
+#define MODCONF regs[2]
+#define DLLNAME regs[0]
+#define FUNCNAME regs[1]
+#define FUNCPTR regs[2]
+
+#endif
+
 #include <vector>
 
 namespace s2e {
