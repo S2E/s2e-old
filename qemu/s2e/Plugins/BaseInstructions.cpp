@@ -51,6 +51,7 @@ extern "C" {
 #include <s2e/S2EExecutionState.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+#include <s2e/Plugins/Opcodes.h>
 
 #include <iostream>
 #include <sstream>
@@ -470,9 +471,12 @@ void BaseInstructions::assume(S2EExecutionState *state)
 
 
 /** Handle s2e_op instruction. Instructions:
-    ARM: ff XX XX XX
-    I386/AMD64: 0f 3f XX XX XX XX XX XX XX XX
-    XX = opcode
+
+    ARM: 0xFF 0xXX 0xYY 0x00
+    I386/AMD64: 0x0F 0x3F 0x00 0xXX 0xYY 0x00 0x00 0x00 0x00 0x00
+
+    0xXX = main opcode
+    0xYY = subfunction operand, see Opcodes.h
  */
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {

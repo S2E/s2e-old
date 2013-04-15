@@ -71,7 +71,6 @@ private:
 
 #ifdef TARGET_ARM
 
-#define OPSHIFT 16
 #define PARAM0 CPU_OFFSET(regs[0])
 #define PARAM1 CPU_OFFSET(regs[1])
 #define PARAM2 CPU_OFFSET(regs[2])
@@ -79,7 +78,6 @@ private:
 
 #elif defined(TARGET_I386)
 
-#define OPSHIFT 8
 #define PARAM0 CPU_OFFSET(regs[R_EAX])
 #define PARAM1 CPU_OFFSET(regs[R_EBX])
 #define PARAM2 CPU_OFFSET(regs[R_ECX])
