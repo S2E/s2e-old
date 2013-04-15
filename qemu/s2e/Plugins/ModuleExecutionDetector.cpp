@@ -182,14 +182,10 @@ bool ModuleExecutionDetector::opAddModuleConfigEntry(S2EExecutionState *state)
     bool ok = true;
     //XXX: 32-bits guests only
     target_ulong moduleId, moduleName, isKernelMode;
-    //TODO: port to non-x86
-#ifdef TARGET_I386
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &moduleId, sizeof(moduleId));
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &moduleName, sizeof(moduleName));
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EDX]), &isKernelMode, sizeof(isKernelMode));
-#else
-    return false;
-#endif
+
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(MODULEID), &moduleId, sizeof(moduleId));
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(MODULENAME), &moduleName, sizeof(moduleName));
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(KERNELMODE), &isKernelMode, sizeof(isKernelMode));
 
     if(!ok) {
         s2e()->getWarningsStream(state)
