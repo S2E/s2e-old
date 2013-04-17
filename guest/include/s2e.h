@@ -357,7 +357,19 @@ static inline int s2e_read(int fd, char *buf, int count)
     int res;
     __s2e_touch_buffer(buf, count);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_REGISTERS_COMPLEX(EE, 02)
+#ifdef __x86_64__
+        "push %%rbx\n"
+        "mov %%rsi, %%rbx\n"
+#else
+        "pushl %%ebx\n"
+        "movl %%esi, %%ebx\n"
+#endif
+        S2E_INSTRUCTION_COMPLEX(EE, 02)
+#ifdef __x86_64__
+        "pop %%rbx\n"
+#else
+        "popl %%ebx\n"
+#endif
         : "=a" (res) : "a" (-1), "S" (fd), "c" (buf), "d" (count)
     );
     return res;
