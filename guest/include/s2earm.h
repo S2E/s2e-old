@@ -82,10 +82,11 @@ static inline void s2e_message(const char* message)
 {
 	__s2e_touch_string(message);
     __asm__ __volatile__(
+    	"MOV r0, %[msg]\n\t"
     	".WORD 0xFF100000\n\t"
         : /*no output */
     	: [msg] "r" (message)
-    	: "r0" /* we want the compiler to use r0 */
+    	: "r0"
     );
 }
 
@@ -94,11 +95,12 @@ static inline void s2e_warning(const char* message)
 {
 	__s2e_touch_string(message);
     __asm__ __volatile__(
+        	"MOV r0, %[msg]\n\t"
         	".WORD 0xFF100100\n\t"
         	".ALIGN\n"
             : /*no output */
         	: [msg] "r" (message)
-        	: "r0" /* we want the compiler to use r0 */
+        	: "r0"
     );
 }
 
