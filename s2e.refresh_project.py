@@ -5,7 +5,7 @@ import sys
 import os
 
 blacklist = [
-    # The following files are for non-i386 targets
+    # The following files are for non-x86 targets
     # they cause false positives when looking up symbols
     'qemu/target-alpha/',
     'qemu/target-arm/',
