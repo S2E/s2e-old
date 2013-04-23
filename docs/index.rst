@@ -13,7 +13,7 @@ S²E Documentation
 
   1. `Building S2E <BuildingS2E.html>`_
   2. `Preparing a VM image for S2E <ImageInstallation.html>`_
-  3. `Quicky uploading programs to the guest with s2eget <UsingS2EGet.html>`_
+  3. `Quickly uploading programs to the guest with s2eget <UsingS2EGet.html>`_
 
   4. `Testing a simple program <TestingMinimalProgram.html>`_
   5. `Testing Linux binaries <Howtos/init_env.html>`_
