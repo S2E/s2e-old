@@ -2304,6 +2304,25 @@ bad_reg:
     return 0;
 }
 
+void HELPER(set_spsr_banked)(CPUARMState *env, uint32_t mode, uint32_t val)
+{
+    if ((env->uncached_cpsr & CPSR_M) == mode) {
+    	cpsr_write(env, val, 0xFFFFFFFF);
+    } else {
+        env->banked_spsr[bank_number(env, mode)] = val;
+    }
+}
+
+uint32_t HELPER(get_spsr_banked)(CPUARMState *env, uint32_t mode)
+{
+    if ((env->uncached_cpsr & CPSR_M) == mode) {
+        return cpsr_read_concrete(env);
+    } else {
+        return env->banked_spsr[bank_number(env, mode)];
+    }
+}
+
+
 void HELPER(set_r13_banked)(CPUARMState *env, uint32_t mode, uint32_t val)
 {
     if ((env->uncached_cpsr & CPSR_M) == mode) {
@@ -2319,6 +2338,24 @@ uint32_t HELPER(get_r13_banked)(CPUARMState *env, uint32_t mode)
         return env->regs[13];
     } else {
         return env->banked_r13[bank_number(env, mode)];
+    }
+}
+
+void HELPER(set_r14_banked)(CPUARMState *env, uint32_t mode, uint32_t val)
+{
+    if ((env->uncached_cpsr & CPSR_M) == mode) {
+        env->regs[13] = val;
+    } else {
+        env->banked_r13[bank_number(env, mode)] = val;
+    }
+}
+
+uint32_t HELPER(get_r14_banked)(CPUARMState *env, uint32_t mode)
+{
+    if ((env->uncached_cpsr & CPSR_M) == mode) {
+        return env->regs[14];
+    } else {
+        return env->banked_r14[bank_number(env, mode)];
     }
 }
 
