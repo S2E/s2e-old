@@ -103,6 +103,12 @@ DEF_HELPER_0(wfi, void)
 DEF_HELPER_2(get_r13_banked, i32, env, i32)
 DEF_HELPER_3(set_r13_banked, void, env, i32, i32)
 
+DEF_HELPER_2(get_r14_banked, i32, env, i32)
+DEF_HELPER_3(set_r14_banked, void, env, i32, i32)
+
+DEF_HELPER_2(get_spsr_banked, i32, env, i32)
+DEF_HELPER_3(set_spsr_banked, void, env, i32, i32)
+
 DEF_HELPER_3(v7m_msr, void, env, i32, i32)
 DEF_HELPER_2(v7m_mrs, i32, env, i32)
 
