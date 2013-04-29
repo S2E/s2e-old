@@ -80,6 +80,10 @@ stamps/%-configure: | % stamps
 	cd $* && $(CONFIGURE_COMMAND)
 	touch $@
 
+stamps/%-make:
+	$(MAKE) -C $* $(BUILD_OPTS)
+	touch $@
+
 
 
 #############
@@ -127,8 +131,7 @@ stamps/llvm-native-configure: CONFIGURE_COMMAND = $(S2EBUILD)/$(LLVM_NATIVE_SRC_
                                                   --disable-assertions #compiler-rt won't build if we specify explicit targets...
 
 stamps/llvm-native-make: stamps/llvm-native-configure
-	$(MAKE) -C llvm-native ENABLE_OPTIMIZED=1
-	touch $@
+stamps/llvm-native-make: BUILD_OPTS = ENABLE_OPTIMIZED=1
 
 #Then, build LLVM with the clang compiler.
 #Note that we build LLVM without clang and compiler-rt, because S2E does not need them.
@@ -139,14 +142,10 @@ stamps/llvm-%-configure: CONFIGURE_COMMAND = $(S2EBUILD)/$(LLVM_SRC_DIR)/configu
                                              CXX=$(CLANG_CXX)
 
 stamps/llvm-debug-make stamps/llvm-release-make: stamps/llvm-native-make
-
 stamps/llvm-debug-make: stamps/llvm-debug-configure
-	$(MAKE) -C llvm-debug ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
-	touch $@
-
+stamps/llvm-debug-make: BUILD_OPTS = ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 stamps/llvm-release-make: stamps/llvm-release-configure
-	$(MAKE) -C llvm-release ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
-	touch $@
+stamps/llvm-release-make: BUILD_OPTS = ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 
 
 
@@ -163,8 +162,6 @@ STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
 stamps/stp-configure: CONFIGURE_COMMAND = scripts/configure $(STP_CONFIGURE_FLAGS)
 
 stamps/stp-make: stamps/stp-configure
-	$(MAKE) -C stp
-	touch $@
 
 #ASAN-enabled STP
 #XXX: need to fix the STP build to actually use ASAN...
@@ -172,8 +169,7 @@ stamps/stp-make: stamps/stp-configure
 stamps/stp-asan-configure: CONFIGURE_COMMAND = scripts/configure $(STP_CONFIGURE_FLAGS) --with-address-sanitizer
 
 stamps/stp-asan-make: stamps/stp-asan-configure
-	$(MAKE) -C stp-asan
-	touch $@
+
 
 
 ########
@@ -205,13 +201,8 @@ stamps/klee-debug-configure: CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMAND) \
 stamps/klee-release-configure: CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMAND) \
                                                    --with-llvmobj=$(S2EBUILD)/llvm-release
 
-stamps/klee-debug-make:
-	$(MAKE) -C klee-debug ENABLE_OPTIMIZED=0
-	touch $@
-
-stamps/klee-release-make:
-	$(MAKE) -C klee-release ENABLE_OPTIMIZED=1
-	touch $@
+stamps/klee-debug-make:   BUILD_OPTS = ENABLE_OPTIMIZED=0
+stamps/klee-release-make: BUILD_OPTS = ENABLE_OPTIMIZED=1
 
 #ASAN-enabled KLEE
 
@@ -227,13 +218,9 @@ stamps/klee-asan-release-configure: CONFIGURE_COMMAND = $(KLEE_ASAN_CONFIGURE_CO
                                                         CXXFLAGS="-fsanitize=address" \
                                                         LDFLAGS="-fsanitize=address"
 
-stamps/klee-asan-debug-make:
-	$(MAKE) -C klee-asan-debug ENABLE_OPTIMIZED=0
-	touch $@
+stamps/klee-asan-debug-make:   BUILD_OPTS = ENABLE_OPTIMIZED=0
+stamps/klee-asan-release-make: BUILD_OPTS = ENABLE_OPTIMIZED=1
 
-stamps/klee-asan-release-make:
-	$(MAKE) -C klee-asan-release ENABLE_OPTIMIZED=1
-	touch $@
 
 
 ########
@@ -268,12 +255,7 @@ stamps/qemu-release-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                    $(QEMU_CONFIGURE_FLAGS)
 
 stamps/qemu-debug-make: stamps/klee-debug-make stamps/qemu-debug-configure
-	$(MAKE) -C qemu-debug
-	touch $@
-
 stamps/qemu-release-make: stamps/klee-release-make stamps/qemu-release-configure
-	$(MAKE) -C qemu-release
-	touch $@
 
 #ASAN-enabled QEMU
 QEMU_ASAN_FLAGS = --enable-address-sanitizer \
@@ -291,12 +273,7 @@ stamps/qemu-asan-debug-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                       $(QEMU_ASAN_FLAGS)
 
 stamps/qemu-asan-debug-make: stamps/klee-asan-debug-make stamps/qemu-asan-debug-configure
-	$(MAKE) -C qemu-asan-debug
-	touch $@
-
 stamps/qemu-asan-release-make: stamps/klee-asan-release-make stamps/qemu-asan-release-configure
-	$(MAKE) -C qemu-asan-release
-	touch $@
 
 
 
@@ -316,14 +293,10 @@ stamps/tools-release-configure: CONFIGURE_COMMAND = $(TOOLS_CONFIGURE_COMMAND) \
                                                     --with-llvmobj=$(S2EBUILD)/llvm-release
 
 stamps/tools-debug-make stamps/tools-release-make: ALWAYS
-
-stamps/tools-release-make: stamps/llvm-release-make stamps/tools-release-configure
-	$(MAKE) -C tools-release ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
-	touch $@
-
 stamps/tools-debug-make: stamps/llvm-debug-make stamps/tools-debug-configure
-	$(MAKE) -C tools-debug ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
-	touch $@
+stamps/tools-debug-make: BUILD_OPTS = ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
+stamps/tools-release-make: stamps/llvm-release-make stamps/tools-release-configure
+stamps/tools-release-make: BUILD_OPTS = ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 
 
 
