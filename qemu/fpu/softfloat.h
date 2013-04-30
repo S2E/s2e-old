@@ -55,9 +55,11 @@ these four paragraphs for those parts of this code that are retained.
 *----------------------------------------------------------------------------*/
 typedef uint8_t flag;
 
+/*
 #ifdef __APPLE__
 #define uint16 qemu_uint16
 #endif
+*/
 
 typedef uint8_t uint8;
 typedef int8_t int8;

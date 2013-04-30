@@ -27,3 +27,10 @@ LLVMCXX := $(LLVMGXX)
 endif
 
 CXX.Flags += -I$(S2E_SRC_ROOT)/ -I$(PROJ_SRC_ROOT)/
+
+OS := $(shell uname)
+ifeq ($(OS),Darwin)
+    # bfd.h is typically in /opt/local/include on Mac
+    CXX.Flags += -I/opt/local/include
+    LD.Flags += -L/opt/local/lib -L/opt/local/lib/x86_64
+endif
