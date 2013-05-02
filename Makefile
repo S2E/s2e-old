@@ -29,13 +29,13 @@ MAKE = make -j$(JOBS)
 
 all: all-release
 
-all-release all-release-asan: stamps/tools-release-make
+all-release all-asan-release: stamps/tools-release-make
 all-release: stamps/qemu-release-make
-all-release-asan: stamps/qemu-release-asan-make
+all-asan-release: stamps/qemu-asan-release-make
 
-all-debug all-debug-asan: stamps/tools-debug-make
+all-debug all-asan-debug: stamps/tools-debug-make
 all-debug: stamps/qemu-debug-make
-all-debug-asan: stamps/qemu-debug-asan-make
+all-asan-debug: stamps/qemu-asan-debug-make
 
 ifeq ($(wildcard qemu/vl.c),qemu/vl.c)
     $(error You should not run make in the S2E source directory!)
@@ -54,7 +54,7 @@ COMPILER_RT_SRC_DIR=compiler-rt-$(LLVM_VERSION).src
 COMPILER_RT_DEST_DIR=$(LLVM_NATIVE_SRC_DIR)/projects/compiler-rt
 
 clean:
-	-rm -Rf klee klee-asan qemu-debug qemu-debug-asan qemu-release qemu-release-asan
+	-rm -Rf klee klee-asan qemu-debug qemu-asan-debug qemu-release qemu-asan-release
 	-rm -Rf stamps
 
 guestclean:
@@ -65,12 +65,12 @@ distclean: clean guestclean
 	-rm -Rf guest-tools llvm llvm-native stp stp-asan tools
 	-rm -Rf $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 
-.PHONY: all all-debug all-debug-asan all-release all-release-asan
+.PHONY: all all-debug all-release all-asan-debug all-asan-release
 .PHONY: clean distclean guestclean
 
 ALWAYS:
 
-guest-tools klee klee-asan llvm llvm-native qemu-debug qemu-debug-asan qemu-release qemu-release-asan stamps tools:
+guest-tools klee klee-asan llvm llvm-native qemu-debug qemu-asan-debug qemu-release qemu-asan-release stamps tools:
 	mkdir -p $@
 
 stamps/%-configure: | stamps
@@ -180,11 +180,11 @@ stamps/stp-asan-make: stamps/stp-asan-configure
 # KLEE #
 ########
 
-stamps/klee-debug-make stamps/klee-debug-asan-make: stamps/llvm-debug-make
-stamps/klee-release-make stamps/klee-release-asan-make: stamps/llvm-release-make
-stamps/klee-debug-make stamps/klee-debug-asan-make stamps/klee-release-make stamps/klee-release-asan-make: ALWAYS
+stamps/klee-debug-make stamps/klee-asan-debug-make: stamps/llvm-debug-make
+stamps/klee-release-make stamps/klee-asan-release-make: stamps/llvm-release-make
+stamps/klee-debug-make stamps/klee-asan-debug-make stamps/klee-release-make stamps/klee-asan-release-make: ALWAYS
 stamps/klee-debug-make stamps/klee-release-make: stamps/stp-make stamps/klee-configure
-stamps/klee-debug-asan-make stamps/klee-release-asan-make: stamps/stp-asan-make stamps/klee-asan-configure
+stamps/klee-asan-debug-make stamps/klee-asan-release-make: stamps/stp-asan-make stamps/klee-asan-configure
 
 KLEE_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
@@ -214,11 +214,11 @@ stamps/klee-asan-configure: CONFIGURE_COMMAND = $(S2ESRC)/klee/configure \
                                                 $(KLEE_CONFIGURE_FLAGS) \
                                                 $(ASAN_CXX_LD_FLAGS)
 
-stamps/klee-release-asan-make:
+stamps/klee-asan-release-make:
 	$(MAKE) -C klee-asan ENABLE_OPTIMIZED=1 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
-stamps/klee-debug-asan-make:
+stamps/klee-asan-debug-make:
 	$(MAKE) -C klee-asan ENABLE_OPTIMIZED=0 $(ASAN_CXX_LD_FLAGS)
 	touch $@
 
@@ -269,24 +269,24 @@ QEMU_ASAN_FLAGS = --enable-address-sanitizer \
                   --with-stp=$(S2EBUILD)/stp-asan \
                   $(QEMU_COMMON_FLAGS)
 
-stamps/qemu-release-asan-configure: | qemu-release-asan
-stamps/qemu-release-asan-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
+stamps/qemu-asan-release-configure: | qemu-asan-release
+stamps/qemu-asan-release-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                         --with-klee=$(S2EBUILD)/klee-asan/Release+Asserts \
                                                         $(QEMU_RELEASE_FLAGS) \
                                                         $(QEMU_ASAN_FLAGS)
 
-stamps/qemu-debug-asan-configure: | qemu-debug-asan
-stamps/qemu-debug-asan-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
+stamps/qemu-asan-debug-configure: | qemu-asan-debug
+stamps/qemu-asan-debug-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                       --with-klee=$(S2EBUILD)/klee-asan/Debug+Asserts \
                                                       $(QEMU_DEBUG_FLAGS) \
                                                       $(QEMU_ASAN_FLAGS)
 
-stamps/qemu-debug-asan-make: stamps/klee-debug-asan-make stamps/qemu-debug-asan-configure
-	$(MAKE) -C qemu-debug-asan
+stamps/qemu-asan-debug-make: stamps/klee-asan-debug-make stamps/qemu-asan-debug-configure
+	$(MAKE) -C qemu-asan-debug
 	touch $@
 
-stamps/qemu-release-asan-make: stamps/klee-release-asan-make stamps/qemu-release-asan-configure
-	$(MAKE) -C qemu-release-asan
+stamps/qemu-asan-release-make: stamps/klee-asan-release-make stamps/qemu-asan-release-configure
+	$(MAKE) -C qemu-asan-release
 	touch $@
 
 
