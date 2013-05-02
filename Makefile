@@ -296,6 +296,8 @@ stamps/qemu-release-asan-make: stamps/klee-release-asan-make stamps/qemu-release
 # Tools #
 #########
 
+stamps/tools-release-make: stamps/llvm-release-make
+stamps/tools-debug-make: stamps/llvm-debug-make
 stamps/tools-debug-make stamps/tools-release-make: stamps/tools-configure ALWAYS
 
 stamps/tools-configure: | tools
@@ -305,11 +307,11 @@ stamps/tools-configure: CONFIGURE_COMMAND = $(S2ESRC)/tools/configure \
                                             --with-s2esrc=$(S2ESRC)/qemu \
                                             --target=x86_64 CC=$(CLANG_CC) CXX=$(CLANG_CXX)
 
-stamps/tools-release-make: stamps/llvm-release-make
+stamps/tools-release-make:
 	$(MAKE) -C tools ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 	touch $@
 
-stamps/tools-debug-make: stamps/llvm-debug-make
+stamps/tools-debug-make:
 	$(MAKE) -C tools ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 	touch $@
 
