@@ -1733,6 +1733,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     BasicBlock *bb = si->getParent();
 
     cond = simplifyExpr(state, toUnique(state, cond));
+    if (!isa<ConstantExpr>(cond)) {
+        // TODO: proper support for symbolic switches
+        cond = toConstant(state, cond, "Symbolic switch condition");
+    }
+
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(cond)) {
       // Somewhat gross to create these all the time, but fine till we
       // switch to an internal rep.
