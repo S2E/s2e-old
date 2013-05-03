@@ -125,20 +125,19 @@ stamps/llvm-native-configure: CONFIGURE_COMMAND = $(S2EBUILD)/$(LLVM_NATIVE_SRC_
                                                   $(LLVM_CONFIGURE_FLAGS) \
                                                   --disable-assertions #compiler-rt won't build if we specify explicit targets...
 
-$(CLANG_CXX): stamps/llvm-native-configure
+stamps/llvm-native-make: stamps/llvm-native-configure
 	$(MAKE) -C llvm-native ENABLE_OPTIMIZED=1
-
+	touch $@
 
 #Then, build LLVM with the clang compiler.
 #Note that we build LLVM without clang and compiler-rt, because S2E does not need them.
-stamps/llvm-configure: $(CLANG_CXX)
 stamps/llvm-configure: CONFIGURE_COMMAND = $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
                                            $(LLVM_CONFIGURE_FLAGS) \
                                            --target=x86_64 --enable-targets=x86 \
                                            CC=$(CLANG_CC) \
                                            CXX=$(CLANG_CXX)
 
-stamps/llvm-debug-make stamps/llvm-release-make: stamps/llvm-configure
+stamps/llvm-debug-make stamps/llvm-release-make: stamps/llvm-native-make stamps/llvm-configure
 
 stamps/llvm-debug-make:
 	$(MAKE) -C llvm ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
@@ -154,7 +153,7 @@ stamps/llvm-release-make:
 # STP #
 #######
 
-stamps/stp-make stamps/stp-asan-make: $(CLANG_CXX) ALWAYS
+stamps/stp-make stamps/stp-asan-make: stamps/llvm-native-make ALWAYS
 
 STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
                       --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) \
