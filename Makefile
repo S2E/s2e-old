@@ -118,7 +118,7 @@ LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --enable-jit --enable-optimized \
 
 #First build it with the system's compiler
-stamps/llvm-native-configure: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-native stamps
+stamps/llvm-native-configure: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-native
 stamps/llvm-native-configure: CONFIGURE_COMMAND = $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
                                                   $(LLVM_CONFIGURE_FLAGS) \
                                                   --disable-assertions #compiler-rt won't build if we specify explicit targets...
@@ -152,7 +152,6 @@ stamps/llvm-release-make:
 # STP #
 #######
 
-stamps/stp-configure stamps/stp-asan-configure: | stamps
 stamps/stp-make stamps/stp-asan-make: ALWAYS
 
 STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
