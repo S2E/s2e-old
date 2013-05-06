@@ -152,7 +152,7 @@ stamps/llvm-release-make:
 # STP #
 #######
 
-stamps/stp-make stamps/stp-asan-make: ALWAYS
+stamps/stp-make stamps/stp-asan-make: $(CLANG_CXX) ALWAYS
 
 STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
                       --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) \
@@ -161,7 +161,7 @@ STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
 stamps/stp-configure: | stp
 stamps/stp-configure: CONFIGURE_COMMAND = scripts/configure $(STP_CONFIGURE_FLAGS)
 
-stamps/stp-make: $(CLANG_CXX) stamps/stp-configure
+stamps/stp-make: stamps/stp-configure
 	$(MAKE) -C stp
 	touch $@
 
@@ -171,7 +171,7 @@ stamps/stp-make: $(CLANG_CXX) stamps/stp-configure
 stamps/stp-asan-configure: | stp-asan
 stamps/stp-asan-configure: CONFIGURE_COMMAND = scripts/configure $(STP_CONFIGURE_FLAGS) --with-address-sanitizer
 
-stamps/stp-asan-make: $(CLANG_CXX) stamps/stp-asan-configure
+stamps/stp-asan-make: stamps/stp-asan-configure
 	$(MAKE) -C stp-asan
 	touch $@
 
