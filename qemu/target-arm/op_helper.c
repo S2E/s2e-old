@@ -123,7 +123,9 @@ void tlb_fill(CPUArchState *env1, target_ulong addr, target_ulong page_addr,
     int ret;
 
     saved_env = env;
-    env = env1;
+
+    if (env != env1)
+        env = env1;
 
 #ifdef CONFIG_S2E
     s2e_on_tlb_miss(g_s2e, g_s2e_state, addr, is_write);
