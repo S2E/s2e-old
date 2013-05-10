@@ -70,7 +70,7 @@ distclean: clean guestclean
 
 ALWAYS:
 
-guest-tools klee klee-asan llvm llvm-instr-asan llvm-native qemu-debug qemu-debug-asan qemu-release qemu-release-asan stamps tools:
+guest-tools klee klee-asan llvm llvm-native qemu-debug qemu-debug-asan qemu-release qemu-release-asan stamps tools:
 	mkdir -p $@
 
 stamps/%-configure: | stamps
