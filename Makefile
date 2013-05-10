@@ -53,8 +53,10 @@ COMPILER_RT_SRC=compiler-rt-$(LLVM_VERSION).src.tar.gz
 COMPILER_RT_SRC_DIR=compiler-rt-$(LLVM_VERSION).src
 COMPILER_RT_DEST_DIR=$(LLVM_NATIVE_SRC_DIR)/projects/compiler-rt
 
+QEMU_DIRS = $(foreach suffix,-debug -release,$(addsuffix $(suffix),qemu qemu-asan))
+
 clean:
-	-rm -Rf klee klee-asan qemu-debug qemu-asan-debug qemu-release qemu-asan-release
+	-rm -Rf klee klee-asan $(QEMU_DIRS)
 	-rm -Rf stamps
 
 guestclean:
@@ -70,7 +72,7 @@ distclean: clean guestclean
 
 ALWAYS:
 
-guest-tools klee klee-asan llvm llvm-native qemu-debug qemu-asan-debug qemu-release qemu-asan-release stamps tools:
+guest-tools klee klee-asan llvm llvm-native $(QEMU_DIRS) stamps tools:
 	mkdir -p $@
 
 stamps/%-configure: | stamps
