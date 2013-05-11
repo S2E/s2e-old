@@ -75,7 +75,7 @@ ALWAYS:
 guest-tools $(KLEE_QEMU_DIRS) llvm llvm-native stamps tools:
 	mkdir -p $@
 
-stamps/%-configure: | stamps
+stamps/%-configure: | % stamps
 	cd $* && $(CONFIGURE_COMMAND)
 	touch $@
 
@@ -120,7 +120,7 @@ LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --enable-jit --enable-optimized \
 
 #First build it with the system's compiler
-stamps/llvm-native-configure: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR) | llvm-native
+stamps/llvm-native-configure: $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR)
 stamps/llvm-native-configure: CONFIGURE_COMMAND = $(S2EBUILD)/$(LLVM_NATIVE_SRC_DIR)/configure \
                                                   $(LLVM_CONFIGURE_FLAGS) \
                                                   --disable-assertions #compiler-rt won't build if we specify explicit targets...
@@ -131,7 +131,7 @@ $(CLANG_CXX): stamps/llvm-native-configure
 
 #Then, build LLVM with the clang compiler.
 #Note that we build LLVM without clang and compiler-rt, because S2E does not need them.
-stamps/llvm-configure: $(CLANG_CXX) | llvm
+stamps/llvm-configure: $(CLANG_CXX)
 stamps/llvm-configure: CONFIGURE_COMMAND = $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
                                            $(LLVM_CONFIGURE_FLAGS) \
                                            --target=x86_64 --enable-targets=x86 \
@@ -160,7 +160,6 @@ STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
                       --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) \
                       --with-cryptominisat2
 
-stamps/stp-configure: | stp
 stamps/stp-configure: CONFIGURE_COMMAND = scripts/configure $(STP_CONFIGURE_FLAGS)
 
 stamps/stp-make: stamps/stp-configure
@@ -170,7 +169,6 @@ stamps/stp-make: stamps/stp-configure
 #ASAN-enabled STP
 #XXX: need to fix the STP build to actually use ASAN...
 
-stamps/stp-asan-configure: | stp-asan
 stamps/stp-asan-configure: CONFIGURE_COMMAND = scripts/configure $(STP_CONFIGURE_FLAGS) --with-address-sanitizer
 
 stamps/stp-asan-make: stamps/stp-asan-configure
@@ -201,11 +199,9 @@ KLEE_CONFIGURE_COMMON = $(S2ESRC)/klee/configure \
 
 KLEE_CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMON) --with-stp=$(S2EBUILD)/stp
 
-stamps/klee-debug-configure: | klee-debug
 stamps/klee-debug-configure: CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMAND) \
                                                  CXXFLAGS="-g -O0" LDFLAGS="-g"
 
-stamps/klee-release-configure: | klee-release
 stamps/klee-release-configure: CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMAND)
 
 stamps/klee-debug-make:
@@ -220,12 +216,10 @@ stamps/klee-release-make:
 
 KLEE_ASAN_CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMON) --with-stp=$(S2EBUILD)/stp-asan
 
-stamps/klee-asan-debug-configure: | klee-asan-debug
 stamps/klee-asan-debug-configure: CONFIGURE_COMMAND = $(KLEE_ASAN_CONFIGURE_COMMAND) \
                                                       CXXFLAGS="-g -O0 -fsanitize=address" \
                                                       LDFLAGS="-g -fsanitize=address"
 
-stamps/klee-asan-release-configure: | klee-asan-release
 stamps/klee-asan-release-configure: CONFIGURE_COMMAND = $(KLEE_ASAN_CONFIGURE_COMMAND) \
                                                         CXXFLAGS="-fsanitize=address" \
                                                         LDFLAGS="-fsanitize=address"
@@ -260,13 +254,11 @@ QEMU_DEBUG_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Debug+Asserts \
 
 QEMU_RELEASE_FLAGS = --with-llvm=$(S2EBUILD)/llvm/Release+Asserts
 
-stamps/qemu-debug-configure: | qemu-debug
 stamps/qemu-debug-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                  --with-klee=$(S2EBUILD)/klee-debug/Debug+Asserts \
                                                  $(QEMU_DEBUG_FLAGS) \
                                                  $(QEMU_CONFIGURE_FLAGS)
 
-stamps/qemu-release-configure: | qemu-release
 stamps/qemu-release-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                    --with-klee=$(S2EBUILD)/klee-release/Release+Asserts \
                                                    $(QEMU_RELEASE_FLAGS) \
@@ -285,13 +277,11 @@ QEMU_ASAN_FLAGS = --enable-address-sanitizer \
                   --with-stp=$(S2EBUILD)/stp-asan \
                   $(QEMU_COMMON_FLAGS)
 
-stamps/qemu-asan-release-configure: | qemu-asan-release
 stamps/qemu-asan-release-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                         --with-klee=$(S2EBUILD)/klee-asan-release/Release+Asserts \
                                                         $(QEMU_RELEASE_FLAGS) \
                                                         $(QEMU_ASAN_FLAGS)
 
-stamps/qemu-asan-debug-configure: | qemu-asan-debug
 stamps/qemu-asan-debug-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                       --with-klee=$(S2EBUILD)/klee-asan-debug/Debug+Asserts \
                                                       $(QEMU_DEBUG_FLAGS) \
@@ -315,7 +305,6 @@ stamps/tools-release-make: stamps/llvm-release-make
 stamps/tools-debug-make: stamps/llvm-debug-make
 stamps/tools-debug-make stamps/tools-release-make: stamps/tools-configure ALWAYS
 
-stamps/tools-configure: | tools
 stamps/tools-configure: CONFIGURE_COMMAND = $(S2ESRC)/tools/configure \
                                             --with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
                                             --with-llvmobj=$(S2EBUILD)/llvm \
