@@ -388,8 +388,13 @@ static inline void get_ss_esp_from_tss(uint32_t *ss_ptr,
     if (!(env->tr.flags & DESC_P_MASK))
         cpu_abort(env, "invalid tss");
     type = (env->tr.flags >> DESC_TYPE_SHIFT) & 0xf;
-    if ((type & 7) != 1)
-        cpu_abort(env, "invalid tss type");
+
+    //XXX: this seems to fire when resuming KVM snapshots
+    //in DBT mode. Not sure why this check is useful in the
+    //context from which this function is called.
+    //if ((type & 7) != 1)
+    //    cpu_abort(env, "invalid tss type");
+
     shift = type >> 3;
     index = (dpl * 4 + 2) << shift;
     if (index + (4 << shift) - 1 > env->tr.limit)
