@@ -262,15 +262,15 @@ QEMU_ASAN_FLAGS = --enable-address-sanitizer \
                   --with-stp=$(S2EBUILD)/stp-asan \
                   $(QEMU_COMMON_FLAGS)
 
-stamps/qemu-asan-release-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
-                                                        --with-klee=$(S2EBUILD)/klee-asan-release/Release+Asserts \
-                                                        $(QEMU_RELEASE_FLAGS) \
-                                                        $(QEMU_ASAN_FLAGS)
-
 stamps/qemu-asan-debug-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
                                                       --with-klee=$(S2EBUILD)/klee-asan-debug/Debug+Asserts \
                                                       $(QEMU_DEBUG_FLAGS) \
                                                       $(QEMU_ASAN_FLAGS)
+
+stamps/qemu-asan-release-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
+                                                        --with-klee=$(S2EBUILD)/klee-asan-release/Release+Asserts \
+                                                        $(QEMU_RELEASE_FLAGS) \
+                                                        $(QEMU_ASAN_FLAGS)
 
 stamps/qemu-asan-debug-make: stamps/klee-asan-debug-make stamps/qemu-asan-debug-configure
 stamps/qemu-asan-release-make: stamps/klee-asan-release-make stamps/qemu-asan-release-configure
