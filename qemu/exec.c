@@ -4160,10 +4160,25 @@ static BounceBuffer bounce;
 /**
  * Block devices may split big requests in chunks of 4K,
  * each of them requiring one buffer.
- * 32 is a magic number, but seems to be fine for now.
  */
-static const unsigned s_max_bounce_buffers = 32;
-BounceBuffer s_bounce_buffers[s_max_bounce_buffers];
+static unsigned s_max_bounce_buffers = 0;
+BounceBuffer *s_bounce_buffers = NULL;
+
+static BounceBuffer* bounce_buffer_alloc(void)
+{
+    for (int i = 0; i < s_max_bounce_buffers; ++i) {
+        if (!s_bounce_buffers[i].buffer) {
+            return &s_bounce_buffers[i];
+        }
+    }
+
+    //Did not find any bounce buffer, allocate some more.
+    unsigned old_count = s_max_bounce_buffers;
+    s_max_bounce_buffers += 32;
+    s_bounce_buffers = g_renew(BounceBuffer, s_bounce_buffers, s_max_bounce_buffers);
+    memset(s_bounce_buffers + old_count, 0, s_max_bounce_buffers - old_count);
+    return &s_bounce_buffers[old_count];
+}
 #endif
 
 typedef struct MapClient {
@@ -4262,19 +4277,15 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
 #else
     // In S2E, memory should always be copied
     //Find a free bounce buffer
-    for (int i = 0; i < s_max_bounce_buffers; ++i) {
-        if (!s_bounce_buffers[i].buffer) {
-            s_bounce_buffers[i].buffer = qemu_memalign(TARGET_PAGE_SIZE, *plen);
-            s_bounce_buffers[i].addr = addr;
-            s_bounce_buffers[i].len = *plen;
-            if (!is_write) {
-                cpu_physical_memory_rw(addr, s_bounce_buffers[i].buffer, *plen, 0);
-            }
-            return s_bounce_buffers[i].buffer;
-        }
-    }
+    BounceBuffer *buffer = bounce_buffer_alloc();
 
-    return NULL;
+    buffer->buffer = qemu_memalign(TARGET_PAGE_SIZE, *plen);
+    buffer->addr = addr;
+    buffer->len = *plen;
+    if (!is_write) {
+        cpu_physical_memory_rw(addr, buffer->buffer, *plen, 0);
+    }
+    return buffer->buffer;
 #endif
 }
 
