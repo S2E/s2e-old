@@ -101,7 +101,7 @@ Here is a checklist we recommend to follow:
 * Disable unnecessary services to save memory and speed up the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.
 
 
-Experimental KVM snapshot support
+Experimental KVM Snapshot Support
 =================================
 
 It is possible to boot an image in KVM mode, take a snapshot, and resume it in S2E (DBT) mode.
@@ -124,8 +124,14 @@ Limitations:
 - The host CPU in KVM mode must match the virtual CPU in DBT mode. For example, you cannot save a KVM snapshot
   on an Intel CPU and resume it with default settings in DBT mode (i.e., -cpu qemu64, which uses the AMD variations of some instructions).
 
-- The CPUID flags should be matched between KVM and DBT mode. This does not seem to matter for simple experiments, but may
-  lead to guest kernel crashes.
+- The CPUID flags should be matched between KVM and DBT mode. Mismatches do not seem to matter for simple experiments, but may
+  lead to guest kernel crashes. You can dump ``/proc/cpuinfo`` in KVM and DBT mode, compare both and add the corresponding tweaks
+  to the ``-cpu`` parameter.
 
 - KVM mode does not support S2E custom instructions. They cause an invalid opcode exception in the guest.
   Therefore, you might need to save a second snapshot in DBT mode when using tools such as ``s2eget``.
+
+- It is possible that the guest hangs when resumed in DBT mode from a KVM snapshot.
+  Try to save and resume again.
+
+- Resuming DBT snapshots in KVM mode does not seem to work.

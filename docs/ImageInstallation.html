@@ -17,7 +17,7 @@
 <li><a class="reference internal" href="#preparing-a-linux-vm-image" id="id1">Preparing a Linux VM Image</a></li>
 <li><a class="reference internal" href="#the-s2e-vm-image-format" id="id2">The S2E VM Image Format</a></li>
 <li><a class="reference internal" href="#general-requirements-and-guidelines-for-vm-images" id="id3">General Requirements and Guidelines for VM Images</a></li>
-<li><a class="reference internal" href="#experimental-kvm-snapshot-support" id="id4">Experimental KVM snapshot support</a></li>
+<li><a class="reference internal" href="#experimental-kvm-snapshot-support" id="id4">Experimental KVM Snapshot Support</a></li>
 </ul>
 </div>
 <p>To run S2E, you need a QEMU-compatible virtual machine disk image. S2E can run
@@ -94,7 +94,7 @@ and optimizations that will make administration easier and symbolic execution fa
 </ul>
 </div>
 <div class="section" id="experimental-kvm-snapshot-support">
-<h1>Experimental KVM snapshot support</h1>
+<h1>Experimental KVM Snapshot Support</h1>
 <p>It is possible to boot an image in KVM mode, take a snapshot, and resume it in S2E (DBT) mode.
 This is useful if your guest system is large and avoids cumbersome manipulations to workaround the relative slowness of the DBT
 (e.g., starting in VMware, setting up, converting the disk image to S2E, rebooting again in DBT mode, etc.).</p>
@@ -112,10 +112,14 @@ $ ./qemu-release/x86_64-s2e-softmmu/qemu-system-x86_64 -cpu core2duo -loadvm mys
 <ul class="simple">
 <li>The host CPU in KVM mode must match the virtual CPU in DBT mode. For example, you cannot save a KVM snapshot
 on an Intel CPU and resume it with default settings in DBT mode (i.e., -cpu qemu64, which uses the AMD variations of some instructions).</li>
-<li>The CPUID flags should be matched between KVM and DBT mode. This does not seem to matter for simple experiments, but may
-lead to guest kernel crashes.</li>
+<li>The CPUID flags should be matched between KVM and DBT mode. Mismatches do not seem to matter for simple experiments, but may
+lead to guest kernel crashes. You can dump <tt class="docutils literal">/proc/cpuinfo</tt> in KVM and DBT mode, compare both and add the corresponding tweaks
+to the <tt class="docutils literal"><span class="pre">-cpu</span></tt> parameter.</li>
 <li>KVM mode does not support S2E custom instructions. They cause an invalid opcode exception in the guest.
 Therefore, you might need to save a second snapshot in DBT mode when using tools such as <tt class="docutils literal">s2eget</tt>.</li>
+<li>It is possible that the guest hangs when resumed in DBT mode from a KVM snapshot.
+Try to save and resume again.</li>
+<li>Resuming DBT snapshots in KVM mode does not seem to work.</li>
 </ul>
 </div>
 </div>
