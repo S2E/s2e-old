@@ -100,3 +100,32 @@ Here is a checklist we recommend to follow:
 
 * Disable unnecessary services to save memory and speed up the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.
 
+
+Experimental KVM snapshot support
+=================================
+
+It is possible to boot an image in KVM mode, take a snapshot, and resume it in S2E (DBT) mode.
+This is useful if your guest system is large and avoids cumbersome manipulations to workaround the relative slowness of the DBT
+(e.g., starting in VMware, setting up, converting the disk image to S2E, rebooting again in DBT mode, etc.).
+
+::
+
+    # Set up the guest, take a snapshot
+    $ ./qemu-release/x86_64-softmmu/qemu-system-x86_64 -enable-kvm -cpu core2duo
+
+    # Resume the snapshot in DBT mode using vanilla QEMU, to finish the setup
+    $ ./qemu-release/x86_64-softmmu/qemu-system-x86_64 -cpu core2duo -loadvm mysnapshot
+
+    # Resume the snapshot in S2E mode
+    $ ./qemu-release/x86_64-s2e-softmmu/qemu-system-x86_64 -cpu core2duo -loadvm mysnapshot
+
+Limitations:
+
+- The host CPU in KVM mode must match the virtual CPU in DBT mode. For example, you cannot save a KVM snapshot
+  on an Intel CPU and resume it with default settings in DBT mode (i.e., -cpu qemu64, which uses the AMD variations of some instructions).
+
+- The CPUID flags should be matched between KVM and DBT mode. This does not seem to matter for simple experiments, but may
+  lead to guest kernel crashes.
+
+- KVM mode does not support S2E custom instructions. They cause an invalid opcode exception in the guest.
+  Therefore, you might need to save a second snapshot in DBT mode when using tools such as ``s2eget``.
