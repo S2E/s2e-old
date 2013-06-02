@@ -179,12 +179,6 @@ stamps/stp-asan-make: stamps/stp-asan-configure
 stamps/klee-debug-make stamps/klee-asan-debug-make: stamps/llvm-debug-make
 stamps/klee-release-make stamps/klee-asan-release-make: stamps/llvm-release-make
 stamps/klee-debug-make stamps/klee-asan-debug-make stamps/klee-release-make stamps/klee-asan-release-make: ALWAYS
-stamps/klee-debug-make stamps/klee-release-make: stamps/stp-make
-stamps/klee-debug-make:   stamps/klee-debug-configure
-stamps/klee-release-make: stamps/klee-release-configure
-stamps/klee-asan-debug-make stamps/klee-asan-release-make: stamps/stp-asan-make
-stamps/klee-asan-debug-make:   stamps/klee-asan-debug-configure
-stamps/klee-asan-release-make: stamps/klee-asan-release-configure
 
 KLEE_CONFIGURE_COMMON = $(S2ESRC)/klee/configure \
                         --prefix=$(S2EBUILD)/opt \
@@ -201,7 +195,10 @@ stamps/klee-debug-configure: CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMAND) \
 stamps/klee-release-configure: CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMAND) \
                                                    --with-llvmobj=$(S2EBUILD)/llvm-release
 
-stamps/klee-debug-make:   BUILD_OPTS = ENABLE_OPTIMIZED=0
+stamps/klee-debug-make stamps/klee-release-make: stamps/stp-make
+stamps/klee-debug-make: stamps/klee-debug-configure
+stamps/klee-debug-make: BUILD_OPTS = ENABLE_OPTIMIZED=0
+stamps/klee-release-make: stamps/klee-release-configure
 stamps/klee-release-make: BUILD_OPTS = ENABLE_OPTIMIZED=1
 
 #ASAN-enabled KLEE
@@ -218,7 +215,10 @@ stamps/klee-asan-release-configure: CONFIGURE_COMMAND = $(KLEE_ASAN_CONFIGURE_CO
                                                         CXXFLAGS="-fsanitize=address" \
                                                         LDFLAGS="-fsanitize=address"
 
-stamps/klee-asan-debug-make:   BUILD_OPTS = ENABLE_OPTIMIZED=0
+stamps/klee-asan-debug-make stamps/klee-asan-release-make: stamps/stp-asan-make
+stamps/klee-asan-debug-make: stamps/klee-asan-debug-configure
+stamps/klee-asan-debug-make: BUILD_OPTS = ENABLE_OPTIMIZED=0
+stamps/klee-asan-release-make: stamps/klee-asan-release-configure
 stamps/klee-asan-release-make: BUILD_OPTS = ENABLE_OPTIMIZED=1
 
 
