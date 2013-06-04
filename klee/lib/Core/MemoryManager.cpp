@@ -25,8 +25,10 @@ using namespace klee;
 
 MemoryManager::~MemoryManager() { 
   while (!objects.empty()) {
-    MemoryObject *mo = objects.back();
-    objects.pop_back();
+    MemoryObject *mo = *objects.begin();
+    if (!mo->isFixed)
+      free((void *)mo->address);
+    objects.erase(mo);
     delete mo;
   }
 }
@@ -34,41 +36,50 @@ MemoryManager::~MemoryManager() {
 MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal, 
                                       bool isGlobal,
                                       const llvm::Value *allocSite) {
-  if (size>10*1024*1024) {
-    klee_warning_once(0, "failing large alloc: %u bytes", (unsigned) size);
-    return 0;
-  }
+  if (size>10*1024*1024)
+    klee_warning_once(0, "Large alloc: %u bytes.  KLEE may run out of memory.", (unsigned) size);
+  
   uintptr_t address = (uintptr_t) malloc((unsigned) size);
   if (!address)
     return 0;
   
   ++stats::allocations;
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
-                                       allocSite);
-  objects.push_back(res);
+                                       allocSite, this);
+  objects.insert(res);
   return res;
 }
 
 MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
                                            const llvm::Value *allocSite) {
 #ifndef NDEBUG
+  
 #if 0
   for (objects_ty::iterator it = objects.begin(), ie = objects.end();
        it != ie; ++it) {
     MemoryObject *mo = *it;
-    assert(!(address+size > mo->address && address < mo->address+mo->size) &&
-           "allocated an overlapping object");
+    if (address+size > mo->address && address < mo->address+mo->size)
+      klee_error("Trying to allocate an overlapping object");
   }
 #endif
 #endif
-
+  
   ++stats::allocations;
   MemoryObject *res = new MemoryObject(address, size, false, true, true,
-                                       allocSite);
-  objects.push_back(res);
+                                       allocSite, this);
+  objects.insert(res);
   return res;
 }
 
 void MemoryManager::deallocate(const MemoryObject *mo) {
   assert(0);
+}
+
+void MemoryManager::markFreed(MemoryObject *mo) {
+  if (objects.find(mo) != objects.end())
+  {
+    if (!mo->isFixed)
+      free((void *)mo->address);
+    objects.erase(mo);
+  }
 }

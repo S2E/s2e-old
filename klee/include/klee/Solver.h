@@ -64,39 +64,75 @@ namespace klee {
     SolverImpl *impl;
 
   public:
-    Solver(SolverImpl *_impl) : impl(_impl) {};
+    Solver(SolverImpl *_impl) : impl(_impl) {}
     virtual ~Solver();
 
-    /// evaluate - Determine the full validity of an expression in particular
-    /// state.
-    ////
-    /// \param [out] result - The validity of the given expression (provably
-    /// true, provably false, or neither).
+    /// evaluate - Determine for a particular state if the query
+    /// expression is provably true, provably false or neither.
+    ///
+    /// \param [out] result - if
+    /// \f[ \forall X constraints(X) \to query(X) \f]
+    /// then Solver::True,
+    /// else if
+    /// \f[ \forall X constraints(X) \to \lnot query(X) \f]
+    /// then Solver::False,
+    /// else
+    /// Solver::Unknown
     ///
     /// \return True on success.
     bool evaluate(const Query&, Validity &result);
   
     /// mustBeTrue - Determine if the expression is provably true.
+    /// 
+    /// This evaluates the following logical formula:
     ///
-    /// \param [out] result - On success, true iff the expresssion is provably
-    /// false.
+    /// \f[ \forall X constraints(X) \to query(X) \f]
+    ///
+    /// which is equivalent to
+    ///
+    /// \f[ \lnot \exists X constraints(X) \land \lnot query(X) \f]
+    ///
+    /// Where \f$X\f$ is some assignment, \f$constraints(X)\f$ are the constraints
+    /// in the query and \f$query(X)\f$ is the query expression.
+    ///
+    /// \param [out] result - On success, true iff the logical formula is true
     ///
     /// \return True on success.
     bool mustBeTrue(const Query&, bool &result);
 
     /// mustBeFalse - Determine if the expression is provably false.
     ///
-    /// \param [out] result - On success, true iff the expresssion is provably
-    /// false.
+    /// This evaluates the following logical formula:
+    ///
+    /// \f[ \lnot \exists X constraints(X) \land query(X) \f]
+    ///
+    /// which is equivalent to
+    ///
+    ///  \f[ \forall X constraints(X) \to \lnot query(X) \f]
+    ///
+    /// Where \f$X\f$ is some assignment, \f$constraints(X)\f$ are the constraints
+    /// in the query and \f$query(X)\f$ is the query expression.
+    ///
+    /// \param [out] result - On success, true iff the logical formula is false
     ///
     /// \return True on success.
     bool mustBeFalse(const Query&, bool &result);
 
     /// mayBeTrue - Determine if there is a valid assignment for the given state
-    /// in which the expression evaluates to false.
+    /// in which the expression evaluates to true.
     ///
-    /// \param [out] result - On success, true iff the expresssion is true for
-    /// some satisfying assignment.
+    /// This evaluates the following logical formula:
+    ///
+    /// \f[ \exists X constraints(X) \land query(X) \f]
+    ///
+    /// which is equivalent to
+    ///
+    /// \f[ \lnot \forall X constraints(X) \to \lnot query(X) \f]
+    ///
+    /// Where \f$X\f$ is some assignment, \f$constraints(X)\f$ are the constraints
+    /// in the query and \f$query(X)\f$ is the query expression.
+    ///
+    /// \param [out] result - On success, true iff the logical formula may be true
     ///
     /// \return True on success.
     bool mayBeTrue(const Query&, bool &result);
@@ -104,8 +140,18 @@ namespace klee {
     /// mayBeFalse - Determine if there is a valid assignment for the given
     /// state in which the expression evaluates to false.
     ///
-    /// \param [out] result - On success, true iff the expresssion is false for
-    /// some satisfying assignment.
+    /// This evaluates the following logical formula:
+    ///
+    /// \f[ \exists X constraints(X) \land \lnot query(X) \f]
+    ///
+    /// which is equivalent to
+    ///
+    /// \f[ \lnot \forall X constraints(X) \to query(X) \f]
+    ///
+    /// Where \f$X\f$ is some assignment, \f$constraints(X)\f$ are the constraints
+    /// in the query and \f$query(X)\f$ is the query expression.
+    ///
+    /// \param [out] result - On success, true iff the logical formula may be false
     ///
     /// \return True on success.
     bool mayBeFalse(const Query&, bool &result);
@@ -113,7 +159,7 @@ namespace klee {
     /// getValue - Compute one possible value for the given expression.
     ///
     /// \param [out] result - On success, a value for the expression in some
-    /// satisying assignment.
+    /// satisfying assignment.
     ///
     /// \return True on success.
     bool getValue(const Query&, ref<ConstantExpr> &result);
@@ -123,7 +169,7 @@ namespace klee {
     /// \param [out] result - On success, this vector will be filled in with an
     /// array of bytes for each given object (with length matching the object
     /// size). The bytes correspond to the initial values for the objects for
-    /// some satisying assignment.
+    /// some satisfying assignment.
     ///
     /// \return True on success.
     ///
@@ -157,7 +203,9 @@ namespace klee {
     ///
     /// \param useForkedSTP - Whether STP should be run in a separate process
     /// (required for using timeouts).
-    STPSolver(bool useForkedSTP);
+    /// \param optimizeDivides - Whether constant division operations should
+    /// be optimized into add/shift/multiply operations.
+    STPSolver(bool useForkedSTP, bool optimizeDivides = true);
 
     
     
@@ -211,11 +259,19 @@ namespace klee {
   
   /// createPCLoggingSolver - Create a solver which will forward all queries
   /// after writing them to the given path in .pc format.
-  Solver *createPCLoggingSolver(Solver *s, std::string path);
+  Solver *createPCLoggingSolver(Solver *s, std::string path,
+                                int minQueryTimeToLog);
+
+  /// createSMTLIBLoggingSolver - Create a solver which will forward all queries
+  /// after writing them to the given path in .smt2 format.
+  Solver *createSMTLIBLoggingSolver(Solver *s, std::string path,
+                                    int minQueryTimeToLog);
+
 
   /// createDummySolver - Create a dummy solver implementation which always
   /// fails.
   Solver *createDummySolver();
+  
 }
 
 #endif

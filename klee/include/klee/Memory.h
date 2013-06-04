@@ -15,7 +15,6 @@
 
 #include "llvm/ADT/StringExtras.h"
 #include "klee/util/BitArray.h"
-
 #include <vector>
 #include <string>
 
@@ -31,9 +30,12 @@ class Solver;
 
 class MemoryObject {
   friend class STPBuilder;
+  friend class ObjectState;
+  friend class ExecutionState;
 
 private:
   static int counter;
+  mutable unsigned refCount;
 
 public:
   unsigned id;
@@ -41,18 +43,14 @@ public:
 
   /// size in bytes
   unsigned size;
-  std::string name;
+  mutable std::string name;
 
   bool isLocal;
-  bool isGlobal;
+  mutable bool isGlobal;
   bool isFixed;
 
   /// true if created by us.
   bool fake_object;
-
-  /// User-specified object will not be concretized/restored
-  /// when switching to/from concrete execution. That is,
-  /// copy(In|Out)Concretes ignores this object.
   bool isUserSpecified;
 
   /// True if this object should always be accessed directly
@@ -65,6 +63,8 @@ public:
 
   /// True if the object value can be ignored in local consistency
   bool isValueIgnored;
+
+  MemoryManager *parent;
 
   /// "Location" for which this memory object was allocated. This
   /// should be either the allocating instruction or the global object
@@ -85,17 +85,21 @@ public:
   // XXX this is just a temp hack, should be removed
   explicit
   MemoryObject(uint64_t _address) 
-    : id(counter++),
+    : refCount(0),
+      id(counter++), 
       address(_address),
       size(0),
       isFixed(true),
+      parent(NULL),
       allocSite(0) {
   }
 
   MemoryObject(uint64_t _address, unsigned _size, 
                bool _isLocal, bool _isGlobal, bool _isFixed,
-               const llvm::Value *_allocSite) 
-    : id(counter++),
+               const llvm::Value *_allocSite,
+               MemoryManager *_parent = 0)
+    : refCount(0), 
+      id(counter++),
       address(_address),
       size(_size),
       name("unnamed"),
@@ -105,6 +109,7 @@ public:
       fake_object(false),
       isUserSpecified(false),
       isSharedConcrete(false),
+      parent(_parent), 
       allocSite(_allocSite) {
   }
 
@@ -113,7 +118,7 @@ public:
   /// Get an identifying string for this allocation.
   void getAllocInfo(std::string &result) const;
 
-  void setName(std::string name) {
+  void setName(std::string name) const {
     this->name = name;
   }
 
@@ -154,10 +159,11 @@ public:
 
 class ObjectState {
 private:
+
   // XXX(s2e) for now we keep this first to access from C code
   // (yes, we do need to access if really fast)
   BitArray *concreteMask;
-
+  
   friend class AddressSpace;
   unsigned copyOnWriteOwner; // exclusively for AddressSpace
 
@@ -166,10 +172,10 @@ private:
 
   const MemoryObject *object;
 
-  //XXX: made it public for fast access
   uint8_t *concreteStore;
-
   // XXX cleanup name of flushMask (its backwards or something)
+  //BitArray *concreteMask;
+
   // mutable because may need flushed during read of const
   mutable BitArray *flushMask;
 
@@ -196,6 +202,7 @@ public:
   ObjectState(const ObjectState &os);
   ~ObjectState();
 
+  
   inline const MemoryObject *getObject() const { return object; }
 
   void setReadOnly(bool ro) { readOnly = ro; }
@@ -209,16 +216,19 @@ public:
   ref<Expr> read(unsigned offset, Expr::Width width) const;
   ref<Expr> read8(unsigned offset) const;
 
+
+  
   // fast-path to get concrete values
   bool readConcrete8(unsigned offset, uint8_t* v) const {
     if(object->isSharedConcrete) {
       *v = ((uint8_t*) object->address)[offset]; return true;
     } else if(isByteConcrete(offset)) {
-      *v = concreteStore[offset]; return true;
+     *v = concreteStore[offset]; return true;
     } else {
       return false;
     }
   }
+  
 
   // return bytes written.
   void write(unsigned offset, ref<Expr> value);
@@ -228,6 +238,7 @@ public:
   void write16(unsigned offset, uint16_t value);
   void write32(unsigned offset, uint32_t value);
   void write64(unsigned offset, uint64_t value);
+  
 
   bool isAllConcrete() const;
 
@@ -246,6 +257,8 @@ public:
   const uint8_t *getConcreteStore(bool allowSymbolic = false) const;
   uint8_t *getConcreteStore(bool allowSymolic = false);
 
+  
+
 private:
   const UpdateList &getUpdates() const;
 
@@ -262,6 +275,7 @@ private:
   void flushRangeForRead(unsigned rangeBase, unsigned rangeSize) const;
   void flushRangeForWrite(unsigned rangeBase, unsigned rangeSize);
 
+  
   inline bool isByteConcrete(unsigned offset) const {
     return !concreteMask || concreteMask->get(offset);
   }
@@ -278,17 +292,21 @@ private:
       if (concreteMask)
         concreteMask->set(offset);
   }
+   
 
+
+  //void markByteConcrete(unsigned offset);
   void markByteSymbolic(unsigned offset);
-
   void markByteFlushed(unsigned offset);
+  
+  //void markByteUnflushed(unsigned offset);
+  void setKnownSymbolic(unsigned offset, Expr *value);
 
   void markByteUnflushed(unsigned offset) {
       if (flushMask)
         flushMask->set(offset);
   }
-
-  void setKnownSymbolic(unsigned offset, Expr *value);
+  
 
   void print();
 };

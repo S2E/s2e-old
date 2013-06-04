@@ -9,9 +9,8 @@
 
 #include "klee/Internal/ADT/KTest.h"
 
-#ifdef __MINGW32__
-#define srandom srand
-#define random rand
+#if defined(__FreeBSD__) || defined(__minix)
+#define stat64 stat
 #endif
 
 // --sym-args 0 1 10 --sym-args 0 2 2 --sym-files 1 8 --sym-stdout

@@ -14,6 +14,7 @@
 
 #include "Passes.h"
 
+#include "klee/Config/Version.h"
 #include "klee/Interpreter.h"
 #include "klee/Internal/Module/Cell.h"
 #include "klee/Internal/Module/KInstruction.h"
@@ -22,24 +23,28 @@
 
 #include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/Instructions.h"
-#if !(LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE >= LLVM_VERSION(2, 7)
 #include "llvm/LLVMContext.h"
-#include "llvm/Support/Path.h"
-#else
-#include "llvm/ModuleProvider.h"
-#include "llvm/System/Path.h"
 #endif
-
 #include "llvm/Module.h"
-#include "llvm/Support/CallSite.h"
 #include "llvm/PassManager.h"
 #include "llvm/ValueSymbolTable.h"
+#include "llvm/Support/CallSite.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
-#if !(LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE >= LLVM_VERSION(2, 7)
 #include "llvm/Support/raw_os_ostream.h"
 #endif
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9)
+#include "llvm/System/Path.h"
+#else
+#include "llvm/Support/Path.h"
+#endif
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+#include "llvm/Target/TargetData.h"
+#else
 #include "llvm/DataLayout.h"
+#endif
 #include "llvm/Transforms/Scalar.h"
 
 #include <sstream>
@@ -87,6 +92,7 @@ namespace {
                               cl::desc("Print functions whose address is taken."));
 }
 
+
 namespace llvm {
 extern void CreateOptimizePasses(PassManagerBase&, Module*);
 }
@@ -114,7 +120,7 @@ struct KModulePrivate {
       fpm3.add(new LowerSwitchPass());
       break;
     case eSwitchTypeLLVM:
-      pm3.add(createLowerSwitchPass()); break;
+     pm3.add(createLowerSwitchPass()); break;
       fpm3.add(createLowerSwitchPass()); break;
     default: klee_error("invalid --switch-type");
     }
@@ -129,7 +135,7 @@ struct KModulePrivate {
     fpm4.add(new IntrinsicCleanerPass(*targetData));
     fpm4.add(new PhiCleanerPass());
 
-    CreateOptimizePasses(pmOptimize, module);
+   CreateOptimizePasses(pmOptimize, module);
 
     CreateOptimizePasses(fpmOptimize, module);
     fpmOptimize.doInitialization();
@@ -142,9 +148,15 @@ struct KModulePrivate {
 
 } // namespace klee
 
+
+
 KModule::KModule(Module *_module) 
   : module(_module),
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+    targetData(new TargetData(module)),
+#else
     targetData(new DataLayout(module)),
+#endif
     dbgStopPointFn(0),
     kleeMergeFn(0),
     infos(0),
@@ -152,6 +164,8 @@ KModule::KModule(Module *_module)
 }
 
 KModule::~KModule() {
+  
+  //delete[] constantTable;
   delete infos;
 
   for (std::vector<KFunction*>::iterator it = functions.begin(), 
@@ -159,7 +173,7 @@ KModule::~KModule() {
     delete *it;
 
   delete targetData;
-
+  
   //XXX: S2E: we use the module outside, so do not delete it here.
   //delete module;
 
@@ -167,7 +181,6 @@ KModule::~KModule() {
 }
 
 /***/
-
 // what a hack
 static Function *getStubFunctionForCtorList(Module *m,
                                             GlobalVariable *gv, 
@@ -175,7 +188,8 @@ static Function *getStubFunctionForCtorList(Module *m,
   assert(!gv->isDeclaration() && !gv->hasInternalLinkage() &&
          "do not support old LLVM style constructor/destructor lists");
   
-  //std::vector<const Type*> nullary;
+  
+  //std::vector<LLVM_TYPE_Q Type*> nullary;
   llvm::ArrayRef<Type*> nullary(NULL, (size_t)0);
 
   Function *fn = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()), 
@@ -235,7 +249,8 @@ static void injectStaticConstructorsAndDestructors(Module *m) {
   }
 }
 
-static void forceImport(Module *m, const char *name, Type *retType, ...) {
+static void forceImport(Module *m, const char *name, LLVM_TYPE_Q Type *retType,
+                        ...) {
   // If module lacks an externally visible symbol for the name then we
   // need to create one. We have to look in the symbol table because
   // we want to check everything (global variables, functions, and
@@ -248,11 +263,12 @@ static void forceImport(Module *m, const char *name, Type *retType, ...) {
     va_list ap;
 
     va_start(ap, retType);
-    std::vector<Type *> argTypes;
-    while (Type *t = va_arg(ap, Type*))
+    std::vector<LLVM_TYPE_Q Type *> argTypes;
+    while (LLVM_TYPE_Q Type *t = va_arg(ap, LLVM_TYPE_Q Type*))
       argTypes.push_back(t);
     va_end(ap);
-
+    
+    //m->getOrInsertFunction(name, FunctionType::get(retType, argTypes, false));
     ArrayRef<Type*> argTypesA(argTypes);
 
     m->getOrInsertFunction(name, FunctionType::get(retType, argTypesA, false));
@@ -276,9 +292,9 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   if (!MergeAtExit.empty()) {
     Function *mergeFn = module->getFunction("klee_merge");
     if (!mergeFn) {
-      llvm::FunctionType *Ty =
+      LLVM_TYPE_Q llvm::FunctionType *Ty = 
         FunctionType::get(Type::getVoidTy(getGlobalContext()), 
-                          ArrayRef<Type*>(std::vector<Type*>()), false);
+                          std::vector<LLVM_TYPE_Q Type*>(), false);
       mergeFn = Function::Create(Ty, GlobalVariable::ExternalLinkage,
 				 "klee_merge",
 				 module);
@@ -299,7 +315,11 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
       BasicBlock *exit = BasicBlock::Create(getGlobalContext(), "exit", f);
       PHINode *result = 0;
       if (f->getReturnType() != Type::getVoidTy(getGlobalContext()))
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 0)
         result = PHINode::Create(f->getReturnType(), 0, "retval", exit);
+#else
+		result = PHINode::Create(f->getReturnType(), "retval", exit);
+#endif
       CallInst::Create(mergeFn, "", exit);
       ReturnInst::Create(getGlobalContext(), result, exit);
 
@@ -335,8 +355,8 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   pm.run(*module);
 
   if (opts.Optimize)
+    
     p->pmOptimize.run(*module);
-
 
   // Force importing functions required by intrinsic lowering. Kind of
   // unfortunate clutter when we don't need them but we won't know
@@ -345,7 +365,7 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // by name. We only add them if such a function doesn't exist to
   // avoid creating stale uses.
 
-  llvm::Type *i8Ty = Type::getInt8Ty(getGlobalContext());
+  LLVM_TYPE_Q llvm::Type *i8Ty = Type::getInt8Ty(getGlobalContext());
   forceImport(module, "memcpy", PointerType::getUnqual(i8Ty),
               PointerType::getUnqual(i8Ty),
               PointerType::getUnqual(i8Ty),
@@ -364,10 +384,12 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // FIXME: Find a way that we can test programs without requiring
   // this to be linked in, it makes low level debugging much more
   // annoying.
+
   for(std::vector<std::string>::const_iterator it = opts.ExtraLibraries.begin(),
              ie = opts.ExtraLibraries.end(); it != ie; ++it) {
       module = linkWithLibrary(module, *it);
   }
+
 
   // Needs to happen after linking (since ctors/dtors can be modified)
   // and optimization (since global optimization can rewrite lists).
@@ -423,10 +445,12 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // around a kcachegrind parsing bug (it puts them on new lines), so
   // that source browsing works.
   if (OutputSource) {
+
     llvm::raw_ostream *os = ih->openOutputFile("assembly.ll");
     assert(os && "unable to open source output");
 
-#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 6)
+
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 6)
     // We have an option for this in case the user wants a .ll they
     // can compile.
     if (NoTruncateSourceLines) {
@@ -458,7 +482,9 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
       }
     }
 #else
+    
     llvm::raw_ostream *ros = os;
+ 
 
     // We have an option for this in case the user wants a .ll they
     // can compile.
@@ -490,14 +516,18 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
         }
       }
     }
+    
+    //delete ros;
 #endif
 
     delete os;
   }
 
   if (OutputModule) {
+
     llvm::raw_ostream *f = ih->openOutputFile("final.bc");
     WriteBitcodeToFile(module, *f);
+
     delete f;
   }
 
@@ -578,7 +608,7 @@ KFunction* KModule::updateModuleWithFunction(llvm::Function *f)
 void KModule::removeFunction(llvm::Function *f, bool keepDeclaration)
 {
     std::map<llvm::Function*, KFunction*>::iterator it = functionMap.find(f);
-    assert(it != functionMap.end());
+   assert(it != functionMap.end());
 
     KFunction* kf = it->second;
     functions.erase(std::find(functions.begin(), functions.end(), kf));
@@ -592,6 +622,7 @@ void KModule::removeFunction(llvm::Function *f, bool keepDeclaration)
         f->eraseFromParent();
     }
 }
+
 
 KConstant* KModule::getKConstant(Constant *c) {
   std::map<llvm::Constant*, KConstant*>::iterator it = constantMap.find(c);
@@ -640,7 +671,6 @@ static int getOperandNum(Value *v,
   }
 }
 
-
 KFunction::KFunction(llvm::Function *_function,
                      KModule *km) 
   : function(_function),
@@ -680,19 +710,18 @@ KFunction::KFunction(llvm::Function *_function,
       case Instruction::InsertValue:
       case Instruction::ExtractValue:
         ki = new KGEPInstruction(); break;
-
       case Instruction::Call:
-            case Instruction::Invoke:
-              ki = new KCallInstruction();
-              break;
-
+      case Instruction::Invoke:
+        ki = new KCallInstruction();
+          break;
       default:
         ki = new KInstruction(); break;
       }
 
-      ki->inst = it;
+      ki->inst = it;      
       ki->dest = registerMap[it];
 
+      
       if (isa<CallInst>(it) || isa<InvokeInst>(it)) {
         CallSite cs(it);
         unsigned numArgs = cs.arg_size();
@@ -723,7 +752,7 @@ KFunction::KFunction(llvm::Function *_function,
               ki->operands[j] = -(km->getConstantID(c, ki) + 2);
             }
           }
-
+      
       }
 
       ki->owner = this;

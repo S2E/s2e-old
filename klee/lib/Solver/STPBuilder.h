@@ -11,17 +11,13 @@
 #define __UTIL_STPBUILDER_H__
 
 #include "klee/util/ExprHashMap.h"
+#include "klee/util/ArrayExprHash.h"
 #include "klee/Config/config.h"
 
 #include <vector>
-#include <map>
 
 #define Expr VCExpr
-#ifdef HAVE_EXT_STP
 #include <stp/c_interface.h>
-#else
-#include "../../stp/c_interface/c_interface.h"
-#endif
 
 #if ENABLE_STPLOG == 1
 #include "stp/stplog.h"
@@ -60,6 +56,15 @@ namespace klee {
     operator bool () { return H->expr; }
     operator ::VCExpr () { return H->expr; }
   };
+  
+  class STPArrayExprHash : public ArrayExprHash< ::VCExpr > {
+    
+    friend class STPBuilder;
+    
+  public:
+    STPArrayExprHash() {};
+    virtual ~STPArrayExprHash();
+  };
 
 class STPBuilder {
   ::VC vc;
@@ -71,9 +76,15 @@ class STPBuilder {
   /// use.
   bool optimizeDivides;
 
-private:
+  STPArrayExprHash _arr_hash;
+
+private:  
   unsigned getShiftBits(unsigned amount) {
-    return (amount == 64) ? 6 : 5;
+    unsigned bits = 1;
+    amount--;
+    while (amount >>= 1)
+      bits++;
+    return bits;
   }
 
   ExprHandle bvOne(unsigned width);
@@ -81,6 +92,8 @@ private:
   ExprHandle bvMinusOne(unsigned width);
   ExprHandle bvConst32(unsigned width, uint32_t value);
   ExprHandle bvConst64(unsigned width, uint64_t value);
+  ExprHandle bvZExtConst(unsigned width, uint64_t value);
+  ExprHandle bvSExtConst(unsigned width, uint64_t value);
 
   ExprHandle bvBoolExtract(ExprHandle expr, int bit);
   ExprHandle bvExtract(ExprHandle expr, unsigned top, unsigned bottom);
@@ -107,7 +120,7 @@ private:
   
   ::VCExpr buildVar(const char *name, unsigned width);
   ::VCExpr buildArray(const char *name, unsigned indexWidth, unsigned valueWidth);
-
+ 
 public:
   STPBuilder(::VC _vc, bool _optimizeDivides=true);
   ~STPBuilder();

@@ -34,10 +34,12 @@ namespace klee {
                                  const data_type &rightData);
     void remove(Node *n);
 
+    //void dump(std::ostream &os);
     void dump(llvm::raw_ostream &os);
 
     void activate(Node *n);
     void deactivate(Node *n);
+    
   };
 
   class PTreeNode {
@@ -46,6 +48,7 @@ namespace klee {
     PTreeNode *parent, *left, *right;
     ExecutionState *data;
     ref<Expr> condition;
+    
     bool active;
 
   private:

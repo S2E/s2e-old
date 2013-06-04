@@ -6,14 +6,12 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-
 #include "klee/Common.h"
 
 #include "klee/CoreStats.h"
 #include "klee/Executor.h"
 #include "klee/PTree.h"
 #include "klee/StatsTracker.h"
-
 #include "klee/ExecutionState.h"
 #include "klee/Internal/Module/InstructionInfoTable.h"
 #include "klee/Internal/Module/KInstruction.h"
@@ -27,11 +25,9 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <math.h>
-
 #ifdef __MINGW32__
 #include <windows.h>
 #endif
-
 using namespace llvm;
 using namespace klee;
 
@@ -71,20 +67,6 @@ unsigned dumpStates = 0, dumpPTree = 0;
 void Executor::onAlarm(int) {
   ++timerTicks;
 }
-
-#ifdef __MINGW32__
-VOID CALLBACK TimerProc(
-    HWND hwnd,
-    UINT uMsg,
-    UINT_PTR idEvent,
-    DWORD dwTime
-)
-{
-    //XXX: Ugly hack, but there are so many of them anyway
-    ++timerTicks;
-    //Executor::onAlarm(0);
-}
-#endif
 
 // oooogalay
 void Executor::setupTimersHandler() {
@@ -151,7 +133,6 @@ void Executor::processTimers(ExecutionState *current,
   unsigned ticks = timerTicks;
 
   ++g_timer_ticks;
-
   if (!ticks && ++callsWithoutCheck > 1000) {
     setupTimersHandler();
     ticks = 1;

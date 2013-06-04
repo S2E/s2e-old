@@ -29,6 +29,7 @@ PTree::split(Node *n,
              const data_type &leftData, 
              const data_type &rightData) {
   assert(n && !n->left && !n->right);
+  
   assert(n->active && (!n->parent || n->parent->active));
   n->left = new Node(n, leftData);
   n->right = new Node(n, rightData);
@@ -37,6 +38,7 @@ PTree::split(Node *n,
 
 void PTree::remove(Node *n) {
   assert(!n->left && !n->right);
+  
   deactivate(n);
   do {
     Node *p = n->parent;
@@ -52,6 +54,7 @@ void PTree::remove(Node *n) {
     n = p;
   } while (n && !n->left && !n->right);
 }
+
 
 #if 1
 void PTree::deactivate(Node *n) {
@@ -79,12 +82,14 @@ void PTree::deactivate(Node *n) {
 void PTree::activate(Node *n) {
     assert(!n->left && !n->right);
 
-    while(n) {
+   while(n) {
         n->active = true;
         n = n->parent;
     }
 }
 #endif
+
+
 
 void PTree::dump(llvm::raw_ostream &_os) {
   std::stringstream os;
@@ -122,6 +127,7 @@ void PTree::dump(llvm::raw_ostream &_os) {
     }
   }
   os << "}\n";
+  
   _os << os.str();
   delete pp;
 }

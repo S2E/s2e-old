@@ -60,6 +60,7 @@ public:
     return false;
   }
 
+  
   void print(llvm::raw_ostream &os) const {
     bool first = true;
     os << "{";
@@ -77,13 +78,13 @@ public:
 };
 
 template<class T>
-inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const DenseSet<T> &dis) {
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const ::DenseSet<T> &dis) {
   dis.print(os);
   return os;
 }
 
 class IndependentElementSet {
-  typedef std::map<const Array*, DenseSet<unsigned> > elements_ty;
+  typedef std::map<const Array*, ::DenseSet<unsigned> > elements_ty;
   elements_ty elements;
   std::set<const Array*> wholeObjects;
 
@@ -103,7 +104,7 @@ public:
 
       if (!wholeObjects.count(array)) {
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re->index)) {
-          DenseSet<unsigned> &dis = elements[array];
+          ::DenseSet<unsigned> &dis = elements[array];
           dis.add((unsigned) CE->getZExtValue(32));
         } else {
           elements_ty::iterator it2 = elements.find(array);
@@ -124,6 +125,7 @@ public:
     return *this;
   }
 
+  
   void print(llvm::raw_ostream &os) const {
     os << "{";
     bool first = true;
@@ -142,7 +144,7 @@ public:
     for (elements_ty::const_iterator it = elements.begin(), ie = elements.end();
          it != ie; ++it) {
       const Array *array = it->first;
-      const DenseSet<unsigned> &dis = it->second;
+      const ::DenseSet<unsigned> &dis = it->second;
 
       if (first) {
         first = false;
@@ -214,6 +216,7 @@ public:
   }
 };
 
+
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const IndependentElementSet &ies) {
   ies.print(os);
   return os;
@@ -249,16 +252,19 @@ IndependentElementSet getIndependentConstraints(const Query& query,
 
   if (0) {
     std::set< ref<Expr> > reqset(result.begin(), result.end());
+    
     llvm::errs() << "--\n";
     llvm::errs() << "Q: " << query.expr << "\n";
     llvm::errs() << "\telts: " << IndependentElementSet(query.expr) << "\n";
     int i = 0;
   for (ConstraintManager::const_iterator it = query.constraints.begin(), 
          ie = query.constraints.end(); it != ie; ++it) {
+    
       llvm::errs() << "C" << i++ << ": " << *it;
       llvm::errs() << " " << (reqset.count(*it) ? "(required)" : "(independent)") << "\n";
       llvm::errs() << "\telts: " << IndependentElementSet(*it) << "\n";
     }
+    
     llvm::errs() << "elts closure: " << eltsClosure << "\n";
   }
 
@@ -284,6 +290,7 @@ public:
     return solver->impl->computeInitialValues(query, objects, values,
                                               hasSolution);
   }
+  SolverRunStatus getOperationStatusCode();
 };
   
 bool IndependentSolver::computeValidity(const Query& query,
@@ -311,6 +318,10 @@ bool IndependentSolver::computeValue(const Query& query, ref<Expr> &result) {
     getIndependentConstraints(query, required);
   ConstraintManager tmp(required);
   return solver->impl->computeValue(Query(tmp, query.expr), result);
+}
+
+SolverImpl::SolverRunStatus IndependentSolver::getOperationStatusCode() {
+  return solver->impl->getOperationStatusCode();      
 }
 
 Solver *klee::createIndependentSolver(Solver *s) {

@@ -44,6 +44,7 @@ namespace klee {
 
     /// printOne - Pretty print a single expression prefixed by a
     /// message and followed by a line break.
+    
     static void printOne(llvm::raw_ostream &os, const char *message,
                          const ref<Expr> &e);
 
@@ -54,11 +55,13 @@ namespace klee {
     /// Note that if the output stream is not positioned at the
     /// beginning of a line then printing will not resume at the
     /// correct position following any output line breaks.
+    
     static void printSingleExpr(llvm::raw_ostream &os, const ref<Expr> &e);
 
+    
     static void printConstraints(llvm::raw_ostream &os,
                                  const ConstraintManager &constraints);
-
+    
     static void printQuery(llvm::raw_ostream &os,
                            const ConstraintManager &constraints,
                            const ref<Expr> &q,

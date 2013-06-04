@@ -17,6 +17,7 @@
 #include "klee/util/BitArray.h"
 
 #include "klee/ObjectHolder.h"
+#include "MemoryManager.h"
 
 #include <llvm/Function.h>
 #include <llvm/Instruction.h>
@@ -63,6 +64,8 @@ ObjectHolder &ObjectHolder::operator=(const ObjectHolder &b) {
 int MemoryObject::counter = 0;
 
 MemoryObject::~MemoryObject() {
+  if (parent)
+    parent->markFreed(this);
 }
 
 void MemoryObject::getAllocInfo(std::string &result) const {
@@ -90,6 +93,7 @@ void MemoryObject::getAllocInfo(std::string &result) const {
 /***/
 
 ObjectState::ObjectState(const MemoryObject *mo)
+
   : concreteMask(0),
     copyOnWriteOwner(0),
     refCount(0),
@@ -99,8 +103,8 @@ ObjectState::ObjectState(const MemoryObject *mo)
     knownSymbolics(0),
     updates(0, 0),
     size(mo->size),
-    readOnly(false)
-     {
+    readOnly(false) {
+  mo->refCount++;
   if (!UseConstantArrays) {
     // FIXME: Leaked.
     static unsigned id = 0;
@@ -120,8 +124,8 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array)
     knownSymbolics(0),
     updates(array, 0),
     size(mo->size),
-    readOnly(false)
- {
+    readOnly(false) {
+  mo->refCount++;
   makeSymbolic();
 }
 
@@ -135,9 +139,10 @@ ObjectState::ObjectState(const ObjectState &os)
     knownSymbolics(0),
     updates(os.updates),
     size(os.size),
-    readOnly(false)
-     {
+    readOnly(false) {
   assert(!os.readOnly && "no need to copy read only object?");
+  if (object)
+    object->refCount++;
 
   if (os.knownSymbolics) {
     knownSymbolics = new ref<Expr>[size];
@@ -153,6 +158,16 @@ ObjectState::~ObjectState() {
   if (flushMask) delete flushMask;
   if (knownSymbolics) delete[] knownSymbolics;
   delete[] concreteStore;
+
+  if (object)
+  {
+    assert(object->refCount > 0);
+    object->refCount--;
+    if (object->refCount == 0)
+    {
+      delete object;
+    }
+  }
 }
 
 /***/
@@ -317,6 +332,15 @@ bool ObjectState::isAllConcrete() const {
 }
 
 
+/*
+bool ObjectState::isByteFlushed(unsigned offset) const {
+  return flushMask && !flushMask->get(offset);
+}
+
+bool ObjectState::isByteKnownSymbolic(unsigned offset) const {
+  return knownSymbolics && knownSymbolics[offset].get();
+}
+*/
 
 const uint8_t *ObjectState::getConcreteStore(bool allowSymbolic) const
 {
@@ -325,7 +349,11 @@ const uint8_t *ObjectState::getConcreteStore(bool allowSymbolic) const
     }
     return concreteStore;
 }
-
+/*
+void ObjectState::markByteConcrete(unsigned offset) {
+  if (concreteMask)
+    concreteMask->set(offset);
+}*/
 uint8_t *ObjectState::getConcreteStore(bool allowSymbolic)
 {
     if (!allowSymbolic && !isAllConcrete()) {
@@ -335,12 +363,21 @@ uint8_t *ObjectState::getConcreteStore(bool allowSymbolic)
 }
 
 
+
+
 void ObjectState::markByteSymbolic(unsigned offset) {
   if (!concreteMask)
     concreteMask = new BitArray(size, true);
   concreteMask->unset(offset);
 }
 
+
+/*
+void ObjectState::markByteUnflushed(unsigned offset) {
+  if (flushMask)
+    flushMask->set(offset);
+}
+*/
 
 void ObjectState::markByteFlushed(unsigned offset) {
   if (!flushMask) {
@@ -349,6 +386,7 @@ void ObjectState::markByteFlushed(unsigned offset) {
     flushMask->unset(offset);
   }
 }
+
 
 inline void ObjectState::setKnownSymbolic(unsigned offset,
                                    Expr *value /* can be null */) {
@@ -363,7 +401,6 @@ inline void ObjectState::setKnownSymbolic(unsigned offset,
 }
 
 /***/
-
 ref<Expr> ObjectState::read8(unsigned offset) const {
   if (!object->isSharedConcrete) {
     if (isByteConcrete(offset)) {
@@ -383,8 +420,9 @@ ref<Expr> ObjectState::read8(unsigned offset) const {
 
 ref<Expr> ObjectState::read8(ref<Expr> offset) const {
   assert(!isa<ConstantExpr>(offset) && "constant offset passed to symbolic read8");
+  
   assert(!object->isSharedConcrete &&
-         "read at non-constant offset for shared concrete object");
+        "read at non-constant offset for shared concrete object");
   unsigned base, size;
   fastRangeCheckOffset(offset, &base, &size);
   flushRangeForRead(base, size);
@@ -400,6 +438,7 @@ ref<Expr> ObjectState::read8(ref<Expr> offset) const {
   return ReadExpr::create(getUpdates(), ZExtExpr::create(offset, Expr::Int32));
 }
 
+
 void ObjectState::write8(unsigned offset, uint8_t value) {
   //assert(read_only == false && "writing to read-only object!");
   if(!object->isSharedConcrete) {
@@ -413,11 +452,13 @@ void ObjectState::write8(unsigned offset, uint8_t value) {
   }
 }
 
+
 void ObjectState::write8(unsigned offset, ref<Expr> value) {
   // can happen when ExtractExpr special cases
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(value)) {
     write8(offset, (uint8_t) CE->getZExtValue(8));
   } else {
+    
     assert(!object->isSharedConcrete &&
          "write of non-constant value to shared concrete object");
     setKnownSymbolic(offset, value.get());
@@ -469,7 +510,7 @@ ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
     ref<Expr> Byte = read8(AddExpr::create(offset, 
                                            ConstantExpr::create(idx, 
                                                                 Expr::Int32)));
-    Res = idx ? ConcatExpr::create(Byte, Res) : Byte;
+    Res = i ? ConcatExpr::create(Byte, Res) : Byte;
   }
 
   return Res;
@@ -487,7 +528,7 @@ ref<Expr> ObjectState::read(unsigned offset, Expr::Width width) const {
   for (unsigned i = 0; i != NumBytes; ++i) {
     unsigned idx = Context::get().isLittleEndian() ? i : (NumBytes - i - 1);
     ref<Expr> Byte = read8(offset + idx);
-    Res = idx ? ConcatExpr::create(Byte, Res) : Byte;
+    Res = i ? ConcatExpr::create(Byte, Res) : Byte;
   }
 
   return Res;

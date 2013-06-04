@@ -10,6 +10,7 @@
 #ifndef KLEE_KMODULE_H
 #define KLEE_KMODULE_H
 
+#include "klee/Config/Version.h"
 #include "klee/Interpreter.h"
 
 #include <map>
@@ -23,7 +24,11 @@ namespace llvm {
   class Function;
   class Instruction;
   class Module;
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+  class TargetData;
+#else
   class DataLayout;
+#endif
 }
 
 namespace klee {
@@ -35,7 +40,7 @@ namespace klee {
   struct KInstruction;
   class KModule;
   template<class T> class ref;
-
+  
   struct KModulePrivate;
 
   struct KFunction {
@@ -48,7 +53,7 @@ namespace klee {
 
     std::map<llvm::BasicBlock*, unsigned> basicBlockEntry;
     llvm::DenseMap<const llvm::Instruction*, KInstruction *> instrMap;
-
+    
     /// Whether instructions in this function should count as
     /// "coverable" for statistics and search heuristics.
     bool trackCoverage;
@@ -84,7 +89,11 @@ namespace klee {
   class KModule {
   public:
     llvm::Module *module;
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+    llvm::TargetData *targetData;
+#else
     llvm::DataLayout *targetData;
+#endif
     
     // Some useful functions to know the address of
     llvm::Function *dbgStopPointFn, *kleeMergeFn;
@@ -108,6 +117,7 @@ namespace klee {
   protected:
     KModulePrivate *p;
 
+
   public:
     KModule(llvm::Module *_module);
     ~KModule();
@@ -121,11 +131,13 @@ namespace klee {
     /// Return an id for the given constant, creating a new one if necessary.
     unsigned getConstantID(llvm::Constant *c, KInstruction* ki);
 
+
     /// Update shadow structures for newly added function
     KFunction* updateModuleWithFunction(llvm::Function *f);
 
     /// Remove function from KModule and call removeFromParend on it
     void removeFunction(llvm::Function *f, bool keepDeclaration = false);
+
   };
 } // End klee namespace
 

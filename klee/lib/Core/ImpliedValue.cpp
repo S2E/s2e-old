@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "ImpliedValue.h"
-
 #include "klee/Context.h"
 #include "klee/Constraints.h"
 #include "klee/Expr.h"

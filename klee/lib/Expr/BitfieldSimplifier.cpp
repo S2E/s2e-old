@@ -319,6 +319,11 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
         break;
     }
 
+    if ((rbits.knownOneBits&rbits.knownZeroBits)!=0)
+    {
+        return std::make_pair(e, rbits);
+    }
+
     assert((rbits.knownOneBits & rbits.knownZeroBits) == 0);
     assert((rbits.knownOneBits & zeroMask(e->getWidth())) == 0);
     assert((rbits.knownZeroBits & zeroMask(e->getWidth())) ==

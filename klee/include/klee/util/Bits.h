@@ -10,7 +10,12 @@
 #ifndef KLEE_UTIL_BITS_H
 #define KLEE_UTIL_BITS_H
 
+#include "klee/Config/Version.h"
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9) && LLVM_VERSION_CODE >= LLVM_VERSION(2, 7)
+#include "llvm/System/DataTypes.h"
+#else
 #include "llvm/Support/DataTypes.h"
+#endif
 
 namespace klee {
   namespace bits32 {

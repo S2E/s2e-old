@@ -109,6 +109,7 @@ public:
   ValueRange(uint64_t _min, uint64_t _max) : m_min(_min), m_max(_max) {}
   ValueRange(const ValueRange &b) : m_min(b.m_min), m_max(b.m_max) {}
 
+  
   void print(llvm::raw_ostream &os) const {
     if (isFixed()) {
       os << m_min;
@@ -283,6 +284,7 @@ public:
   }
 };
 
+
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const ValueRange &vr) {
   vr.print(os);
   return os;
@@ -443,6 +445,7 @@ public:
 
   void propogatePossibleValues(ref<Expr> e, CexValueData range) {
     #ifdef DEBUG
+    
     llvm::errs() << "propogate: " << range << " for\n" << e << "\n";
     #endif
 
@@ -938,19 +941,22 @@ public:
   }
 
   void dump() {
+    
     llvm::errs() << "-- propogated values --\n";
     for (std::map<const Array*, CexObjectData*>::iterator 
            it = objects.begin(), ie = objects.end(); it != ie; ++it) {
       const Array *A = it->first;
       CexObjectData *COD = it->second;
-    
+       
       llvm::errs() << A->name << "\n";
       llvm::errs() << "possible: [";
       for (unsigned i = 0; i < A->size; ++i) {
         if (i)
+          
           llvm::errs() << ", ";
         llvm::errs() << COD->getPossibleValues(i);
       }
+      
       llvm::errs() << "]\n";
       llvm::errs() << "exact   : [";
       for (unsigned i = 0; i < A->size; ++i) {
@@ -958,6 +964,7 @@ public:
           llvm::errs() << ", ";
         llvm::errs() << COD->getExactValues(i);
       }
+      
       llvm::errs() << "]\n";
     }
   }

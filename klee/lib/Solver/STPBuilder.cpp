@@ -50,6 +50,32 @@ namespace {
 
 ///
 
+
+STPArrayExprHash::~STPArrayExprHash() {
+  
+  // Design decision: STPArrayExprHash is destroyed from the destructor of STPBuilder at the end of the KLEE run;
+  // Therefore, freeing memory allocated for STP::VCExpr's is currently disabled.
+  
+   /*
+  for (ArrayHashIter it = _array_hash.begin(); it != _array_hash.end(); ++it) {
+    ::VCExpr array_expr = it->second;
+    if (array_expr) {
+      ::vc_DeleteExpr(array_expr);
+      array_expr = 0;
+    }
+  }
+  
+  
+  for (UpdateNodeHashConstIter it = _update_node_hash.begin(); it != _update_node_hash.end(); ++it) {
+    ::VCExpr un_expr = it->second;
+    if (un_expr) {
+      ::vc_DeleteExpr(un_expr);
+      un_expr = 0;
+    }
+  }
+  */
+}
+
 /***/
 
 STPBuilder::STPBuilder(::VC _vc, bool _optimizeDivides) 
@@ -62,6 +88,7 @@ STPBuilder::STPBuilder(::VC _vc, bool _optimizeDivides)
 }
 
 STPBuilder::~STPBuilder() {
+  
 }
 
 ///
@@ -73,7 +100,7 @@ STPBuilder::~STPBuilder() {
 ::VCExpr STPBuilder::buildVar(const char *name, unsigned width) {
   // XXX don't rebuild if this stuff cons's
   ::Type t = (width==1) ? vc_boolType(vc) : vc_bvType(vc, width);
-  ::VCExpr res = vc_varExpr(vc, (char*) name, t);
+  ::VCExpr res = vc_varExpr(vc, const_cast<char*>(name), t);
   vc_DeleteExpr(t);
   return res;
 }
@@ -83,7 +110,7 @@ STPBuilder::~STPBuilder() {
   ::Type t1 = vc_bvType(vc, indexWidth);
   ::Type t2 = vc_bvType(vc, valueWidth);
   ::Type t = vc_arrayType(vc, t1, t2);
-  ::VCExpr res = vc_varExpr(vc, (char*) name, t);
+  ::VCExpr res = vc_varExpr(vc, const_cast<char*>(name), t);
   vc_DeleteExpr(t);
   vc_DeleteExpr(t2);
   vc_DeleteExpr(t1);
@@ -107,19 +134,33 @@ ExprHandle STPBuilder::getFalse() {
   return vc_falseExpr(vc);
 }
 ExprHandle STPBuilder::bvOne(unsigned width) {
-  return bvConst32(width, 1);
+  return bvZExtConst(width, 1);
 }
 ExprHandle STPBuilder::bvZero(unsigned width) {
-  return bvConst32(width, 0);
+  return bvZExtConst(width, 0);
 }
 ExprHandle STPBuilder::bvMinusOne(unsigned width) {
-  return bvConst64(width, (int64_t) -1);
+  return bvSExtConst(width, (int64_t) -1);
 }
 ExprHandle STPBuilder::bvConst32(unsigned width, uint32_t value) {
   return vc_bvConstExprFromInt(vc, width, value);
 }
 ExprHandle STPBuilder::bvConst64(unsigned width, uint64_t value) {
   return vc_bvConstExprFromLL(vc, width, value);
+}
+ExprHandle STPBuilder::bvZExtConst(unsigned width, uint64_t value) {
+  if (width <= 64)
+    return bvConst64(width, value);
+
+  ExprHandle expr = bvConst64(64, value), zero = bvConst64(64, 0);
+  for (width -= 64; width > 64; width -= 64)
+    expr = vc_bvConcatExpr(vc, zero, expr);
+  return vc_bvConcatExpr(vc, bvConst64(width, 0), expr);
+}
+ExprHandle STPBuilder::bvSExtConst(unsigned width, uint64_t value) {
+  if (width <= 64)
+    return bvConst64(width, value);
+  return vc_bvSignExtend(vc, bvConst64(64, value), width);
 }
 
 ExprHandle STPBuilder::bvBoolExtract(ExprHandle expr, int bit) {
@@ -385,31 +426,40 @@ ExprHandle STPBuilder::constructSDivByConstant(ExprHandle expr_n, unsigned width
 }
 
 ::VCExpr STPBuilder::getInitialArray(const Array *root) {
-  if (root->stpInitialArray) {
-    return root->stpInitialArray;
-  } else {
+  
+  assert(root);
+  ::VCExpr array_expr;
+  bool hashed = _arr_hash.lookupArrayExpr(root, array_expr);
+  
+  if (!hashed) {
     // STP uniques arrays by name, so we make sure the name is unique by
     // including the address.
-    char buf[256];
-    snprintf(buf, sizeof(buf), "%s_%p", root->name.c_str(), (void*) root);
-    root->stpInitialArray = buildArray(buf, 32, 8);
 
+    char buf[256];
+    unsigned const addrlen = sprintf(buf, "_%p", (void*)root) + 1; // +1 for null-termination
+    unsigned const space = (root->name.length() > 32 - addrlen)?(32 - addrlen):root->name.length();
+    memmove(buf + space, buf, addrlen); // moving the address part to the end
+    memcpy(buf, root->name.c_str(), space); // filling out the name part
+    
+    array_expr = buildArray(buf, 32, 8);
+    
     if (root->isConstantArray()) {
       // FIXME: Flush the concrete values into STP. Ideally we would do this
       // using assertions, which is much faster, but we need to fix the caching
       // to work correctly in that case.
       for (unsigned i = 0, e = root->size; i != e; ++i) {
-        ::VCExpr prev = root->stpInitialArray;
-        root->stpInitialArray = 
-          vc_writeExpr(vc, prev,
+	::VCExpr prev = array_expr;
+	array_expr = vc_writeExpr(vc, prev,
                        construct(ConstantExpr::alloc(i, root->getDomain()), 0),
                        construct(root->constantValues[i], 0));
-        vc_DeleteExpr(prev);
+	vc_DeleteExpr(prev);
       }
     }
-
-    return root->stpInitialArray;
+    
+    _arr_hash.hashArrayExpr(root, array_expr);
   }
+  
+  return(array_expr); 
 }
 
 ExprHandle STPBuilder::getInitialRead(const Array *root, unsigned index) {
@@ -419,16 +469,23 @@ ExprHandle STPBuilder::getInitialRead(const Array *root, unsigned index) {
 ::VCExpr STPBuilder::getArrayForUpdate(const Array *root, 
                                        const UpdateNode *un) {
   if (!un) {
-    return getInitialArray(root);
-  } else {
-    // FIXME: This really needs to be non-recursive.
-    if (!un->stpArray)
-      un->stpArray = vc_writeExpr(vc,
-                                  getArrayForUpdate(root, un->next),
-                                  construct(un->index, 0),
-                                  construct(un->value, 0));
-
-    return un->stpArray;
+      return(getInitialArray(root));
+  }
+  else {
+      // FIXME: This really needs to be non-recursive.
+      ::VCExpr un_expr;
+      bool hashed = _arr_hash.lookupUpdateNodeExpr(un, un_expr);
+      
+      if (!hashed) {
+	un_expr = vc_writeExpr(vc,
+                               getArrayForUpdate(root, un->next),
+                               construct(un->index, 0),
+                               construct(un->value, 0));
+	
+	_arr_hash.hashUpdateNodeExpr(un, un_expr);
+      }
+      
+      return(un_expr);
   }
 }
 
@@ -478,13 +535,13 @@ ExprHandle STPBuilder::constructActual(ref<Expr> e, int *width_out) {
     if (*width_out <= 64)
       return bvConst64(*width_out, CE->getZExtValue());
 
-    // FIXME: Optimize?
     ref<ConstantExpr> Tmp = CE;
     ExprHandle Res = bvConst64(64, Tmp->Extract(0, 64)->getZExtValue());
-    for (unsigned i = (*width_out / 64) - 1; i; --i) {
-      Tmp = Tmp->LShr(ConstantExpr::alloc(64, Tmp->getWidth()));
-      Res = vc_bvConcatExpr(vc, bvConst64(std::min(64U, Tmp->getWidth()),
-                                          Tmp->Extract(0, 64)->getZExtValue()),
+    while (Tmp->getWidth() > 64) {
+      Tmp = Tmp->Extract(64, Tmp->getWidth()-64);
+      unsigned Width = std::min(64U, Tmp->getWidth());
+      Res = vc_bvConcatExpr(vc, bvConst64(Width,
+                                        Tmp->Extract(0, Width)->getZExtValue()),
                             Res);
     }
     return Res;
@@ -528,7 +585,7 @@ ExprHandle STPBuilder::constructActual(ref<Expr> e, int *width_out) {
     ExprHandle src = construct(ee->expr, width_out);    
     *width_out = ee->getWidth();
     if (*width_out==1) {
-      return bvBoolExtract(src, 0);
+      return bvBoolExtract(src, ee->offset);
     } else {
       return vc_bvExtract(vc, src, ee->offset + *width_out - 1, ee->offset);
     }
@@ -866,3 +923,5 @@ ExprHandle STPBuilder::constructActual(ref<Expr> e, int *width_out) {
     return vc_trueExpr(vc);
   }
 }
+
+

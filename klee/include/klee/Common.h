@@ -7,8 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __KLEE_COMMON_H__
-#define __KLEE_COMMON_H__
+/*
+ * This file groups declarations that are common to both KLEE and Kleaver.
+ */
+
+#ifndef KLEE_COMMON_H
+#define KLEE_COMMON_H
 
 #ifdef __CYGWIN__
 #ifndef WINDOWS
@@ -16,18 +20,23 @@
 #endif
 #endif
 
+#include "klee/Solver.h"
+#include <string>
 #include <stdio.h>
 #include <iostream>
 #include <llvm/Support/raw_ostream.h>
+
+namespace klee {
+    const char ALL_QUERIES_SMT2_FILE_NAME[]="all-queries.smt2";
+    const char SOLVER_QUERIES_SMT2_FILE_NAME[]="solver-queries.smt2";
+    const char ALL_QUERIES_PC_FILE_NAME[]="all-queries.pc";
+    const char SOLVER_QUERIES_PC_FILE_NAME[]="solver-queries.pc";
+}
 
 // XXX ugh
 namespace klee {
   class Solver;
 
-  /*
-  extern FILE* klee_warning_file;
-  extern FILE* klee_message_file;
-  */
   extern llvm::raw_ostream* klee_warning_stream;
   extern llvm::raw_ostream* klee_message_stream;
 
@@ -58,6 +67,9 @@ namespace klee {
                          const char *msg, ...)
     __attribute__ ((format (printf, 2, 3)));
 
+
+
+
   /// Print "KLEE: WARNING" followed by the msg in printf format and a
   /// newline on stderr and to warnings.txt. However, the warning is only
   /// printed once for each unique (id, msg) pair (as pointers).
@@ -86,6 +98,7 @@ namespace klee {
       out << std::hex << "0x" << (h.value);
       return out;
   }
-}
 
-#endif /* __KLEE_COMMON_H__ */
+}
+#endif /* KLEE_COMMON_H */
+

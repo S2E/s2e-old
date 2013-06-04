@@ -9,14 +9,20 @@
 
 #include "TimingSolver.h"
 
+#include "klee/Config/Version.h"
 #include "klee/ExecutionState.h"
 #include "klee/Solver.h"
+
 #include "klee/Common.h"
 #include "klee/Statistics.h"
 
 #include "klee/CoreStats.h"
 
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9)
+#include "llvm/System/Process.h"
+#else
 #include "llvm/Support/Process.h"
+#endif
 
 using namespace klee;
 using namespace llvm;
@@ -25,7 +31,7 @@ using namespace llvm;
 
 bool TimingSolver::evaluate(const ExecutionState& state, ref<Expr> expr,
                             Solver::Validity &result) {
-
+  
   // Fast path, to avoid timer and OS overhead.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
     result = CE->isTrue() ? Solver::True : Solver::False;
@@ -50,6 +56,7 @@ bool TimingSolver::evaluate(const ExecutionState& state, ref<Expr> expr,
 
 bool TimingSolver::mustBeTrue(const ExecutionState& state, ref<Expr> expr, 
                               bool &result) {
+  
   // Fast path, to avoid timer and OS overhead.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
     result = CE->isTrue() ? true : false;
@@ -97,7 +104,7 @@ bool TimingSolver::mayBeFalse(const ExecutionState& state, ref<Expr> expr,
 
 bool TimingSolver::getValue(const ExecutionState& state, ref<Expr> expr, 
                             ref<ConstantExpr> &result) {
-
+  
   // Fast path, to avoid timer and OS overhead.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
     result = CE;

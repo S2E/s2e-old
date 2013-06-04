@@ -7,8 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "klee/ExternalDispatcher.h"
 #include "klee/Config/config.h"
+#include "klee/Config/Version.h"
 
 // Ugh.
 #undef PACKAGE_BUGREPORT
@@ -21,18 +23,26 @@
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
-#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 7)
 #include "llvm/ModuleProvider.h"
 #endif
-#if !(LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE >= LLVM_VERSION(2, 7)
 #include "llvm/LLVMContext.h"
 #endif
 #include "llvm/ExecutionEngine/JIT.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/Support/CallSite.h"
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9)
+#include "llvm/System/DynamicLibrary.h"
+#else
 #include "llvm/Support/DynamicLibrary.h"
+#endif
 #include "llvm/Support/raw_ostream.h"
+#if LLVM_VERSION_CODE < LLVM_VERSION(3, 0)
+#include "llvm/Target/TargetSelect.h"
+#else
 #include "llvm/Support/TargetSelect.h"
+#endif
 #include <setjmp.h>
 #include <signal.h>
 #include <iostream>
@@ -60,7 +70,7 @@ static void sigsegv_handler(int signal, siginfo_t *info, void *context) {
 
 void *ExternalDispatcher::resolveSymbol(const std::string &name) {
   assert(executionEngine);
-
+  
   const char *str = name.c_str();
 
   // We use this to validate that function names can be resolved so we
@@ -74,10 +84,10 @@ void *ExternalDispatcher::resolveSymbol(const std::string &name) {
   void *addr = sys::DynamicLibrary::SearchForAddressOfSymbol(str);
   if (addr)
     return addr;
-
+  
   // If it has an asm specifier and starts with an underscore we retry
   // without the underscore. I (DWD) don't know why.
-  if (name[0] == 1 && str[0]=='_') {
+  if (name[0] == 1 && str[0]=='_') { 
     ++str;
     addr = sys::DynamicLibrary::SearchForAddressOfSymbol(str);
   }
@@ -85,13 +95,27 @@ void *ExternalDispatcher::resolveSymbol(const std::string &name) {
   return addr;
 }
 
+
 ExternalDispatcher::ExternalDispatcher(ExecutionEngine* engine) {
   dispatchModule = new Module("ExternalDispatcher", getGlobalContext());
-
-#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 7)
   ExistingModuleProvider* MP = new ExistingModuleProvider(dispatchModule);
 #endif
 
+
+/*
+  std::string error;
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 7)
+  executionEngine = ExecutionEngine::createJIT(MP, &error);
+#else
+  executionEngine = ExecutionEngine::createJIT(dispatchModule, &error);
+#endif
+  if (!executionEngine) {
+    std::cerr << "unable to make jit: " << error << "\n";
+    abort();
+  }
+  */
+  
   originalEngine = engine;
   if(engine) {
     executionEngine = engine;
@@ -116,6 +140,7 @@ ExternalDispatcher::ExternalDispatcher(ExecutionEngine* engine) {
     // usable by the JIT.
     llvm::InitializeNativeTarget();
   }
+  
 
   // from ExecutionEngine::create
   if (executionEngine) {
@@ -125,15 +150,18 @@ ExternalDispatcher::ExternalDispatcher(ExecutionEngine* engine) {
   }
 
 #ifdef WINDOWS
+  
   preboundFunctions["getpid"] = (void*) (uintptr_t) getpid;
   preboundFunctions["putchar"] = (void*) (uintptr_t) putchar;
   preboundFunctions["printf"] = (void*) (uintptr_t) printf;
   preboundFunctions["fprintf"] = (void*) (uintptr_t) fprintf;
   preboundFunctions["sprintf"] = (void*) (uintptr_t) sprintf;
+  
 #endif
 }
 
 ExternalDispatcher::~ExternalDispatcher() {
+  
   if(!originalEngine)
     delete executionEngine;
 }
@@ -144,7 +172,7 @@ bool ExternalDispatcher::executeCall(Function *f, Instruction *i, uint64_t *args
 
   if (it == dispatchers.end()) {
 #ifdef WINDOWS
-    std::map<std::string, void*>::iterator it2 =
+    std::map<std::string, void*>::iterator it2 = 
       preboundFunctions.find(f->getName()));
 
     if (it2 != preboundFunctions.end()) {
@@ -182,37 +210,38 @@ bool ExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
   struct sigaction segvAction, segvActionOld;
 #endif
   bool res;
-
+  
   if (!f)
     return false;
 
   std::vector<GenericValue> gvArgs;
   gTheArgsP = args;
-
+  
 #ifdef _WIN32
   signal(SIGSEGV, ::sigsegv_handler);
 #else
+ 
   segvAction.sa_handler = 0;
   memset(&segvAction.sa_mask, 0, sizeof(segvAction.sa_mask));
   segvAction.sa_flags = SA_SIGINFO;
   segvAction.sa_sigaction = ::sigsegv_handler;
   sigaction(SIGSEGV, &segvAction, &segvActionOld);
+  
 #endif
-
   if (setjmp(escapeCallJmpBuf)) {
     res = false;
   } else {
-
     executionEngine->runFunction(f, gvArgs);
     res = true;
   }
-
+  
 #ifdef _WIN32
 #warning Implement more robust signal handling on windows
   signal(SIGSEGV, SIG_IGN);
 #else
   sigaction(SIGSEGV, &segvActionOld, 0);
 #endif
+  
   return res;
 }
 
@@ -235,47 +264,50 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
 
   Value **args = new Value*[cs.arg_size()];
 
-  std::vector<Type*> nullary;
-
-  Function *dispatcher = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()),
-                                ArrayRef<Type*>(nullary), false),
-                      GlobalVariable::ExternalLinkage,
-                      "",
-                      dispatchModule);
+  std::vector<LLVM_TYPE_Q Type*> nullary;
+  
+  Function *dispatcher = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()), 
+                  nullary, false),
+            GlobalVariable::ExternalLinkage, 
+            "",
+            dispatchModule);
 
 
   BasicBlock *dBB = BasicBlock::Create(getGlobalContext(), "entry", dispatcher);
 
   // Get a Value* for &gTheArgsP, as an i64**.
-  Instruction *argI64sp =
-    new IntToPtrInst(ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
+  Instruction *argI64sp = 
+    new IntToPtrInst(ConstantInt::get(Type::getInt64Ty(getGlobalContext()), 
                                       (uintptr_t) (void*) &gTheArgsP),
                      PointerType::getUnqual(PointerType::getUnqual(Type::getInt64Ty(getGlobalContext()))),
                      "argsp", dBB);
-  Instruction *argI64s = new LoadInst(argI64sp, "args", dBB);
-
+  Instruction *argI64s = new LoadInst(argI64sp, "args", dBB); 
+  
   // Get the target function type.
-  FunctionType *FTy =
+  LLVM_TYPE_Q FunctionType *FTy =
     cast<FunctionType>(cast<PointerType>(target->getType())->getElementType());
 
   // Each argument will be passed by writing it into gTheArgsP[i].
-  unsigned i = 0;
+  unsigned i = 0, idx = 2;
   for (CallSite::arg_iterator ai = cs.arg_begin(), ae = cs.arg_end();
        ai!=ae; ++ai, ++i) {
     // Determine the type the argument will be passed as. This accomodates for
     // the corresponding code in Executor.cpp for handling calls to bitcasted
     // functions.
-    Type *argTy = (i < FTy->getNumParams() ? FTy->getParamType(i) :
-                         (*ai)->getType());
-    Instruction *argI64p =
-      GetElementPtrInst::Create(argI64s,
-                                ConstantInt::get(Type::getInt32Ty(getGlobalContext()),
-                                                 i+1),
+    LLVM_TYPE_Q Type *argTy = (i < FTy->getNumParams() ? FTy->getParamType(i) : 
+                               (*ai)->getType());
+    Instruction *argI64p = 
+      GetElementPtrInst::Create(argI64s, 
+                                ConstantInt::get(Type::getInt32Ty(getGlobalContext()), 
+                                                 idx), 
                                 "", dBB);
 
     Instruction *argp = new BitCastInst(argI64p, PointerType::getUnqual(argTy),
                                         "", dBB);
     args[i] = new LoadInst(argp, "", dBB);
+
+    unsigned argSize = argTy->getPrimitiveSizeInBits();
+    idx += ((!!argSize ? argSize : 64) + 63)/64;
   }
 
   /////////////////////
@@ -289,7 +321,7 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
   //To solve this, we create an absolute call by casting the native pointer to
   //the helper to the type of that helper.
 
-  uintptr_t targetFunctionAddress =
+ uintptr_t targetFunctionAddress =
           (uintptr_t) llvm::sys::DynamicLibrary::SearchForAddressOfSymbol(target->getName());
 
   assert(targetFunctionAddress && "External function not registered");
@@ -307,17 +339,23 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
   /////////////////////
 
 #if 0
-  //Original KLEE code for external function calling
-  Instruction *dispatchTarget = new BitCastInst(
-        dispatchModule->getOrInsertFunction(target->getName(), FTy,
-                                        target->getAttributes()),
-        cs.getCalledValue()->getType(), "", dBB);
+  Constant *dispatchTarget =
+    dispatchModule->getOrInsertFunction(target->getName(), FTy,
+                                        target->getAttributes());
 #endif
 
-  Instruction *result = CallInst::Create(dispatchTarget, ArrayRef<Value*>(args, cs.arg_size()), "", dBB);
+
+
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 0)
+  Instruction *result = CallInst::Create(dispatchTarget,
+                                         llvm::ArrayRef<Value *>(args, args+i),
+                                         "", dBB);
+#else
+  Instruction *result = CallInst::Create(dispatchTarget, args, args+i, "", dBB);
+#endif
   if (result->getType() != Type::getVoidTy(getGlobalContext())) {
-    Instruction *resp =
-      new BitCastInst(argI64s, PointerType::getUnqual(result->getType()),
+    Instruction *resp = 
+      new BitCastInst(argI64s, PointerType::getUnqual(result->getType()), 
                       "", dBB);
     new StoreInst(result, resp, dBB);
   }

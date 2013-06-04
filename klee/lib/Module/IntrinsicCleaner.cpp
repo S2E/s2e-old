@@ -10,6 +10,7 @@
 #include "Passes.h"
 
 #include "klee/Config/config.h"
+#include "klee/Config/Version.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Function.h"
@@ -17,21 +18,33 @@
 #include "llvm/Instruction.h"
 #include "llvm/Instructions.h"
 #include "llvm/IntrinsicInst.h"
+#if LLVM_VERSION_CODE >= LLVM_VERSION(2, 7)
 #include "llvm/LLVMContext.h"
+#endif
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Type.h"
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 2)
 #include "llvm/IRBuilder.h"
-#include "llvm/Support/CallSite.h"
+#else
+#include "llvm/Support/IRBuilder.h"
+#endif
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+#include "llvm/Target/TargetData.h"
+#else
 #include "llvm/DataLayout.h"
+#endif
+
+#include "llvm/Support/CallSite.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <llvm/Support/raw_ostream.h>
 
 using namespace llvm;
 
 namespace klee {
+
 
 /* XXX: LLVM 2.7 have this built-in */
 /// LowerBSWAP - Emit the code to lower bswap of V before the specified
@@ -458,6 +471,5 @@ bool IntrinsicFunctionCleanerPass::runOnBasicBlock(llvm::BasicBlock &b)
 
     return dirty;
 }
-
 
 }

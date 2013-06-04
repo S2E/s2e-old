@@ -134,3 +134,7 @@ StagedSolverImpl::computeInitialValues(const Query& query,
   return secondary->impl->computeInitialValues(query, objects, values,
                                                hasSolution);
 }
+
+SolverImpl::SolverRunStatus StagedSolverImpl::getOperationStatusCode() {
+  return secondary->impl->getOperationStatusCode();
+}

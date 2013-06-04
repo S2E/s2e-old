@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/util/PrintContext.h"
 #include "klee/util/ExprPPrinter.h"
 #include "klee/Common.h"
 
@@ -38,53 +39,6 @@ namespace {
   llvm::cl::opt<bool>
   PCAllConstWidths("pc-all-const-widths",  llvm::cl::init(false));
 }
-
-/// PrintContext - Helper class for storing extra information for
-/// the pretty printer.
-class PrintContext {
-private:
-  std::ostream &os;
-  std::stringstream ss;
-  std::string newline;
-
-public:
-  /// Number of characters on the current line.
-  unsigned pos;
-
-public:
-  PrintContext(std::ostream &_os) : os(_os), newline("\n"), pos(0) {}
-
-  void setNewline(const std::string &_newline) {
-    newline = _newline;
-  }
-
-  void breakLine(unsigned indent=0) {
-    os << newline;
-    if (indent)
-      os << std::setw(indent) << ' ';
-    pos = indent;
-  }
-
-  /// write - Output a string to the stream and update the
-  /// position. The stream should not have any newlines.
-  void write(const std::string &s) {
-    os << s;
-    pos += s.length();
-  }
-
-  template <typename T>
-  PrintContext &operator<<(T elt) {
-    ss.str("");
-    ss.setf(os.flags(), std::ios::basefield);
-    ss << elt;
-    write(ss.str());
-    return *this;
-  }
-
-  const std::ostream &getOutputStream() const {
-      return os;
-  }
-};
 
 class PPrinter : public ExprPPrinter {
 public:
@@ -338,7 +292,6 @@ private:
   void printExpr(const Expr *ep, PrintContext &PC, unsigned indent, bool printConstWidth=false) {
     bool simple = hasSimpleKids(ep);
     
-    print(ep->getKid(0), PC, printConstWidth);
     for (unsigned i=1; i<ep->getNumKids(); i++) {
       printSeparator(PC, simple, indent);
       print(ep->getKid(i), PC, printConstWidth);
@@ -389,17 +342,20 @@ public:
 	PC << "(w" << e->getWidth() << " ";
 
       if (e->getWidth() <= 64) {
+        
         PC << hexval(e->getZExtValue());
       } else {
         std::string S;
+        
 
-        int base;
-        std::ostream::fmtflags flags;
+       int base;
+       std::ostream::fmtflags flags;
         flags = PC.getOutputStream().flags();
         if (flags & std::ios_base::hex)
             base = 16;
 
         e->toString(S, 16);
+        
         PC << S;
       }
 
@@ -457,6 +413,7 @@ public:
         } else if (e->getKind() == Expr::Concat || e->getKind() == Expr::SExt)
 	  printExpr(e.get(), PC, indent, true);
 	else
+    
           printExpr(e.get(), PC, indent, true);
         PC << ")";
       }
@@ -481,30 +438,38 @@ ExprPPrinter *klee::ExprPPrinter::create(std::ostream &os) {
 void ExprPPrinter::printOne(llvm::raw_ostream &os,
                             const char *message, 
                             const ref<Expr> &e) {
+
   std::stringstream ss;
   PPrinter p(ss);
+ 
   p.scan(e);
 
   // FIXME: Need to figure out what to do here. Probably print as a
   // "forward declaration" with whatever syntax we pick for that.
+  
   PrintContext PC(ss);
   PC << message << ": ";
   p.print(e, PC);
   PC.breakLine();
+  
   os << ss.str();
 }
 
 void ExprPPrinter::printSingleExpr(llvm::raw_ostream &os, const ref<Expr> &e) {
   std::stringstream ss;
   PPrinter p(ss);
+  
   p.scan(e);
 
   // FIXME: Need to figure out what to do here. Probably print as a
   // "forward declaration" with whatever syntax we pick for that.
+  
   PrintContext PC(ss);
   p.print(e, PC);
+  
   os << ss.str();
 }
+
 
 void ExprPPrinter::printConstraints(llvm::raw_ostream &os,
                                     const ConstraintManager &constraints) {
@@ -520,6 +485,7 @@ void ExprPPrinter::printQuery(llvm::raw_ostream &os,
                               const Array * const *evalArraysBegin,
                               const Array * const *evalArraysEnd,
                               bool printArrayDecls) {
+  
   std::stringstream ss;
   PPrinter p(ss);
   
@@ -530,7 +496,7 @@ void ExprPPrinter::printQuery(llvm::raw_ostream &os,
 
   for (const ref<Expr> *it = evalExprsBegin; it != evalExprsEnd; ++it)
     p.scan(*it);
-
+  
   PrintContext PC(ss);
   
   // Print array declarations.
@@ -565,6 +531,7 @@ void ExprPPrinter::printQuery(llvm::raw_ostream &os,
   unsigned indent = PC.pos;
   for (ConstraintManager::const_iterator it = constraints.begin(),
          ie = constraints.end(); it != ie;) {
+    
     p.print(*it, PC, true);
     ++it;
     if (it != ie)
@@ -573,6 +540,7 @@ void ExprPPrinter::printQuery(llvm::raw_ostream &os,
   PC << ']';
 
   p.printSeparator(PC, constraints.empty(), indent-1);
+  
   p.print(q, PC, true);
 
   // Print expressions to obtain values for, if any.
@@ -604,6 +572,6 @@ void ExprPPrinter::printQuery(llvm::raw_ostream &os,
 
   PC << ')';
   PC.breakLine();
-
+  
   os << ss.str();
 }

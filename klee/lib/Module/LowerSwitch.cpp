@@ -15,7 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Passes.h"
-#if !(LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#include "klee/Config/Version.h"
+#if LLVM_VERSION_CODE >= LLVM_VERSION(2, 7)
 #include "llvm/LLVMContext.h"
 #endif
 #include <algorithm>
@@ -95,7 +96,7 @@ void LowerSwitchPass::processSwitchInst(SwitchInst *SI) {
   BasicBlock *origBlock = SI->getParent();
   BasicBlock *defaultBlock = SI->getDefaultDest();
   Function *F = origBlock->getParent();
-  Value *switchValue = SI->getOperand(0);
+  Value *switchValue = SI->getCondition();
 
   // Create a new, empty default block so that the new hierarchy of
   // if-then statements go to this and the PHI nodes are happy.
@@ -114,9 +115,16 @@ void LowerSwitchPass::processSwitchInst(SwitchInst *SI) {
   }
   
   CaseVector cases;
+  
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 1)
   for (SwitchInst::CaseIt i = SI->case_begin(), e = SI->case_end(); i != e; ++i)
     cases.push_back(SwitchCase(i.getCaseValue(),
                                i.getCaseSuccessor()));
+#else
+  for (unsigned i = 1; i < SI->getNumSuccessors(); ++i)  
+    cases.push_back(SwitchCase(SI->getSuccessorValue(i),
+                               SI->getSuccessor(i)));
+#endif
   
   // reverse cases, as switchConvert constructs a chain of
   //   basic blocks by appending to the front. if we reverse,
