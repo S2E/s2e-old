@@ -1,10 +1,26 @@
 Vitaly Chipounov <vitaly.chipounov@epfl.ch>
 Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
-Vlad Georgescu <vgeorgescu@gmail.com>
+Jonas Wagner <jonas.wagner@epfl.ch>
 Cristian Zamfir <cristian.zamfir@epfl.ch>
 Prof. George Candea <george.candea@epfl.ch>
-Jonas Wagner <jonas.wagner@epfl.ch>
 
 External Contributors:
+======================
+
+Michael Contreras <michael@inetric.com>
+  LLVM 3.2 and x86_64 support
+
+Andreas Kirchner <akalypse@gmail.com> 
+  Initial ARM prototype
+
+Diego Biurrun <diego@biurrun.de>
+  Build system
+
+Matt Renzelmann <mjr@cs.wisc.edu>
+  Enhanced symbolic hardware, SymDrive
+
+Raimondas Sasnauskas <raimondas.sasnauskas@cs.rwth-aachen.de>
+Alexandre Gouraud <alexandre.gouraud@enst-bretagne.fr>
 Sriram Subramanian <srirams@cs.wisc.edu>
 Swaminathan Sundararaman <swami@cs.wisc.edu>
+Vlad Georgescu <vgeorgescu@gmail.com>
