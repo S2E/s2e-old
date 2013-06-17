@@ -1,4 +1,4 @@
-RST_FILES := $(shell find . -name "*.rst")
+RST_FILES := $(wildcard *.rst */*.rst)
 HTML_FILES := $(RST_FILES:.rst=.html)
 
 ifeq ($(shell uname),Darwin)
