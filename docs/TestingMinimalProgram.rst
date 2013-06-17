@@ -67,7 +67,7 @@ machine. Then you can copy the code using ``scp``::
 
 Compile and run the example with the following commands::
 
-   guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
+   guest$ gcc -O3 tutorial1.c -o tutorial1
    guest$ ./tutorial1
    Enter two characters: ab
    First char is lowercase
@@ -157,7 +157,7 @@ After these changes, the example program looks as follows:
 
 Compile and run the program as usual::
 
-   guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
+   guest$ gcc -O3 tutorial1.c -o tutorial1
    guest$ ./tutorial1
    Illegal instruction
 
@@ -266,7 +266,7 @@ Your image needs to be in `S2E format <ImageInstallation.html>`_.
 
    $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 your_image.raw.s2e -loadvm 1
    guest$ edit tutorial1.c
-   guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
+   guest$ gcc -O3 tutorial1.c -o tutorial1
    > press Ctrl + Alt + 2 and type 'savevm 1' then type 'quit'.
 
    $ $S2EDIR/build/qemu/i386-s2e-softmmu/qemu-system-i386 your_image.raw.s2e -loadvm 1 \

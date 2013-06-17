@@ -41,7 +41,7 @@
  *  equivalence checks.
  *
  *  Compile as follows:
- *  gcc -m32 -I /home/user/s2e/guest/include/ -std=c99 -o factorial factorial.c
+ *  gcc -I /home/user/s2e/guest/include/ -std=c99 -o factorial factorial.c
  */
 
 #include <inttypes.h>

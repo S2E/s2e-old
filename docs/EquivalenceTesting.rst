@@ -86,7 +86,7 @@ Compile it as follows after adapting the include path:
 
 ::
 
-    $ gcc -m32 -I /home/user/s2e/guest/include/ -std=c99 -o factorial factorial.c
+    $ gcc -I /home/user/s2e/guest/include/ -std=c99 -o factorial factorial.c
 
 
 

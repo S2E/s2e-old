@@ -78,7 +78,7 @@ guest$ scp &lt;your_login_on_host&gt;&#64;&lt;your_host_name&gt;:path/to/s2e/gue
 </pre>
 <p>Compile and run the example with the following commands:</p>
 <pre class="literal-block">
-guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
+guest$ gcc -O3 tutorial1.c -o tutorial1
 guest$ ./tutorial1
 Enter two characters: ab
 First char is lowercase
@@ -159,7 +159,7 @@ execution path).</p>
 </pre></div>
 <p>Compile and run the program as usual:</p>
 <pre class="literal-block">
-guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
+guest$ gcc -O3 tutorial1.c -o tutorial1
 guest$ ./tutorial1
 Illegal instruction
 </pre>
@@ -254,7 +254,7 @@ Your image needs to be in <a class="reference external" href="ImageInstallation.
 <pre class="literal-block">
 $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 your_image.raw.s2e -loadvm 1
 guest$ edit tutorial1.c
-guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
+guest$ gcc -O3 tutorial1.c -o tutorial1
 &gt; press Ctrl + Alt + 2 and type 'savevm 1' then type 'quit'.
 
 $ $S2EDIR/build/qemu/i386-s2e-softmmu/qemu-system-i386 your_image.raw.s2e -loadvm 1 \
