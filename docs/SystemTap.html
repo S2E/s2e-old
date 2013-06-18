@@ -41,7 +41,7 @@ examples of useful in-vivo analysis that can be achieved.</p>
 </ul>
 <p>For the purpose of this tutorial, also enable the following options:</p>
 <ul class="simple">
-<li>CONFIG_PCNET32=m (To enable this option, issue &quot;linux32 make menuconfig&quot;, then select Device Drivers ---&gt; Network device support ---&gt; Ethernet (10 or 100Mbit) ---&gt; AMD PCnet32 PCI support)</li>
+<li>CONFIG_PCNET32=m (To enable this option, issue &quot;make menuconfig&quot;, then select Device Drivers ---&gt; Network device support ---&gt; Ethernet (10 or 100Mbit) ---&gt; AMD PCnet32 PCI support)</li>
 <li>For other additional options, please refer to the <a class="reference external" href="config.s2e.i686">config.s2e.i686</a> file.</li>
 </ul>
 <p>Refer to the <a class="reference external" href="BuildingLinux.html">Building Linux</a> tutorial
@@ -50,13 +50,12 @@ for a list of detailed steps.</p>
 </div>
 <div class="section" id="building-systemtap-in-the-chroot-environment-of-the-host">
 <h1>Building SystemTap in the <tt class="docutils literal">chroot</tt> environment of the host</h1>
-<p>We will compile SystemTap and the scripts in the <em>chrooted</em> and <em>32-bit</em> environment, upload
-the scripts to the VM, and run them there. The <tt class="docutils literal">chroot</tt> environment makes it easy
-to compile in 32-bit mode when your host is 64-bit and isolates your production
-environment from mistakes.</p>
+<p>We will compile SystemTap and the scripts in the <em>chrooted</em> environment, upload
+the scripts to the VM, and run them there. The <tt class="docutils literal">chroot</tt> environment isolates
+your production environment from mistakes.</p>
 <p>We could also compile the scripts directly inside
 the VM, but it is much slower.</p>
-<p>In the <tt class="docutils literal">chroot</tt> 32-bit environment you use to compile your kernel, do the following:</p>
+<p>In the <tt class="docutils literal">chroot</tt> environment you use to compile your kernel, do the following:</p>
 <pre class="literal-block">
 # Install the compiled kernel, headers, and debug information.
 # You must ensure that kernel-package = 11.015 is installed, later versions (&gt;=12)
@@ -77,8 +76,8 @@ $ wget http://sourceware.org/systemtap/ftp/releases/systemtap-1.3.tar.gz
 $ tar xzvf systemtap-1.3.tar.gz
 $ cd systemtap-1.3
 $ ./configure
-$ linux32 make --jobs=8 # Replace 8 with your number of cores
-$ linux32 make install
+$ make --jobs=8 # Replace 8 with your number of cores
+$ make install
 </pre>
 </div>
 <div class="section" id="building-systemtap-on-the-guest">
@@ -215,7 +214,7 @@ and replace the content of the IP header field with symbolic values.</p>
 </pre></div>
 <p>Compile the script with SystemTap in the <tt class="docutils literal">chroot</tt> environment, adjusting the kernel version to suit your needs.</p>
 <pre class="literal-block">
-$ linux32 stap -r 2.6.26.8-s2e -g -m pcnet_probe pcnet32.stp
+$ stap -r 2.6.26.8-s2e -g -m pcnet_probe pcnet32.stp
 WARNING: kernel release/architecture mismatch with host forces last-pass 4.
 pcnet_probe.ko
 </pre>

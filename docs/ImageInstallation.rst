@@ -5,7 +5,7 @@ Preparing VM Images for S2E
 .. contents::
 
 To run S2E, you need a QEMU-compatible virtual machine disk image. S2E can run
-any x86 32-bit operating system inside the VM.
+any x86 operating system inside the VM.
 In this section, we describe how to build a Linux image and present general
 requirements and guidelines for various operating systems.
 
@@ -14,7 +14,6 @@ Preparing a Linux VM Image
 ==========================
 
 In the following, we describe how to install a minimal version of Debian Linux in QEMU.
-S2E supports only 32-bit guest systems for now.
 
 **Please make sure that you perform all the steps below using QEMU that ships with S2E.**
 There will be compatibility problems if you use QEMU that comes with your system (especially
@@ -79,7 +78,7 @@ General Requirements and Guidelines for VM Images
 
 When running in S2E mode, the image **must** be in S2E format. S2E does not support any other image format.
 
-Any x86 32-bit image that boots in vanilla QEMU will work in S2E. However, we enumerate a list of tips
+Any x86 image that boots in vanilla QEMU will work in S2E. However, we enumerate a list of tips
 and optimizations that will make administration easier and symbolic execution faster.
 *These tips should be used as guidelines and are not mandatory.*
 
