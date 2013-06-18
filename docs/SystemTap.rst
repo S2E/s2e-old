@@ -28,7 +28,7 @@ SystemTap requires a kernel built with the following settings:
 
 For the purpose of this tutorial, also enable the following options:
 
-- CONFIG_PCNET32=m (To enable this option, issue "linux32 make menuconfig", then select Device Drivers ---> Network device support ---> Ethernet (10 or 100Mbit) ---> AMD PCnet32 PCI support)
+- CONFIG_PCNET32=m (To enable this option, issue "make menuconfig", then select Device Drivers ---> Network device support ---> Ethernet (10 or 100Mbit) ---> AMD PCnet32 PCI support)
 - For other additional options, please refer to the `config.s2e.i686 <config.s2e.i686>`_ file.
 
 Refer to the `Building Linux <BuildingLinux.html>`_ tutorial
@@ -39,15 +39,14 @@ Install the resulting kernel in the guest OS.
 Building SystemTap in the ``chroot`` environment of the host
 ============================================================
 
-We will compile SystemTap and the scripts in the *chrooted* and *32-bit* environment, upload
-the scripts to the VM, and run them there. The ``chroot`` environment makes it easy
-to compile in 32-bit mode when your host is 64-bit and isolates your production
-environment from mistakes.
+We will compile SystemTap and the scripts in the *chrooted* environment, upload
+the scripts to the VM, and run them there. The ``chroot`` environment isolates
+your production environment from mistakes.
 
 We could also compile the scripts directly inside
 the VM, but it is much slower.
 
-In the ``chroot`` 32-bit environment you use to compile your kernel, do the following:
+In the ``chroot`` environment you use to compile your kernel, do the following:
 
 ::
 
@@ -70,8 +69,8 @@ In the ``chroot`` 32-bit environment you use to compile your kernel, do the foll
    $ tar xzvf systemtap-1.3.tar.gz
    $ cd systemtap-1.3
    $ ./configure
-   $ linux32 make --jobs=8 # Replace 8 with your number of cores
-   $ linux32 make install
+   $ make --jobs=8 # Replace 8 with your number of cores
+   $ make install
 
 
 Building SystemTap on the guest
@@ -224,7 +223,7 @@ Compile the script with SystemTap in the ``chroot`` environment, adjusting the k
 
 ::
 
-    $ linux32 stap -r 2.6.26.8-s2e -g -m pcnet_probe pcnet32.stp
+    $ stap -r 2.6.26.8-s2e -g -m pcnet_probe pcnet32.stp
     WARNING: kernel release/architecture mismatch with host forces last-pass 4.
     pcnet_probe.ko
     

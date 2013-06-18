@@ -6,9 +6,6 @@ Although S2E can run any Linux kernel, it is often convenient to recompile it to
 e.g., to enable Kprobes, add debug information, etc.
 
 This sections explains how to compile S2E on a Debian system using a ``chroot`` environment.
-Using chroot makes it easy to compile a 32-bit kernel package on a 64-bit host.
-It is important to compile the guest kernel in 32-bit mode, as S2E does not support 64-bit
-guests for now.
 
 ::
 
@@ -16,18 +13,17 @@ guests for now.
    $ sudo apt-get install debootstrap
 
    $ # Create the directory with the chroot environment
-   $ mkdir ~/debian32
+   $ mkdir ~/debian
 
    $ # From now on, we need root rights
    $ sudo -s
 
    $ # Create the basic chroot environment
-   $ # Pay attention to --arch i386! It is crucial for correct compilation.
-   $ debootstrap --arch i386 lenny debian32/ http://mirror.switch.ch/ftp/mirror/debian/
-   $ mount -t proc proc debian32/proc
+   $ debootstrap lenny debian/ http://mirror.switch.ch/ftp/mirror/debian/
+   $ mount -t proc proc debian/proc
 
    $ # Activate the chroot
-   $ chroot ~/debian32
+   $ chroot ~/debian
 
    $ # Setup devices
    $ cd /dev; MAKEDEV generic; cd ..
@@ -49,14 +45,10 @@ guests for now.
    $ cd linux-2.6.26.8
 
    $ # Select your options
-   $ # On a 64-bit machine, "make menuconfig" automatically switches from 32-bit
-   $ # to 64-bit for x86. Thus, precede "make" with "linux32" to ensure the
-   $ # selected CPU type is 32-bit. Additionally, select Processor type and
-   $ # features ---> Processor family ---> Pentium-Pro
-   $ linux32 make menuconfig
+   $ make menuconfig
 
    $ # Compile and generate kernel packages (that will be located in ../)
-   $ linux32 make-kpkg --append-to-version=-s2e --rootcmd fakeroot --cross-compile - --arch=i386 --initrd kernel_image kernel_headers
+   $ make-kpkg --append-to-version=-s2e --rootcmd fakeroot --cross-compile --initrd kernel_image kernel_headers
 
 
 The result of the process is two ``*.deb`` files that you can upload to your VM image.
