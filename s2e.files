@@ -1,7 +1,6 @@
 
 .gitignore
 Makefile
-Makefile.win32
 S2E-AUTHORS
 docs/BuildingLinux.html
 docs/BuildingLinux.rst
@@ -9,8 +8,6 @@ docs/BuildingS2E.html
 docs/BuildingS2E.rst
 docs/BuildingS2EManually.html
 docs/BuildingS2EManually.rst
-docs/BuildingS2EWindows.html
-docs/BuildingS2EWindows.rst
 docs/Contribute.html
 docs/Contribute.rst
 docs/EquivalenceTesting.html
@@ -2782,5 +2779,3 @@ tools/tools/scripts/ida/extractFunctions.py
 tools/tools/tbtrace/Makefile
 tools/tools/tbtrace/TbTrace.cpp
 tools/tools/tbtrace/TbTrace.h
-windows-toolchain/llvm-2.6-mingw.patch
-windows-toolchain/setupenv.sh

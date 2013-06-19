@@ -5,8 +5,6 @@ Building the S2E Platform
 The following steps describe the installation process in detail. We assume the installation
 is performed on an Ubuntu 12.04 64-bit host system (S2E also works on 64-bit Mac systems).
 
-Build instructions for Windows x64 can be found `here <BuildingS2EWindows.html>`_.
-
 .. contents::
 
 Required Packages
