@@ -3,6 +3,7 @@
  * Code taken from http://en.wikibooks.org/wiki/Algorithm_Implementation/Sorting/Quicksort#C
  */
 
+#include <stdio.h>
 #include <s2e.h>
 
 static void swap(int *a, int *b)
