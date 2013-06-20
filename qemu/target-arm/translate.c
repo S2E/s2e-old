@@ -10087,7 +10087,6 @@ static inline void gen_intermediate_code_internal(CPUARMState *env,
             tcg_gen_debug_insn_start(dc->pc);
         }
 
-        if (dc->thumb) {
 #ifdef CONFIG_S2E
         dc->insPc = dc->pc;
         dc->done_instr_end = 0;
@@ -10098,6 +10097,7 @@ static inline void gen_intermediate_code_internal(CPUARMState *env,
         dc->nextPc = -1;
 #endif
 
+        if (dc->thumb) {
             disas_thumb_insn(env, dc);
             if (dc->condexec_mask) {
                 dc->condexec_cond = (dc->condexec_cond & 0xe)
