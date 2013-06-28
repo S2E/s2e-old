@@ -216,6 +216,14 @@ static void handler_exemplify(const char **args)
     }
 }
 
+static void handler_fork(const char **args)
+{
+    if (!strcmp(args[0], "disable") || !strcmp(args[0], "0")) {
+        s2e_disable_forking();
+    } else {
+        s2e_enable_forking();
+    }
+}
 
 #define COMMAND(c, args, desc) { #c, handler_##c, args, desc }
 
@@ -226,6 +234,7 @@ static cmd_t s_commands[] = {
     COMMAND(symbwrite, 1, "Write n symbolic bytes to stdout"),
     COMMAND(symbfile, 1, "Makes the specified file concolic. The file should be stored in a ramdisk."),
     COMMAND(exemplify, 0, "Read from stdin and write an example to stdout"),
+    COMMAND(fork, 1, "Enable/disable forking"),
     { NULL, NULL, 0, NULL }
 };
 
