@@ -88,7 +88,7 @@ These plugins allow you to specify which paths to execute and where to inject sy
 * `BaseInstructions <Plugins/BaseInstructions.html>`_ implements various custom instructions to control symbolic execution from the guest.
 * *SymbolicHardware* implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the `Windows driver testing <Windows/DriverTutorial.html>`_ tutorial for usage instructions.
 * *CodeSelector* disables forking outside of the modules of interest
-* *Annotation* plugin lets you intercept arbitrary instructions and function calls/returns and write Lua scripts to manipulate the execution state, kill paths, etc.
+* `Annotation <Plugins/Annotation.html>`_ plugin lets you intercept arbitrary instructions and function calls/returns and write Lua scripts to manipulate the execution state, kill paths, etc.
 
 Analysis Plugins
 ----------------
