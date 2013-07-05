@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8.1: http://docutils.sourceforge.net/" />
+<title>Annotation</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="annotation">
+<h1 class="title">Annotation</h1>
+
+<p>The Annotations plugin combines monitoring and instrumentation capabilities to
+let users annotate single machine instructions or entire function calls. The
+user writes the annotation directly inside the S2E configuration file, using the Lua
+language.</p>
+<dl class="docutils">
+<dt>This plugin can be used to manipulate:</dt>
+<dd><ul class="first last simple">
+<li>single instructions</li>
+<li>entire function calls</li>
+</ul>
+</dd>
+</dl>
+<p>It requires <em>FunctionMonitor</em>, <em>ModuleExecutionDetector</em> and an OS monitor plugin
+(or the generic <em>RawMonitor</em>) as dependencies.</p>
+<div class="section" id="setting-up-s2e-for-annotation-usage">
+<h1>Setting up S2E for Annotation usage</h1>
+<p>An example of practical Annotation usage is shown in the <a class="reference external" href="../Windows/DriverTutorial.html">Analyzing Windows Driver tutorial</a>, as follows:</p>
+<pre class="literal-block">
+plugins = {
+    &quot;WindowsMonitor&quot;,
+    &quot;ModuleExecutionDetector&quot;,
+    &quot;FunctionMonitor&quot;,
+    &quot;BlueScreenInterceptor&quot;,
+    &quot;Annotation&quot;
+}
+
+pluginsConfig = {}
+
+-- OS monitor configuration (Win XP)
+pluginsConfig.WindowsMonitor = {
+    version=&quot;XPSP3&quot;,
+    userMode=true,
+    kernelMode=true,
+    checked=false,
+    monitorModuleLoad=true,
+    monitorModuleUnload=true,
+    monitorProcessUnload=true
+}
+
+-- Module detector configuration (pcntpci5.sys driver)
+pluginsConfig.ModuleExecutionDetector = {
+    pcntpci5_sys_1 = {
+        moduleName = &quot;pcntpci5.sys&quot;,
+        kernelMode = true,
+    },
+}
+
+-- Annotation configuration
+pluginsConfig.Annotation =
+{
+    ann1 = {
+        active=true,
+        module=&quot;pcntpci5_sys_1&quot;,
+        address=0x169c9,
+        instructionAnnotation=&quot;print_ebx&quot;,
+        beforeInstruction = true,
+        switchInstructionToSymbolic = false
+    },
+    ann2 = {
+        module=&quot;pcntpci5_sys_1&quot;,
+        active  = true,
+        address = 0x1233a,
+        callAnnotation = &quot;copyup&quot;,
+        paramcount = 4
+    },
+}
+
+-- Annotation to fiddle with driver buffer
+function copyup (state, pluginState)
+  buf = state:readParameter(0);
+  len = state:reaParameter(3);
+  for i = 0, len - 1, 1 do
+        state:writeMemorySymb(&quot;copyup_buf&quot;, buf + i, 1);
+  end
+  state:writeRegister(&quot;eax&quot;, 1);
+  pluginState:setSkip(true);
+end
+
+-- Annotation to inspect driver status
+function print_ebx (state, pluginState)
+  status = state:readRegister(&quot;ebx&quot;);
+  print(&quot;Driver status: &quot; .. status);
+end
+</pre>
+</div>
+<div class="section" id="options">
+<h1>Options</h1>
+<p>Each annotation is defined in a single sub-module within an Annotation configuration block.
+This plugin accepts an arbitrary number of per-module sections.
+Per-module options are prefixed with <em>&quot;ann_section.&quot;</em> in the documentation (equivalent to
+<em>ann1</em> and <em>ann2</em> in the examples). Refer to the sections below for details.</p>
+<dl class="docutils">
+<dt>Configuration options are semantically organized in three groups:</dt>
+<dd><ul class="first last simple">
+<li>common for all annotations</li>
+<li>specific to function call annotations</li>
+<li>specific to single instruction annotations</li>
+</ul>
+</dd>
+</dl>
+<div class="section" id="common-options">
+<h2>Common options</h2>
+<p>These options are common to all types of annotations.</p>
+<div class="section" id="ann-section-module-string">
+<h3>ann_section.module=[&quot;string&quot;]</h3>
+<p>The name of the module. This must match the name returned by the monitoring plugin.</p>
+</div>
+<div class="section" id="ann-section-active-true-false">
+<h3>ann_section.active=[true|false]</h3>
+<p>Whether the annotation is active or not (default is false).</p>
+</div>
+<div class="section" id="ann-section-address-int">
+<h3>ann_section.address=[int]</h3>
+<p>The native address of the instruction or the entry-point of the function to annotate.</p>
+</div>
+</div>
+<div class="section" id="function-call-annotation">
+<h2>Function call annotation</h2>
+<p>These options have to be used in order to annotate function calls.</p>
+<div class="section" id="ann-section-callannotation-string">
+<h3>ann_section.callAnnotation=[&quot;string&quot;]</h3>
+<p>The name of the Lua function to execute when the annotation triggers.
+This option also specifies that the user wants to annotate the entire function
+starting at <em>module.address</em>.
+The callAnnotation will be triggered twice: once when entering and again when
+returning from the annotated function call.</p>
+</div>
+<div class="section" id="ann-section-paramcount-int">
+<h3>ann_section.paramcount=[int]</h3>
+<p>The number of input parameters taken by the annotated function, under the <strong>cdecl</strong>
+calling convention (default is 0). In fact, this assumes that all parameters are
+passed on the stack, and will not work with different calling conventions.</p>
+</div>
+</div>
+<div class="section" id="instruction-annotation">
+<h2>Instruction annotation</h2>
+<p>These options have to be used in order to annotate single instructions.</p>
+<div class="section" id="ann-section-instructionannotation-string">
+<h3>ann_section.instructionAnnotation=[&quot;string&quot;]</h3>
+<p>The name of the Lua function to execute when the annotation triggers.
+This option also specifies that the user wants to annotate only the single instruction
+at <em>module.address</em>.
+The instructionAnnotation will be triggered just once when execution reaches the
+annotated address.</p>
+</div>
+<div class="section" id="ann-section-beforeinstruction-true-false">
+<h3>ann_section.beforeInstruction=[true|false]</h3>
+<p>Whether to call the annotation before or after the instruction (default is false).</p>
+</div>
+<div class="section" id="ann-section-switchinstructiontosymbolic-true-false">
+<h3>ann_section.switchInstructionToSymbolic=[true|false]</h3>
+<p>Whether to switch to symbolic mode before executing the annotated instruction (default is false).
+Please note that symbolic execution is required in order to write symbolic values, ie. you will
+need to enable this setting in order to inject symbolic values via the Lua API. Failing to do
+so will result in S2E crash.</p>
+</div>
+</div>
+</div>
+<div class="section" id="configuration-sample">
+<h1>Configuration Sample</h1>
+<p>Here below is an example of a complete Annotation configuration stanza showing how to specify
+annotations for both function calls and single instructions.</p>
+<pre class="literal-block">
+pluginsConfig.Annotation = {
+    -- function call annotation
+    ann1 = {
+        module  = &quot;modA&quot;,
+        active  = true,
+        address = 0x0000CAFE,
+        callAnnotation = &quot;call_ann&quot;,
+        paramcount = 1
+    },
+    -- instruction annotation
+    ann2 = {
+        module  = &quot;modB&quot;,
+        active  = true,
+        address = 0x0000DEAD,
+        instructionAnnotation = &quot;instr_ann&quot;,
+        beforeInstruction = true,
+        switchInstructionToSymbolic = true
+    },
+}
+</pre>
+</div>
+<div class="section" id="lua-api-for-annotations">
+<h1>Lua API For Annotations</h1>
+<dl class="docutils">
+<dt>All annotations have two positional parameters:</dt>
+<dd><ol class="first last arabic simple">
+<li>the current execution state <em>(curState</em> from now on)</li>
+<li>the current plugin state (<em>curPlgState</em> from now on)</li>
+</ol>
+</dd>
+</dl>
+<p>As such, the typical signature of a Lua annotation is as follows:</p>
+<pre class="literal-block">
+function my_ann (curState, curPlgState)
+    -- do awesome stuff here
+end
+</pre>
+<p>The execution state object can be manipulated using the <em>ExecutionState</em>
+object's methods. Similarly, the plugin state parameter exposes the API of the
+Annotation plugin, which allows annotations to manipulate the plugin's configuration
+at runtime.</p>
+<p>The next two sections show a list of all available Lua API functions.</p>
+<div class="section" id="execution-state">
+<h2>Execution State</h2>
+<blockquote>
+<ul>
+<li><dl class="first docutils">
+<dt>curState:readParameter(param_no: int) -&gt; int</dt>
+<dd><p class="first last">For function calls, return the value of input paramater number <em>param_no</em>.
+Similarly to the <em>paramcount</em> option, this assumes the <strong>cdecl</strong> calling convention
+with all parameters passed on the stack.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curState:writeParameter(param_no: int, p_value: int)</dt>
+<dd><p class="first last">For function calls, change the value of input paramater number <em>param_no</em>
+(of size <em>p_size</em>) to <em>p_value</em>.
+Similarly to the <em>paramcount</em> option, this assumes the <strong>cdecl</strong> calling convention
+with all parameters passed on the stack.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curState:readMemory(virtual_address: int, mem_size: int) -&gt; int</dt>
+<dd><p class="first last">Read <em>mem_size</em> bytes from memory, starting at address <em>virtual_address</em>.
+The upper bound for <em>mem_size</em> is fixed by target architecture word size.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curState:writeMemory(virtual_address: int, mem_size: int, mem_value: int)</dt>
+<dd><p class="first last">Write <em>mem_size</em> bytes to memory, using content of <em>mem_value</em>, starting at address <em>virtual_address</em>.
+The upper bound for <em>mem_size</em> is fixed by target architecture word size.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curState:writeMemorySymb(&quot;sym_label&quot;: string, virtual_address: int, mem_size: int, [lower_bound: int, upper_bound: int])</dt>
+<dd><p class="first last">Write a symbolic value of size <em>mem_size</em> starting at address <em>virtual_address</em>.
+Additional constraints can be specified with the optional parameters,
+restricting symbolic values to the [<em>lower_bound</em> , <em>upper_bound</em>] range.
+<em>sym_label</em> is a mnemonic label used to track the symbolic value.
+Please note that the execution state must be in symbolic mode for this to
+work, ie. if you are annotating a single instruction you should take
+care of setting <em>switchInstructionToSymbolic=true</em>.
+Failing to do so will likely result in S2E crash.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curState:readRegister(&quot;reg_name&quot;: string) -&gt; int</dt>
+<dd><p class="first last">Return the content of register <em>reg_name</em>.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curState:writeRegister(&quot;reg_name&quot;: string, &quot;reg_value&quot;: int)</dt>
+<dd><p class="first last">Write value <em>reg_value</em> to register <em>reg_name</em>.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curState:writeRegisterSymb(&quot;reg_name&quot;: string, &quot;sym_label&quot;: string)</dt>
+<dd><p class="first last">Write a symbolic value into register <em>reg_name</em>.
+<em>sym_label</em> is a mnemonic label used to track the symbolic value.
+Please note that the execution state must be in symbolic mode for this to
+work, ie. if you are annotating a single instruction you should take
+care of setting <em>switchInstructionToSymbolic=true</em>.
+Failing to do so will likely result in S2E crash.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curState:isSpeculative() -&gt; bool</dt>
+<dd><p class="first last">Return whether the current state is executing in speculative mode, ie.
+it has been generated due to pre-forking in concolic mode. Such
+states could be actually discarded at a later point, if the solver
+finds them to be unreachable; for more details check the
+<a class="reference external" href="../Howtos/Concolic.html">Concolic Execution</a> documentation.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</blockquote>
+</div>
+<div class="section" id="current-plugin-state">
+<h2>Current Plugin State</h2>
+<blockquote>
+<ul>
+<li><dl class="first docutils">
+<dt>curPlgState:isCall() -&gt; bool</dt>
+<dd><p class="first last">For function call annotations, whether the annotation has been triggered on a function call.
+Always return <em>false</em> for single instruction annotations.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curPlgState:isReturn() -&gt; bool</dt>
+<dd><p class="first last">For function call annotations, whether the annotation has been triggered on function return.
+Always return <em>false</em> for single instruction annotations.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curPlgState:setValue(&quot;key&quot;: string, value: int)</dt>
+<dd><p class="first last">Store the (<em>key</em>, <em>value</em>) item in the plugin state internal key-value storage.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curPlgState:getValue(&quot;key&quot;: string)</dt>
+<dd><p class="first last">Retrieve the value corresponding to the index <em>key</em> from the plugin state internal key-value storage.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curPlgState:setKill(skip: bool)</dt>
+<dd><p class="first last">Set the internal <em>isKill</em> flag. This will cause the current S2E state to be
+terminated after the annotation returns.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curPlgState:setSkip(skip: bool)</dt>
+<dd><p class="first last">Set the internal <em>isSkip</em> flag. For function call annotations, this will cause the current
+function to be skipped.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curPlgState:activateRule(&quot;ann_name&quot;: string, active: bool) -&gt; bool</dt>
+<dd><p class="first last">Activate or deactivate the <em>ann_name</em> annotation. Return <em>true</em> on normal execution, <em>false</em> on errors (eg. no annotations found with such name).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>curPlgState:exit()</dt>
+<dd><p class="first last">Abort S2E execution.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</blockquote>
+</div>
+</div>
+<div class="section" id="lua-annotation-sample">
+<h1>Lua Annotation Sample</h1>
+<p>Here below is an example of a complete Lua annotation showing how manipulate a function call
+to inspect arguments and registers status, keeping track of values and injecting
+symbolic contents.</p>
+<pre class="literal-block">
+-- Annotation to fiddle with a function
+function call_ann (curState, curPlgState)
+  if plg:isCall() then
+    -- Inspect relevant input on function call
+    arg0 = state:readParameter(0)
+    eax = state:readRegister(&quot;eax&quot;)
+    print (&quot;Calling function with with arg0=&quot; .. arg0)
+    curPlgState:setValue(&quot;eax&quot;, eax)
+  elseif plg:isReturn() then
+    -- Compare EAX values
+    orig_eax = curPlgState::getValue(&quot;eax&quot;)
+    new_eax = state:readRegister(&quot;eax&quot;)
+    print (&quot;Old EAX=&quot; .. orig_eax .. &quot;, new EAX=&quot; .. new_eax)
+    -- Inject a symbolic value on return into EAX
+    state:writeRegisterSymb(&quot;eax&quot;, &quot;sym_eax&quot;)
+  end
+end
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="Annotation.rst">View document source</a>.
+
+</div>
+</body>
+</html>
