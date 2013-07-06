@@ -136,9 +136,6 @@ protected:
        Such resources are inherited from the parent process. */
     bool m_forking;
 
-    /* forked indicates whether the current S2E process was forked from a parent S2E process */
-    void initOutputDirectory(const std::string& outputDirectory, int verbose, bool forked);
-
     void initKleeOptions();
     void initExecutor();
     void initPlugins();
@@ -172,8 +169,17 @@ public:
     /*************************/
     /* Directories and files */
 
+    /* forked indicates whether the current S2E process was forked from a parent S2E process */
+    void initOutputDirectory(const std::string& outputDirectory, int verbose, bool forked);
+
     /** Get output directory name */
     const std::string& getOutputDirectory() const { return m_outputDirectory; }
+
+    /** Get base output directory name */
+    const std::string& getOutputDirectoryBase() const { return m_outputDirectoryBase; }
+
+    /** Set base output directory name. */
+    void setOutputDirectoryBase(std::string new_name) { m_outputDirectoryBase = new_name; }
 
     /** Get a filename inside an output directory */
     std::string getOutputFilename(const std::string& fileName);

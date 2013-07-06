@@ -101,6 +101,7 @@ Miscellaneous Plugins
 
 * `FunctionMonitor <Plugins/FunctionMonitor.html>`_ provides client plugins with events triggered when the guest code invokes specified functions.
 * `HostFiles <UsingS2EGet.html>`_ allows to quickly upload files to the guest.
+* `PerStateOutput <Plugins/PerStateOutput.html>`_ splits S2E log and debug output into one directory per symbolic state.
 
 S²E Development
 ===============

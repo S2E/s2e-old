@@ -464,6 +464,7 @@ s2eobj-y += s2e/Plugins/LibraryCallMonitor.o
 s2eobj-y += s2e/Plugins/InterruptInjector.o
 s2eobj-y += s2e/Plugins/BaseInstructions.o
 s2eobj-y += s2e/Plugins/X86ExceptionInterceptor.o
+s2eobj-y += s2e/Plugins/PerStateOutput.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsMonitor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.o
