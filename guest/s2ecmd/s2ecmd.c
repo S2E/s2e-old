@@ -132,7 +132,7 @@ static void handler_symbfile(const char **args)
      * It should make it easier for plugins to generate
      * concrete files, while preserving info about the original path
      * and without having to deal with the slashes.
-     **/
+     */
     char cleaned_name[512];
     strncpy(cleaned_name, filename, sizeof(cleaned_name));
     for (unsigned i = 0; cleaned_name[i]; ++i) {

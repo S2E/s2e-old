@@ -345,7 +345,7 @@ public:
             CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size);
 
     /** Write concrete data to the CPU */
-    /** XXX: do we really also need writeCpuRegisterConcrete? **/
+    /** XXX: do we really also need writeCpuRegisterConcrete? */
     void writeRegisterConcrete(CPUX86State *cpuState,
                                unsigned offset, const uint8_t* buf, unsigned size);
 
@@ -428,7 +428,7 @@ public:
                 unsigned size,
                 std::vector<unsigned char> &concreteBuffer);
 
-    /** Debug functions **/
+    /** Debug functions */
     void dumpX86State(llvm::raw_ostream &os) const;
 
     /** Attempt to merge two states */
