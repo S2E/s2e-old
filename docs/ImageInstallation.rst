@@ -99,6 +99,8 @@ Here is a checklist we recommend to follow:
 
 * Disable unnecessary services to save memory and speed up the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.
 
+* Avoid the QEMU ``virtio`` network interface for now. In the version of QEMU that is bundled into S2E, there can be random crashes.
+
 
 Experimental KVM Snapshot Support
 =================================
