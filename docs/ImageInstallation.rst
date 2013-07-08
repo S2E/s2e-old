@@ -105,9 +105,10 @@ Here is a checklist we recommend to follow:
 Experimental KVM Snapshot Support
 =================================
 
-It is possible to boot an image in KVM mode, take a snapshot, and resume it in S2E (DBT) mode.
+It is possible to boot an image in KVM mode, take a snapshot, and resume
+it in the dynamic binary translation (DBT) mode that QEMU normally uses.
 This is useful if your guest system is large and avoids cumbersome manipulations to workaround the relative slowness of the DBT
-(e.g., starting in VMware, setting up, converting the disk image to S2E, rebooting again in DBT mode, etc.).
+(e.g., starting in QEMU, setting up, converting the disk image to S2E, rebooting again in DBT mode, etc.).
 
 ::
 
