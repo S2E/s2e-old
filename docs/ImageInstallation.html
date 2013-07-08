@@ -90,6 +90,7 @@ and optimizations that will make administration easier and symbolic execution fa
 <li>Disable fancy desktop themes. Most OSes have a GUI, which consumes resources. Disabling all visual effects will make program analysis faster.</li>
 <li>Disable the screen saver.</li>
 <li>Disable unnecessary services to save memory and speed up the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.</li>
+<li>Avoid the QEMU <tt class="docutils literal">virtio</tt> network interface for now. In the version of QEMU that is bundled into S2E, there can be random crashes.</li>
 </ul>
 </div>
 <div class="section" id="experimental-kvm-snapshot-support">
