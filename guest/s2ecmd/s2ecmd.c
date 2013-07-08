@@ -281,7 +281,7 @@ int main(int argc, const char **argv)
     ++argv;
 
     if (argc != s_commands[cmd_index].args_count) {
-        printf("Invalid number of arguments supplied (%d instead of %d)\n",
+        printf("Invalid number of arguments supplied (received %d, expected %d)\n",
                argc, s_commands[cmd_index].args_count);
         return -1;
     }
