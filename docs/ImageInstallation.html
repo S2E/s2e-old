@@ -95,9 +95,10 @@ and optimizations that will make administration easier and symbolic execution fa
 </div>
 <div class="section" id="experimental-kvm-snapshot-support">
 <h1>Experimental KVM Snapshot Support</h1>
-<p>It is possible to boot an image in KVM mode, take a snapshot, and resume it in S2E (DBT) mode.
+<p>It is possible to boot an image in KVM mode, take a snapshot, and resume
+it in the dynamic binary translation (DBT) mode that QEMU normally uses.
 This is useful if your guest system is large and avoids cumbersome manipulations to workaround the relative slowness of the DBT
-(e.g., starting in VMware, setting up, converting the disk image to S2E, rebooting again in DBT mode, etc.).</p>
+(e.g., starting in QEMU, setting up, converting the disk image to S2E, rebooting again in DBT mode, etc.).</p>
 <pre class="literal-block">
 # Set up the guest, take a snapshot
 $ ./qemu-release/x86_64-softmmu/qemu-system-x86_64 -enable-kvm -cpu core2duo
