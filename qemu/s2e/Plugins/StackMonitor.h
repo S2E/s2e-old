@@ -43,6 +43,12 @@
 #include "ExecutionStatisticsCollector.h"
 #include "OSMonitor.h"
 
+#if defined(TARGET_I386)
+#define SP_REG R_ESP
+#elif defined(TARGET_ARM)
+#define SP_REG 13
+#endif
+
 namespace s2e {
 namespace plugins {
 
