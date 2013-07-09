@@ -38,7 +38,7 @@
 extern "C" {
 #include "config.h"
 #include "qemu-common.h"
-extern struct CPUX86State *env;
+extern CPUArchState *env;
 }
 
 
@@ -188,7 +188,7 @@ void CodeSelector::opSelectProcess(S2EExecutionState *state)
 {
     bool ok = true;
     target_ulong isUserSpace;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &isUserSpace,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(IS_USERSPACE), &isUserSpace,
                                                     sizeof isUserSpace);
 
 
@@ -214,7 +214,7 @@ void CodeSelector::opUnselectProcess(S2EExecutionState *state)
 {
     bool ok = true;
     target_ulong pid;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &pid,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(PROC_ID), &pid,
                                          sizeof pid);
 
     if(!ok) {
@@ -239,7 +239,7 @@ bool CodeSelector::opSelectModule(S2EExecutionState *state)
 {
     bool ok = true;
     target_ulong moduleId;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &moduleId,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(MOD_ID), &moduleId,
                                          sizeof moduleId);
 
     if(!ok) {
