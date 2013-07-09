@@ -280,14 +280,9 @@ void MemoryTracer::onCustomInstruction(S2EExecutionState* state, uint64_t opcode
         return;
     }
 
-    //XXX: remove this mess. Should have a function for extracting
-    //info from opcodes.
-    opcode >>= 16;
-    uint8_t op = opcode & 0xFF;
-    opcode >>= 8;
+    uint64_t subfunction = OPCODE_GETSUBFUNCTION(opcode);
 
-
-    MemoryTracerOpcodes opc = (MemoryTracerOpcodes)op;
+    MemoryTracerOpcodes opc = (MemoryTracerOpcodes)subfunction;
     switch(opc) {
     case Enable:
         enableTracing();
