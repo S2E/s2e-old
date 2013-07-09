@@ -48,6 +48,7 @@ extern CPUArchState *env;
 #include <s2e/Utils.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
+#include <s2e/S2EExecutor.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <sstream>
@@ -720,7 +721,14 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
         lua_error(L);
     }
 
-    m_state->writeCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
+    if (CPU_REG_OFFSET(regIndex) < CPU_CONC_LIMIT) {
+        m_state->writeCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
+    } else {
+        // This alters execution, abort current instruction
+        assert(CPU_REG_OFFSET(regIndex) == CPU_CONC_LIMIT);
+        m_state->setPc(value);
+        throw CpuExitException();
+    }
 
     return 0;                   /* number of results */
 }
@@ -795,7 +803,14 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
     }
 
     target_ulong value = 0;
-    m_state->readCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
+
+    if (CPU_REG_OFFSET(regIndex) < CPU_CONC_LIMIT) {
+        m_state->readCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
+    } else {
+        assert(CPU_REG_OFFSET(regIndex) == CPU_CONC_LIMIT);
+        value = (target_ulong) m_state->getPc();
+    }
+
 
     lua_pushnumber(L, value);        /* first result */
     return 1;
