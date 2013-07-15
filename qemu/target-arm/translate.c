@@ -9248,6 +9248,19 @@ static void disas_thumb_insn(CPUARMState *env, DisasContext *s)
     }
 
     insn = arm_lduw_code(s->pc, s->bswap_code);
+
+#ifdef CONFIG_S2E
+    tmp = tcg_temp_new_i32();
+    tcg_gen_movi_tl(tmp, s->pc);
+    store_cpu_field(tmp,regs[15]);
+
+    TCGv_i64 tmp64 = tcg_temp_new_i64();
+    tcg_gen_ld_i64(tmp64, cpu_env, offsetof(CPUArchState, s2e_icount));
+    tcg_gen_addi_i64(tmp64, tmp64, 1);
+    tcg_gen_st_i64(tmp64, cpu_env, offsetof(CPUArchState, s2e_icount));
+    tcg_temp_free_i64(tmp64);
+#endif
+
     s->pc += 2;
 
     switch (insn >> 12) {
@@ -9986,10 +9999,11 @@ static inline void gen_intermediate_code_internal(CPUARMState *env,
     dc->cpuState = env;
     tb->s2e_tb_type = TB_DEFAULT;
 
-    s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
     tmp64 = tcg_temp_new_i64();
     tcg_gen_movi_i64(tmp64, (uint64_t) tb);
     tcg_gen_st_i64(tmp64, cpu_env, offsetof(CPUArchState, s2e_current_tb));
+
+    s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
 #endif
 
     gen_icount_start();
@@ -10091,7 +10105,7 @@ static inline void gen_intermediate_code_internal(CPUARMState *env,
         dc->insPc = dc->pc;
         dc->done_instr_end = 0;
 
-        s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_start);
+        s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, dc->insPc);
         tb->pcOfLastInstr = pc_start;
         dc->useNextPc = 0;
         dc->nextPc = -1;
