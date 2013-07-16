@@ -355,8 +355,13 @@ void Annotation::onTranslateInstruction(
         return;
     }
 
-    s2e()->getDebugStream() << "Annotation: Instrumenting instruction before=" << isStart <<
-   " " << (*it)->beforeInstruction << " with annotation " << (*it)->cfgname << '\n';
+    s2e()->getDebugStream() << "Annotation: Inserting instrumentation ";
+    if ((*it)->beforeInstruction) {
+        s2e()->getDebugStream() << "before instruction ";
+    } else {
+        s2e()->getDebugStream() << "after instruction ";
+    }
+    s2e()->getDebugStream() << hexval(pc) << " linked to annotation " << (*it)->cfgname << '\n';
 
     signal->connect(
         sigc::mem_fun(*this, &Annotation::onInstruction)
