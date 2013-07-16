@@ -373,7 +373,7 @@ bool RawMonitor::isKernelAddress(uint64_t pc) const
 
 uint64_t RawMonitor::getPid(S2EExecutionState *s, uint64_t pc)
 {
-    if (pc >= m_kernelStart) {
+    if (pc >= m_kernelStart && s->getPid() != -1) {
         return 0;
     }
     return s->getPid();
