@@ -516,47 +516,89 @@ uint64_t S2ELUAExecutionState::readParameterCdecl(lua_State *L, uint32_t param)
     return val;
 }
 
-
-
-
 // Writes a concrete value to the stack
 // XXX Not correct for function parameters for 32 bit linux kernel
 int S2ELUAExecutionState::writeParameter(lua_State *L)
 {
     uint32_t param = luaL_checkint(L, 1);
-    target_ulong val = luaL_checkint(L, 2);
-    uint32_t size = sizeof (uint32_t);
+    uint64_t val = luaL_checkint(L, 2);
+
+    std::string regstr;
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing parameter " << param
-            << " from stack" << '\n';
+            << " for function.\n";
 
-    target_ulong sp = m_state->getSp() + (param + 1) * size;
-
-#ifdef TARGET_X86_64
-    if ((env->hflags & HF_CS64_MASK) && param > 5) {
-        sp = m_state->getSp() + (param - 5) * CPU_REG_SIZE;
+    // Optionally specify the calling convention
+    if (lua_isstring(L, 3)) {
+        regstr = luaL_checkstring(L, 3);
+    } else {
+#if defined(TARGET_I386)
+        regstr = "cdecl";
+#elif defined(TARGET_ARM)
+        regstr = "aapcs";
+#else
+        regstr = "cdecl";
+#endif
     }
-    if ((env->hflags & HF_CS64_MASK) && param < 6) {
-        unsigned int offset = 0;
-        switch (param) {
-        default:
-        case 0: offset = CPU_OFFSET(regs[R_EDI]); break;
-        case 1: offset = CPU_OFFSET(regs[R_ESI]); break;
-        case 2: offset = CPU_OFFSET(regs[R_EDX]); break;
-        case 3: offset = CPU_OFFSET(regs[R_ECX]); break;
-        case 4: offset = CPU_OFFSET(regs[8]);     break;
-        case 5: offset = CPU_OFFSET(regs[9]);     break;
-        }
 
-        m_state->writeCpuRegisterConcrete(offset, &val, sizeof (val));
+    bool ok = false;
+    if (regstr == "cdecl") {
+        ok = writeParameterCdecl(L, param, val);
     } else
-#endif /* TARGET_X86_64 */
-    if (!m_state->writeMemoryConcrete(sp, &val, size)) {
-        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not write"
-                " parameter " << param << " at "<< hexval(sp) << '\n';
+    if (regstr == "aapcs") {
+        ok = writeParameterAAPCS(L, param, val);
+    }
+    // TODO: implement more calling conventions
+
+    if (!ok) {
+        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not write parameter " << param << ".\n";
     }
 
     return 0;
+}
+
+bool S2ELUAExecutionState::writeParameterCdecl(lua_State *L, uint32_t param, uint64_t val)
+{
+#if defined(TARGET_I386)
+  target_ulong archval = (target_ulong) val;
+
+  target_ulong sp = m_state->getSp() + (param + 1) * CPU_REG_SIZE;
+
+#ifdef TARGET_X86_64
+  if ((env->hflags & HF_CS64_MASK) && param > 5) {
+      sp = m_state->getSp() + (param - 5) * CPU_REG_SIZE;
+  }
+  if ((env->hflags & HF_CS64_MASK) && param < 6) {
+      unsigned int offset = 0;
+      switch (param) {
+      default:
+      case 0: offset = CPU_OFFSET(regs[R_EDI]); break;
+      case 1: offset = CPU_OFFSET(regs[R_ESI]); break;
+      case 2: offset = CPU_OFFSET(regs[R_EDX]); break;
+      case 3: offset = CPU_OFFSET(regs[R_ECX]); break;
+      case 4: offset = CPU_OFFSET(regs[8]);     break;
+      case 5: offset = CPU_OFFSET(regs[9]);     break;
+      }
+
+      m_state->writeCpuRegisterConcrete(offset, &archval, sizeof(archval));
+      return true;
+  } else
+#endif /* TARGET_X86_64 */
+      return m_state->writeMemoryConcrete(sp, &archval, sizeof(archval));
+#endif
+  return false;
+}
+
+bool S2ELUAExecutionState::writeParameterAAPCS(lua_State *L, uint32_t param, uint64_t val)
+{
+#ifdef TARGET_ARM
+    target_ulong archval = (target_ulong) val;
+    if (param <= 3) {
+        m_state->writeCpuRegisterConcrete(CPU_OFFSET(regs[param]), &archval, sizeof(archval));
+        return true;
+    }
+#endif
+    return false;
 }
 
 int S2ELUAExecutionState::readMemory(lua_State *L)
