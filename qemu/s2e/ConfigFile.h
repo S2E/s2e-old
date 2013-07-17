@@ -271,6 +271,9 @@ class S2ELUAExecutionState
 {
 private:
     S2EExecutionState *m_state;
+    uint64_t readParameterCdecl(lua_State *L, uint32_t param);
+    uint64_t readParameterAAPCS(lua_State *L, uint32_t param);
+
 public:
   static const char className[];
   static Lunar<S2ELUAExecutionState>::RegType methods[];
