@@ -429,17 +429,60 @@ S2ELUAExecutionState::~S2ELUAExecutionState()
     g_s2e->getDebugStream() << "Deleting S2ELUAExecutionState" << '\n';
 }
 
-
-// Reads a concrete value from the stack
-// XXX Not correct for function parameters for 32 bit linux kernel
+// Read a function input parameter, optionally the calling convention
+// can be specified. If omitted, a sensible one is picked up for each architecture
 int S2ELUAExecutionState::readParameter(lua_State *L)
 {
+    uint64_t val = 0;
     uint32_t param = luaL_checkint(L, 1);
+    std::string regstr;
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Reading parameter " << param
             << " from stack" << '\n';
 
-    target_ulong val = 0;
+    // Optionally specify the calling convention
+    if (lua_isstring(L, 2)) {
+        regstr = luaL_checkstring(L, 2);
+    } else {
+#if defined(TARGET_I386)
+        regstr = "cdecl";
+#elif defined(TARGET_ARM)
+        regstr = "aapcs";
+#else
+        regstr = "cdecl";
+#endif
+    }
+
+    if (regstr == "cdecl") {
+        val = readParameterCdecl(L, param);
+    } else
+    if (regstr == "aapcs") {
+        val = readParameterAAPCS(L, param);
+    }
+    // TODO: implement more calling conventions
+
+    lua_pushnumber(L, val);        /* first result */
+    return 1;
+}
+
+uint64_t S2ELUAExecutionState::readParameterAAPCS(lua_State *L, uint32_t param)
+{
+  uint64_t val = 0;
+#ifdef TARGET_ARM
+  if (param <= 3) {
+      if (!m_state->readCpuRegisterConcrete(CPU_OFFSET(regs[param]), &val, CPU_REG_SIZE))
+          g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read parameter " << param << "\n";
+  }
+#endif
+  return val;
+}
+
+// Reads a concrete value from the stack
+// XXX Not correct for function parameters for 32 bit linux kernel
+uint64_t S2ELUAExecutionState::readParameterCdecl(lua_State *L, uint32_t param)
+{
+    uint64_t val = 0;
+#ifdef TARGET_I386
     uint32_t size = sizeof (uint32_t);
     target_ulong sp = m_state->getSp() + (param + 1) * size;
 
@@ -469,10 +512,12 @@ int S2ELUAExecutionState::readParameter(lua_State *L)
         g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read"
                 " parameter " << param << " at "<< hexval(sp) << '\n';
     }
-
-    lua_pushnumber(L, val);        /* first result */
-    return 1;
+#endif
+    return val;
 }
+
+
+
 
 // Writes a concrete value to the stack
 // XXX Not correct for function parameters for 32 bit linux kernel
