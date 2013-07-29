@@ -10,7 +10,6 @@
 #include "klee/Common.h"
 #include "klee/Solver.h"
 #include "klee/SolverImpl.h"
-
 #include "klee/SolverStats.h"
 #include "STPBuilder.h"
 
@@ -21,7 +20,6 @@
 #include "klee/util/ExprPPrinter.h"
 #include "klee/util/ExprUtil.h"
 #include "klee/Internal/Support/Timer.h"
-#include "llvm/Support/CommandLine.h"
 
 #define vc_bvBoolExtract IAMTHESPAWNOFSATAN
 
@@ -31,14 +29,21 @@
 #include <vector>
 
 #include <errno.h>
-#include <signal.h>
 #include <unistd.h>
-
+#include <signal.h>
 #ifndef __MINGW32__
-#include <sys/wait.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
+  #include <sys/wait.h>
+  #include <sys/ipc.h>
+  #include <sys/shm.h>
 #endif
+
+#include "llvm/Support/CommandLine.h"
+
+llvm::cl::opt<bool>
+IgnoreSolverFailures("ignore-solver-failures",
+                     llvm::cl::init(false),
+                     llvm::cl::desc("Ignore any solver failures (default=off)"));
+
 
 using namespace klee;
 
@@ -50,31 +55,7 @@ namespace {
 
 /***/
 
-const char *Solver::validity_to_str(Validity v) {
-  switch (v) {
-  default:    return "Unknown";
-  case True:  return "True";
-  case False: return "False";
-  }
-}
-
-Solver::~Solver() {
-  delete impl;
-}
-
 SolverImpl::~SolverImpl() {
-}
-
-bool Solver::evaluate(const Query& query, Validity &result) {
-  assert(query.expr->getWidth() == Expr::Bool && "Invalid expression type!");
-
-  // Maintain invariants implementations expect.
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(query.expr)) {
-    result = CE->isTrue() ? True : False;
-    return true;
-  }
-
-  return impl->computeValidity(query, result);
 }
 
 bool SolverImpl::computeValidity(const Query& query, Solver::Validity &result) {
@@ -89,6 +70,55 @@ bool SolverImpl::computeValidity(const Query& query, Solver::Validity &result) {
     result = isFalse ? Solver::False : Solver::Unknown;
   }
   return true;
+}
+
+const char* SolverImpl::getOperationStatusString(SolverRunStatus statusCode)
+{
+    switch (statusCode)
+    {
+        case SOLVER_RUN_STATUS_SUCCESS_SOLVABLE:
+            return "OPERATION SUCCESSFUL, QUERY IS SOLVABLE";
+        case SOLVER_RUN_STATUS_SUCCESS_UNSOLVABLE:
+            return "OPERATION SUCCESSFUL, QUERY IS UNSOLVABLE";
+        case SOLVER_RUN_STATUS_FAILURE:
+            return "OPERATION FAILED";
+        case SOLVER_RUN_STATUS_TIMEOUT:
+            return "SOLVER TIMEOUT";
+        case SOLVER_RUN_STATUS_FORK_FAILED:
+            return "FORK FAILED";
+        case SOLVER_RUN_STATUS_INTERRUPTED:
+            return "SOLVER PROCESS INTERRUPTED";
+        case SOLVER_RUN_STATUS_UNEXPECTED_EXIT_CODE:
+            return "UNEXPECTED SOLVER PROCESS EXIT CODE";
+        case SOLVER_RUN_STATUS_WAITPID_FAILED:
+            return "WAITPID FAILED FOR SOLVER PROCESS";
+        default:
+            return "UNRECOGNIZED OPERATION STATUS";        
+    }    
+}
+
+const char *Solver::validity_to_str(Validity v) {
+  switch (v) {
+  default:    return "Unknown";
+  case True:  return "True";
+  case False: return "False";
+  }
+}
+
+Solver::~Solver() { 
+  delete impl; 
+}
+
+bool Solver::evaluate(const Query& query, Validity &result) {
+  assert(query.expr->getWidth() == Expr::Bool && "Invalid expression type!");
+
+  // Maintain invariants implementations expect.
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(query.expr)) {
+    result = CE->isTrue() ? True : False;
+    return true;
+  }
+
+  return impl->computeValidity(query, result);
 }
 
 bool Solver::mustBeTrue(const Query& query, bool &result) {
@@ -134,12 +164,12 @@ bool Solver::getValue(const Query& query, ref<ConstantExpr> &result) {
   ref<Expr> tmp;
   if (!impl->computeValue(query, tmp))
     return false;
-
+  
   result = cast<ConstantExpr>(tmp);
   return true;
 }
 
-bool
+bool 
 Solver::getInitialValues(const Query& query,
                          const std::vector<const Array*> &objects,
                          std::vector< std::vector<unsigned char> > &values) {
@@ -149,7 +179,7 @@ Solver::getInitialValues(const Query& query,
   // FIXME: Propogate this out.
   if (!hasSolution)
     return false;
-
+    
   return success;
 }
 
@@ -163,9 +193,9 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
     if (!evaluate(query, result))
       assert(0 && "computeValidity failed");
     switch (result) {
-    case Solver::True:
+    case Solver::True: 
       min = max = 1; break;
-    case Solver::False:
+    case Solver::False: 
       min = max = 0; break;
     default:
       min = 0, max = 1; break;
@@ -178,10 +208,10 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
     while (lo<hi) {
       mid = lo + (hi - lo)/2;
       bool res;
-      bool success =
+      bool success = 
         mustBeTrue(query.withExpr(
                      EqExpr::create(LShrExpr::create(e,
-                                                     ConstantExpr::create(mid,
+                                                     ConstantExpr::create(mid, 
                                                                           width)),
                                     ConstantExpr::create(0, width))),
                    res);
@@ -197,18 +227,18 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
 
       bits = lo;
     }
-
+    
     // could binary search for training zeros and offset
     // min max but unlikely to be very useful
 
     // check common case
     bool res = false;
-    bool success =
-      mayBeTrue(query.withExpr(EqExpr::create(e, ConstantExpr::create(0,
-                                                                      width))),
+    bool success = 
+      mayBeTrue(query.withExpr(EqExpr::create(e, ConstantExpr::create(0, 
+                                                                      width))), 
                 res);
 
-    assert(success && "FIXME: Unhandled solver failure");
+    assert(success && "FIXME: Unhandled solver failure");      
     (void) success;
 
     if (res) {
@@ -219,13 +249,13 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
       while (lo<hi) {
         mid = lo + (hi - lo)/2;
         bool res = false;
-        bool success =
-          mayBeTrue(query.withExpr(UleExpr::create(e,
-                                                   ConstantExpr::create(mid,
+        bool success = 
+          mayBeTrue(query.withExpr(UleExpr::create(e, 
+                                                   ConstantExpr::create(mid, 
                                                                         width))),
                     res);
 
-        assert(success && "FIXME: Unhandled solver failure");
+        assert(success && "FIXME: Unhandled solver failure");      
         (void) success;
 
         if (res) {
@@ -243,13 +273,13 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
     while (lo<hi) {
       mid = lo + (hi - lo)/2;
       bool res;
-      bool success =
-        mustBeTrue(query.withExpr(UleExpr::create(e,
-                                                  ConstantExpr::create(mid,
+      bool success = 
+        mustBeTrue(query.withExpr(UleExpr::create(e, 
+                                                  ConstantExpr::create(mid, 
                                                                        width))),
                    res);
 
-      assert(success && "FIXME: Unhandled solver failure");
+      assert(success && "FIXME: Unhandled solver failure");      
       (void) success;
 
       if (res) {
@@ -272,11 +302,11 @@ class ValidatingSolver : public SolverImpl {
 private:
   Solver *solver, *oracle;
 
-public:
-  ValidatingSolver(Solver *_solver, Solver *_oracle)
+public: 
+  ValidatingSolver(Solver *_solver, Solver *_oracle) 
     : solver(_solver), oracle(_oracle) {}
   ~ValidatingSolver() { delete solver; }
-
+  
   bool computeValidity(const Query&, Solver::Validity &result);
   bool computeTruth(const Query&, bool &isValid);
   bool computeValue(const Query&, ref<Expr> &result);
@@ -284,6 +314,7 @@ public:
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
                             bool &hasSolution);
+  SolverRunStatus getOperationStatusCode();
 };
 
 bool ValidatingSolver::computeTruth(const Query& query,
@@ -302,7 +333,7 @@ bool ValidatingSolver::computeTruth(const Query& query,
         if (!solver->impl->computeTruth(query, res2))
           return false;
 
-	if (res1 == res2)
+ if (res1 == res2)
           results[i] = res1;
         else
           results[i] = rand() & 1 ? res1:res2;
@@ -321,19 +352,18 @@ bool ValidatingSolver::computeTruth(const Query& query,
     return true;
 #else
     bool answer;
-
+  
   if (!solver->impl->computeTruth(query, isValid))
     return false;
   if (!oracle->impl->computeTruth(query, answer))
     return false;
-
+  
   if (isValid != answer)
     assert(0 && "invalid solver result (computeTruth)");
-
+  
   return true;
-#endif
-
-
+  
+  #endif
 }
 
 bool ValidatingSolver::computeValidity(const Query& query,
@@ -341,7 +371,7 @@ bool ValidatingSolver::computeValidity(const Query& query,
 #if defined(VOTING_SOLVER)
     Solver::Validity results[VOTE_COUNT];
     unsigned trueCount = 0, falseCount = 0, unknownCount = 0;
-    for (unsigned i=0; i<VOTE_COUNT; ++i) {
+   for (unsigned i=0; i<VOTE_COUNT; ++i) {
         Solver::Validity res1, res2;
         if (!solver->impl->computeValidity(query, res1))
           return false;
@@ -355,7 +385,7 @@ bool ValidatingSolver::computeValidity(const Query& query,
           results[i] = res1;
 
         switch(results[i]) {
-            case Solver::True: ++trueCount; break;
+           case Solver::True: ++trueCount; break;
             case Solver::False: ++falseCount; break;
             case Solver::Unknown: ++unknownCount; break;
             default: assert(false);
@@ -370,7 +400,7 @@ bool ValidatingSolver::computeValidity(const Query& query,
     if (falseCount > trueCount && trueCount >= unknownCount)
         result = Solver::False;
     else
-    if (falseCount > unknownCount && unknownCount >= trueCount)
+   if (falseCount > unknownCount && unknownCount >= trueCount)
         result = Solver::False;
     else
     if (unknownCount > falseCount && falseCount >= trueCount)
@@ -382,28 +412,29 @@ bool ValidatingSolver::computeValidity(const Query& query,
     return true;
 #else
     Solver::Validity answer;
-
+  
   if (!solver->impl->computeValidity(query, result))
     return false;
   if (!oracle->impl->computeValidity(query, answer))
     return false;
-
+  
   if (result != answer)
     assert(0 && "invalid solver result (computeValidity)");
-
+  
   return true;
-#endif
+  
+  #endif
 }
 
 bool ValidatingSolver::computeValue(const Query& query,
-                                    ref<Expr> &result) {
+                                    ref<Expr> &result) {  
   bool answer;
 
   if (!solver->impl->computeValue(query, result))
     return false;
   // We don't want to compare, but just make sure this is a legal
   // solution.
-  if (!oracle->impl->computeTruth(query.withExpr(NeExpr::create(query.expr,
+  if (!oracle->impl->computeTruth(query.withExpr(NeExpr::create(query.expr, 
                                                                 result)),
                                   answer))
     return false;
@@ -414,7 +445,7 @@ bool ValidatingSolver::computeValue(const Query& query,
   return true;
 }
 
-bool
+bool 
 ValidatingSolver::computeInitialValues(const Query& query,
                                        const std::vector<const Array*>
                                          &objects,
@@ -423,7 +454,7 @@ ValidatingSolver::computeInitialValues(const Query& query,
                                        bool &hasSolution) {
   bool answer;
 
-  if (!solver->impl->computeInitialValues(query, objects, values,
+  if (!solver->impl->computeInitialValues(query, objects, values, 
                                           hasSolution))
     return false;
 
@@ -442,10 +473,10 @@ ValidatingSolver::computeInitialValues(const Query& query,
     }
     ConstraintManager tmp(bindings);
     ref<Expr> constraints = Expr::createIsZero(query.expr);
-    for (ConstraintManager::const_iterator it = query.constraints.begin(),
+    for (ConstraintManager::const_iterator it = query.constraints.begin(), 
            ie = query.constraints.end(); it != ie; ++it)
       constraints = AndExpr::create(constraints, *it);
-
+    
     if (!oracle->impl->computeTruth(Query(tmp, constraints), answer))
       return false;
     if (!answer)
@@ -454,10 +485,14 @@ ValidatingSolver::computeInitialValues(const Query& query,
     if (!oracle->impl->computeTruth(query, answer))
       return false;
     if (!answer)
-      assert(0 && "invalid solver result (computeInitialValues)");
+      assert(0 && "invalid solver result (computeInitialValues)");    
   }
 
   return true;
+}
+
+SolverImpl::SolverRunStatus ValidatingSolver::getOperationStatusCode() {
+    return solver->impl->getOperationStatusCode();
 }
 
 Solver *klee::createValidatingSolver(Solver *s, Solver *oracle) {
@@ -467,32 +502,36 @@ Solver *klee::createValidatingSolver(Solver *s, Solver *oracle) {
 /***/
 
 class DummySolverImpl : public SolverImpl {
-public:
+public: 
   DummySolverImpl() {}
-
-  bool computeValidity(const Query&, Solver::Validity &result) {
+  
+  bool computeValidity(const Query&, Solver::Validity &result) { 
     ++stats::queries;
     // FIXME: We should have stats::queriesFail;
-    return false;
+    return false; 
   }
-  bool computeTruth(const Query&, bool &isValid) {
+  bool computeTruth(const Query&, bool &isValid) { 
     ++stats::queries;
     // FIXME: We should have stats::queriesFail;
-    return false;
+    return false; 
   }
-  bool computeValue(const Query&, ref<Expr> &result) {
+  bool computeValue(const Query&, ref<Expr> &result) { 
     ++stats::queries;
     ++stats::queryCounterexamples;
-    return false;
+    return false; 
   }
   bool computeInitialValues(const Query&,
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
-                            bool &hasSolution) {
+                            bool &hasSolution) { 
     ++stats::queries;
     ++stats::queryCounterexamples;
-    return false;
+    return false; 
   }
+  SolverRunStatus getOperationStatusCode() {
+      return SOLVER_RUN_STATUS_FAILURE;
+  }
+  
 };
 
 Solver *klee::createDummySolver() {
@@ -509,11 +548,13 @@ private:
   STPBuilder *builder;
   double timeout;
   bool useForkedSTP;
+  SolverRunStatus runStatusCode;
 
+  
   void reinstantiate();
 
 public:
-  STPSolverImpl(STPSolver *_solver, bool _useForkedSTP);
+  STPSolverImpl(STPSolver *_solver, bool _useForkedSTP, bool _optimizeDivides = true);
   ~STPSolverImpl();
 
   char *getConstraintLog(const Query&);
@@ -525,6 +566,7 @@ public:
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
                             bool &hasSolution);
+  SolverRunStatus getOperationStatusCode();
 };
 
 static unsigned char *shared_memory_ptr;
@@ -533,35 +575,43 @@ static int shared_memory_id;
 
 static void stp_error_handler(const char* err_msg) {
   fprintf(stderr, "error: STP Error: %s\n", err_msg);
+  
   exit(-1);
 }
 
-STPSolverImpl::STPSolverImpl(STPSolver *_solver, bool _useForkedSTP)
+STPSolverImpl::STPSolverImpl(STPSolver *_solver, bool _useForkedSTP, bool _optimizeDivides)
   : solver(_solver),
     vc(vc_createValidityChecker()),
-    builder(new STPBuilder(vc)),
+    builder(new STPBuilder(vc, _optimizeDivides)),
     timeout(0.0),
-    useForkedSTP(_useForkedSTP)
+    useForkedSTP(_useForkedSTP),
+    runStatusCode(SOLVER_RUN_STATUS_FAILURE)
 {
   assert(vc && "unable to create validity checker");
   assert(builder && "unable to create STPBuilder");
 
-#ifdef HAVE_EXT_STP
+  // In newer versions of STP, a memory management mechanism has been
+  // introduced that automatically invalidates certain C interface
+  // pointers at vc_Destroy time.  This caused double-free errors
+  // due to the ExprHandle destructor also attempting to invalidate
+  // the pointers using vc_DeleteExpr.  By setting EXPRDELETE to 0
+  // we restore the old behaviour.
   vc_setInterfaceFlags(vc, EXPRDELETE, 0);
-#endif
 
   vc_registerErrorHandler(::stp_error_handler);
 
   if (useForkedSTP) {
-#ifdef __MINGW32__
+    
+    #ifdef __MINGW32__
     assert(false && "Cannot use forked stp solver on Windows");
-#else
+    #else
     shared_memory_id = shmget(IPC_PRIVATE, shared_memory_size, IPC_CREAT | 0700);
     assert(shared_memory_id>=0 && "shmget failed");
     shared_memory_ptr = (unsigned char*) shmat(shared_memory_id, NULL, 0);
     assert(shared_memory_ptr!=(void*)-1 && "shmat failed");
     shmctl(shared_memory_id, IPC_RMID, NULL);
-#endif
+    
+    #endif
   }
 }
 
@@ -591,13 +641,13 @@ void STPSolverImpl::reinstantiate()
 
 /***/
 
-STPSolver::STPSolver(bool useForkedSTP)
-  : Solver(new STPSolverImpl(this, useForkedSTP))
+STPSolver::STPSolver(bool useForkedSTP, bool optimizeDivides)
+  : Solver(new STPSolverImpl(this, useForkedSTP, optimizeDivides))
 {
 }
 
 char *STPSolver::getConstraintLog(const Query &query) {
-  return static_cast<STPSolverImpl*>(impl)->getConstraintLog(query);
+  return static_cast<STPSolverImpl*>(impl)->getConstraintLog(query);  
 }
 
 void STPSolver::setTimeout(double timeout) {
@@ -608,7 +658,7 @@ void STPSolver::setTimeout(double timeout) {
 
 char *STPSolverImpl::getConstraintLog(const Query &query) {
   vc_push(vc);
-  for (std::vector< ref<Expr> >::const_iterator it = query.constraints.begin(),
+  for (std::vector< ref<Expr> >::const_iterator it = query.constraints.begin(), 
          ie = query.constraints.end(); it != ie; ++it)
     vc_assertFormula(vc, builder->construct(*it));
   assert(query.expr == ConstantExpr::alloc(0, Expr::Bool) &&
@@ -616,7 +666,7 @@ char *STPSolverImpl::getConstraintLog(const Query &query) {
 
   char *buffer;
   unsigned long length;
-  vc_printQueryStateToBuffer(vc, builder->getFalse(),
+  vc_printQueryStateToBuffer(vc, builder->getFalse(), 
                              &buffer, &length, false);
   vc_pop(vc);
 
@@ -648,7 +698,7 @@ bool STPSolverImpl::computeValue(const Query& query,
   if (!computeInitialValues(query.withFalse(), objects, values, hasSolution))
     return false;
   assert(hasSolution && "state has invalid constraint set");
-
+  
   // Evaluate the expression with the computed assignment.
   Assignment a(objects, values);
   result = a.evaluate(query.expr);
@@ -656,14 +706,12 @@ bool STPSolverImpl::computeValue(const Query& query,
   return true;
 }
 
-
-static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
-                   const std::vector<const Array*> &objects,
-                   std::vector< std::vector<unsigned char> > &values,
-                   bool &hasSolution) {
+static SolverImpl::SolverRunStatus runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
+                                                const std::vector<const Array*> &objects,
+                                                std::vector< std::vector<unsigned char> > &values,
+                                                bool &hasSolution) {
   // XXX I want to be able to timeout here, safely
-    int result;
-
+  int result;
     result = vc_query(vc, q);
 
     if (result < 0) {
@@ -680,7 +728,7 @@ static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
         }
 
         //Bug in stp
-        throw std::exception();
+        //throw std::exception();
     }
 
 //    klee_message_stream << "solver returned " << *result << '\n';
@@ -703,21 +751,27 @@ static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
 
             values.push_back(data);
         }
-    }
+      }
+  if (true == hasSolution) {
+    return SolverImpl::SOLVER_RUN_STATUS_SUCCESS_SOLVABLE;
+  }
+  else {
+    return SolverImpl::SOLVER_RUN_STATUS_SUCCESS_UNSOLVABLE;  
+  }
 }
 
 static void stpTimeoutHandler(int x) {
   _exit(52);
 }
 
-static bool runAndGetCexForked(::VC vc,
-                               STPBuilder *builder,
-                               ::VCExpr q,
-                               const std::vector<const Array*> &objects,
-                               std::vector< std::vector<unsigned char> >
-                                 &values,
-                               bool &hasSolution,
-                               double timeout) {
+static SolverImpl::SolverRunStatus runAndGetCexForked(::VC vc, 
+                                                      STPBuilder *builder,
+                                                      ::VCExpr q,
+                                                      const std::vector<const Array*> &objects,
+                                                      std::vector< std::vector<unsigned char> >
+                                                      &values,
+                                                      bool &hasSolution,
+                                                      double timeout) {
 #ifdef __MINGW32__
   assert(false && "Cannot run runAndGetCexForked on Windows");
   return false;
@@ -740,24 +794,27 @@ static bool runAndGetCexForked(::VC vc,
 
   int pid = fork();
   if (pid==-1) {
-    fprintf(stderr, "error: fork failed (for STP)");
-    return false;
+    fprintf(stderr, "ERROR: fork failed (for STP)");
+    if (!IgnoreSolverFailures) 
+      exit(1);
+    return SolverImpl::SOLVER_RUN_STATUS_FORK_FAILED;
   }
 
   if (pid == 0) {
+    
     sigprocmask(SIG_SETMASK, &sig_mask_old, NULL);
-    if (timeout) {
+    if (timeout) {      
       ::alarm(0); /* Turn off alarm so we can safely set signal handler */
       ::signal(SIGALRM, stpTimeoutHandler);
       ::alarm(std::max(1, (int)timeout));
-    }
+    }    
     unsigned res = vc_query(vc, q);
     if (!res) {
       for (std::vector<const Array*>::const_iterator
              it = objects.begin(), ie = objects.end(); it != ie; ++it) {
         const Array *array = *it;
         for (unsigned offset = 0; offset < array->size; offset++) {
-          ExprHandle counter =
+          ExprHandle counter = 
             vc_getCounterExample(vc, builder->getInitialRead(array, offset));
           *pos++ = getBVUnsigned(counter);
         }
@@ -772,20 +829,26 @@ static bool runAndGetCexForked(::VC vc,
       res = waitpid(pid, &status, 0);
     } while (res < 0 && errno == EINTR);
 
+    
     sigprocmask(SIG_SETMASK, &sig_mask_old, NULL);
-
+    
     if (res < 0) {
       fprintf(stderr, "error: waitpid() for STP failed\n");
       perror("waitpid()");
-      return false;
+      if (!IgnoreSolverFailures) 
+	exit(1);
+      return SolverImpl::SOLVER_RUN_STATUS_WAITPID_FAILED;
     }
-
+    
     // From timed_run.py: It appears that linux at least will on
     // "occasion" return a status when the process was terminated by a
     // signal, so test signal first.
     if (WIFSIGNALED(status) || !WIFEXITED(status)) {
-      fprintf(stderr, "error: STP did not return successfully\n");
-      return false;
+      fprintf(stderr, "ERROR: STP did not return successfully.  Most likely you forgot to run 'ulimit -s unlimited'\n");
+      if (!IgnoreSolverFailures)  {
+	exit(1);
+      }
+      return SolverImpl::SOLVER_RUN_STATUS_INTERRUPTED;
     }
 
     int exitcode = WEXITSTATUS(status);
@@ -795,12 +858,16 @@ static bool runAndGetCexForked(::VC vc,
       hasSolution = false;
     } else if (exitcode==52) {
       fprintf(stderr, "error: STP timed out");
-      return false;
+      // mark that a timeout occurred
+      return SolverImpl::SOLVER_RUN_STATUS_TIMEOUT;
     } else {
+      
       fprintf(stderr, "error: STP did not return a recognized code (%d)\n", exitcode);
-      return false;
+      if (!IgnoreSolverFailures) 
+	exit(1);
+      return SolverImpl::SOLVER_RUN_STATUS_UNEXPECTED_EXIT_CODE;
     }
-
+    
     if (hasSolution) {
       values = std::vector< std::vector<unsigned char> >(objects.size());
       unsigned i=0;
@@ -812,36 +879,45 @@ static bool runAndGetCexForked(::VC vc,
         pos += array->size;
       }
     }
-
-    return true;
+    
+    if (true == hasSolution) {
+      return SolverImpl::SOLVER_RUN_STATUS_SUCCESS_SOLVABLE;
+    }
+    else {        
+      return SolverImpl::SOLVER_RUN_STATUS_SUCCESS_UNSOLVABLE;
+    }
   }
-#endif
+  #endif
 }
+#include <iostream>
 static bool __stp_printstate = true;
 extern llvm::raw_ostream *g_solverLog;
 
 bool
 STPSolverImpl::computeInitialValues(const Query &query,
-                                    const std::vector<const Array*>
+                                    const std::vector<const Array*> 
                                       &objects,
-                                    std::vector< std::vector<unsigned char> >
+                                    std::vector< std::vector<unsigned char> > 
                                       &values,
                                     bool &hasSolution) {
+  runStatusCode =  SOLVER_RUN_STATUS_FAILURE; 
+    
   TimerStatIncrementer t(stats::queryTime);
 
+  
   reinstantiate();
 
   vc_push(vc);
 
-  for (ConstraintManager::const_iterator it = query.constraints.begin(),
+  for (ConstraintManager::const_iterator it = query.constraints.begin(), 
          ie = query.constraints.end(); it != ie; ++it)
     vc_assertFormula(vc, builder->construct(*it));
-
+  
   ++stats::queries;
   ++stats::queryCounterexamples;
 
   ExprHandle stp_e = builder->construct(query.expr);
-
+     
   if (__stp_printstate) {
     char *buf;
     if (g_solverLog) {
@@ -857,8 +933,10 @@ STPSolverImpl::computeInitialValues(const Query &query,
 
   bool success;
   if (useForkedSTP) {
-    success = runAndGetCexForked(vc, builder, stp_e, objects, values,
-                                 hasSolution, timeout);
+    runStatusCode = runAndGetCexForked(vc, builder, stp_e, objects, values, 
+                                       hasSolution, timeout);
+    success = ((SOLVER_RUN_STATUS_SUCCESS_SOLVABLE == runStatusCode) ||
+               (SOLVER_RUN_STATUS_SUCCESS_UNSOLVABLE == runStatusCode));    
   } else {
     try {
         runAndGetCex(vc, builder, stp_e, objects, values, hasSolution);
@@ -872,16 +950,19 @@ STPSolverImpl::computeInitialValues(const Query &query,
         return success;
     }
   }
-
+  
   if (success) {
     if (hasSolution)
       ++stats::queriesInvalid;
     else
       ++stats::queriesValid;
   }
-
+  
   vc_pop(vc);
-
-
+  
   return success;
+}
+
+SolverImpl::SolverRunStatus STPSolverImpl::getOperationStatusCode() {
+   return runStatusCode;
 }

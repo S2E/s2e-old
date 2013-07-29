@@ -1,13 +1,10 @@
 /* include/klee/Config/config.h.in.  Generated from autoconf/configure.tmp.ac by autoheader.  */
 
-/* Define if stplog enabled */
-#undef ENABLE_STPLOG
+#ifndef KLEE_CONFIG_CONFIG_H
+#define KLEE_CONFIG_CONFIG_H
 
 /* Does the platform use __ctype_b_loc, etc. */
 #undef HAVE_CTYPE_EXTERNALS
-
-/* Using external STP */
-#undef HAVE_EXT_STP
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
@@ -80,3 +77,5 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
+
+#endif

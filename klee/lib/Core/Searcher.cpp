@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "klee/Common.h"
 
 #include "klee/Searcher.h"
@@ -53,7 +54,6 @@ Searcher::~Searcher() {
 }
 
 ///
-
 ExecutionState &DFSSearcher::selectState() {
     ExecutionState *ret = states.back();
 
@@ -64,16 +64,19 @@ ExecutionState &DFSSearcher::selectState() {
     return *currentState;
 }
 
+
 void DFSSearcher::update(ExecutionState *current,
                          const std::set<ExecutionState*> &addedStates,
                          const std::set<ExecutionState*> &removedStates) {
-    bool firstTime = states.size() == 0;
-    states.insert(states.end(),
+  
+  bool firstTime = states.size() == 0;
+  states.insert(states.end(),
                 addedStates.begin(),
                 addedStates.end());
   for (std::set<ExecutionState*>::const_iterator it = removedStates.begin(),
          ie = removedStates.end(); it != ie; ++it) {
     ExecutionState *es = *it;
+  
     if (currentState == es) {
         currentState = NULL;
     }
@@ -96,7 +99,7 @@ void DFSSearcher::update(ExecutionState *current,
     }
   }
 
-  if (firstTime) {
+ if (firstTime) {
       currentState = states[0];
   }
 
@@ -231,6 +234,7 @@ RandomPathSearcher::RandomPathSearcher(Executor &_executor)
 RandomPathSearcher::~RandomPathSearcher() {
 }
 
+
 #if 1
 ExecutionState &RandomPathSearcher::selectState() {
     unsigned flips=0, bits=0;
@@ -285,11 +289,13 @@ ExecutionState &RandomPathSearcher::selectState() {
                 --bits;
                 n = (flips&(1<<bits)) ? n->left : n->right;
         }
-    }
+   }
+  }
 
-    return *n->data;
+  return *n->data;
 }
 #endif
+
 
 void RandomPathSearcher::update(ExecutionState *current,
                                 const std::set<ExecutionState*> &addedStates,
@@ -391,7 +397,6 @@ MergingSearcher::~MergingSearcher() {
 }
 
 ///
-
 uint64_t MergingSearcher::getMergePoint(ExecutionState &es) {
   if (mergeFunction) {
     Instruction *i = es.pc->inst;
@@ -406,10 +411,13 @@ uint64_t MergingSearcher::getMergePoint(ExecutionState &es) {
   return 0;
 }
 
+
 void MergingSearcher::queueStateForMerge(ExecutionState &es, uint64_t mergePoint) {
   baseSearcher->removeState(&es, &es);
   statesAtMerge.insert(std::make_pair(&es, mergePoint));
 }
+
+
 
 ExecutionState &MergingSearcher::selectState() {
   while (!baseSearcher->empty()) {
@@ -422,18 +430,21 @@ ExecutionState &MergingSearcher::selectState() {
       return es;
     }
   }
-  
+
+
   // build map of merge point -> state list
   std::map<uint64_t, std::vector<ExecutionState*> > merges;
   for (std::map<ExecutionState*, uint64_t>::const_iterator it = statesAtMerge.begin(),
          ie = statesAtMerge.end(); it != ie; ++it) {
-    merges[it->second].push_back(it->first);
+      merges[it->second].push_back(it->first);
   }
-
+  
   if (DebugLogMerge)
     std::cerr << "-- all at merge --\n";
+  
   for (std::map<uint64_t, std::vector<ExecutionState*> >::iterator
          it = merges.begin(), ie = merges.end(); it != ie; ++it) {
+    
     int mergeCount = 0;
     if (DebugLogMerge) {
       std::cerr << "\tmerge: " << it->first << " [";
@@ -483,13 +494,15 @@ ExecutionState &MergingSearcher::selectState() {
       ++base->pc;
       baseSearcher->addState(base);
     }  
+    
     if (DebugLogMerge)
       std::cerr << "\t\t" << mergeCount << " states merged\n";
   }
   
-  if (DebugLogMerge) {
-    std::cerr << "-- merge complete, continuing --\n";
+  if (DebugLogMerge){
+      std::cerr << "-- merge complete, continuing --\n";
   }
+
   
   return selectState();
 }
@@ -502,6 +515,7 @@ void MergingSearcher::update(ExecutionState *current,
     for (std::set<ExecutionState*>::const_iterator it = removedStates.begin(),
            ie = removedStates.end(); it != ie; ++it) {
       ExecutionState *es = *it;
+    
       std::map<ExecutionState*, uint64_t>::iterator itm = statesAtMerge.find(es);
       if (itm!=statesAtMerge.end()) {
         statesAtMerge.erase(itm);
@@ -530,6 +544,7 @@ BatchingSearcher::~BatchingSearcher() {
   delete baseSearcher;
 }
 
+
 extern volatile uint64_t g_timer_ticks;
 
 ExecutionState &BatchingSearcher::selectState() {
@@ -547,7 +562,8 @@ ExecutionState &BatchingSearcher::selectState() {
         timeBudget = delta;
       }
     }
-    */
+     */
+    
     ExecutionState* newState = &baseSearcher->selectState();
     if(newState != lastState) {
         lastState = newState;
@@ -555,6 +571,7 @@ ExecutionState &BatchingSearcher::selectState() {
         lastStartInstructions = stats::instructions;
     }
     return *newState;
+    
   } else {
     return *lastState;
   }
@@ -595,6 +612,7 @@ void IterativeDeepeningTimeSearcher::update(ExecutionState *current,
     for (std::set<ExecutionState*>::const_iterator it = removedStates.begin(),
            ie = removedStates.end(); it != ie; ++it) {
       ExecutionState *es = *it;
+    
       std::set<ExecutionState*>::const_iterator itp = pausedStates.find(es);
       if (itp!=pausedStates.end()) {
         pausedStates.erase(itp);

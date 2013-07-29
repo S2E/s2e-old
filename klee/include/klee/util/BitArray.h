@@ -17,6 +17,7 @@ namespace klee {
   // BitArrays
 class BitArray {
 private:
+  
   // XXX(s2e) for now we keep this first to access from C code
   // (yes, we do need to access if really fast)
   uint32_t *bits;
@@ -33,6 +34,7 @@ public:
   }
   ~BitArray() { delete[] bits; }
 
+  
   inline bool get(unsigned idx) { return (bool) ((bits[idx/32]>>(idx&0x1F))&1); }
   inline void set(unsigned idx) { bits[idx/32] |= 1<<(idx&0x1F); }
   inline void unset(unsigned idx) { bits[idx/32] &= ~(1<<(idx&0x1F)); }
@@ -53,6 +55,7 @@ public:
     uint32_t mask = (1 << (size&0x1F)) - 1;
     return (bits[size/32] & mask) == mask;
   }
+  
 };
 
 } // End klee namespace

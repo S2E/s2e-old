@@ -16,12 +16,14 @@
 
 #include "klee/Expr.h"
 
+
 #include "klee/Memory.h"
 
 #include "llvm/Function.h"
 #include "llvm/Support/CommandLine.h"
 
 #include <iostream>
+#include <iomanip>
 #include <cassert>
 #include <map>
 #include <set>
@@ -29,6 +31,7 @@
 
 using namespace llvm;
 using namespace klee;
+
 
 namespace klee {
 cl::opt<bool>
@@ -85,14 +88,22 @@ ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
     constraints(assumptions),
     queryCost(0.),
     addressSpace(this),
-    ptreeNode(0),
-    concolics(true),
-    speculative(false) {
+    ptreeNode(0) {
 }
 
 ExecutionState::~ExecutionState() {
+  for (unsigned int i=0; i<symbolics.size(); i++)
+  {
+    const MemoryObject *mo = symbolics[i].first;
+    assert(mo->refCount > 0);
+    mo->refCount--;
+    if (mo->refCount == 0)
+      delete mo;
+  }
+
   while (!stack.empty()) popFrame();
 }
+
 
 ExecutionState* ExecutionState::clone() {
   ExecutionState* state = new ExecutionState(*this);
@@ -104,9 +115,42 @@ void ExecutionState::addressSpaceChange(const MemoryObject*,
                                         const ObjectState*, ObjectState*) {
 }
 
+
+ExecutionState::ExecutionState(const ExecutionState& state)
+  : fnAliases(state.fnAliases),
+    fakeState(state.fakeState),
+    underConstrained(state.underConstrained),
+    depth(state.depth),
+    pc(state.pc),
+    prevPC(state.prevPC),
+    stack(state.stack),
+    constraints(state.constraints),
+    queryCost(state.queryCost),
+    weight(state.weight),
+    addressSpace(state.addressSpace),
+    pathOS(state.pathOS),
+    symPathOS(state.symPathOS),
+    instsSinceCovNew(state.instsSinceCovNew),
+    coveredNew(state.coveredNew),
+    forkDisabled(state.forkDisabled),
+    coveredLines(state.coveredLines),
+    ptreeNode(state.ptreeNode),
+    symbolics(state.symbolics),
+    arrayNames(state.arrayNames),
+    shadowObjects(state.shadowObjects),
+    incomingBBIndex(state.incomingBBIndex),
+    concolics(state.concolics),
+    speculative(state.speculative),
+    speculativeCondition(state.speculativeCondition)
+{
+  for (unsigned int i=0; i<symbolics.size(); i++)
+    symbolics[i].first->refCount++;
+}
+
 ExecutionState *ExecutionState::branch() {
   depth++;
 
+  
   ExecutionState *falseState = clone();
   falseState->coveredNew = false;
   falseState->coveredLines.clear();
@@ -129,6 +173,10 @@ void ExecutionState::popFrame() {
   stack.pop_back();
 }
 
+void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) { 
+  mo->refCount++;
+  symbolics.push_back(std::make_pair(mo, array));
+}
 ///
 
 std::string ExecutionState::getFnAlias(std::string fn) {
@@ -163,7 +211,8 @@ llvm::raw_ostream &klee::operator<<(llvm::raw_ostream &os, const MemoryMap &mm) 
 
 bool ExecutionState::merge(const ExecutionState &b) {
   if (DebugLogStateMerge)
-    llvm::errs() << "-- attempting merge of A:"
+    
+    llvm::errs() << "-- attempting merge of A:" 
                << this << " with B:" << &b << "--\n";
   if (pc != b.pc)
     return false;
@@ -201,19 +250,23 @@ bool ExecutionState::merge(const ExecutionState &b) {
                       commonConstraints.begin(), commonConstraints.end(),
                       std::inserter(bSuffix, bSuffix.end()));
   if (DebugLogStateMerge) {
+    
     llvm::errs() << "\tconstraint prefix: [";
     for (std::set< ref<Expr> >::iterator it = commonConstraints.begin(), 
            ie = commonConstraints.end(); it != ie; ++it)
+    
       llvm::errs() << *it << ", ";
     llvm::errs() << "]\n";
     llvm::errs() << "\tA suffix: [";
     for (std::set< ref<Expr> >::iterator it = aSuffix.begin(), 
            ie = aSuffix.end(); it != ie; ++it)
+      
       llvm::errs() << *it << ", ";
     llvm::errs() << "]\n";
     llvm::errs() << "\tB suffix: [";
     for (std::set< ref<Expr> >::iterator it = bSuffix.begin(), 
            ie = bSuffix.end(); it != ie; ++it)
+    
       llvm::errs() << *it << ", ";
     llvm::errs() << "]\n";
   }
@@ -317,4 +370,36 @@ bool ExecutionState::merge(const ExecutionState &b) {
   constraints.addConstraint(OrExpr::create(inA, inB));
 
   return true;
+}
+
+void ExecutionState::dumpStack(std::ostream &out) const {
+  unsigned idx = 0;
+  const KInstruction *target = prevPC;
+  for (ExecutionState::stack_ty::const_reverse_iterator
+         it = stack.rbegin(), ie = stack.rend();
+       it != ie; ++it) {
+    const StackFrame &sf = *it;
+    Function *f = sf.kf->function;
+    const InstructionInfo &ii = *target->info;
+    out << "\t#" << idx++ 
+        << " " << std::setw(8) << std::setfill('0') << ii.assemblyLine
+        << " in " << f->getName().str() << " (";
+    // Yawn, we could go up and print varargs if we wanted to.
+    unsigned index = 0;
+    for (Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end();
+         ai != ae; ++ai) {
+      if (ai!=f->arg_begin()) out << ", ";
+
+      out << ai->getName().str();
+      // XXX should go through function
+      ref<Expr> value = sf.locals[sf.kf->getArgRegister(index++)].value; 
+      if (isa<ConstantExpr>(value))
+        out << "=" << value;
+    }
+    out << ")";
+    if (ii.file != "")
+      out << " at " << ii.file << ":" << ii.line;
+    out << "\n";
+    target = sf.caller;
+  }
 }

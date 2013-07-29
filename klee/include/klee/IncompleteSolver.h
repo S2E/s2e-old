@@ -51,8 +51,8 @@ public:
   static PartialValidity negatePartialValidity(PartialValidity pv);
 
 public:
-  IncompleteSolver() {};
-  virtual ~IncompleteSolver() {};
+  IncompleteSolver() {}
+  virtual ~IncompleteSolver() {}
 
   /// computeValidity - Compute a partial validity for the given query.
   ///
@@ -101,6 +101,7 @@ public:
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
                             bool &hasSolution);
+  SolverRunStatus getOperationStatusCode();
 };
 
 }

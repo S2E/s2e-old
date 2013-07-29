@@ -15,14 +15,23 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Config/Version.h"
 #include "llvm/Module.h"
 #include "llvm/PassManager.h"
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/Support/CommandLine.h"
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9)
+#include "llvm/System/DynamicLibrary.h"
+#else
 #include "llvm/Support/DynamicLibrary.h"
+#endif
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+#include "llvm/Target/TargetData.h"
+#else
 #include "llvm/DataLayout.h"
+#endif
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
@@ -74,7 +83,6 @@ static cl::alias A1("S", cl::desc("Alias for --strip-debug"),
 static inline void addPass(PassManagerBase &PM, Pass *P) {
   if(dynamic_cast<FunctionPassManager*>(&PM) && !dynamic_cast<FunctionPass*>(P))
       return;
-
   // Add the pass to the pass manager...
   PM.add(P);
 
@@ -89,7 +97,9 @@ namespace llvm {
 static void AddStandardCompilePasses(PassManagerBase &PM) {
   PM.add(createVerifierPass());                  // Verify that input is correct
 
-  //addPass(PM, createLowerSetJmpPass());          // Lower llvm.setjmp/.longjmp
+#if LLVM_VERSION_CODE < LLVM_VERSION(3, 0)
+  addPass(PM, createLowerSetJmpPass());          // Lower llvm.setjmp/.longjmp
+#endif
 
   // If the -strip-debug command line option was specified, do it.
   if (StripDebug)
@@ -97,7 +107,7 @@ static void AddStandardCompilePasses(PassManagerBase &PM) {
 
   if (DisableOptimizations) return;
 
-#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 7)
   addPass(PM, createRaiseAllocationsPass());     // call %malloc -> malloc inst
 #endif
   addPass(PM, createCFGSimplificationPass());    // Clean up disgusting code
@@ -122,7 +132,7 @@ static void AddStandardCompilePasses(PassManagerBase &PM) {
   addPass(PM, createCFGSimplificationPass());    // Merge & remove BBs
   addPass(PM, createScalarReplAggregatesPass()); // Break up aggregate allocas
   addPass(PM, createInstructionCombiningPass()); // Combine silly seq's
-#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 7)
   addPass(PM, createCondPropagationPass());      // Propagate conditionals
 #endif
 
@@ -132,8 +142,9 @@ static void AddStandardCompilePasses(PassManagerBase &PM) {
   addPass(PM, createLoopRotatePass());
   addPass(PM, createLICMPass());                 // Hoist loop invariants
   addPass(PM, createLoopUnswitchPass());         // Unswitch loops.
-  //XXX: not available in llvm 2.9
-  //addPass(PM, createLoopIndexSplitPass());       // Index split loops.
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9)
+  addPass(PM, createLoopIndexSplitPass());       // Index split loops.
+#endif
   // FIXME : Removing instcombine causes nestedloop regression.
   addPass(PM, createInstructionCombiningPass());
   addPass(PM, createIndVarSimplifyPass());       // Canonicalize indvars
@@ -147,7 +158,7 @@ static void AddStandardCompilePasses(PassManagerBase &PM) {
   // Run instcombine after redundancy elimination to exploit opportunities
   // opened up by them.
   addPass(PM, createInstructionCombiningPass());
-#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 7)
   addPass(PM, createCondPropagationPass());      // Propagate conditionals
 #endif
 
@@ -155,7 +166,9 @@ static void AddStandardCompilePasses(PassManagerBase &PM) {
   addPass(PM, createAggressiveDCEPass());        // Delete dead instructions
   addPass(PM, createCFGSimplificationPass());    // Merge & remove BBs
   addPass(PM, createStripDeadPrototypesPass());  // Get rid of dead prototypes
-  //addPass(PM, createDeadTypeEliminationPass());  // Eliminate dead types
+#if LLVM_VERSION_CODE < LLVM_VERSION(3, 0)
+  addPass(PM, createDeadTypeEliminationPass());  // Eliminate dead types
+#endif
   addPass(PM, createConstantMergePass());        // Merge dup global constants
 }
 
@@ -163,16 +176,19 @@ static void AddStandardCompilePasses(PassManagerBase &PM) {
 /// optimizations, any loaded plugin-optimization modules, and then the
 /// inter-procedural optimizations if applicable.
 void CreateOptimizePasses(PassManagerBase& Passes, Module* M) {
-
   // Instantiate the pass manager to organize the passes.
   //PassManager Passes;
-
   // If we're verifying, start off with a verification pass.
   if (VerifyEach)
     Passes.add(createVerifierPass());
 
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
   // Add an appropriate TargetData instance for this module...
+  addPass(Passes, new TargetData(M));
+#else
+  // Add an appropriate DataLayout instance for this module...
   addPass(Passes, new DataLayout(M));
+#endif
 
   // DWD - Run the opt standard pass list as well.
   AddStandardCompilePasses(Passes);
@@ -181,8 +197,14 @@ void CreateOptimizePasses(PassManagerBase& Passes, Module* M) {
     // Now that composite has been compiled, scan through the module, looking
     // for a main function.  If main is defined, mark all other functions
     // internal.
-    if (!DisableInternalize)
-      addPass(Passes, createInternalizePass(std::vector<const char *>(1, "main")));
+    if (!DisableInternalize) {
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 2)
+      ModulePass *pass = createInternalizePass(std::vector<const char *>(1, "main"));
+#else
+      ModulePass *pass = createInternalizePass(true);
+#endif
+      addPass(Passes, pass);
+    }
 
     // Propagate constants at call sites into the functions they call.  This
     // opens opportunities for globalopt (and inlining) by substituting function

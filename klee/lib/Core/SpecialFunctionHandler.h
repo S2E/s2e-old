@@ -31,6 +31,7 @@ namespace klee {
                                                     KInstruction *target, 
                                                     std::vector<ref<Expr> > 
                                                       &arguments);
+    
 
     typedef void (*FunctionHandler)(Executor* executor,
                                     ExecutionState *state,
@@ -38,13 +39,18 @@ namespace klee {
                                     std::vector<ref<Expr> >
                                     &arguments);
 
+
+
     typedef std::map<const llvm::Function*, 
                      std::pair<Handler,bool> > handlers_ty;
+
 
     typedef std::map<const llvm::Function*,
                      std::pair<FunctionHandler,bool> > uhandlers_ty;
 
+
     handlers_ty handlers;
+
 
     /* uhandlers are user defined handlers that can be added
        or removed during symbolic execution. */
@@ -113,6 +119,7 @@ namespace klee {
     HANDLER(handleRevirtObjects);
     HANDLER(handleSetForking);
     HANDLER(handleSilentExit);
+    HANDLER(handleStackTrace);
     HANDLER(handleUnderConstrained);
     HANDLER(handleWarning);
     HANDLER(handleWarningOnce);

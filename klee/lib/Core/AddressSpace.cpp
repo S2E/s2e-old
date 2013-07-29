@@ -8,34 +8,37 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/AddressSpace.h"
+
 #include "klee/CoreStats.h"
 #include "klee/Memory.h"
 #include "TimingSolver.h"
 
 #include "klee/Expr.h"
 #include "klee/TimerStatIncrementer.h"
-#include "klee/ExecutionState.h"
 
+#include "klee/ExecutionState.h"
 using namespace klee;
 
 ///
 
 void AddressSpace::bindObject(const MemoryObject *mo, ObjectState *os) {
+  
   assert(state);
   const ObjectState *oldOS = findObject(mo);
   if(oldOS) state->addressSpaceChange(mo, oldOS, NULL);
   state->addressSpaceChange(mo, NULL, os);
-
+  // s2e end
   assert(os->copyOnWriteOwner==0 && "object already has owner");
   os->copyOnWriteOwner = cowKey;
   objects = objects.replace(std::make_pair(mo, os));
 }
 
 void AddressSpace::unbindObject(const MemoryObject *mo) {
+  
   assert(state);
   const ObjectState *os = findObject(mo);
   if(os) state->addressSpaceChange(mo, os, NULL);
-
+  
   objects = objects.remove(mo);
 }
 
@@ -45,11 +48,13 @@ const ObjectState *AddressSpace::findObject(const MemoryObject *mo) const {
   return res ? res->second : 0;
 }
 
+
 ObjectPair AddressSpace::findObject(uint64_t address) const {
   MemoryObject hack(address);
   const MemoryMap::value_type *res = objects.lookup(&hack);
   return res ? ObjectPair(*res) : ObjectPair(NULL, NULL);
 }
+
 
 ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
                                         const ObjectState *os) {
@@ -60,10 +65,10 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
   } else {
     ObjectState *n = new ObjectState(*os);
     n->copyOnWriteOwner = cowKey;
-
+    
     assert(state);
     state->addressSpaceChange(mo, os, n);
-
+    
     objects = objects.replace(std::make_pair(mo, n));
     return n;    
   }
@@ -73,6 +78,8 @@ bool AddressSpace::isOwnedByUs(const ObjectState *os) const
 {
     return cowKey==os->copyOnWriteOwner;
 }
+
+
 
 /// 
 
@@ -156,6 +163,7 @@ bool AddressSpace::resolveOneFast(BitfieldSimplifier &simplifier,
 
     return true;
 }
+
 
 bool AddressSpace::resolveOne(ExecutionState &state,
                               TimingSolver *solver,
@@ -379,21 +387,25 @@ bool AddressSpace::resolve(ExecutionState &state,
 // then its concrete cache byte isn't being used) but is just a hack.
 
 void AddressSpace::copyOutConcretes() {
+  
   for (MemoryMap::iterator it = objects.begin(),
             ie = objects.end(); it != ie; ++it) {
+    
     const MemoryObject *mo = it->first;
+    
     if(mo->isUserSpecified)
         continue;
-
     const ObjectState *os = it->second;
     uint8_t *address = (uint8_t*) (uintptr_t) mo->address;
 
     if (!os->readOnly)
       memcpy(address, os->concreteStore, mo->size);
+    
+    }
   }
-}
 
 bool AddressSpace::copyInConcretes() {
+  
   for (MemoryMap::iterator it = objects.begin(),
             ie = objects.end(); it != ie; ++it) {
     const MemoryObject *mo = it->first;
@@ -411,7 +423,7 @@ bool AddressSpace::copyInConcretes() {
       memcpy(wos->concreteStore, address, mo->size);
     }
   }
-
+  
   return true;
 }
 

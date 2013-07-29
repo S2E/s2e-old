@@ -82,6 +82,7 @@ public:
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
                             bool &hasSolution);
+  SolverRunStatus getOperationStatusCode();
 };
 
 ///
@@ -223,7 +224,8 @@ bool CexCachingSolver::getAssignment(const Query& query, Assignment *&result) {
       assert(binding->satisfies(key.begin(), key.end()));
   } else {
     binding = (Assignment*) 0;
-    //return false;
+    
+    //return false
   }
   
   result = binding;
@@ -301,8 +303,8 @@ bool CexCachingSolver::computeValue(const Query& query,
   if (!getAssignment(query.withFalse(), a))
     return false;
   assert(a && "computeValue() must have assignment");
-
-  result = a->evaluate(query.expr);
+  
+  result = a->evaluate(query.expr);  
   assert(isa<ConstantExpr>(result) && 
          "assignment evaluation did not result in constant");
   return true;
@@ -339,6 +341,10 @@ CexCachingSolver::computeInitialValues(const Query& query,
   }
   
   return true;
+}
+
+SolverImpl::SolverRunStatus CexCachingSolver::getOperationStatusCode() {
+  return solver->impl->getOperationStatusCode();
 }
 
 ///

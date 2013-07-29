@@ -170,10 +170,12 @@
   <h3><a name="expr_labels">Expression and Version Labels</a></h3>
 
   <p>Expressions are frequently shared among constraints and query
-    expressions. In order to keep the output succinct and readable,
-    expression labels can be used to introduce a lexical binding which can
-    be used in subsequent expressions.</p>
-  
+    expressions. In order to keep the output succinct and readable, expression
+    labels can be used to introduce a lexical binding which can be used in
+    subsequent expressions. Expression labels are globally scoped through the
+    entire source file, and a definition must preceed any use in the source
+    file.</p>
+
   <p><b>Syntax:</b></p>
   <div class="syntax">
     expression = identifier ":" expression<br>
@@ -184,7 +186,10 @@
 
   <p><b>Examples:</b></p>
   <div class="example">
-    (Add w32 N0:(Add w32 1 1) N0) <font color="Red"># Four</font>
+    (Add w32 N0:(Add w32 1 1) N0) <font color="Red"># Four</font><br><br>
+    array const_array[] : w32 -> w8 = [5,6]<br>
+    (Read w8 0 U0:[0=255] @ const_array) <font color="Red"># U0 now refers to an array [255,6]</font><br>
+    (Read w8 1 U0) <font color="Red"># Read from byte offset 1 of [255,6]</font><br>
   </div>
 
   <h2><a name="literals">Literals</a></h2>
@@ -265,7 +270,8 @@
   <p><b>Syntax:</b></p>
   <div class="syntax">
     array-declaration = "array" name "[" [ size ] "]" ":" domain "->" range "=" array-initializer<br>
-    array-initializer = "symbolic" | "[" { numeric-literal } "]"<br>
+    array-initializer = "symbolic" | "[" number-list "]"<br>
+    number-list = number | number "," number-list<br>
   </div>
 
   <p>Arrays can be initialized to be either symbolic, or to have a given list of
@@ -297,7 +303,7 @@
   <p><b>Examples:</b></p>
   <div class="example">
     (query [] false)<br>
-    (query [(Eq w8 (Read w8 mem 0) 10)] false [] [ mem ])<br>
+    (query [(Eq w8 (Read w8 0 mem) 10)] false [] [ mem ])<br>
   </div>
 
   <p>A query command consists a query, consisting of a constraint list and
@@ -326,6 +332,13 @@
     update-list = lhs-expression "=" rhs-expression [ "," update-list ]<br>
   </div>
 
+  <p><b>Examples:</b></p>
+  <div class="example">
+    array small_array[2] : w32 -> w8 = symbolic <font color="Red"># The array we will read from</font><br>
+    <br>
+    (Read w8 0 thing) <font color="Red"># No Updates to small_array</font><br>
+    (Read w8 1 [1=0xff] @ small_array) <font color="Red"># Read from small_array at byte offset 1 with update where byte 1 set to decimal 255</font><br>
+  </div>
   <p>A version can be specified either by an identifier, which can refer to an
   array or a <a href="#expr_labels">labelled version</a>, or by an explicit list
   of writes which are to be concatenated to another version (the most recent
@@ -543,13 +556,13 @@
 
   <p><b>Syntax:</b></p>
   <div class="syntax">
-    expression = "(" "Read" type index-expression version-specifier ")"<br>
+    expression = "(" "Read" type index-expression version ")"<br>
   </div>
 
   <p>The <b>Read</b> expression evaluates to the first write
-  in <i>version-specifier</i> for which <i>index-expression</i> is equivalent to
+  in <i>version</i> for which <i>index-expression</i> is equivalent to
   the index in the write. The type of the expression must match the range of the
-  root array in <i>version-specifier</i>, and the type
+  root array in <i>version</i>, and the type
   of <i>index-expression</i> must match the domain.</p>
 
   <h4><a name="Select_expr">Select</a></h4>
@@ -590,8 +603,8 @@
 
   <p><b>Syntax:</b></p>
   <div class="syntax">
-    expression = "(" "ReadLSB" type index-expression version-specifier ")"<br>
-    expression = "(" "ReadMSB" type index-expression version-specifier ")"<br>
+    expression = "(" "ReadLSB" type index-expression version ")"<br>
+    expression = "(" "ReadMSB" type index-expression version ")"<br>
   </div>
 
   <p><b>ReadLSB</b> and <b>ReadMSB</b> can be used to simplify contiguous array

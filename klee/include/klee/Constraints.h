@@ -11,8 +11,8 @@
 #define KLEE_CONSTRAINTS_H
 
 #include "klee/Expr.h"
-#include <llvm/Support/raw_ostream.h>
 
+#include <llvm/Support/raw_ostream.h>
 // FIXME: Currently we use ConstraintManager for two things: to pass
 // sets of constraints around, and to optimize constraints. We should
 // move the first usage into a separate data structure
@@ -67,10 +67,10 @@ public:
   }
   
   void print(llvm::raw_ostream &os) {
-      const_iterator it;
-      for (it = begin(); it != end(); ++it) {
-          os << "Constraint " << *it << "\n";
-      }
+    const_iterator it;
+    for (it = begin(); it != end(); ++it) {
+        os << "Constraint " << *it << "\n";
+    }
   }
 
 private:

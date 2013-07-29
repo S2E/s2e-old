@@ -10,7 +10,12 @@
 #ifndef KLEE_KINSTRUCTION_H
 #define KLEE_KINSTRUCTION_H
 
+#include "klee/Config/Version.h"
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9) && LLVM_VERSION_CODE >= LLVM_VERSION(2, 7)
+#include "llvm/System/DataTypes.h"
+#else
 #include "llvm/Support/DataTypes.h"
+#endif
 #include <vector>
 
 namespace llvm {
@@ -22,7 +27,6 @@ namespace klee {
   struct InstructionInfo;
   class KModule;
   struct KFunction;
-
 
   /// KInstruction - Intermediate instruction representation used
   /// during execution.
@@ -61,9 +65,8 @@ namespace klee {
                           // thus may lead to further errors
       static bool classof(const KInstruction *) { return true; }
     };
+
 }
-
-
 
 #endif
 

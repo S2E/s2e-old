@@ -17,7 +17,6 @@
 
 #include "klee/BitfieldSimplifier.h"
 
-
 namespace klee {
   class ExecutionState;
   class MemoryObject;
@@ -54,6 +53,7 @@ namespace klee {
     /// \invariant forall o in objects, o->copyOnWriteOwner <= cowKey
     MemoryMap objects;
 
+    
     /// ExecutionState that owns this AddressSpace
     ExecutionState *state;
 
@@ -66,8 +66,9 @@ namespace klee {
                                       Expr::Width width,
                                       ObjectPair &result,
                                       bool *inBounds);
-
+    
   public:
+    
     AddressSpace(ExecutionState* _state) : cowKey(1), state(_state) {}
     AddressSpace(const AddressSpace &b) :
             cowKey(++b.cowKey), objects(b.objects), state(NULL) { }
@@ -117,8 +118,10 @@ namespace klee {
     /// Lookup a binding from a MemoryObject.
     const ObjectState *findObject(const MemoryObject *mo) const;
 
+    
     /// Lookup a binding from a MemoryObject address.
     ObjectPair findObject(uint64_t address) const;
+
 
     /// \brief Obtain an ObjectState suitable for writing.
     ///
@@ -132,11 +135,12 @@ namespace klee {
     /// \return A writeable ObjectState (\a os or a copy).
     ObjectState *getWriteable(const MemoryObject *mo, const ObjectState *os);
 
-    bool isOwnedByUs(const ObjectState *os) const;
-
     /// Copy the concrete values of all managed ObjectStates into the
     /// actual system memory location they were allocated at.
     void copyOutConcretes();
+
+    
+    bool isOwnedByUs(const ObjectState *os) const;
 
     /// Copy the concrete values of all managed ObjectStates back from
     /// the actual system memory location they were allocated

@@ -1311,7 +1311,7 @@ ref<Expr> S2EExecutionState::createConcolicValue(
     MemoryObject *mo = new MemoryObject(0, bytes, false, false, false, NULL);
     mo->setName(sname);
 
-    symbolics.push_back(std::make_pair(mo, array));
+    addSymbolic(mo,array);
 
     if (bufferSize == bytes) {
         if (ConcolicMode) {
@@ -1369,7 +1369,7 @@ std::vector<ref<Expr> > S2EExecutionState::createConcolicArray(
     MemoryObject *mo = new MemoryObject(0, size, false, false, false, NULL);
     mo->setName(sname);
 
-    symbolics.push_back(std::make_pair(mo, array));
+    addSymbolic(mo,array);
 
     if (concreteBuffer.size() == size) {
         if (ConcolicMode) {

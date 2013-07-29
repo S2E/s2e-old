@@ -7,12 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "klee/Common.h"
 
 #include "klee/StatsTracker.h"
 
 #include "klee/ExecutionState.h"
 #include "klee/Statistics.h"
+#include "klee/Config/Version.h"
 #include "klee/Internal/Module/InstructionInfoTable.h"
 #include "klee/Internal/Module/KModule.h"
 #include "klee/Internal/Module/KInstruction.h"
@@ -23,6 +25,7 @@
 #include "klee/CoreStats.h"
 #include "klee/Executor.h"
 #include "MemoryManager.h"
+
 #include "klee/UserSearcher.h"
 #include "klee/SolverStats.h"
 
@@ -35,8 +38,16 @@
 #include "llvm/Type.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/CFG.h"
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9)
+#include "llvm/System/Process.h"
+#else
 #include "llvm/Support/Process.h"
+#endif
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 9)
+#include "llvm/System/Path.h"
+#else
 #include "llvm/Support/Path.h"
+#endif
 #include "llvm/Support/PathV2.h"
 #include "llvm/Support/FileSystem.h"
 
@@ -170,9 +181,11 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
   KModule *km = executor.kmodule;
 
   sys::Path module(objectFilename);
+  
   if (!sys::path::is_absolute(objectFilename)) {
     sys::Path current = sys::Path::GetCurrentDirectory();
     current.appendComponent(objectFilename);
+    
     if (sys::fs::exists(current.c_str()))
       objectFilename = current.c_str();
   }
@@ -202,10 +215,12 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
       }
     }
   }
-}
 
+}
+ 
 void StatsTracker::writeHeaders()
 {
+
   if (OutputStats) {
     statsFile = executor.interpreterHandler->openOutputFile("run.stats");
     assert(statsFile && "unable to open statistics trace file");
@@ -214,8 +229,10 @@ void StatsTracker::writeHeaders()
 
     executor.addTimer(new WriteStatsTimer(this), StatsWriteInterval);
 
-    if (updateMinDistToUncovered)
+    if (updateMinDistToUncovered) {
+      computeReachableUncovered();
       executor.addTimer(new UpdateReachableTimer(this), UncoveredUpdateInterval);
+    }
   }
 
   if (OutputIStats) {
@@ -277,7 +294,7 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
         //
         // FIXME: This trick no longer works, we should fix this in the line
         // number propogation.
-#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 7)
         if (isa<DbgStopPointInst>(inst))
 #endif
           es.coveredLines[&ii.file].insert(ii.line);
@@ -366,6 +383,9 @@ void StatsTracker::writeStatsHeader() {
              << "'CexCacheTime',"
              << "'ForkTime',"
              << "'ResolveTime',"
+#ifdef DEBUG
+	     << "'ArrayHashTime',"
+#endif
              << ")\n";
   statsFile->flush();
 }
@@ -393,6 +413,9 @@ void StatsTracker::writeStatsLine() {
              << "," << stats::cexCacheTime / 1000000.
              << "," << stats::forkTime / 1000000.
              << "," << stats::resolveTime / 1000000.
+#ifdef DEBUG
+             << "," << stats::arrayHashTime / 1000000.
+#endif
              << ")\n";
   statsFile->flush();
 }
@@ -411,11 +434,13 @@ void StatsTracker::updateStateStatistics(uint64_t addend) {
 void StatsTracker::writeIStats() {
   Module *m = executor.kmodule->module;
   uint64_t istatsMask = 0;
+  
   llvm::raw_ostream &of = *istatsFile;
 
   /*of.seekp(0, std::ios::end);
   unsigned istatsSize = of.tellp();
   of.seekp(0);*/
+  
 
   of << "version: 1\n";
   of << "creator: klee\n";
@@ -543,10 +568,12 @@ void StatsTracker::writeIStats() {
     updateStateStatistics((uint64_t)-1);
   
   // Clear then end of the file if necessary (no truncate op?).
+  
   /*unsigned pos = of.tellp();
   for (unsigned i=pos; i<istatsSize; ++i)
     of << '\n';*/
   
+    
   of.flush();
 }
 
@@ -614,12 +641,13 @@ void StatsTracker::computeReachableUncovered() {
         for (BasicBlock::iterator it = bbIt->begin(), ie = bbIt->end(); 
              it != ie; ++it) {
           if (isa<CallInst>(it) || isa<InvokeInst>(it)) {
-            if (isa<InlineAsm>(it->getOperand(0))) {
+            CallSite cs(it);
+            if (isa<InlineAsm>(cs.getCalledValue())) {
               // We can never call through here so assume no targets
               // (which should be correct anyhow).
               callTargets.insert(std::make_pair(it,
                                                 std::vector<Function*>()));
-            } else if (Function *target = getDirectCallTarget(it)) {
+            } else if (Function *target = getDirectCallTarget(cs)) {
               callTargets[it].push_back(target);
             } else {
               callTargets[it] = 
@@ -662,7 +690,11 @@ void StatsTracker::computeReachableUncovered() {
           unsigned id = infos.getInfo(it).id;
           sm.setIndexedValue(stats::minDistToReturn, 
                              id, 
-                             isa<ReturnInst>(it));
+                             isa<ReturnInst>(it)
+#if LLVM_VERSION_CODE < LLVM_VERSION(3, 1)
+                             || isa<UnwindInst>(it)
+#endif
+                             );
         }
       }
     }
@@ -707,12 +739,18 @@ void StatsTracker::computeReachableUncovered() {
                 best = val;
             }
           }
-          if (best != cur) {
+          // there's a corner case here when a function only includes a single
+          // instruction (a ret). in that case, we MUST update
+          // functionShortestPath, or it will remain 0 (erroneously indicating
+          // that no return instructions are reachable)
+          Function *f = inst->getParent()->getParent();
+          if (best != cur
+              || (inst == f->begin()->begin()
+                  && functionShortestPath[f] != best)) {
             sm.setIndexedValue(stats::minDistToReturn, id, best);
             changed = true;
 
             // Update shortest path if this is the entry point.
-            Function *f = inst->getParent()->getParent();
             if (inst==f->begin()->begin())
               functionShortestPath[f] = best;
           }

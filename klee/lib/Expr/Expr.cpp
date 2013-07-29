@@ -8,16 +8,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr.h"
-#include <llvm/ADT/Hashing.h>
+#include "klee/Config/Version.h"
 
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 1)
+#include "llvm/ADT/Hashing.h"
+#endif
 #include "llvm/Support/CommandLine.h"
 // FIXME: We shouldn't need this once fast constant support moves into
 // Core. If we need to do arithmetic, we probably want to use APInt.
 #include "klee/Internal/Support/IntEvaluation.h"
 
 #include "klee/util/ExprPPrinter.h"
-#include <llvm/Support/raw_os_ostream.h>
 
+#include <llvm/Support/raw_os_ostream.h>
 #include <iostream>
 #include <sstream>
 
@@ -27,7 +30,7 @@ using namespace llvm;
 namespace {
   cl::opt<bool>
   ConstArrayOpt("const-array-opt",
-     cl::init(true),
+   cl::init(true),
 	 cl::desc("Enable various optimizations involving all-constant arrays."));
 }
 
@@ -82,8 +85,18 @@ ref<Expr> Expr::createTempRead(const Array *array, Expr::Width w) {
 }
 
 // returns 0 if b is structurally equal to *this
-int Expr::compare(const Expr &b) const {
+int Expr::compare(const Expr &b, ExprEquivSet &equivs) const {
   if (this == &b) return 0;
+
+  const Expr *ap, *bp;
+  if (this < &b) {
+    ap = this; bp = &b;
+  } else {
+    ap = &b; bp = this;
+  }
+
+  if (equivs.count(std::make_pair(ap, bp)))
+    return 0;
 
   Kind ak = getKind(), bk = b.getKind();
   if (ak!=bk)
@@ -97,9 +110,10 @@ int Expr::compare(const Expr &b) const {
 
   unsigned aN = getNumKids();
   for (unsigned i=0; i<aN; i++)
-    if (int res = getKid(i).compare(b.getKid(i)))
+    if (int res = getKid(i)->compare(*b.getKid(i), equivs))
       return res;
 
+  equivs.insert(std::make_pair(ap, bp));
   return 0;
 }
 
@@ -164,7 +178,11 @@ unsigned Expr::computeHash() {
 }
 
 unsigned ConstantExpr::computeHash() {
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 1)
   hashValue = hash_value(value) ^ (getWidth() * MAGIC_HASH_CONSTANT);
+#else
+  hashValue = value.getHashValue() ^ (getWidth() * MAGIC_HASH_CONSTANT);
+#endif
   return hashValue;
 }
 
@@ -276,6 +294,7 @@ void Expr::printWidth(llvm::raw_ostream &os, Width width) {
   case Expr::Int16: os << "Expr::Int16"; break;
   case Expr::Int32: os << "Expr::Int32"; break;
   case Expr::Int64: os << "Expr::Int64"; break;
+  case Expr::Fl80: os << "Expr::Fl80"; break;
   default: os << "<invalid type: " << (unsigned) width << ">";
   }
 }
@@ -293,22 +312,27 @@ void Expr::print(llvm::raw_ostream &os) const {
 }
 
 void Expr::dump() const {
+  
   llvm::raw_os_ostream os(std::cerr);
   this->print(os);
   os << '\n';
+   
 }
 
 /***/
 
 ref<Expr> ConstantExpr::fromMemory(void *address, Width width) {
   switch (width) {
-  default: assert(0 && "invalid type");
   case  Expr::Bool: return ConstantExpr::create(*(( uint8_t*) address), width);
   case  Expr::Int8: return ConstantExpr::create(*(( uint8_t*) address), width);
   case Expr::Int16: return ConstantExpr::create(*((uint16_t*) address), width);
   case Expr::Int32: return ConstantExpr::create(*((uint32_t*) address), width);
   case Expr::Int64: return ConstantExpr::create(*((uint64_t*) address), width);
-    // FIXME: Should support long double, at least.
+  // FIXME: what about machines without x87 support?
+  default:
+    return ConstantExpr::alloc(llvm::APInt(width,
+      (width+llvm::integerPartWidth-1)/llvm::integerPartWidth,
+      (const uint64_t*)address));
   }
 }
 
@@ -320,7 +344,10 @@ void ConstantExpr::toMemory(void *address) {
   case Expr::Int16: *((uint16_t*) address) = getZExtValue(16); break;
   case Expr::Int32: *((uint32_t*) address) = getZExtValue(32); break;
   case Expr::Int64: *((uint64_t*) address) = getZExtValue(64); break;
-    // FIXME: Should support long double, at least.
+  // FIXME: what about machines without x87 support?
+  case Expr::Fl80:
+    *((long double*) address) = *(long double*) value.getRawData();
+    break;
   }
 }
 
@@ -331,7 +358,11 @@ void ConstantExpr::toString(std::string &Res, int Base) const {
 ref<ConstantExpr> ConstantExpr::Concat(const ref<ConstantExpr> &RHS) {
   Expr::Width W = getWidth() + RHS->getWidth();
   APInt Tmp(value);
-  Tmp = Tmp.zext(W);
+#if LLVM_VERSION_CODE <= LLVM_VERSION(2, 8)
+  Tmp.zext(W);
+#else
+  Tmp=Tmp.zext(W);
+#endif
   Tmp <<= RHS->getWidth();
   Tmp |= APInt(RHS->value).zext(W);
 
@@ -461,11 +492,14 @@ ref<Expr>  NotOptimizedExpr::create(ref<Expr> src) {
 extern "C" void vc_DeleteExpr(void*);
 
 Array::~Array() {
-  // FIXME: This shouldn't be necessary.
-  if (stpInitialArray) {
-    ::vc_DeleteExpr(stpInitialArray);
-    stpInitialArray = 0;
-  }
+}
+
+unsigned Array::computeHash() {
+  unsigned res = 0;
+  for (unsigned i = 0, e = name.size(); i != e; ++i)
+    res = (res * Expr::MAGIC_HASH_CONSTANT) + name[i];
+  hashValue = res;
+  return hashValue; 
 }
 
 /***/
@@ -632,8 +666,8 @@ ref<Expr> ExtractExpr::create(ref<Expr> expr, unsigned off, Width w) {
             }
         }
     }
-
     return ExtractExpr::alloc(expr, off, w);
+    
 }
 
 /***/
@@ -649,6 +683,7 @@ ref<Expr> NotExpr::create(const ref<Expr> &e) {
 /***/
 
 ref<Expr> ZExtExpr::create(const ref<Expr> &e, Width w) {
+
     unsigned kBits = e->getWidth();
     if (w == kBits) {
         return e;

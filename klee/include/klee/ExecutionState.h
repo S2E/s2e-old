@@ -63,8 +63,8 @@ struct StackFrame {
 };
 
 class ExecutionState {
+  
   friend class AddressSpace;
-
 public:
   typedef std::vector<StackFrame> stack_ty;
 
@@ -101,10 +101,13 @@ public:
   //
   // FIXME: Move to a shared list structure (not critical).
   std::vector< std::pair<const MemoryObject*, const Array*> > symbolics;
-
+  
   Assignment concolics;
   bool speculative;
   ref<Expr> speculativeCondition;
+
+  /// Set of used array names.  Used to avoid collisions.
+  std::set<std::string> arrayNames;
 
   // Used by the checkpoint/rollback methods for fake objects.
   // FIXME: not freeing things on branch deletion.
@@ -117,7 +120,7 @@ public:
   void removeFnAlias(std::string fn);
   
 private:
-  ExecutionState() : fakeState(false), underConstrained(0),
+    ExecutionState() : fakeState(false), underConstrained(0),
                      addressSpace(this), ptreeNode(0) {}
 
 protected:
@@ -125,7 +128,6 @@ protected:
   virtual void addressSpaceChange(const MemoryObject *mo,
                                   const ObjectState *oldState,
                                   ObjectState *newState);
-
 public:
   ExecutionState(KFunction *kf);
 
@@ -133,6 +135,8 @@ public:
   // use on structure
   ExecutionState(const std::vector<ref<Expr> > &assumptions);
 
+  ExecutionState(const ExecutionState& state);
+  
   virtual ~ExecutionState();
   
   ExecutionState *branch();
@@ -140,18 +144,20 @@ public:
   void pushFrame(KInstIterator caller, KFunction *kf);
   void popFrame();
 
-  void addSymbolic(const MemoryObject *mo, const Array *array) { 
-    symbolics.push_back(std::make_pair(mo, array));
-  }
+  void addSymbolic(const MemoryObject *mo, const Array *array);
+  
   virtual void addConstraint(ref<Expr> e) { 
     constraints.addConstraint(e); 
   }
-
+  
   virtual bool merge(const ExecutionState &b);
 
+
   bool isSpeculative() const {
-      return speculative;
+    return speculative;
   }
+
+  void dumpStack(std::ostream &out) const;
 };
 
 }

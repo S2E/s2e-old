@@ -12,6 +12,7 @@
 
 #include "klee/CallPathManager.h"
 #include <llvm/Support/raw_ostream.h>
+
 #include <iostream>
 #include <set>
 
@@ -30,7 +31,8 @@ namespace klee {
   struct StackFrame;
 
   class StatsTracker {
-  protected:
+    
+    protected:
     friend class WriteStatsTimer;
     friend class WriteIStatsTimer;
 
@@ -50,19 +52,25 @@ namespace klee {
   public:
     static bool useStatistics();
 
+
   protected:
     void updateStateStatistics(uint64_t addend);
+
+
     virtual void writeStatsHeader();
     virtual void writeStatsLine();
     virtual void writeIStats();
+   
 
   public:
     StatsTracker(Executor &_executor, std::string _objectFilename,
                  bool _updateMinDistToUncovered);
+    
+    
     virtual ~StatsTracker();
 
     void writeHeaders();
-
+    
     // called after a new StackFrame has been pushed (for callpath tracing)
     void framePushed(ExecutionState &es, StackFrame *parentFrame);
 

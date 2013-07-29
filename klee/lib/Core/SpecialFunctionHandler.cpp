@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "klee/Common.h"
 
 #include "klee/Memory.h"
@@ -58,7 +59,7 @@ HandlerInfo handlerInfo[] = { // XXX TODO: Remove all of this
 #if 0
   add("klee_get_value", handleGetValue, true),
   add("klee_make_symbolic", handleMakeSymbolic, false),
-
+                                
   addDNR("__assert_rtn", handleAssertFail),
   addDNR("__assert_fail", handleAssertFail),
   addDNR("_assert", handleAssert),
@@ -73,7 +74,13 @@ HandlerInfo handlerInfo[] = { // XXX TODO: Remove all of this
   add("free", handleFree, false),
   add("klee_assume", handleAssume, false),
   add("klee_check_memory_access", handleCheckMemoryAccess, false),
-
+  add("klee_get_value", handleGetValue, true),
+  add("klee_get_valuef", handleGetValue, true),
+  add("klee_get_valued", handleGetValue, true),
+  add("klee_get_valuel", handleGetValue, true),
+  add("klee_get_valuell", handleGetValue, true),
+  add("klee_get_value_i32", handleGetValue, true),
+  add("klee_get_value_i64", handleGetValue, true),
   add("klee_define_fixed_object", handleDefineFixedObject, false),
   add("klee_get_obj_size", handleGetObjSize, true),
   add("klee_get_errno", handleGetErrno, true),
@@ -85,6 +92,7 @@ HandlerInfo handlerInfo[] = { // XXX TODO: Remove all of this
   add("klee_print_expr", handlePrintExpr, false),
   add("klee_print_range", handlePrintRange, false),
   add("klee_set_forking", handleSetForking, false),
+  add("klee_stack_trace", handleStackTrace, false),
   add("klee_warning", handleWarning, false),
   add("klee_warning_once", handleWarningOnce, false),
   add("klee_alias_function", handleAliasFunction, false),
@@ -131,7 +139,11 @@ void SpecialFunctionHandler::prepare() {
       // Make sure NoReturn attribute is set, for optimization and
       // coverage counting.
       if (hi.doesNotReturn)
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 2)
         f->addFnAttr(Attributes::NoReturn);
+#else
+        f->addFnAttr(Attribute::NoReturn);
+#endif
 
       // Change to a declaration since we handle internally (simplifies
       // module and allows deleting dead code).
@@ -153,11 +165,13 @@ void SpecialFunctionHandler::bind() {
   }
 }
 
+
 void SpecialFunctionHandler::addUHandler(llvm::Function* f, FunctionHandler h)
 {
     uhandlers[f] = std::make_pair(h,
                 f->getReturnType()->getTypeID() != llvm::Type::VoidTyID);
 }
+
 
 bool SpecialFunctionHandler::handle(ExecutionState &state, 
                                     Function *f,
@@ -175,7 +189,9 @@ bool SpecialFunctionHandler::handle(ExecutionState &state,
       (this->*h)(state, target, arguments);
     }
     return true;
+    
   }
+
 
   uhandlers_ty::iterator uit = uhandlers.find(f);
   if (uit != uhandlers.end()) {
@@ -453,6 +469,12 @@ void SpecialFunctionHandler::handleSetForking(ExecutionState &state,
   }
 }
 
+void SpecialFunctionHandler::handleStackTrace(ExecutionState &state,
+                                              KInstruction *target,
+                                              std::vector<ref<Expr> > &arguments) {
+  state.dumpStack(std::cout);
+}
+
 void SpecialFunctionHandler::handleWarning(ExecutionState &state,
                                            KInstruction *target,
                                            std::vector<ref<Expr> > &arguments) {
@@ -524,7 +546,7 @@ void SpecialFunctionHandler::handleGetErrno(ExecutionState &state,
                                             std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
   assert(arguments.size()==0 &&
-         "invalid number of arguments to klee_get_obj_size");
+         "invalid number of arguments to klee_get_errno");
   executor.bindLocal(target, state,
                      ConstantExpr::create(errno, Expr::Int32));
 }
@@ -669,7 +691,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
-    MemoryObject *mo = (MemoryObject*) it->first.first;
+    const MemoryObject *mo = it->first.first;
     mo->setName(name);
     
     const ObjectState *old = it->first.second;
@@ -693,7 +715,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     assert(success && "FIXME: Unhandled solver failure");
     
     if (res) {
-      executor.executeMakeSymbolic(*s, mo);
+      executor.executeMakeSymbolic(*s, mo, name);
     } else {      
       executor.terminateStateOnError(*s, 
                                      "wrong size given to klee_make_symbolic[_name]", 
@@ -713,7 +735,7 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
-    MemoryObject *mo = (MemoryObject*) it->first.first;
+    const MemoryObject *mo = it->first.first;
     assert(!mo->isLocal);
     mo->isGlobal = true;
   }

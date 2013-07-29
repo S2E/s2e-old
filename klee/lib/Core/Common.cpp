@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "klee/Common.h"
 
 #include <stdlib.h>
@@ -16,19 +17,12 @@
 #include <string.h>
 
 #include <set>
+
 #include <iostream>
 
 #include "llvm/Support/CommandLine.h"
 
 using namespace klee;
-
-namespace  {
-    llvm::cl::opt<bool>
-    ShowRepeatedWarnings("show-repeated-warnings");
-
-    llvm::cl::opt<bool>
-    AllExternalWarnings("all-external-warnings");
-}
 
 /*
 FILE* klee::klee_warning_file = NULL;
@@ -38,7 +32,20 @@ FILE* klee::klee_message_file = NULL;
 llvm::raw_ostream* klee::klee_warning_stream = NULL;
 llvm::raw_ostream* klee::klee_message_stream = NULL;
 
-static void klee_vfmessage(llvm::raw_ostream *os, const char *pfx, const char *msg,
+
+namespace  {
+    llvm::cl::opt<bool>
+    ShowRepeatedWarnings("show-repeated-warnings");
+
+    llvm::cl::opt<bool>
+    AllExternalWarnings("all-external-warnings");
+}
+
+
+
+
+
+static void klee_vfmessage(llvm::raw_ostream *os, const char *pfx, const char *msg, 
                            va_list ap) {
   if (!os)
     return;
@@ -52,6 +59,7 @@ static void klee_vfmessage(llvm::raw_ostream *os, const char *pfx, const char *m
   (*os) << buf << '\n';
 }
 
+
 /* Prints a message/warning.
    
    If pfx is NULL, this is a regular message, and it's sent to
@@ -60,9 +68,10 @@ static void klee_vfmessage(llvm::raw_ostream *os, const char *pfx, const char *m
 
    Iff onlyToFile is false, the message is also printed on stderr.
 */
+   
 static void klee_vmessage(const char *pfx, bool onlyToFile, const char *msg, 
                           va_list ap) {
-    /* XXX
+  /* XXX
   if (!onlyToFile) {
     va_list ap2;
     va_copy(ap2, ap);
@@ -73,6 +82,7 @@ static void klee_vmessage(const char *pfx, bool onlyToFile, const char *msg,
 
   klee_vfmessage(pfx ? klee_warning_stream : klee_message_stream, pfx, msg, ap);
 }
+
 
 
 void klee::klee_message(const char *msg, ...) {
@@ -116,15 +126,17 @@ void klee::klee_warning_once(const void *id, const char *msg, ...) {
      when computing the key. */
   if (strncmp(msg, "calling external", strlen("calling external")) != 0)
     key = std::make_pair(id, msg);
+
   else
     key = std::make_pair(id, "calling external");
   
   if (ShowRepeatedWarnings || !keys.count(key)) {
+
     keys.insert(key);
     
     va_list ap;
     va_start(ap, msg);
-    klee_vmessage("WARNING", false, msg, ap);
+    klee_vmessage("WARNING ONCE", false, msg, ap);
     va_end(ap);
   }
 }

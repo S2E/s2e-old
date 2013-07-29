@@ -19,8 +19,8 @@ using llvm::dyn_cast_or_null;
 
 #include <assert.h>
 #include <iosfwd> // FIXME: Remove this!!!
-#include <llvm/Support/raw_ostream.h>
 
+#include <llvm/Support/raw_ostream.h>
 namespace klee {
 
 template<class T>
@@ -33,15 +33,15 @@ public:
   ~ref () { dec (); }
 
 private:
-  void inc() {
+  void inc() const {
     if (ptr)
       ++ptr->refCount;
   }
-  
-  void dec() {
+
+  void dec() const {
     if (ptr && --ptr->refCount == 0)
       delete ptr;
-  }  
+  }
 
 public:
   template<class U> friend class ref;
@@ -50,19 +50,18 @@ public:
   ref(T *p) : ptr(p) {
     inc();
   }
-  
+
   // normal copy constructor
   ref(const ref<T> &r) : ptr(r.ptr) {
     inc();
   }
-  
+
   // conversion constructor
   template<class U>
-  ref (const ref<U> &r) {
-    ptr = r.ptr;
+  ref (const ref<U> &r) : ptr(r.ptr) {
     inc();
   }
-  
+
   // pointer operations
   T *get () const {
     return ptr;
@@ -71,18 +70,18 @@ public:
   /* The copy assignment operator must also explicitly be defined,
    * despite a redundant template. */
   ref<T> &operator= (const ref<T> &r) {
+    r.inc();
     dec();
     ptr = r.ptr;
-    inc();
-    
+
     return *this;
   }
-  
+
   template<class U> ref<T> &operator= (const ref<U> &r) {
+    r.inc();
     dec();
     ptr = r.ptr;
-    inc();
-    
+
     return *this;
   }
 
@@ -109,6 +108,7 @@ public:
 };
 
 template<class T>
+
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const ref<T> &e) {
   os << *e;
   return os;
@@ -131,7 +131,7 @@ struct simplify_type<const ::klee::ref<T> > {
   }
 };
 
-template<typename T> 
+template<typename T>
 struct simplify_type< ::klee::ref<T> >
   : public simplify_type<const ::klee::ref<T> > {};
 }

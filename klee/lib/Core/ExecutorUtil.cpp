@@ -15,18 +15,24 @@
 #include "klee/Interpreter.h"
 #include "klee/Solver.h"
 
+#include "klee/Config/Version.h"
 #include "klee/Internal/Module/KModule.h"
+
+#include "klee/util/GetElementPtrTypeIterator.h"
 
 #include "llvm/Constants.h"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
-#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+#if LLVM_VERSION_CODE < LLVM_VERSION(2, 7)
 #include "llvm/ModuleProvider.h"
 #endif
 #include "llvm/Support/CallSite.h"
-#include "llvm/Support/GetElementPtrTypeIterator.h"
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+#include "llvm/Target/TargetData.h"
+#else
 #include "llvm/DataLayout.h"
+#endif
 #include <iostream>
 #include <cassert>
 
@@ -35,8 +41,8 @@ using namespace llvm;
 
 namespace klee {
 
-  ref<ConstantExpr> Executor::evalConstantExpr(llvm::ConstantExpr *ce) {
-    llvm::Type *type = ce->getType();
+  ref<ConstantExpr> Executor::evalConstantExpr(const llvm::ConstantExpr *ce) {
+    LLVM_TYPE_Q llvm::Type *type = ce->getType();
 
     ref<ConstantExpr> op1(0), op2(0), op3(0);
     int numOperands = ce->getNumOperands();
@@ -85,19 +91,19 @@ namespace klee {
         ref<ConstantExpr> addend = 
           ConstantExpr::alloc(0, Context::get().getPointerWidth());
 
-        if (StructType *st1 = dyn_cast<StructType>(*ii)) {
-          const StructLayout *sl = kmodule->targetData->getStructLayout(st1);
+        if (LLVM_TYPE_Q StructType *st = dyn_cast<StructType>(*ii)) {
+          const StructLayout *sl = kmodule->targetData->getStructLayout(st);
           const ConstantInt *ci = cast<ConstantInt>(ii.getOperand());
 
           addend = ConstantExpr::alloc(sl->getElementOffset((unsigned)
                                                             ci->getZExtValue()),
                                        Context::get().getPointerWidth());
         } else {
-          SequentialType *st = cast<SequentialType>(*ii);
+          SequentialType *set = cast<SequentialType>(*ii);
           ref<ConstantExpr> index = 
             evalConstant(cast<Constant>(ii.getOperand()));
           unsigned elementSize = 
-            kmodule->targetData->getTypeStoreSize(st->getElementType());
+            kmodule->targetData->getTypeStoreSize(set->getElementType());
 
           index = index->ZExt(Context::get().getPointerWidth());
           addend = index->Mul(ConstantExpr::alloc(elementSize, 

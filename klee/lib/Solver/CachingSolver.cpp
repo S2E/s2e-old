@@ -82,6 +82,7 @@ public:
     return solver->impl->computeInitialValues(query, objects, values, 
                                               hasSolution);
   }
+  SolverRunStatus getOperationStatusCode();
 };
 
 /** @returns the canonical version of the given query.  The reference
@@ -232,6 +233,10 @@ bool CachingSolver::computeTruth(const Query& query,
   
   cacheInsert(query, cachedResult);
   return true;
+}
+
+SolverImpl::SolverRunStatus CachingSolver::getOperationStatusCode() {
+  return solver->impl->getOperationStatusCode();
 }
 
 ///

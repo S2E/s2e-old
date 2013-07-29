@@ -30,11 +30,12 @@ class TreeStreamWriter;
 class InterpreterHandler {
 public:
   InterpreterHandler() {}
-  virtual ~InterpreterHandler() {};
+  virtual ~InterpreterHandler() {}
 
   virtual llvm::raw_ostream &getInfoStream() const = 0;
 
   virtual std::string getOutputFilename(const std::string &filename) = 0;
+  
   virtual llvm::raw_ostream *openOutputFile(const std::string &filename) = 0;
 
   virtual void incPathsExplored() = 0;
@@ -54,11 +55,19 @@ public:
     bool CheckDivZero;
     llvm::FunctionPassManager *CustomPasses;
 
+    
     ModuleOptions(const std::vector<std::string>& _ExtraLibraries,
                   bool _Optimize, bool _CheckDivZero,
                   llvm::FunctionPassManager *_CustomPasses = NULL)
       : ExtraLibraries(_ExtraLibraries),
         Optimize(_Optimize), CheckDivZero(_CheckDivZero), CustomPasses(_CustomPasses) {}
+  };
+
+  enum LogType
+  {
+	  STP, //.CVC (STP's native language)
+	  KQUERY, //.PC files (kQuery native language)
+	  SMTLIB2 //.SMT2 files (SMTLIB version 2 files)
   };
 
   /// InterpreterOptions - Options varying the runtime behavior during
@@ -79,19 +88,20 @@ protected:
 
   Interpreter(const InterpreterOptions &_interpreterOpts)
     : interpreterOpts(_interpreterOpts)
-  {};
+  {}
 
 public:
-  virtual ~Interpreter() {};
+  virtual ~Interpreter() {}
 
-  static Interpreter *createKleeExecutor(const InterpreterOptions &_interpreterOpts,
-                             InterpreterHandler *ih);
+
+  static Interpreter *createKleeExecutor(const InterpreterOptions &_interpreterOpts,InterpreterHandler *ih);
 
   /// Register the module to be executed.  
   ///
   /// \return The final module after it has been optimized, checks
   /// inserted, and modified for interpretation.
   virtual const llvm::Module * 
+  
   setModule(llvm::Module *module,
             const ModuleOptions &opts, bool createStatsTracker = true) = 0;
 
@@ -135,7 +145,7 @@ public:
   
   virtual void getConstraintLog(const ExecutionState &state,
                                 std::string &res,
-                                bool asCVC = false) = 0;
+                                LogType logFormat = STP) = 0;
 
   virtual bool getSymbolicSolution(const ExecutionState &state, 
                                    std::vector< 
