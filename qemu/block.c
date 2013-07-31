@@ -578,7 +578,7 @@ static int bdrv_open_common(BlockDriverState *bs, const char *filename,
 
     if (g_s2e_linked) {
         if (!strstr(filename, ".s2e")) {
-            s2e_bdrv_fail();
+		exit (-1);
         }
     }
 

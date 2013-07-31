@@ -22,12 +22,13 @@
  * THE SOFTWARE.
  */
 
+#include "console.h"
+#include "sysemu.h"
+#define _UINT16
 #import <Cocoa/Cocoa.h>
 #include <crt_externs.h>
 
 #include "qemu-common.h"
-#include "console.h"
-#include "sysemu.h"
 
 #ifndef MAC_OS_X_VERSION_10_4
 #define MAC_OS_X_VERSION_10_4 1040
