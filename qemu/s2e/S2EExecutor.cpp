@@ -1641,7 +1641,8 @@ inline bool S2EExecutor::executeInstructions(S2EExecutionState *state, unsigned 
             }
         }
     } catch (CpuExitException &) {
-        assert(addedStates.empty());
+        updateStates(state);
+        //assert(addedStates.empty());
         return true;
     }
 
