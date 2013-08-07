@@ -401,6 +401,7 @@ Lunar<S2ELUAExecutionState>::RegType S2ELUAExecutionState::methods[] = {
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readMemory),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeMemory),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, isSpeculative),
+  LUNAR_DECLARE_METHOD(S2ELUAExecutionState, getID),
   {0,0}
 };
 
@@ -694,6 +695,12 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
 int S2ELUAExecutionState::isSpeculative(lua_State *L)
 {
     lua_pushboolean(L, m_state->isSpeculative());        /* first result */
+    return 1;
+}
+
+int S2ELUAExecutionState::getID(lua_State *L)
+{
+    lua_pushnumber(L, m_state->getID());
     return 1;
 }
 
