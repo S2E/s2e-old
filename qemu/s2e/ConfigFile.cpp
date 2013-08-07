@@ -646,10 +646,18 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
 
 int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
 {
+    uint64_t lowerBound;
+    uint64_t upperBound;
+    bool writeRange = false;
     std::string regstr = luaL_checkstring(L, 1);
     std::string namestr = luaL_checkstring(L, 2);
-
     const klee::Expr::Width width = sizeof (target_ulong) << 3;
+
+    if (lua_isnumber(L, 3) && lua_isnumber(L, 4)) {
+        lowerBound = luaL_checkint(L, 3);
+        upperBound = luaL_checkint(L, 4);
+        writeRange = true;
+    }
 
     unsigned regIndex=0, size=0;
 
@@ -665,6 +673,14 @@ int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
 
     klee::ref<klee::Expr> val = m_state->createSymbolicValue(namestr, width);
     m_state->writeCpuRegister(CPU_REG_OFFSET(regIndex), val);
+
+    if (writeRange) {
+        klee::ref<klee::Expr> val1 = klee::UleExpr::create(val, klee::ConstantExpr::create(upperBound,width));
+        klee::ref<klee::Expr> val2 = klee::NotExpr::create(klee::UltExpr::create(val, klee::ConstantExpr::create(lowerBound,width)));
+        klee::ref<klee::Expr> val3 = klee::AndExpr::create(val1, val2);
+        g_s2e->getDebugStream() <<  "writeRegisterSymb: " << val3 << '\n';
+        m_state->addConstraint(val3);
+    }
 
     return 0;                   /* number of results */
 }
