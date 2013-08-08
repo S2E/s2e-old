@@ -282,6 +282,11 @@ int64_t ConfigFile::getInt(const string& name, int64_t def, bool *ok)
     return getValueT(name, def, ok);
 }
 
+double ConfigFile::getDouble(const string& name, double def, bool *ok)
+{
+    return getValueT(name, def, ok);
+}
+
 string ConfigFile::getString(
             const string& name, const string& def, bool *ok)
 {
