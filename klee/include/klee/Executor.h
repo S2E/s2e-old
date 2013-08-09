@@ -295,6 +295,13 @@ protected:
   /// so that the branched state gets it as well.
   virtual void notifyBranch(ExecutionState &state);
 
+  /// When the fork is complete and state properly updated,
+  /// notify the S2EExecutor, so that it can generate an onFork event.
+  /// Sending notification after the fork completed
+  /// allows plugins to kill states and exit to the CPU loop safely.
+  virtual void notifyFork(ExecutionState &originalState, ref<Expr> &condition,
+                  Executor::StatePair &targets);
+
   /// Add the given (boolean) condition as a constraint on state. This
   /// function is a wrapper around the state's addConstraint function
   /// which also manages manages propogation of implied values,

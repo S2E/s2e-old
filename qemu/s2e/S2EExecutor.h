@@ -286,8 +286,8 @@ protected:
                        S2EExecutionState* newState);
 
     void doStateFork(S2EExecutionState *originalState,
-                     const std::vector<S2EExecutionState*>& newStates,
-                     const std::vector<klee::ref<klee::Expr> >& conditions);
+                        const std::vector<S2EExecutionState*>& newStates,
+                        const std::vector<klee::ref<klee::Expr> >& conditions);
 
     void doLoadBalancing();
 
@@ -319,6 +319,9 @@ protected:
               std::vector<klee::ExecutionState*> &result);
 
     void notifyBranch(klee::ExecutionState &state);
+
+    void notifyFork(klee::ExecutionState &originalState, klee::ref<klee::Expr> &condition,
+                    StatePair &targets);
 
     /** Kills the specified state and raises an exception to exit the cpu loop */
     virtual void terminateState(klee::ExecutionState &state);
