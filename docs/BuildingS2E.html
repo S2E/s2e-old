@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8.1: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.10: http://docutils.sourceforge.net/" />
 <title>Building the S2E Platform</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -11,16 +11,26 @@
 <div class="document" id="building-the-s2e-platform">
 <h1 class="title">Building the S2E Platform</h1>
 
-<p>The following steps describe the installation process in detail. We assume the installation
-is performed on an Ubuntu 12.04 64-bit host system (S2E also works on 64-bit Mac systems).</p>
+<p>The following steps describe the installation process in detail. We assume the
+installation is performed on an Ubuntu 12.04 64-bit host system (S2E also works
+on 64-bit Mac systems, and the build instructions can be found in the last
+chapter).</p>
 <div class="contents topic" id="contents">
 <p class="topic-title first">Contents</p>
 <ul class="simple">
-<li><a class="reference internal" href="#required-packages" id="id1">Required Packages</a></li>
-<li><a class="reference internal" href="#checking-out-s2e" id="id2">Checking out S2E</a></li>
-<li><a class="reference internal" href="#building-s2e" id="id3">Building S2E</a></li>
-<li><a class="reference internal" href="#updating-s2e" id="id4">Updating S2E</a></li>
-<li><a class="reference internal" href="#rebuilding-s2e-documentation" id="id5">Rebuilding S2E Documentation</a></li>
+<li><a class="reference internal" href="#required-packages" id="id3">Required Packages</a></li>
+<li><a class="reference internal" href="#checking-out-s2e" id="id4">Checking out S2E</a></li>
+<li><a class="reference internal" href="#building-s2e" id="id5">Building S2E</a></li>
+<li><a class="reference internal" href="#updating-s2e" id="id6">Updating S2E</a></li>
+<li><a class="reference internal" href="#rebuilding-s2e-documentation" id="id7">Rebuilding S2E Documentation</a></li>
+<li><a class="reference internal" href="#building-the-s2e-platform-on-a-mac" id="id8">Building the S2E Platform on a Mac</a><ul>
+<li><a class="reference internal" href="#installing-command-line-tools" id="id9">Installing Command Line Tools</a></li>
+<li><a class="reference internal" href="#installing-homebrew" id="id10">Installing Homebrew</a></li>
+<li><a class="reference internal" href="#installing-required-packages" id="id11">Installing required packages</a></li>
+<li><a class="reference internal" href="#creating-symlinks" id="id12">Creating symlinks</a></li>
+<li><a class="reference internal" href="#getting-and-building-the-s2e-source-code" id="id13">Getting and Building the S2E source code</a></li>
+</ul>
+</li>
 </ul>
 </div>
 <div class="section" id="required-packages">
@@ -38,8 +48,8 @@ $ sudo apt-get install python-docutils
 $ sudo apt-get install python-pygments
 $ sudo apt-get install nasm
 </pre>
-<p>The following commands ask <tt class="docutils literal"><span class="pre">apt-get</span></tt> to install build dependencies for llvm-3.0
-and qemu.</p>
+<p>The following commands ask <tt class="docutils literal"><span class="pre">apt-get</span></tt> to install build dependencies for
+llvm-3.0 and qemu.</p>
 <pre class="literal-block">
 $ sudo apt-get build-dep llvm-3.0
 $ sudo apt-get build-dep qemu
@@ -60,8 +70,8 @@ $ cd $S2EDIR
 $ git clone git&#64;github.com:dslab-epfl/s2e.git
 </pre>
 <p>In order to report bugs, please use GitHub's <a class="reference external" href="https://github.com/dslab-epfl/s2e/issues">issue tracker</a>. If you would like
-to contribute to S2E, please create your own personal clone of S2E on GitHub, push your changes to it and then send us a
-pull request.</p>
+to contribute to S2E, please create your own personal clone of S2E on GitHub,
+push your changes to it and then send us a pull request.</p>
 <p>You can find more information about using git on <a class="reference external" href="http://gitref.org/">http://gitref.org/</a> or on
 <a class="reference external" href="http://progit.org/">http://progit.org/</a>.</p>
 </div>
@@ -76,11 +86,13 @@ $ make -f ../s2e/Makefile
 &gt; Go make some coffee, this will take a lot of time
 </pre>
 <p>By default, the <tt class="docutils literal">make</tt> command compiles S2E in release mode. The resulting
-binary is placed in <tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu-system-i386</span></tt>.
+binary is placed in
+<tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu-system-i386</span></tt>.
 To compile in Debug mode, use <tt class="docutils literal">make <span class="pre">all-debug</span></tt>. The Makefile automatically
-uses the maximum number of available processors in order to speed up compilation.</p>
+uses the maximum number of available processors in order to speed up
+compilation.</p>
 <p>You can also build each component of S2E manually. Refer to the Makefile for
-the commands required to build all inidividual components.</p>
+the commands required to build all individual components.</p>
 </div>
 <div class="section" id="updating-s2e">
 <h1>Updating S2E</h1>
@@ -88,8 +100,8 @@ the commands required to build all inidividual components.</p>
 yourself or when pulling new versions through <tt class="docutils literal">git</tt>. Note that the Makefile
 will not automatically reconfigure the packages; for deep changes you might need
 to either start from scratch by issuing <tt class="docutils literal">make clean</tt> or to force
-the reconfiguration of specific modules by deleting  the corresponding files from
-the <tt class="docutils literal">stamps</tt> subdirectory.</p>
+the reconfiguration of specific modules by deleting  the corresponding files
+from the <tt class="docutils literal">stamps</tt> subdirectory.</p>
 </div>
 <div class="section" id="rebuilding-s2e-documentation">
 <h1>Rebuilding S2E Documentation</h1>
@@ -97,6 +109,98 @@ the <tt class="docutils literal">stamps</tt> subdirectory.</p>
 keep generated HTML files in the repository. Never change HTML files
 manually and always recompile them (by invoking <tt class="docutils literal">make</tt> in the docs folder)
 after changing any <tt class="docutils literal">RST</tt> files.</p>
+</div>
+<div class="section" id="building-the-s2e-platform-on-a-mac">
+<h1>Building the S2E Platform on a Mac</h1>
+<p>Basically, the building process on a Mac follows the same workflow as described
+above. However, since Mac has its own default environment and configurations for
+development, there are still some differences between.</p>
+<p>In the following steps, we assume the installation is performed on a clean Mac
+OS X Mountain Lion 10.8 host system.</p>
+<div class="section" id="installing-command-line-tools">
+<h2>Installing Command Line Tools</h2>
+<p>The &quot;Command Line Tools for Xcode&quot; provides a toolset for development via
+Terminal on a Mac OS X. There are two alternative ways to install it:</p>
+<ol class="arabic simple">
+<li>Go to the  <a class="reference external" href="https://developer.apple.com/downloads">Apple Developer Downloads</a> website with an Apple ID (the same
+as the one for iTunes and App purchases), search for the &quot;command line tools&quot;
+in the search field on the website, then click the last version of &quot;Command
+Line Tools (OS X Mountain Lion) for Xcode&quot;(~118MB), download and install it.</li>
+<li>Download Xcode from either <a class="reference external" href="https://developer.apple.com/downloads">Apple Developer Downloads</a> or the <a class="reference external" href="http://itunes.apple.com/us/app/xcode/id497799835?ls=1&amp;mt=12">Mac App Store</a>. Xcode is a
+massive beast (~2GB), make sure you have a high-bandwidth network connection.
+Once Xcode is installed, launch it, go to Xcode's &quot;Preference&quot; via the menu
+bar, then find the “Downloads” pane, and download the &quot;Command Line Tools&quot;
+from within the application.</li>
+</ol>
+</div>
+<div class="section" id="installing-homebrew">
+<h2>Installing Homebrew</h2>
+<p>There are several package managers on OS X, such as <a class="reference external" href="http://mxcl.github.io/homebrew/">Homebrew</a> and <a class="reference external" href="http://www.macports.org/index.php">MacPorts</a>. In this tutorial, we use Homebrew. To
+install <a class="reference external" href="http://mxcl.github.io/homebrew/">Homebrew</a>, simply run the following
+command in your Terminal:</p>
+<pre class="literal-block">
+$ ruby -e &quot;$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)&quot;
+</pre>
+<p>It will prompt you what to do before the installation begins. Once installed,
+insert the Homebrew directory at the top of your <tt class="docutils literal">PATH</tt> environment variable. You
+can do this by adding the following line at the bottom of your <tt class="docutils literal"><span class="pre">~/.profile</span></tt>
+file:</p>
+<pre class="literal-block">
+PATH=/usr/local/bin:$PATH
+export PATH
+</pre>
+<p>Then, run <tt class="docutils literal">brew doctor</tt> to ensure there are not any potential problems with
+your environment. If you get</p>
+<pre class="literal-block">
+Your system is ready to brew
+</pre>
+<p>you can move on to the next step, otherwise, refer to the Homebrew's
+<a class="reference external" href="https://github.com/mxcl/homebrew/wiki/Troubleshooting">Troubleshooting</a> to
+fix errors and warnings you might run into.</p>
+</div>
+<div class="section" id="installing-required-packages">
+<h2>Installing required packages</h2>
+<p>After the package manager is ready, type the following commands to install the
+required packages:</p>
+<pre class="literal-block">
+$ brew install git wget binutils gettext pkgconfig glib lua libsigc++ nasm
+</pre>
+<p>If you want to compile the S2E documentation, you also need <tt class="docutils literal">docutils</tt> and
+<tt class="docutils literal">pygments</tt> tools, which are both Python packages. Since an out-of-box version
+of Python 2.7 is distributed by Mac OS X, we can directly install the two
+packages once Python's own package manager <tt class="docutils literal">pip</tt> is installed</p>
+<pre class="literal-block">
+$ sudo easy_install pip
+$ sudo pip install docutils pygments
+</pre>
+</div>
+<div class="section" id="creating-symlinks">
+<h2>Creating symlinks</h2>
+<p>Unlike the <tt class="docutils literal"><span class="pre">apt-get</span></tt> of Ubuntu, some libraries installed by Homebrew are not
+placed in the directories that S2E can find. The simplest solution is to create
+symlinks to these libraries in the <tt class="docutils literal">/opt/local/lib/x86_64/</tt> directory
+respectively.  Maybe you need the following command to create the directory
+first:</p>
+<pre class="literal-block">
+$ mkdir -p /opt/local/lib/x86_64
+</pre>
+<p>The symlinks can be created as follows:</p>
+<pre class="literal-block">
+$ sudo ln -s $PATH_TO_ORIGINAL_LIBS $SYMLINK_WITH_SAME_NAME
+</pre>
+<p>The <tt class="docutils literal">$PATH_TO_ORIGINAL_LIBS</tt> variable includes:</p>
+<pre class="literal-block">
+/usr/local/Cellar/gettext/0.18.2/lib/libintl.*
+/usr/local/Cellar/gettext/0.18.2/lib/libgettextpo.*
+/usr/local/lib/x86_64/libiberty.a
+</pre>
+<p>&quot;*&quot; stands for <tt class="docutils literal">a</tt> and <tt class="docutils literal">dylib</tt>.</p>
+</div>
+<div class="section" id="getting-and-building-the-s2e-source-code">
+<h2>Getting and Building the S2E source code</h2>
+<p>Just follow the instructions in the <a class="reference internal" href="#checking-out-s2e">Checking out S2E</a> and <a class="reference internal" href="#building-s2e">Building S2E</a>
+sections above.</p>
+</div>
 </div>
 </div>
 <div class="footer">
