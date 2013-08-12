@@ -784,18 +784,15 @@ uint64_t S2EExecutionState::getSp() const
 
 //This function must be called just after the machine call instruction
 //was executed.
-//XXX: assumes x86 architecture.
 bool S2EExecutionState::bypassFunction(unsigned paramCount)
 {
-#ifdef TARGET_ARM
-	assert(false && "not implemented");
-#elif defined(TARGET_I386)
-	uint64_t retAddr;
-	if (!getReturnAddress(&retAddr)) {
-	   return false;
-	}
+    bool ok = false;
+    uint64_t retAddr;
+    target_ulong newSp = 0;
+    ok = getReturnAddress(&retAddr);
 
-    target_ulong newSp = getSp();
+#if defined(TARGET_I386)
+    newSp = getSp();
 #ifdef TARGET_X86_64
     if (env->hflags & HF_CS64_MASK) {
     // First six parameters in x86_64 are passed in registers, with the rest on
@@ -803,36 +800,58 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
         newSp += (paramCount > 6) ? (paramCount - 5) * CPU_REG_SIZE : CPU_REG_SIZE;
     } else
 #else
-        newSp += (paramCount + 1) * sizeof (uint32_t);
+    newSp += (paramCount + 1) * sizeof (uint32_t);
 #endif
 
-	setSp(newSp);
-    setPc(retAddr);
-	return true;
+#elif defined(TARGET_ARM)
+    if (retAddr & 1) {
+        // return-to-Thumb case, this is actually retAddr+1
+        retAddr &= ~1;
+    }
+    // First four parameters in ARM are passed in registers, with the rest on
+    // the stack
+    newSp = getSp();
+    newSp += (paramCount > 4) ? (paramCount - 3) * CPU_REG_SIZE : CPU_REG_SIZE;
+#else
+    assert(false && "Not implemented for this architecture");
 #endif
+    if (ok) {
+        setSp(newSp);
+        setPc(retAddr);
+    }
+    return ok;
 
 }
 
 //May be called right after the machine call instruction
-//XXX: assumes x86 architecture
 bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 {
-#ifndef TARGET_I386
-    assert(false && "not implemented");
-#else
+    bool ok = false;
     target_ulong t_retAddr = 0;
-    target_ulong size = sizeof (uint32_t);
+    target_ulong size = 0;
+    *retAddr = 0;
+
+#ifdef TARGET_I386
+    size = sizeof (uint32_t);
 #ifdef TARGET_X86_64
     if (env->hflags & HF_CS64_MASK) size = CPU_REG_SIZE;
 #endif /* TARGET_X86_64 */
-    *retAddr = 0;
-    if (!readMemoryConcrete(getSp(), &t_retAddr, size)) {
-        g_s2e->getDebugStream() << "Could not get the return address " << '\n';
-        return false;
-    }
-    *retAddr = static_cast<uint64_t>(t_retAddr);
-    return true;
+    ok = readMemoryConcrete(getSp(), &t_retAddr, size);
+
+#elif defined(TARGET_ARM)
+    size = CPU_REG_SIZE;
+    ok = readCpuRegisterConcrete(CPU_OFFSET(regs[14]), &t_retAddr, size);
+    // Beware: in return-to-Thumb case, you got retaddr+1
+#else
+    assert(false && "Not implemented on this architecture");
 #endif
+
+    if (!ok) {
+        g_s2e->getDebugStream() << "Could not get the return address" << '\n';
+    } else {
+        *retAddr = static_cast<uint64_t>(t_retAddr);
+    }
+    return ok;
 }
 
 void S2EExecutionState::dumpStack(unsigned count)
