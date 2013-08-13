@@ -11,6 +11,7 @@
 #define KLEE_KMODULE_H
 
 #include "klee/Interpreter.h"
+#include "llvm/ADT/SmallSet.h"
 
 #include <map>
 #include <set>
@@ -126,6 +127,10 @@ namespace klee {
 
     /// Remove function from KModule and call removeFromParend on it
     void removeFunction(llvm::Function *f, bool keepDeclaration = false);
+
+  private:
+    llvm::SmallSet<KConstant*,10> usedKConstants;
+
   };
 } // End klee namespace
 
