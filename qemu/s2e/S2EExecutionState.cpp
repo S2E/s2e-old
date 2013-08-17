@@ -110,7 +110,10 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_qemuIcount(0),
         m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1),
-        m_needFinalizeTBExec(false), m_nextSymbVarId(0), m_runningExceptionEmulationCode(false)
+        m_needFinalizeTBExec(false),
+        m_forkAborted(false),
+        m_nextSymbVarId(0),
+        m_runningExceptionEmulationCode(false)
 {
     //XXX: make this a struct, not a pointer...
     m_timersState = new TimersState;

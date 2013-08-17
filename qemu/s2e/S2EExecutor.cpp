@@ -1662,6 +1662,8 @@ bool S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
         return false;
 
     state->m_needFinalizeTBExec = false;
+    state->m_forkAborted = false;
+
     assert(state->stack.size() != 1);
 
     assert(!state->m_runningConcrete);
@@ -1957,6 +1959,10 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 void S2EExecutor::cleanupTranslationBlock(S2EExecutionState* state)
 {
     assert(state->m_active);
+
+    if (state->m_forkAborted) {
+        return;
+    }
 
     //g_s2e_exec_ret_addr = 0;
 
