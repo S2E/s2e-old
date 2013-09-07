@@ -269,7 +269,8 @@ void SymbolicHardware::onDeviceActivation(int bus_type, void *bus)
     }
 }
 
-void SymbolicHardware::onDeviceUpdateMappings(S2EExecutionState *state, void *pci_device)
+void SymbolicHardware::onDeviceUpdateMappings(S2EExecutionState *state, void *pci_device,
+                                              int bar_index, uint64_t old_addr)
 {
     PCIDevice *d = static_cast<PCIDevice*>(pci_device);
     bool found = false;

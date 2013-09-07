@@ -254,7 +254,10 @@ public:
             onDeviceActivation;
 
     sigc::signal<void, S2EExecutionState *,
-                 void *> /* PCIDevice * */
+                 void * /* PCIDevice * */,
+                 int /* bar_index */,
+                 uint64_t /* old_addr */
+                 >
             onPciDeviceMappingUpdate;
 
     /**

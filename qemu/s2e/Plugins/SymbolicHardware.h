@@ -231,7 +231,8 @@ private:
 
     void onDeviceRegistration();
     void onDeviceActivation(int bus_type, void *bus);
-    void onDeviceUpdateMappings(S2EExecutionState *state, void *pci_device);
+    void onDeviceUpdateMappings(S2EExecutionState *state, void *pci_device,
+                                int bar_index, uint64_t old_addr);
 };
 
 class SymbolicHardwareState : public PluginState

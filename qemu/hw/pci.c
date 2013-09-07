@@ -1059,11 +1059,12 @@ static void pci_reset_mappings(PCIDevice *d)
         /* reset the mapping */
         if (r->addr != PCI_BAR_UNMAPPED) {
             memory_region_del_subregion(r->address_space, r->memory);
+            pcibus_t old_addr = r->addr;
             r->addr = PCI_BAR_UNMAPPED;
+
+            s2e_on_pci_device_update_mappings(d, i, old_addr);
         }
     }
-
-    /* TODO: notify S2E plugins which mappings have been reset */
 }
 #endif
 
@@ -1072,6 +1073,9 @@ static void pci_update_mappings(PCIDevice *d)
     PCIIORegion *r;
     int i;
     pcibus_t new_addr;
+#ifdef CONFIG_S2E
+    pcibus_t old_addr;
+#endif
 
     for(i = 0; i < PCI_NUM_REGIONS; i++) {
         r = &d->io_regions[i];
@@ -1090,16 +1094,21 @@ static void pci_update_mappings(PCIDevice *d)
         if (r->addr != PCI_BAR_UNMAPPED) {
             memory_region_del_subregion(r->address_space, r->memory);
         }
+
+#ifdef CONFIG_S2E
+        old_addr = r->addr;
+#endif
+
         r->addr = new_addr;
         if (r->addr != PCI_BAR_UNMAPPED) {
             memory_region_add_subregion_overlap(r->address_space,
                                                 r->addr, r->memory, 1);
         }
-    }
 
-#ifdef CONFIG_S2E
-    s2e_on_pci_device_update_mappings(d);
-#endif
+        #ifdef CONFIG_S2E
+        s2e_on_pci_device_update_mappings(d, i, old_addr);
+        #endif
+    }
 }
 
 static inline int pci_irq_disabled(PCIDevice *d)
