@@ -417,6 +417,8 @@ const VMStateDescription vmstate_pci_device = {
     .minimum_version_id_old = 1,
     .fields      = (VMStateField []) {
         VMSTATE_INT32_LE(version_id, PCIDevice),
+        VMSTATE_BOOL(enabled, PCIDevice),
+
         VMSTATE_BUFFER_UNSAFE_INFO(config, PCIDevice, 0,
                                    vmstate_info_pci_config,
                                    PCI_CONFIG_SPACE_SIZE),
@@ -434,6 +436,8 @@ const VMStateDescription vmstate_pcie_device = {
     .minimum_version_id_old = 1,
     .fields      = (VMStateField []) {
         VMSTATE_INT32_LE(version_id, PCIDevice),
+        VMSTATE_BOOL(enabled, PCIDevice),
+
         VMSTATE_BUFFER_UNSAFE_INFO(config, PCIDevice, 0,
                                    vmstate_info_pci_config,
                                    PCIE_CONFIG_SPACE_SIZE),
@@ -1468,7 +1472,12 @@ PCIDevice *pci_find_device(PCIBus *bus, int bus_num, uint8_t devfn)
     if (!bus)
         return NULL;
 
-    return bus->devices[devfn];
+    PCIDevice *ret = bus->devices[devfn];
+    if (ret && !ret->enabled) {
+        ret = NULL;
+    }
+
+    return ret;
 }
 
 static int pci_qdev_init(DeviceState *qdev)
@@ -1495,6 +1504,9 @@ static int pci_qdev_init(DeviceState *qdev)
         do_pci_unregister_device(pci_dev);
         return -1;
     }
+
+    pci_dev->enabled = true;
+
     if (pc->init) {
         rc = pc->init(pci_dev);
         if (rc != 0) {
@@ -1834,6 +1846,22 @@ uint8_t pci_find_capability(PCIDevice *pdev, uint8_t cap_id)
 {
     return pci_find_capability_list(pdev, cap_id, NULL);
 }
+
+#ifdef CONFIG_S2E
+void pci_device_enable(PCIDevice *dev, int enable)
+{
+    if (dev->enabled == enable) {
+        return;
+    }
+
+    dev->enabled = enable;
+    pci_reset_mappings(dev);
+    if (enable) {
+        pci_update_mappings(dev);
+    }
+}
+
+#endif
 
 static void pcibus_dev_print(Monitor *mon, DeviceState *dev, int indent)
 {
