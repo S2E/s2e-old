@@ -67,6 +67,10 @@ struct BusInfo pci_bus_info = {
     }
 };
 
+#ifdef CONFIG_S2E
+static void pci_reset_mappings(PCIDevice *d);
+#endif
+
 static void pci_update_mappings(PCIDevice *d);
 static void pci_set_irq(void *opaque, int irq_num, int level);
 static int pci_add_option_rom(PCIDevice *pdev, bool is_default_rom);
@@ -353,6 +357,14 @@ static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
     }
     memcpy(s->config, config, size);
 
+#ifdef CONFIG_S2E
+    /**
+     * In S2E, symbolic devices can have different config spaces
+     * in different states. This includes different BAR layouts.
+     * We need to clean the previous mappings to make room for the new ones.
+     */
+    pci_reset_mappings(s);
+#endif
     pci_update_mappings(s);
 
     g_free(config);
@@ -372,6 +384,40 @@ static VMStateInfo vmstate_info_pci_config = {
     .get  = get_pci_config_device,
     .put  = put_pci_config_device,
 };
+
+
+/* Saving / restoring masks */
+#define DECLARE_PCI_MASK_GET(mask) \
+static int get_pci_config_ ## mask ## _device(QEMUFile *f, void *pv, size_t size) \
+{ \
+    uint8_t **v = pv; \
+    PCIDevice *s = container_of(pv, PCIDevice, mask); \
+    assert(size == pci_config_size(s)); \
+    qemu_get_buffer(f, *v, size); \
+    return 0; \
+}
+
+#define DECLARE_PCI_MASK_PUT(mask) \
+static void put_pci_config_## mask ##_device(QEMUFile *f, void *pv, size_t size) \
+{ \
+    const uint8_t **v = pv; \
+    assert(size == pci_config_size(container_of(pv, PCIDevice, mask))); \
+    qemu_put_buffer(f, *v, size); \
+}
+
+#define DECLARE_PCI_MASK_VMTATE(mask) \
+DECLARE_PCI_MASK_GET(mask) \
+DECLARE_PCI_MASK_PUT(mask) \
+static VMStateInfo vmstate_info_pci_ ## mask = { \
+    .name = "pci config mask", \
+    .get  = get_pci_config_ ## mask ## _device, \
+    .put  = put_pci_config_ ## mask ## _device, \
+};
+
+DECLARE_PCI_MASK_VMTATE(cmask)
+DECLARE_PCI_MASK_VMTATE(wmask)
+DECLARE_PCI_MASK_VMTATE(w1cmask)
+DECLARE_PCI_MASK_VMTATE(used)
 
 static int get_pci_irq_state(QEMUFile *f, void *pv, size_t size)
 {
@@ -418,10 +464,26 @@ const VMStateDescription vmstate_pci_device = {
     .fields      = (VMStateField []) {
         VMSTATE_INT32_LE(version_id, PCIDevice),
         VMSTATE_BOOL(enabled, PCIDevice),
+        VMSTATE_BUFFER_UNSAFE_INFO(cmask, PCIDevice, 0,
+                                   vmstate_info_pci_cmask,
+                                   PCI_CONFIG_SPACE_SIZE),
+
+        VMSTATE_BUFFER_UNSAFE_INFO(wmask, PCIDevice, 0,
+                                   vmstate_info_pci_wmask,
+                                   PCI_CONFIG_SPACE_SIZE),
+
+        VMSTATE_BUFFER_UNSAFE_INFO(w1cmask, PCIDevice, 0,
+                                   vmstate_info_pci_w1cmask,
+                                   PCI_CONFIG_SPACE_SIZE),
+
+        VMSTATE_BUFFER_UNSAFE_INFO(used, PCIDevice, 0,
+                                   vmstate_info_pci_used,
+                                   PCI_CONFIG_SPACE_SIZE),
 
         VMSTATE_BUFFER_UNSAFE_INFO(config, PCIDevice, 0,
                                    vmstate_info_pci_config,
                                    PCI_CONFIG_SPACE_SIZE),
+
         VMSTATE_BUFFER_UNSAFE_INFO(irq_state, PCIDevice, 2,
 				   vmstate_info_pci_irq_state,
 				   PCI_NUM_PINS * sizeof(int32_t)),
@@ -438,9 +500,26 @@ const VMStateDescription vmstate_pcie_device = {
         VMSTATE_INT32_LE(version_id, PCIDevice),
         VMSTATE_BOOL(enabled, PCIDevice),
 
+        VMSTATE_BUFFER_UNSAFE_INFO(cmask, PCIDevice, 0,
+                                   vmstate_info_pci_cmask,
+                                   PCIE_CONFIG_SPACE_SIZE),
+
+        VMSTATE_BUFFER_UNSAFE_INFO(wmask, PCIDevice, 0,
+                                   vmstate_info_pci_wmask,
+                                   PCIE_CONFIG_SPACE_SIZE),
+
+        VMSTATE_BUFFER_UNSAFE_INFO(w1cmask, PCIDevice, 0,
+                                   vmstate_info_pci_w1cmask,
+                                   PCIE_CONFIG_SPACE_SIZE),
+
+        VMSTATE_BUFFER_UNSAFE_INFO(used, PCIDevice, 0,
+                                   vmstate_info_pci_used,
+                                   PCIE_CONFIG_SPACE_SIZE),
+
         VMSTATE_BUFFER_UNSAFE_INFO(config, PCIDevice, 0,
                                    vmstate_info_pci_config,
                                    PCIE_CONFIG_SPACE_SIZE),
+
         VMSTATE_BUFFER_UNSAFE_INFO(irq_state, PCIDevice, 2,
 				   vmstate_info_pci_irq_state,
 				   PCI_NUM_PINS * sizeof(int32_t)),
@@ -966,6 +1045,27 @@ static pcibus_t pci_bar_address(PCIDevice *d,
 
     return new_addr;
 }
+
+#ifdef CONFIG_S2E
+static void pci_reset_mappings(PCIDevice *d)
+{
+    for(int i = 0; i < PCI_NUM_REGIONS; i++) {
+        PCIIORegion *r = &d->io_regions[i];
+
+        /* this region isn't registered */
+        if (!r->size)
+            continue;
+
+        /* reset the mapping */
+        if (r->addr != PCI_BAR_UNMAPPED) {
+            memory_region_del_subregion(r->address_space, r->memory);
+            r->addr = PCI_BAR_UNMAPPED;
+        }
+    }
+
+    /* TODO: notify S2E plugins which mappings have been reset */
+}
+#endif
 
 static void pci_update_mappings(PCIDevice *d)
 {
