@@ -354,6 +354,7 @@ Executor::Executor(const InterpreterOptions &opts,
     specialFunctionHandler(0),
     processTree(0),
     concolicMode(false),
+    concolicTaint(false),
     replayOut(0),
     replayPath(0),    
     usingSeeds(0),
@@ -812,12 +813,14 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
 
     if (current.forkDisabled) {
        if (ce->isTrue()) {
-           //Condition is true in the current state
-           addConstraint(current, condition);
+           if(!concolicTaint)
+              //Condition is true in the current state
+              addConstraint(current, condition);
            return StatePair(&current, 0);
        } else {
-           //Condition is false in the current state
-           addConstraint(current, Expr::createIsZero(condition));
+           if(!concolicTaint)
+              //Condition is false in the current state
+              addConstraint(current, Expr::createIsZero(condition));
            return StatePair(0, &current);
        }
     }

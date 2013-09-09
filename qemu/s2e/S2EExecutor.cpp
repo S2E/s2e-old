@@ -239,6 +239,11 @@ cl::opt<bool>
 ConcolicMode("use-concolic-execution",
                cl::desc("Concolic execution mode"),  cl::init(true));
 
+// Disable fork and use make_concolic to use Concolic Taint
+cl::opt<bool>
+ConcolicTaint("use-concolic-taint",
+               cl::desc("Single Concolic Taint"),  cl::init(false));
+
 cl::opt<bool>
 DebugConstraints("debug-constraints",
                cl::desc("Check that added constraints are satisfiable"),  cl::init(false));
@@ -856,6 +861,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     g_s2e_concretize_io_writes = ConcretizeIoWrites;
 
     concolicMode = ConcolicMode;
+    concolicTaint = ConcolicTaint;
 
     if (UseFastHelpers) {
         if (!ForkOnSymbolicAddress) {
