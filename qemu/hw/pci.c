@@ -348,6 +348,10 @@ static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
     config = g_malloc(size);
 
     qemu_get_buffer(f, config, size);
+
+#ifdef CONFIG_S2E
+    if (!s->rebuild_bars) {
+#endif
     for (i = 0; i < size; ++i) {
         if ((config[i] ^ s->config[i]) &
             s->cmask[i] & ~s->wmask[i] & ~s->w1cmask[i]) {
@@ -355,7 +359,10 @@ static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
             return -EINVAL;
         }
     }
-    memcpy(s->config, config, size);
+#ifdef CONFIG_S2E
+    }
+#endif
+
 
 #ifdef CONFIG_S2E
     /**
@@ -364,7 +371,20 @@ static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
      * We need to clean the previous mappings to make room for the new ones.
      */
     pci_reset_mappings(s);
+    if (s->rebuild_bars) {
+        pci_clear_mappings(s);
+    }
 #endif
+
+    memcpy(s->config, config, size);
+
+#ifdef CONFIG_S2E
+    if (s->rebuild_bars) {
+        s->rebuild_bars(s);
+        memcpy(s->config, config, size);
+    }
+#endif
+
     pci_update_mappings(s);
 
     g_free(config);
@@ -1066,6 +1086,23 @@ static void pci_reset_mappings(PCIDevice *d)
         }
     }
 }
+
+void pci_clear_mappings(PCIDevice *d)
+{
+    for(int i = 0; i < PCI_NUM_REGIONS; i++) {
+        PCIIORegion *r = &d->io_regions[i];
+        r->addr = 0;
+        r->size = 0;
+        r->type = 0;
+        r->memory = NULL;
+        r->address_space = NULL;
+
+        uint32_t addr = pci_bar(d, i);
+        pci_set_long(d->config + addr, 0);
+        pci_set_long(d->wmask + addr, 0);
+        pci_set_long(d->cmask + addr, 0);
+    }
+}
 #endif
 
 static void pci_update_mappings(PCIDevice *d)
@@ -1614,6 +1651,7 @@ static int pci_qdev_init(DeviceState *qdev)
         return -1;
     }
 
+    pci_dev->rebuild_bars = NULL;
     pci_dev->enabled = true;
 
     if (pc->init) {

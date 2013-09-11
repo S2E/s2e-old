@@ -87,6 +87,8 @@ typedef void PCIMapIORegionFunc(PCIDevice *pci_dev, int region_num,
                                 pcibus_t addr, pcibus_t size, int type);
 typedef int PCIUnregisterFunc(PCIDevice *pci_dev);
 
+typedef void PCIRebuildBarsFunc(PCIDevice *pci_dev);
+
 typedef struct PCIIORegion {
     pcibus_t addr; /* current PCI mapping address. -1 means not mapped */
 #define PCI_BAR_UNMAPPED (~(pcibus_t)0)
@@ -238,6 +240,9 @@ struct PCIDevice {
 
     /* When disabled, the device will be invisible on the bus */
     bool enabled;
+
+    /* Allows S2E to rebuild the config space on state switches */
+    PCIRebuildBarsFunc *rebuild_bars;
 };
 
 void pci_register_bar(PCIDevice *pci_dev, int region_num,
@@ -315,6 +320,7 @@ int pci_read_devaddr(Monitor *mon, const char *addr, int *domp, int *busp,
 void pci_device_deassert_intx(PCIDevice *dev);
 
 #ifdef CONFIG_S2E
+void pci_clear_mappings(PCIDevice *d);
 void pci_device_enable(PCIDevice *dev, int enable);
 #endif
 
