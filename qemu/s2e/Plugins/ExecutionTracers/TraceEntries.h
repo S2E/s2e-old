@@ -378,8 +378,9 @@ struct ExecutionTraceTb
     uint32_t size;
     uint8_t tbType;
 
-    uint8_t symbMask;
-    uint64_t registers[8];
+    uint32_t symbMask;
+    uint64_t registers[16];
+
 }__attribute__((packed));
 
 union ExecutionTraceAll {

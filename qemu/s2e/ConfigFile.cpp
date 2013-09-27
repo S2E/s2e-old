@@ -606,7 +606,7 @@ int S2ELUAExecutionState::readMemory(lua_State *L)
     target_ulong address = luaL_checkint(L, 1);
     uint32_t size = luaL_checkint(L, 2);
 
-    target_ulong ret;
+    target_ulong ret = 0;
     size = size <= 4 ? size : 4;
     size = size > sizeof (ret) ? sizeof (ret) : size;
 

@@ -78,8 +78,8 @@ cl::list<unsigned>
     PathList("pathId",
              cl::desc("Path id to output, repeat for more. Empty=all paths"), cl::ZeroOrMore);
 
-cl::opt<bool>
-        PrintRegisters("printRegisters", cl::desc("Print register contents for each block. Requires TranslationBlockTracer."), cl::init(false));
+cl::opt<std::string>
+        PrintRegisters("printRegisters", cl::desc("Print register contents for each block. Requires TranslationBlockTracer."), cl::init(""));
 
 cl::opt<bool>
         PrintMemory("printMemory", cl::desc("Print memory trace. Requires plugins that generate a memory trace."), cl::init(false));
@@ -290,16 +290,32 @@ void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc, unsigned tbSize, bool pr
     }
 }
 
-void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
+void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te, std::string &arch)
 {
-    const char *regs[] = {"EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI"};
-    for (unsigned i=0; i<8; ++i) {
-        if (te->symbMask & (1<<i)) {
-            m_output << regs[i] << ": SYMBOLIC ";
-        }else {
-            m_output << regs[i] << ": 0x" << std::hex << te->registers[i] << " ";
-        }
-    }
+
+	if (arch == "arm") {
+		const char *regs[] = {	"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7",
+								"R8", "R9", "R10", "R11", "R12", "SP (R13)", "LR (R14)",};
+				for (unsigned i=0; i<15; ++i) {
+					if (te->symbMask & (1<<i)) {
+						m_output << regs[i] << ": SYMBOLIC ";
+					}else {
+						m_output << regs[i] << ": 0x" << std::hex << te->registers[i] << " ";
+					}
+				}
+	} else if (arch == "i386") {
+		const char *regs[] = {"EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI"};
+		for (unsigned i=0; i<8; ++i) {
+			if (te->symbMask & (1<<i)) {
+				m_output << regs[i] << ": SYMBOLIC ";
+			}else {
+				m_output << regs[i] << ": 0x" << std::hex << te->registers[i] << " ";
+			}
+		}
+	} else {
+		m_output << "Unknown arch specified. Currently supported: arm, i386.";
+	}
+
 }
 
 void TbTrace::printMemoryChecker(const s2e::plugins::ExecutionTraceMemChecker::Serialized *item)
@@ -379,9 +395,9 @@ void TbTrace::onItem(unsigned traceIndex,
 
         m_output << "0x" << std::hex << te->pc<< " - ";
 
-        if (PrintRegisters) {
+        if (PrintRegisters != "") {
             m_output << std::endl << "    ";
-            printRegisters(te);
+            printRegisters(te, PrintRegisters);
             m_output << std::endl << "    ";
         }
 
