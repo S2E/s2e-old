@@ -375,7 +375,7 @@ static int s2e_probe(const uint8_t *buf, int buf_size, const char *filename)
         return 0;
     }
 
-    return 1;
+    return 10;
 }
 
 static int coroutine_fn s2e_co_discard(BlockDriverState *bs,
