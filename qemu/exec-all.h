@@ -93,6 +93,12 @@ void gen_intermediate_code_pc(CPUArchState *env, struct TranslationBlock *tb);
 void restore_state_to_opc(CPUArchState *env, struct TranslationBlock *tb,
                           int pc_pos);
 
+
+#ifdef CONFIG_S2E
+#define INSTRUCTION_SET_ARM 0
+#define INSTRUCTION_SET_THUMB 1
+#endif
+
 #ifdef CONFIG_S2E
 int cpu_gen_llvm(CPUArchState *env, TranslationBlock *tb);
 #endif
@@ -225,6 +231,7 @@ struct TranslationBlock {
     struct S2ETranslationBlock* s2e_tb;
     struct TranslationBlock* s2e_tb_next[2];
     uint64_t pcOfLastInstr; /* XXX: hack for call instructions */
+    uint32_t instruction_set;
 #endif
 
 };
