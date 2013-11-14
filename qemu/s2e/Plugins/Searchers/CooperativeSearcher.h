@@ -45,11 +45,15 @@
 
 #include <vector>
 
+#define COOPSEARCHER_OPCODE 0xAB
+#if defined(TARGET_I386)
+#define COOPSEARCHER_NEXTSTATE regs[R_EAX]
+#elif defined(TARGET_ARM)
+#define COOPSEARCHER_NEXTSTATE regs[0]
+#endif
+
 namespace s2e {
 namespace plugins {
-
-#define COOPSEARCHER_OPCODE 0xAB
-
 
 class CooperativeSearcher : public Plugin, public klee::Searcher
 {
