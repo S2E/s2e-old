@@ -290,7 +290,7 @@ void ModuleExecutionDetector::moduleLoadListener(
     if (m_ConfigureAllModules) {
         if (plgState->exists(&module, true)) {
             s2e()->getDebugStream() << " [ALREADY REGISTERED]" << '\n';
-        }else {
+        } else {
             s2e()->getDebugStream() << " [REGISTERING]" << '\n';
             plgState->loadDescriptor(module, true);
             onModuleLoad.emit(state, module);
@@ -394,7 +394,7 @@ void ModuleExecutionDetector::onTranslateBlockStart(
             plgState->getDescriptor(pid, pc);
 
     if (currentModule) {
-        //S2E::printf(s2e()->getDebugStream(), "Translating block %#"PRIx64" belonging to %s\n",pc, currentModule->Name.c_str());
+        s2e()->getDebugStream() << "Translating block " << hexval(pc) << " belonging to \"" << currentModule->Name.c_str() << "\"\n";
         signal->connect(sigc::mem_fun(*this,
             &ModuleExecutionDetector::onExecution));
 

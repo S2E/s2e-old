@@ -39,7 +39,7 @@
  *
  *  This allows things like defining portions of the BIOS.
  *
- *  RESERVES THE CUSTOM OPCODE 0xAA
+ *  RESERVES THE CUSTOM OPCODE 0xAA (RAW_MONITOR_OPCODE)
  */
 
 extern "C" {
@@ -187,8 +187,8 @@ void RawMonitor::opLoadConfiguredModule(S2EExecutionState *state)
     for (it = m_cfg.begin(); it != m_cfg.end(); ++it) {
         Cfg &c = *it;
         if (c.name == nameStr) {
-            s2e()->getMessagesStream() << "RawMonitor: Registering " << nameStr << " "
-                                          " @" << hexval(rtloadbase) << " size=" << hexval(size)  << '\n';
+            s2e()->getMessagesStream() << "RawMonitor: Registering \"" << nameStr << " "
+                                          "\" @" << hexval(rtloadbase) << " size=" << hexval(size)  << '\n';
             c.start = rtloadbase;
             c.size = size;
             loadModule(state, c, false);
@@ -334,8 +334,8 @@ void RawMonitor::loadModule(S2EExecutionState *state, const Cfg &c, bool skipIfD
     md.Pid = c.kernelMode ? 0 : state->getPid();
     md.EntryPoint = c.entrypoint;
 
-    s2e()->getDebugStream() << "RawMonitor loaded " << c.name << " " <<
-            hexval(c.start) << ' ' << hexval(c.size) << '\n';
+    s2e()->getDebugStream() << "RawMonitor loaded module \"" << c.name << "\" @" <<
+            hexval(c.start) << " size=" << hexval(c.size) << '\n';
     onModuleLoad.emit(state, md);
 }
 
