@@ -464,7 +464,6 @@ s2eobj-i386-y += s2e/Plugins/HostFiles.o
 s2eobj-i386-y += s2e/Plugins/Searchers/CooperativeSearcher.o
 s2eobj-i386-y += s2e/Plugins/Debugger.o
 s2eobj-i386-y += s2e/Plugins/SymbolicHardware.o
-s2eobj-i386-y += s2e/Plugins/Annotation.o
 s2eobj-i386-y += s2e/Plugins/MemoryChecker.o
 s2eobj-i386-y += s2e/Plugins/StackChecker.o
 s2eobj-i386-y += s2e/Plugins/Searchers/MaxTbSearcher.o
@@ -505,8 +504,8 @@ s2eobj-y += s2e/Plugins/ModuleExecutionDetector.o
 s2eobj-y += s2e/Plugins/EdgeKiller.o
 s2eobj-y += s2e/Plugins/CacheSim.o
 s2eobj-y += s2e/Plugins/RawMonitor.o
-
 s2eobj-y += s2e/Plugins/ExecutionStatisticsCollector.o
+s2eobj-y += s2e/Plugins/Annotation.o
 
 #sqlite database is deprecated now
 #s2eobj-y += s2e/sqlite3.o
