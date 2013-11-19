@@ -56,6 +56,7 @@ S2E_DEFINE_PLUGIN(Annotation, "Bypasses functions at run-time", "Annotation");
 
 void Annotation::initialize()
 {
+    m_tb = NULL;
     m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
     m_moduleExecutionDetector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
     m_osMonitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
