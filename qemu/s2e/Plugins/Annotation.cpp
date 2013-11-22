@@ -152,6 +152,7 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
 
     ConfigFile *cfg = s2e()->getConfig();
     llvm::raw_ostream &os  = s2e()->getWarningsStream();
+    std::vector<std::string> cfgkeys = s2e()->getConfig()->getListKeys(entry);
 
     e.cfgname = cfgname;
 
@@ -187,29 +188,37 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
         return false;
     }
 
-
-    e.beforeInstruction=false;
-    e.switchInstructionToSymbolic=false;
-    e.annotation = cfg->getString(entry + ".callAnnotation", "", &ok);
-    if (!ok || e.annotation=="") {
-        e.annotation = cfg->getString(entry + ".instructionAnnotation", "", &ok);
-        if (!ok || e.annotation == "") {
-            os << "You must specifiy either " << entry << ".callAnnotation or .instructionAnnotation!" << '\n';
-            return false;
-        }else {
-            e.isCallAnnotation = false;
-            //Wheter to call the annotation before or after the instruction
-            e.beforeInstruction = cfg->getBool(entry + ".beforeInstruction", false, &ok);
-            e.switchInstructionToSymbolic = cfg->getBool(entry + ".switchInstructionToSymbolic", false, &ok);
-        }
-    }else {
+    // Check if this is a call or an instruction annotation
+    e.annotation = "";
+    if (std::find(cfgkeys.begin(), cfgkeys.end(), "callAnnotation") != cfgkeys.end())	{
+        e.annotation = cfg->getString(entry + ".callAnnotation", e.annotation, &ok);
         e.isCallAnnotation = true;
+    } else if (std::find(cfgkeys.begin(), cfgkeys.end(), "instructionAnnotation") != cfgkeys.end())	{
+        e.annotation = cfg->getString(entry + ".instructionAnnotation", e.annotation, &ok);
+        e.isCallAnnotation = false;
+    }
 
-        e.paramCount = cfg->getInt(entry + ".paramcount", 0, &ok);
+    // Assert that this is a properly attached annotation
+    if (!ok || e.annotation=="") {
+        os << "You must specify either " << entry << ".callAnnotation or .instructionAnnotation!" << '\n';
+        return false;
+    }
+
+    // Get additional annotation-specific options
+    e.paramCount = 0;
+    e.beforeInstruction = false;
+    e.switchInstructionToSymbolic = false;
+    if (e.isCallAnnotation) {
+        // Get the number of arguments of the annotated subroutine
+        e.paramCount = cfg->getInt(entry + ".paramcount", e.paramCount, &ok);
         if (!ok) {
             os << "You must specify a valid number of function parameters for " << entry << ".paramcount!" << '\n';
             return false;
         }
+    } else {
+        // Whether to call the annotation before or after the instruction
+        e.beforeInstruction = cfg->getBool(entry + ".beforeInstruction", e.beforeInstruction, &ok);
+        e.switchInstructionToSymbolic = cfg->getBool(entry + ".switchInstructionToSymbolic", e.switchInstructionToSymbolic, &ok);
     }
 
     ne = new AnnotationCfgEntry(e);

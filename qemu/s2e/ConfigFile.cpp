@@ -282,6 +282,11 @@ int64_t ConfigFile::getInt(const string& name, int64_t def, bool *ok)
     return getValueT(name, def, ok);
 }
 
+double ConfigFile::getDouble(const string& name, double def, bool *ok)
+{
+    return getValueT(name, def, ok);
+}
+
 string ConfigFile::getString(
             const string& name, const string& def, bool *ok)
 {
@@ -401,6 +406,7 @@ Lunar<S2ELUAExecutionState>::RegType S2ELUAExecutionState::methods[] = {
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readMemory),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeMemory),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, isSpeculative),
+  LUNAR_DECLARE_METHOD(S2ELUAExecutionState, getID),
   {0,0}
 };
 
@@ -552,12 +558,12 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing symbolic value to memory location" <<
             " " << hexval(address) << " of size " << size << '\n';
 
-    klee::Expr::Width width=klee::Expr::Int8;
+    klee::Expr::Width bitLength=klee::Expr::Int8;
     switch(size) {
-        case 1: width = klee::Expr::Int8; break;
-        case 2: width = klee::Expr::Int16; break;
-        case 4: width = klee::Expr::Int32; break;
-        case 8: width = klee::Expr::Int64; break;
+        case 1: bitLength = klee::Expr::Int8; break;
+        case 2: bitLength = klee::Expr::Int16; break;
+        case 4: bitLength = klee::Expr::Int32; break;
+        case 8: bitLength = klee::Expr::Int64; break;
         default:
             {
                 std::stringstream ss;
@@ -568,8 +574,18 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
             break;
     }
 
+    // Read current memory content, check if already symbolic and use it in concolic mode
+    target_ulong value = 0;
+    std::vector<unsigned char> buf;
+    if (!m_state->readMemoryConcrete(address, &value, size)) {
+        g_s2e->getDebugStream() << "writeMemorySymb: Address " << hexval(address) << " already contains symbolic data, not overwriting.\n";
+        return 0;
+    }
+    for (unsigned int i = 0; i < bitLength; i += 8) {
+        buf.push_back(value & (0xFF << i));
+    }
 
-    klee::ref<klee::Expr> val = m_state->createSymbolicValue(name, width);
+    klee::ref<klee::Expr> val = m_state->createConcolicValue(name, bitLength, buf);
     if (!m_state->writeMemory(address, val)) {
         std::stringstream ss;
         g_s2e->getDebugStream() << "writeMemorySymb: Could not write to memory at address " << hexval(address);
@@ -577,13 +593,11 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
     }
 
     if (writeRange) {
-        klee::ref<klee::Expr> val1 = klee::UleExpr::create(val, klee::ConstantExpr::create(upperBound,width));
-        klee::ref<klee::Expr> val2 = klee::NotExpr::create(klee::UltExpr::create(val, klee::ConstantExpr::create(lowerBound,width)));
+        klee::ref<klee::Expr> val1 = klee::UleExpr::create(val, klee::ConstantExpr::create(upperBound,bitLength));
+        klee::ref<klee::Expr> val2 = klee::NotExpr::create(klee::UltExpr::create(val, klee::ConstantExpr::create(lowerBound,bitLength)));
         klee::ref<klee::Expr> val3 = klee::AndExpr::create(val1, val2);
         g_s2e->getDebugStream() <<  "writeMemorySymb: " << val3 << '\n';
         m_state->addConstraint(val3);
-    }else {
-        val = m_state->createSymbolicValue(name, width);
     }
 
     return 0;
@@ -645,25 +659,53 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
 
 int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
 {
+    uint64_t lowerBound;
+    uint64_t upperBound;
+    bool writeRange = false;
     std::string regstr = luaL_checkstring(L, 1);
     std::string namestr = luaL_checkstring(L, 2);
 
-    const klee::Expr::Width width = sizeof (target_ulong) << 3;
+    if (lua_isnumber(L, 3) && lua_isnumber(L, 4)) {
+        lowerBound = luaL_checkint(L, 3);
+        upperBound = luaL_checkint(L, 4);
+        writeRange = true;
+    }
 
-    unsigned regIndex=0, size=0;
+    unsigned regIndex=0, byteLength=0;
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing to register "
             << regstr << '\n';
 
-    if (!RegNameToIndex(regstr, regIndex, size)) {
+    if (!RegNameToIndex(regstr, regIndex, byteLength)) {
         std::stringstream ss;
         ss << "Invalid register " << regstr;
         lua_pushstring(L, ss.str().c_str());
         lua_error(L);
     }
 
-    klee::ref<klee::Expr> val = m_state->createSymbolicValue(namestr, width);
+    // Read current register content, check if already symbolic and optionally use it in concolic mode
+    const klee::Expr::Width bitLength = byteLength << 3;
+    target_ulong value = 0;
+    klee::ref<klee::Expr> val;
+    std::vector<unsigned char> buf;
+    if (!m_state->readCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, byteLength)) {
+        g_s2e->getDebugStream() << "writeRegisterSymb: register " << regstr << " already contains symbolic data, not overwriting.\n";
+        return 0;
+    }
+    for (unsigned int i = 0; i < bitLength; i += 8) {
+        buf.push_back(value & (0xFF << i));
+    }
+
+    val = m_state->createConcolicValue(namestr, bitLength, buf);
     m_state->writeCpuRegister(CPU_REG_OFFSET(regIndex), val);
+
+    if (writeRange) {
+        klee::ref<klee::Expr> val1 = klee::UleExpr::create(val, klee::ConstantExpr::create(upperBound,bitLength));
+        klee::ref<klee::Expr> val2 = klee::NotExpr::create(klee::UltExpr::create(val, klee::ConstantExpr::create(lowerBound,bitLength)));
+        klee::ref<klee::Expr> val3 = klee::AndExpr::create(val1, val2);
+        g_s2e->getDebugStream() <<  "writeRegisterSymb: " << val3 << '\n';
+        m_state->addConstraint(val3);
+    }
 
     return 0;                   /* number of results */
 }
@@ -694,6 +736,12 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
 int S2ELUAExecutionState::isSpeculative(lua_State *L)
 {
     lua_pushboolean(L, m_state->isSpeculative());        /* first result */
+    return 1;
+}
+
+int S2ELUAExecutionState::getID(lua_State *L)
+{
+    lua_pushnumber(L, m_state->getID());
     return 1;
 }
 
