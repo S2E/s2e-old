@@ -892,7 +892,16 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
     target_ulong value = 0;
 
     if (CPU_REG_OFFSET(regIndex) < CPU_CONC_LIMIT) {
-        m_state->readCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
+        klee::ref<klee::Expr> exprReg = m_state->readCpuRegister(CPU_REG_OFFSET(regIndex), klee::Expr::Width(size << 3));
+        if (isa<klee::ConstantExpr>(exprReg)) {
+            // Register is concrete, just read it
+            value = cast<klee::ConstantExpr>(exprReg)->getZExtValue();
+        }
+        else
+        {
+            // Register is symbolic, get an example (without concretizing in-place)
+            value = g_s2e->getExecutor()->toConstantSilent(*m_state, exprReg)->getZExtValue();
+        }
     } else {
         assert(CPU_REG_OFFSET(regIndex) == CPU_CONC_LIMIT);
         value = (target_ulong) m_state->getPc();
