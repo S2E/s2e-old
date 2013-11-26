@@ -38,10 +38,26 @@
 
 #include <klee/ExecutionState.h>
 #include <klee/Memory.h>
+#include <cpu.h>
 #include "S2EDeviceState.h"
 #include "S2EStatsTracker.h"
 #include "MemoryCache.h"
 #include "s2e_config.h"
+
+/** S2E_TARGET_CONC_LIMIT defines the border between concrete and symbolic area.
+ *  Eg. regs[15] is in concrete-only-area for ARM targets.
+ *  This is often used as a CPUArchState offset, see CPU_CONC_LIMIT below.
+ *  S2E_OPCODE_SIZE is the size in byte of S2E custom opcodes. */
+
+#if defined(TARGET_I386)
+#define S2E_TARGET_CONC_LIMIT eip
+#define S2E_OPCODE_SIZE 10
+#elif defined(TARGET_ARM)
+#define S2E_TARGET_CONC_LIMIT regs[15]
+#define S2E_OPCODE_SIZE 4
+#else
+#error "Target architecture not supported"
+#endif
 
 extern "C" {
     struct TranslationBlock;
@@ -49,13 +65,12 @@ extern "C" {
 }
 
 
-
-// XXX
-struct CPUX86State;
-#define CPU_OFFSET(field) offsetof(CPUX86State, field)
+CPUArchState;
+#define CPU_OFFSET(field) offsetof(CPUArchState, field)
 #define CPU_REG_SIZE sizeof(target_ulong)
 #define CPU_REG_OFFSET(index) \
-        (offsetof(CPUX86State, regs) + (index) * CPU_REG_SIZE)
+        (offsetof(CPUArchState, regs) + (index) * CPU_REG_SIZE)
+#define CPU_CONC_LIMIT CPU_OFFSET(S2E_TARGET_CONC_LIMIT)
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SmallVector.h>
@@ -75,7 +90,7 @@ typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 
 typedef MemoryCachePool<klee::ObjectPair,
                 S2E_RAM_OBJECT_BITS,
-                12, //XXX: FIX THIS HARD-CODED STUFF!
+                TARGET_PAGE_BITS,
                 S2E_MEMCACHE_SUPERPAGE_BITS> S2EMemoryCache;
 
 struct S2EPhysCacheEntry
@@ -342,11 +357,11 @@ public:
 
     /** Read from CPU state. Concretize if necessary */
     void readRegisterConcrete(
-            CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size);
+            CPUArchState *cpuState, unsigned offset, uint8_t* buf, unsigned size);
 
     /** Write concrete data to the CPU */
-    /** XXX: do we really also need writeCpuRegisterConcrete? */
-    void writeRegisterConcrete(CPUX86State *cpuState,
+    /** XXX: do we really also need writeCpuRegisterConcrete? **/
+    void writeRegisterConcrete(CPUArchState *cpuState,
                                unsigned offset, const uint8_t* buf, unsigned size);
 
     /** Read an ASCIIZ string from memory */
@@ -404,8 +419,7 @@ public:
     void writeDirtyMask(uint64_t host_address, uint8_t val);
     void registerDirtyMask(uint64_t host_address, uint64_t size);
 
-
-    CPUX86State *getConcreteCpuState() const;
+    CPUArchState *getConcreteCpuState() const;
 
     virtual void addConstraint(klee::ref<klee::Expr> e);
 
@@ -428,13 +442,13 @@ public:
                 unsigned size,
                 std::vector<unsigned char> &concreteBuffer);
 
-    /** Debug functions */
-    void dumpX86State(llvm::raw_ostream &os) const;
+    /** Debug functions **/
+    void dumpCpuState(llvm::raw_ostream &os) const;
 
     /** Attempt to merge two states */
     bool merge(const ExecutionState &b);
 
-    void updateTlbEntry(CPUX86State* env,
+    void updateTlbEntry(CPUArchState* env,
                               int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
     void flushTlbCache();
 

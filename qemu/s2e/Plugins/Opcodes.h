@@ -37,7 +37,14 @@
 
 #define __S2E_OPCODES__
 
-#define OPCODE_SIZE (2 + 8)
+/** Custom opcodes
+
+    ARM: 0xFF 0xXX 0xYY 0x00
+	I386/AMD64: 0x0F 0x3F 0x00 0xXX 0xYY 0x00 0x00 0x00 0x00 0x00
+
+    0xXX = main opcode
+    0xYY = subfunction operand, used by some plugins
+ */
 
 //Central opcode repository for plugins that implement micro-operations
 #define RAW_MONITOR_OPCODE   0xAA
@@ -46,14 +53,22 @@
 #define CODE_SELECTOR_OPCODE 0xAE
 #define MODULE_EXECUTION_DETECTOR_OPCODE 0xAF
 
-//Expression evaluates to true if the custom instruction operand contains the
-//specified opcode
-#define OPCODE_CHECK(operand, opcode) ((((operand)>>8) & 0xFF) == (opcode))
+#ifdef TARGET_I386
 
-//Get an 8-bit function code from the operand.
-//This may or may not be used depending on how a plugin expects an operand to
-//look like
-#define OPCODE_GETSUBFUNCTION(operand) (((operand) >> 16) & 0xFF)
+#define OPSHIFT 8
+#define SUBOPSHIFT 16
+#define OPCODE_SIZE (2 + 8)
+#define OPCODE_CHECK(operand, opcode) ((((operand)>> OPSHIFT) & 0xFF) == (opcode))
+#define OPCODE_GETSUBFUNCTION(operand) (((operand) >> SUBOPSHIFT) & 0xFF)
 
+#elif defined(TARGET_ARM)
+
+#define OPSHIFT 16
+#define SUBOPSHIFT 8
+#define OPCODE_SIZE (2 + 2)
+#define OPCODE_CHECK(operand, opcode) ((((operand)>> OPSHIFT) & 0xFF) == (opcode))
+#define OPCODE_GETSUBFUNCTION(operand) (((operand) >> SUBOPSHIFT) & 0xFF)
+
+#endif
 
 #endif

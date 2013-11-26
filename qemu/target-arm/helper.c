@@ -522,22 +522,37 @@ static int bad_mode_switch(CPUARMState *env, int mode)
 
 uint32_t cpsr_read(CPUARMState *env)
 {
-    int ZF;
-    ZF = (env->ZF == 0);
-    return env->uncached_cpsr | (env->NF & 0x80000000) | (ZF << 30) |
-        (env->CF << 29) | ((env->VF & 0x80000000) >> 3) | (env->QF << 27)
-        | (env->thumb << 5) | ((env->condexec_bits & 3) << 25)
-        | ((env->condexec_bits & 0xfc) << 8)
-        | (env->GE << 16);
+
+    // These bits (ZF, NF, CF, VF) may be symbolic
+    target_ulong ZF, NF, CF, VF;
+    ZF = (RR_cpu(env,ZF) == 0);
+    NF = (RR_cpu(env,NF) & 0x80000000);
+    CF = (RR_cpu(env,CF) << 29);
+    VF = ((RR_cpu(env,VF) & 0x80000000) >> 3);
+
+    // These bits instead are are always concrete
+    target_ulong QF, thumb, condex1, condex2, GE;
+    QF = (env->QF << 27);
+    thumb = (env->thumb << 5);
+    condex1 = ((env->condexec_bits & 3) << 25);
+    condex2 = ((env->condexec_bits & 0xfc) << 8);
+    GE = (env->GE << 16);
+
+    // Re-assemble the cpsr
+    return env->uncached_cpsr | NF | (ZF << 30) |
+        CF | VF | QF
+        | thumb | condex1
+        | condex2
+        | GE;
 }
 
 void cpsr_write(CPUARMState *env, uint32_t val, uint32_t mask)
 {
     if (mask & CPSR_NZCV) {
-        env->ZF = (~val) & CPSR_Z;
-        env->NF = val;
-        env->CF = (val >> 29) & 1;
-        env->VF = (val << 3) & 0x80000000;
+        WR_cpu(env,ZF,((~val) & CPSR_Z));
+        WR_cpu(env,NF,val);
+        WR_cpu(env,CF,((val >> 29) & 1));
+        WR_cpu(env,VF,((val << 3) & 0x80000000));
     }
     if (mask & CPSR_Q)
         env->QF = ((val & CPSR_Q) != 0);
@@ -736,35 +751,58 @@ void switch_mode(CPUARMState *env, int mode)
         return;
 
     if (old_mode == ARM_CPU_MODE_FIQ) {
-        memcpy (env->fiq_regs, env->regs + 8, 5 * sizeof(uint32_t));
-        memcpy (env->regs + 8, env->usr_regs, 5 * sizeof(uint32_t));
+        //memcpy (env->fiq_regs, env->regs + 8, 5 * sizeof(uint32_t));
+    	WR_cpu(env,fiq_regs[0],RR_cpu(env,regs[8]));
+    	WR_cpu(env,fiq_regs[1],RR_cpu(env,regs[9]));
+    	WR_cpu(env,fiq_regs[2],RR_cpu(env,regs[10]));
+    	WR_cpu(env,fiq_regs[3],RR_cpu(env,regs[11]));
+    	WR_cpu(env,fiq_regs[4],RR_cpu(env,regs[12]));
+
+    	//memcpy (env->regs + 8, env->usr_regs, 5 * sizeof(uint32_t));
+    	WR_cpu(env,regs[8],RR_cpu(env,usr_regs[0]));
+    	WR_cpu(env,regs[9],RR_cpu(env,usr_regs[1]));
+    	WR_cpu(env,regs[10],RR_cpu(env,usr_regs[2]));
+    	WR_cpu(env,regs[11],RR_cpu(env,usr_regs[3]));
+    	WR_cpu(env,regs[12],RR_cpu(env,usr_regs[4]));
+
     } else if (mode == ARM_CPU_MODE_FIQ) {
-        memcpy (env->usr_regs, env->regs + 8, 5 * sizeof(uint32_t));
-        memcpy (env->regs + 8, env->fiq_regs, 5 * sizeof(uint32_t));
+        //memcpy (env->usr_regs, env->regs + 8, 5 * sizeof(uint32_t));
+        WR_cpu(env,usr_regs[0],RR_cpu(env,regs[8]));
+        WR_cpu(env,usr_regs[1],RR_cpu(env,regs[9]));
+        WR_cpu(env,usr_regs[2],RR_cpu(env,regs[10]));
+        WR_cpu(env,usr_regs[3],RR_cpu(env,regs[11]));
+        WR_cpu(env,usr_regs[4],RR_cpu(env,regs[12]));
+
+        //memcpy (env->regs + 8, env->fiq_regs, 5 * sizeof(uint32_t));
+    	WR_cpu(env,regs[8],RR_cpu(env,fiq_regs[0]));
+    	WR_cpu(env,regs[9],RR_cpu(env,fiq_regs[1]));
+    	WR_cpu(env,regs[10],RR_cpu(env,fiq_regs[2]));
+    	WR_cpu(env,regs[11],RR_cpu(env,fiq_regs[3]));
+    	WR_cpu(env,regs[12],RR_cpu(env,fiq_regs[4]));
     }
 
     i = bank_number(env, old_mode);
-    env->banked_r13[i] = env->regs[13];
-    env->banked_r14[i] = env->regs[14];
-    env->banked_spsr[i] = env->spsr;
+    WR_cpu(env,banked_r13[i], RR_cpu(env,regs[13]));
+    WR_cpu(env,banked_r14[i], RR_cpu(env,regs[14]));
+    WR_cpu(env,banked_spsr[i], RR_cpu(env,spsr));
 
-    i = bank_number(env, mode);
-    env->regs[13] = env->banked_r13[i];
-    env->regs[14] = env->banked_r14[i];
-    env->spsr = env->banked_spsr[i];
+    i = bank_number(env, old_mode);
+    WR_cpu(env,regs[13],RR_cpu(env,banked_r13[i]));
+    WR_cpu(env,regs[14],RR_cpu(env,banked_r14[i]));
+    WR_cpu(env,spsr,RR_cpu(env,banked_spsr[i]));
 }
 
 static void v7m_push(CPUARMState *env, uint32_t val)
 {
-    env->regs[13] -= 4;
-    stl_phys(env->regs[13], val);
+	WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) - 4));
+    stl_phys(RR_cpu(env,regs[13]), val);
 }
 
 static uint32_t v7m_pop(CPUARMState *env)
 {
     uint32_t val;
-    val = ldl_phys(env->regs[13]);
-    env->regs[13] += 4;
+    val = ldl_phys(RR_cpu(env,regs[13]));
+    WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) + 4));
     return val;
 }
 
@@ -774,8 +812,8 @@ static void switch_v7m_sp(CPUARMState *env, int process)
     uint32_t tmp;
     if (env->v7m.current_sp != process) {
         tmp = env->v7m.other_sp;
-        env->v7m.other_sp = env->regs[13];
-        env->regs[13] = tmp;
+        env->v7m.other_sp = RR_cpu(env,regs[13]);
+        WR_cpu(env,regs[13],tmp);
         env->v7m.current_sp = process;
     }
 }
@@ -792,18 +830,18 @@ static void do_v7m_exception_exit(CPUARMState *env)
     /* Switch to the target stack.  */
     switch_v7m_sp(env, (type & 4) != 0);
     /* Pop registers.  */
-    env->regs[0] = v7m_pop(env);
-    env->regs[1] = v7m_pop(env);
-    env->regs[2] = v7m_pop(env);
-    env->regs[3] = v7m_pop(env);
-    env->regs[12] = v7m_pop(env);
-    env->regs[14] = v7m_pop(env);
+    WR_cpu(env,regs[0],v7m_pop(env));
+    WR_cpu(env,regs[1],v7m_pop(env));
+    WR_cpu(env,regs[2],v7m_pop(env));
+    WR_cpu(env,regs[3],v7m_pop(env));
+    WR_cpu(env,regs[12],v7m_pop(env));
+    WR_cpu(env,regs[14],v7m_pop(env));
     env->regs[15] = v7m_pop(env);
     xpsr = v7m_pop(env);
     xpsr_write(env, xpsr, 0xfffffdff);
     /* Undo stack alignment.  */
     if (xpsr & 0x200)
-        env->regs[13] |= 4;
+        WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) | 4));
     /* ??? The exception return type specifies Thread/Handler mode.  However
        this is also implied by the xPSR value. Not sure what to do
        if there is a mismatch.  */
@@ -845,7 +883,7 @@ static void do_interrupt_v7m(CPUARMState *env)
             nr = arm_lduw_code(env->regs[15], env->bswap_code) & 0xff;
             if (nr == 0xab) {
                 env->regs[15] += 2;
-                env->regs[0] = do_arm_semihosting(env);
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
                 return;
             }
         }
@@ -865,23 +903,24 @@ static void do_interrupt_v7m(CPUARMState *env)
     /* Align stack pointer.  */
     /* ??? Should only do this if Configuration Control Register
        STACKALIGN bit is set.  */
-    if (env->regs[13] & 4) {
-        env->regs[13] -= 4;
+    if (RR_cpu(env,regs[13]) & 4) {
+        WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) - 4));
         xpsr |= 0x200;
     }
     /* Switch to the handler mode.  */
     v7m_push(env, xpsr);
     v7m_push(env, env->regs[15]);
-    v7m_push(env, env->regs[14]);
-    v7m_push(env, env->regs[12]);
-    v7m_push(env, env->regs[3]);
-    v7m_push(env, env->regs[2]);
-    v7m_push(env, env->regs[1]);
-    v7m_push(env, env->regs[0]);
+    v7m_push(env, RR_cpu(env,regs[14]));
+    v7m_push(env, RR_cpu(env,regs[12]));
+    v7m_push(env, RR_cpu(env,regs[3]));
+    v7m_push(env, RR_cpu(env,regs[2]));
+    v7m_push(env, RR_cpu(env,regs[1]));
+    v7m_push(env, RR_cpu(env,regs[0]));
     switch_v7m_sp(env, 0);
     /* Clear IT bits */
     env->condexec_bits = 0;
-    env->regs[14] = lr;
+    env->uncached_cpsr &= ~CPSR_IT;
+    WR_cpu(env,regs[14],lr);
     addr = ldl_phys(env->v7m.vecbase + env->v7m.exception * 4);
     env->regs[15] = addr & 0xfffffffe;
     env->thumb = addr & 1;
@@ -924,7 +963,7 @@ void do_interrupt(CPUARMState *env)
             if (((mask == 0x123456 && !env->thumb)
                     || (mask == 0xab && env->thumb))
                   && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
-                env->regs[0] = do_arm_semihosting(env);
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
                 return;
             }
         }
@@ -941,7 +980,7 @@ void do_interrupt(CPUARMState *env)
             if (mask == 0xab
                   && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
                 env->regs[15] += 2;
-                env->regs[0] = do_arm_semihosting(env);
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
                 return;
             }
         }
@@ -982,7 +1021,7 @@ void do_interrupt(CPUARMState *env)
         addr += 0xffff0000;
     }
     switch_mode (env, new_mode);
-    env->spsr = cpsr_read(env);
+    WR_cpu(env,spsr,cpsr_read(env));
     /* Clear IT bits.  */
     env->condexec_bits = 0;
     /* Switch to the new mode, and to the correct instruction set.  */
@@ -993,7 +1032,7 @@ void do_interrupt(CPUARMState *env)
     if (arm_feature(env, ARM_FEATURE_V4T)) {
         env->thumb = (env->cp15.c1_sys & (1 << 30)) != 0;
     }
-    env->regs[14] = env->regs[15] + offset;
+    WR_cpu(env,regs[14],(env->regs[15] + offset));
     env->regs[15] = addr;
     env->interrupt_request |= CPU_INTERRUPT_EXITTB;
 }
@@ -1065,7 +1104,7 @@ static uint32_t get_level1_table_address(CPUARMState *env, uint32_t address)
 }
 
 static int get_phys_addr_v5(CPUARMState *env, uint32_t address, int access_type,
-			    int is_user, uint32_t *phys_ptr, int *prot,
+			    int is_user, target_phys_addr_t *phys_ptr, int *prot,
                             target_ulong *page_size)
 {
     int code;
@@ -1075,7 +1114,7 @@ static int get_phys_addr_v5(CPUARMState *env, uint32_t address, int access_type,
     int ap;
     int domain;
     int domain_prot;
-    uint32_t phys_addr;
+    target_phys_addr_t phys_addr;
 
     /* Pagetable walk.  */
     /* Lookup l1 descriptor.  */
@@ -1160,7 +1199,7 @@ do_fault:
 }
 
 static int get_phys_addr_v6(CPUARMState *env, uint32_t address, int access_type,
-			    int is_user, uint32_t *phys_ptr, int *prot,
+			    int is_user, target_phys_addr_t *phys_ptr, int *prot,
                             target_ulong *page_size)
 {
     int code;
@@ -1171,7 +1210,7 @@ static int get_phys_addr_v6(CPUARMState *env, uint32_t address, int access_type,
     int ap;
     int domain;
     int domain_prot;
-    uint32_t phys_addr;
+    target_phys_addr_t phys_addr;
 
     /* Pagetable walk.  */
     /* Lookup l1 descriptor.  */
@@ -1264,7 +1303,7 @@ do_fault:
 }
 
 static int get_phys_addr_mpu(CPUARMState *env, uint32_t address, int access_type,
-			     int is_user, uint32_t *phys_ptr, int *prot)
+			     int is_user, target_phys_addr_t *phys_ptr, int *prot)
 {
     int n;
     uint32_t mask;
@@ -1325,7 +1364,7 @@ static int get_phys_addr_mpu(CPUARMState *env, uint32_t address, int access_type
 
 static inline int get_phys_addr(CPUARMState *env, uint32_t address,
                                 int access_type, int is_user,
-                                uint32_t *phys_ptr, int *prot,
+                                target_phys_addr_t *phys_ptr, int *prot,
                                 target_ulong *page_size)
 {
     /* Fast Context Switch Extension.  */
@@ -1354,7 +1393,7 @@ static inline int get_phys_addr(CPUARMState *env, uint32_t address,
 int cpu_arm_handle_mmu_fault (CPUARMState *env, target_ulong address,
                               int access_type, int mmu_idx)
 {
-    uint32_t phys_addr;
+    target_phys_addr_t phys_addr;
     target_ulong page_size;
     int prot;
     int ret, is_user;
@@ -1364,7 +1403,7 @@ int cpu_arm_handle_mmu_fault (CPUARMState *env, target_ulong address,
                         &page_size);
     if (ret == 0) {
         /* Map a single [sub]page.  */
-        phys_addr &= ~(uint32_t)0x3ff;
+        phys_addr &= ~(target_phys_addr_t)0x3ff;
         address &= ~(uint32_t)0x3ff;
         tlb_set_page (env, address, phys_addr, prot, mmu_idx, page_size);
         return 0;
@@ -1386,7 +1425,7 @@ int cpu_arm_handle_mmu_fault (CPUARMState *env, target_ulong address,
 
 target_phys_addr_t cpu_get_phys_page_debug(CPUARMState *env, target_ulong addr)
 {
-    uint32_t phys_addr;
+    target_phys_addr_t phys_addr;
     target_ulong page_size;
     int prot;
     int ret;
@@ -1615,7 +1654,7 @@ void HELPER(set_cp15)(CPUARMState *env, uint32_t insn, uint32_t val)
                 }
                 break;
             case 8: {
-                uint32_t phys_addr;
+                target_phys_addr_t phys_addr;
                 target_ulong page_size;
                 int prot;
                 int ret, is_user = op2 & 2;
@@ -2079,7 +2118,7 @@ uint32_t HELPER(get_cp15)(CPUARMState *env, uint32_t insn)
             return env->cp15.c7_par;
         }
         /* FIXME: Should only clear Z flag if destination is r15.  */
-        env->ZF = 0;
+        WR_cpu(env,ZF,0);
         return 0;
     case 8: /* MMU TLB control.  */
         goto bad_reg;
@@ -2265,6 +2304,25 @@ bad_reg:
     return 0;
 }
 
+void HELPER(set_spsr_banked)(CPUARMState *env, uint32_t mode, uint32_t val)
+{
+    if ((env->uncached_cpsr & CPSR_M) == mode) {
+    	cpsr_write(env, val, 0xFFFFFFFF);
+    } else {
+        env->banked_spsr[bank_number(env, mode)] = val;
+    }
+}
+
+uint32_t HELPER(get_spsr_banked)(CPUARMState *env, uint32_t mode)
+{
+    if ((env->uncached_cpsr & CPSR_M) == mode) {
+        return cpsr_read_concrete(env);
+    } else {
+        return env->banked_spsr[bank_number(env, mode)];
+    }
+}
+
+
 void HELPER(set_r13_banked)(CPUARMState *env, uint32_t mode, uint32_t val)
 {
     if ((env->uncached_cpsr & CPSR_M) == mode) {
@@ -2280,6 +2338,24 @@ uint32_t HELPER(get_r13_banked)(CPUARMState *env, uint32_t mode)
         return env->regs[13];
     } else {
         return env->banked_r13[bank_number(env, mode)];
+    }
+}
+
+void HELPER(set_r14_banked)(CPUARMState *env, uint32_t mode, uint32_t val)
+{
+    if ((env->uncached_cpsr & CPSR_M) == mode) {
+        env->regs[13] = val;
+    } else {
+        env->banked_r13[bank_number(env, mode)] = val;
+    }
+}
+
+uint32_t HELPER(get_r14_banked)(CPUARMState *env, uint32_t mode)
+{
+    if ((env->uncached_cpsr & CPSR_M) == mode) {
+        return env->regs[14];
+    } else {
+        return env->banked_r14[bank_number(env, mode)];
     }
 }
 
@@ -2301,9 +2377,9 @@ uint32_t HELPER(v7m_mrs)(CPUARMState *env, uint32_t reg)
     case 7: /* IEPSR */
         return xpsr_read(env) & 0x0700edff;
     case 8: /* MSP */
-        return env->v7m.current_sp ? env->v7m.other_sp : env->regs[13];
+        return env->v7m.current_sp ? env->v7m.other_sp : RR_cpu(env,regs[13]);
     case 9: /* PSP */
-        return env->v7m.current_sp ? env->regs[13] : env->v7m.other_sp;
+        return env->v7m.current_sp ? RR_cpu(env,regs[13]) : env->v7m.other_sp;
     case 16: /* PRIMASK */
         return (env->uncached_cpsr & CPSR_I) != 0;
     case 17: /* BASEPRI */
@@ -2348,11 +2424,11 @@ void HELPER(v7m_msr)(CPUARMState *env, uint32_t reg, uint32_t val)
         if (env->v7m.current_sp)
             env->v7m.other_sp = val;
         else
-            env->regs[13] = val;
+            WR_cpu(env,regs[13],val);
         break;
     case 9: /* PSP */
         if (env->v7m.current_sp)
-            env->regs[13] = val;
+            WR_cpu(env,regs[13],val);
         else
             env->v7m.other_sp = val;
         break;

@@ -10,8 +10,10 @@ External Contributors:
 Michael Contreras <michael@inetric.com>
   LLVM 3.2 and x86_64 support
 
-Andreas Kirchner <akalypse@gmail.com> 
-  Initial ARM prototype
+Andreas Kirchner <akalypse@gmail.com>
+Luca Bruno <lucab@debian.org>
+Jonas Zaddach <zaddach@eurecom.fr>
+  ARM porting
 
 Diego Biurrun <diego@biurrun.de>
   Build system
@@ -24,3 +26,4 @@ Alexandre Gouraud <alexandre.gouraud@enst-bretagne.fr>
 Sriram Subramanian <srirams@cs.wisc.edu>
 Swaminathan Sundararaman <swami@cs.wisc.edu>
 Vlad Georgescu <vgeorgescu@gmail.com>
+

@@ -29,7 +29,10 @@
  * Currently maintained by:
  *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
  *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
- *
+ * ARM port by:
+ *    Andreas Kirchner <a0600112@unet.univie.ac.at>
+ *    Luca Bruno <lucab@debian.org>
+ *    Jonas Zaddach <zaddach@eurecom.fr>
  * All contributors are listed in the S2E-AUTHORS file.
  */
 
@@ -48,6 +51,7 @@ extern "C" {
 #include <s2e/S2EExecutionState.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+#include <s2e/Plugins/Opcodes.h>
 
 #include <iostream>
 #include <sstream>
@@ -79,11 +83,12 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state, bool makeConcolic)
 {
     target_ulong address, size, name;
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+
+    ok &= state->readCpuRegisterConcrete(MAKESYM_ADDRESS,
                                          &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+    ok &= state->readCpuRegisterConcrete(MAKESYM_SIZE,
                                          &size, sizeof size);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+    ok &= state->readCpuRegisterConcrete(MAKESYM_NAME,
                                          &name, sizeof name);
 
     if(!ok) {
@@ -141,10 +146,11 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
     target_ulong result;
 
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+
+    ok &= state->readCpuRegisterConcrete(ISSYMB_ADDR,
                                          &address, sizeof(address));
 
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+    ok &= state->readCpuRegisterConcrete(ISSYMB_SIZE,
                                          &size, sizeof(size));
 
     if(!ok) {
@@ -167,7 +173,7 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
             << " and size " << size << " is symbolic: "
             << (result ? " true" : " false") << '\n';
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, sizeof(result));
+    state->writeCpuRegisterConcrete(ISSYMB_RETURN, &result, sizeof(result));
 }
 
 void BaseInstructions::killState(S2EExecutionState *state)
@@ -182,10 +188,11 @@ void BaseInstructions::killState(S2EExecutionState *state)
 #endif
 
     bool ok = true;
+
     klee::ref<klee::Expr> status =
-                                state->readCpuRegister(CPU_OFFSET(regs[R_EAX]),
+                                state->readCpuRegister(KILLSTATE_STATUS,
                                                        width);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr,
+    ok &= state->readCpuRegisterConcrete(KILLSTATE_MSG, &messagePtr,
                                          sizeof messagePtr);
 
     if (!ok) {
@@ -219,10 +226,9 @@ void BaseInstructions::printExpression(S2EExecutionState *state)
 
     target_ulong name;
     bool ok = true;
-    ref<Expr> val = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
-                                           width);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                         &name, sizeof name);
+
+    ref<Expr> val = state->readCpuRegister(PRINTEXPR_VAL, width);
+    ok &= state->readCpuRegisterConcrete(PRINTEXPR_NAME, &name, sizeof name);
 
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -252,11 +258,12 @@ void BaseInstructions::printMemory(S2EExecutionState *state)
 {
     target_ulong address, size, name;
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+
+    ok &= state->readCpuRegisterConcrete(PRINTMEM_ADDRESS,
                                          &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+    ok &= state->readCpuRegisterConcrete(PRINTMEM_SIZE,
                                          &size, sizeof size);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+    ok &= state->readCpuRegisterConcrete(PRINTMEM_NAME,
                                          &name, sizeof name);
 
     if(!ok) {
@@ -292,9 +299,9 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
     target_ulong address, size;
 
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+    ok &= state->readCpuRegisterConcrete(CONCRETIZE_ADDR,
                                          &address, sizeof address);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+    ok &= state->readCpuRegisterConcrete(CONCRETIZE_SIZE,
                                          &size, sizeof size);
 
     if(!ok) {
@@ -327,7 +334,7 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
 void BaseInstructions::sleep(S2EExecutionState *state)
 {
     target_ulong duration = 0;
-    state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration,
+    state->readCpuRegisterConcrete(SLEEP_DURATION, &duration,
                                    sizeof duration);
     s2e()->getDebugStream() << "Sleeping " << duration << " seconds\n";
 
@@ -345,8 +352,9 @@ void BaseInstructions::sleep(S2EExecutionState *state)
 void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
 {
     target_ulong address = 0;
-    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+    bool ok = state->readCpuRegisterConcrete(PRINTMSG_ADDR,
                                                 &address, sizeof address);
+
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "ERROR: symbolic argument was passed to s2e_op "
@@ -370,6 +378,7 @@ void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
     }
 }
 
+#ifdef TARGET_I386
 void BaseInstructions::invokePlugin(S2EExecutionState *state)
 {
     BaseInstructionsPluginInvokerInterface *iface = NULL;
@@ -458,20 +467,28 @@ void BaseInstructions::assume(S2EExecutionState *state)
 
     state->addConstraint(boolExpr);
 }
+#endif
+
 
 /** Handle s2e_op instruction. Instructions:
-    0f 3f XX XX XX XX XX XX XX XX
-    XX: opcode
+
+    ARM: 0xFF 0xXX 0xYY 0x00
+    I386/AMD64: 0x0F 0x3F 0x00 0xXX 0xYY 0x00 0x00 0x00 0x00 0x00
+
+    0xXX = main opcode
+    0xYY = subfunction operand, see Opcodes.h
  */
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {
-    switch((opcode>>8) & 0xFF) {
+
+    switch((opcode>>OPSHIFT) & 0xFF) {
         case 0: { /* s2e_check */
                 target_ulong v = 1;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &v,
+                state->writeCpuRegisterConcrete(GETVERSION_RETURN, &v,
                                                 sizeof v);
             }
             break;
+
         case 1: state->enableSymbolicExecution(); break;
         case 2: state->disableSymbolicExecution(); break;
 
@@ -487,7 +504,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
         case 5: { /* s2e_get_path_id */
             const klee::Expr::Width width = sizeof (target_ulong) << 3;
-            state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
+            state->writeCpuRegister(GETPATH_RETURN,
                 klee::ConstantExpr::create(state->getID(), width));
             break;
         }
@@ -517,6 +534,8 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
+// TODO: port to non-x86
+#ifdef TARGET_I386
         case 0xb: {
             invokePlugin(state);
             break;
@@ -526,7 +545,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             assume(state);
             break;
         }
-
+#endif
         case 0xF: { // MJR
             s2e()->getExecutor()->yieldState(*state);
             break;
@@ -551,6 +570,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
+#ifdef TARGET_I386
         case 0x30: { /* Get number of active states */
             target_ulong count = s2e()->getExecutor()->getStatesCount();
             state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count,
@@ -564,11 +584,12 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                                             sizeof(count));
             break;
         }
+#endif
         case 0x32: { /* Sleep for a given number of seconds */
            sleep(state);
            break;
         }
-
+#ifdef TARGET_I386
         case 0x50: { /* disable/enable timer interrupt */
             uint64_t disabled = opcode >> 16;
             if(disabled)
@@ -589,10 +610,10 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                                  disabled, 8);
             break;
         }
-
+#endif
         case 0x52: { /* Gets the current S2E memory object size (in power of 2) */
                 target_ulong size = S2E_RAM_OBJECT_BITS;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &size,
+                state->writeCpuRegisterConcrete(GETSIZE_RETURN, &size,
                                                 sizeof size);
                 break;
         }
@@ -612,7 +633,12 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode)
 {
-    uint8_t opc = (opcode>>8) & 0xFF;
+	s2e()->getDebugStream(state)
+	                        << "BaseInstructions: custom instruction (opcode: "
+	                        << hexval(opcode)
+	                        << ") called.\n";
+
+    uint8_t opc = (opcode>>OPSHIFT) & 0xFF;
     if (opc <= 0x70) {
         handleBuiltInOps(state, opcode);
     }

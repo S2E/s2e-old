@@ -19,9 +19,24 @@
 #include "cpu.h"
 #include "dyngen-exec.h"
 #include "helper.h"
+#include <assert.h>
 
 #define SIGNBIT (uint32_t)0x80000000
 #define SIGNBIT64 ((uint64_t)1 << 63)
+
+#ifdef S2E_LLVM_LIB
+#include "llvm-lib.h"
+#endif
+
+//S2E: Keep the environment in a variable
+struct CPUARMState* env = 0;
+
+uint64_t helper_do_interrupt(void);
+uint64_t helper_do_interrupt(void)
+{
+    do_interrupt(env);
+    return 0;
+}
 
 #if !defined(CONFIG_USER_ONLY)
 static void raise_exception(int tt)
@@ -71,25 +86,69 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
 #define SHIFT 3
 #include "softmmu_template.h"
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#undef MMUSUFFIX
+#define MMUSUFFIX _mmu_symb
+#define _raw _raw_symb
+
+#define SHIFT 0
+#include "softmmu_template.h"
+
+#define SHIFT 1
+#include "softmmu_template.h"
+
+#define SHIFT 2
+#include "softmmu_template.h"
+
+#define SHIFT 3
+#include "softmmu_template.h"
+
+#undef _raw
+#endif
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 /* try to fill the TLB and return an exception if error. If retaddr is
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
 /* XXX: fix it to restore all registers */
-void tlb_fill(CPUARMState *env1, target_ulong addr, int is_write, int mmu_idx,
-              void *retaddr)
+void tlb_fill(CPUArchState *env1, target_ulong addr, target_ulong page_addr,
+                int is_write, int mmu_idx, void *retaddr)
 {
     TranslationBlock *tb;
-    CPUARMState *saved_env;
+    CPUArchState *saved_env;
     unsigned long pc;
     int ret;
 
     saved_env = env;
-    env = env1;
+
+    if (env != env1)
+        env = env1;
+
+#ifdef CONFIG_S2E
+    s2e_on_tlb_miss(g_s2e, g_s2e_state, addr, is_write);
+    ret = cpu_arm_handle_mmu_fault(env, page_addr,
+                                   is_write, mmu_idx);
+#else
     ret = cpu_arm_handle_mmu_fault(env, addr, is_write, mmu_idx);
+#endif
+
     if (unlikely(ret)) {
+
+#ifdef CONFIG_S2E
+        /* In S2E we pass page address instead of addr to cpu_arm_handle_mmu_fault,
+           since the latter can be symbolic while the former is always concrete.
+           To compensate, we reset fault address here. */
+        if(env->exception_index == EXCP_PREFETCH_ABORT || env->exception_index == EXCP_DATA_ABORT) {
+            assert(1 && "handle coprocessor exception properly");
+        }
+#endif
+
         if (retaddr) {
             /* now we have a real cpu fault */
-            pc = (unsigned long)retaddr;
+            pc = (uintptr_t)retaddr;
             tb = tb_find_pc(pc);
             if (tb) {
                 /* the PC is inside the translated code. It means that we have
@@ -97,9 +156,15 @@ void tlb_fill(CPUARMState *env1, target_ulong addr, int is_write, int mmu_idx,
                 cpu_restore_state(tb, env, pc);
             }
         }
+
+#ifdef CONFIG_S2E
+s2e_on_page_fault(g_s2e, g_s2e_state, addr, is_write);
+#endif
+
         raise_exception(env->exception_index);
     }
-    env = saved_env;
+    if(saved_env != env)
+    	env = saved_env;
 }
 #endif
 
@@ -263,14 +328,16 @@ uint32_t HELPER(get_user_reg)(uint32_t regno)
     uint32_t val;
 
     if (regno == 13) {
-        val = env->banked_r13[0];
+        val = RR_cpu(env,banked_r13[0]);
     } else if (regno == 14) {
-        val = env->banked_r14[0];
+        val = RR_cpu(env,banked_r14[0]);
+    }else if (regno == 15) {
+            	val = env->regs[regno];
     } else if (regno >= 8
                && (env->uncached_cpsr & 0x1f) == ARM_CPU_MODE_FIQ) {
-        val = env->usr_regs[regno - 8];
+        val = RR_cpu(env,usr_regs[regno - 8]);
     } else {
-        val = env->regs[regno];
+        val = RR_cpu(env,regs[regno]);
     }
     return val;
 }
@@ -278,14 +345,16 @@ uint32_t HELPER(get_user_reg)(uint32_t regno)
 void HELPER(set_user_reg)(uint32_t regno, uint32_t val)
 {
     if (regno == 13) {
-        env->banked_r13[0] = val;
+        WR_cpu(env,banked_r13[0],val);
     } else if (regno == 14) {
-        env->banked_r14[0] = val;
+        WR_cpu(env,banked_r14[0],val);
+    } else if (regno == 15) {
+    	env->regs[regno] = val;
     } else if (regno >= 8
                && (env->uncached_cpsr & 0x1f) == ARM_CPU_MODE_FIQ) {
-        env->usr_regs[regno - 8] = val;
+        WR_cpu(env,usr_regs[regno - 8],val);
     } else {
-        env->regs[regno] = val;
+        WR_cpu(env,regs[regno],val);
     }
 }
 
@@ -297,24 +366,26 @@ uint32_t HELPER (add_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
     result = a + b;
-    env->NF = env->ZF = result;
-    env->CF = result < a;
-    env->VF = (a ^ b ^ -1) & (a ^ result);
+    WR_cpu(env,NF,result);
+    WR_cpu(env,ZF,result);
+    WR_cpu(env,CF,(result < a));
+    WR_cpu(env,VF,((a ^ b ^ -1) & (a ^ result)));
     return result;
 }
 
 uint32_t HELPER(adc_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
-    if (!env->CF) {
+    if (!(RR_cpu(env,CF))) {
         result = a + b;
-        env->CF = result < a;
+        WR_cpu(env,CF,(result < a));
     } else {
         result = a + b + 1;
-        env->CF = result <= a;
+        WR_cpu(env,CF,(result <= a));
     }
-    env->VF = (a ^ b ^ -1) & (a ^ result);
-    env->NF = env->ZF = result;
+    WR_cpu(env,VF,((a ^ b ^ -1) & (a ^ result)));
+    WR_cpu(env,NF,result);
+    WR_cpu(env,ZF,result);
     return result;
 }
 
@@ -322,24 +393,26 @@ uint32_t HELPER(sub_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
     result = a - b;
-    env->NF = env->ZF = result;
-    env->CF = a >= b;
-    env->VF = (a ^ b) & (a ^ result);
+    WR_cpu(env,NF,result);
+    WR_cpu(env,ZF,result);
+    WR_cpu(env,CF,(a >= b));
+    WR_cpu(env,VF,((a ^ b) & (a ^ result)));
     return result;
 }
 
 uint32_t HELPER(sbc_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
-    if (!env->CF) {
+    if (!(RR_cpu(env,CF))) {
         result = a - b - 1;
-        env->CF = a > b;
+        WR_cpu(env,CF,(a > b));
     } else {
         result = a - b;
-        env->CF = a >= b;
+        WR_cpu(env,CF,(a >= b));
     }
-    env->VF = (a ^ b) & (a ^ result);
-    env->NF = env->ZF = result;
+    WR_cpu(env,VF,((a ^ b) & (a ^ result)));
+    WR_cpu(env,NF,result);
+    WR_cpu(env,ZF,result);
     return result;
 }
 
@@ -374,12 +447,12 @@ uint32_t HELPER(shl_cc)(uint32_t x, uint32_t i)
     int shift = i & 0xff;
     if (shift >= 32) {
         if (shift == 32)
-            env->CF = x & 1;
+            WR_cpu(env,CF,(x & 1));
         else
-            env->CF = 0;
+            WR_cpu(env,CF,0);
         return 0;
     } else if (shift != 0) {
-        env->CF = (x >> (32 - shift)) & 1;
+        WR_cpu(env,CF,((x >> (32 - shift)) & 1));
         return x << shift;
     }
     return x;
@@ -390,12 +463,12 @@ uint32_t HELPER(shr_cc)(uint32_t x, uint32_t i)
     int shift = i & 0xff;
     if (shift >= 32) {
         if (shift == 32)
-            env->CF = (x >> 31) & 1;
+            WR_cpu(env,CF,((x >> 31) & 1));
         else
-            env->CF = 0;
+            WR_cpu(env,CF,0);
         return 0;
     } else if (shift != 0) {
-        env->CF = (x >> (shift - 1)) & 1;
+        WR_cpu(env,CF,((x >> (shift - 1)) & 1));
         return x >> shift;
     }
     return x;
@@ -405,10 +478,10 @@ uint32_t HELPER(sar_cc)(uint32_t x, uint32_t i)
 {
     int shift = i & 0xff;
     if (shift >= 32) {
-        env->CF = (x >> 31) & 1;
+        WR_cpu(env,CF,((x >> 31) & 1));
         return (int32_t)x >> 31;
     } else if (shift != 0) {
-        env->CF = (x >> (shift - 1)) & 1;
+        WR_cpu(env,CF,((x >> (shift - 1)) & 1));
         return (int32_t)x >> shift;
     }
     return x;
@@ -421,10 +494,10 @@ uint32_t HELPER(ror_cc)(uint32_t x, uint32_t i)
     shift = shift1 & 0x1f;
     if (shift == 0) {
         if (shift1 != 0)
-            env->CF = (x >> 31) & 1;
+            WR_cpu(env,CF,((x >> 31) & 1));
         return x;
     } else {
-        env->CF = (x >> (shift - 1)) & 1;
+        WR_cpu(env,CF,((x >> (shift - 1)) & 1));
         return ((uint32_t)x >> shift) | (x << (32 - shift));
     }
 }

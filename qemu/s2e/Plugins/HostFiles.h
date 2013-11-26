@@ -42,6 +42,28 @@
 #include <set>
 #include <string>
 
+#ifdef TARGET_I386
+
+#define HOSTFILES_OPENFD regs[R_EAX]
+#define HOSTFILES_OPENFILENAME regs[R_EBX]
+#define HOSTFILES_OPENFLAGS regs[R_ECX]
+#define HOSTFILES_RETURN regs[R_EAX]
+#define HOSTFILES_GUESTFD regs[R_EBX]
+#define HOSTFILES_BUFADDR regs[R_ECX]
+#define HOSTFILES_COUNT regs[R_EDX]
+
+#elif TARGET_ARM
+
+#define HOSTFILES_OPENFD regs[0]
+#define HOSTFILES_OPENFILENAME regs[1]
+#define HOSTFILES_OPENFLAGS regs[2]
+#define HOSTFILES_RETURN regs[0]
+#define HOSTFILES_GUESTFD regs[1]
+#define HOSTFILES_BUFADDR regs[2]
+#define HOSTFILES_COUNT regs[3]
+
+#endif
+
 namespace s2e {
 namespace plugins {
 

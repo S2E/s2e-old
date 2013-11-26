@@ -176,10 +176,12 @@ bool Debugger::addressTriggered(uint64_t address) const
 bool Debugger::decideTracing(S2EExecutionState *state, uint64_t addr, uint64_t data) const
 {
     if (m_monitorStack) {
+#ifdef TARGET_I386
         //Assume that the stack is 8k and 8k-aligned
         if ((state->getSp() & ~0x3FFFF) == (addr & ~0x3FFFF)) {
             return true;
         }
+#endif
     }
 
     if (dataTriggered(data)) {
@@ -245,7 +247,9 @@ void Debugger::onTranslateInstructionStart(
 void Debugger::onInstruction(S2EExecutionState *state, uint64_t pc)
 {
     s2e()->getDebugStream() << "IT " << hexval(pc) <<
+#if defined(TARGET_I386)
             " CC_SRC=" << state->readCpuRegister(offsetof(CPUX86State, cc_src), klee::Expr::Int32) <<
+#endif
             '\n';
 }
 

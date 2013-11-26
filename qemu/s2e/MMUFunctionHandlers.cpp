@@ -39,7 +39,8 @@ extern "C" {
 #include <cpu-all.h>
 #include <cpu.h>
 #include <exec-all.h>
-extern struct CPUX86State *env;
+#include "cpu.h"
+extern CPUArchState *env;
 }
 
 #include "S2EExecutor.h"
@@ -130,7 +131,11 @@ static ref<Expr> io_read_chk(S2EExecutionState *state,
     std::stringstream ss;
     if (isSymb) {
         //If at least one byte is symbolic, generate a label
+#ifdef TARGET_I386
         ss << "iommuread_" << hexval(naddr) << "@" << hexval(env->eip);
+#elif TARGET_ARM
+        ss << "iommuread_" << hexval(naddr) << "@" << hexval(env->regs[15]);
+#endif
     }
 
     //If it is not DMA, then check if it is normal memory

@@ -68,6 +68,64 @@ private:
     void concretize(S2EExecutionState *state, bool addConstraint);
     void sleep(S2EExecutionState *state);
     void assume(S2EExecutionState *state);
+
+#ifdef TARGET_ARM
+
+    enum opcodeRegs {
+        GETVERSION_RETURN = CPU_OFFSET(regs[0]),
+        GETPATH_RETURN = CPU_OFFSET(regs[0]),
+        GETSIZE_RETURN = CPU_OFFSET(regs[0]),
+        MAKESYM_ADDRESS = CPU_OFFSET(regs[0]),
+        MAKESYM_SIZE = CPU_OFFSET(regs[1]),
+        MAKESYM_NAME = CPU_OFFSET(regs[2]),
+        KILLSTATE_STATUS = CPU_OFFSET(regs[0]),
+        KILLSTATE_MSG = CPU_OFFSET(regs[1]),
+        PRINTEXPR_VAL = CPU_OFFSET(regs[0]),
+        PRINTEXPR_NAME = CPU_OFFSET(regs[1]),
+        PRINTMEM_ADDRESS = CPU_OFFSET(regs[0]),
+        PRINTMEM_SIZE = CPU_OFFSET(regs[1]),
+        PRINTMEM_NAME = CPU_OFFSET(regs[2]),
+        PRINTMSG_ADDR = CPU_OFFSET(regs[0]),
+        CONCRETIZE_ADDR = CPU_OFFSET(regs[0]),
+        CONCRETIZE_SIZE = CPU_OFFSET(regs[1]),
+        GETEXAMPLE_ADDR = CONCRETIZE_ADDR,
+        GETEXAMPLE_SIZE = CONCRETIZE_SIZE,
+        ISSYMB_ADDR = CPU_OFFSET(regs[2]),
+        ISSYMB_SIZE = CPU_OFFSET(regs[0]),
+        ISSYMB_RETURN = CPU_OFFSET(regs[0]),
+        SLEEP_DURATION = CPU_OFFSET(regs[0])
+        };
+
+#elif defined(TARGET_I386)
+
+    enum opcodeRegs {
+        GETVERSION_RETURN = CPU_OFFSET(regs[R_EAX]),
+        GETPATH_RETURN = CPU_OFFSET(regs[R_EAX]),
+        GETSIZE_RETURN = CPU_OFFSET(regs[R_EAX]),
+        MAKESYM_ADDRESS = CPU_OFFSET(regs[R_EAX]),
+        MAKESYM_SIZE = CPU_OFFSET(regs[R_EBX]),
+        MAKESYM_NAME = CPU_OFFSET(regs[R_ECX]),
+        KILLSTATE_STATUS = CPU_OFFSET(regs[R_EAX]),
+        KILLSTATE_MSG = CPU_OFFSET(regs[R_EBX]),
+        PRINTEXPR_VAL = CPU_OFFSET(regs[R_EAX]),
+        PRINTEXPR_NAME = CPU_OFFSET(regs[R_ECX]),
+        PRINTMEM_ADDRESS = CPU_OFFSET(regs[R_EAX]),
+        PRINTMEM_SIZE = CPU_OFFSET(regs[R_EBX]),
+        PRINTMEM_NAME = CPU_OFFSET(regs[R_ECX]),
+        PRINTMSG_ADDR = CPU_OFFSET(regs[R_EAX]),
+        CONCRETIZE_ADDR = CPU_OFFSET(regs[R_EAX]),
+        CONCRETIZE_SIZE = CPU_OFFSET(regs[R_EBX]),
+        GETEXAMPLE_ADDR = CONCRETIZE_ADDR,
+        GETEXAMPLE_SIZE = CONCRETIZE_SIZE,
+        ISSYMB_ADDR = CPU_OFFSET(regs[R_ECX]),
+        ISSYMB_SIZE = CPU_OFFSET(regs[R_EAX]),
+        ISSYMB_RETURN = CPU_OFFSET(regs[R_EAX]),
+        SLEEP_DURATION = CPU_OFFSET(regs[R_EAX])
+        };
+#else
+#error "Target architecture not supported"
+#endif
+
 };
 
 class BaseInstructionsPluginInvokerInterface {
