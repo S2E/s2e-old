@@ -929,7 +929,24 @@ static inline void tcg_out_goto_label(TCGContext *s, int cond, int label_index)
 
 #include "../../softmmu_defs.h"
 
-#ifdef CONFIG_TCG_PASS_AREG0
+#ifdef CONFIG_S2E
+
+static void *qemu_ld_helpers[4] = {
+    __ldb_mmu_s2e_trace,
+    __ldw_mmu_s2e_trace,
+    __ldl_mmu_s2e_trace,
+    __ldq_mmu_s2e_trace,
+};
+static void *qemu_st_helpers[4] = {
+    __stb_mmu_s2e_trace,
+    __stw_mmu_s2e_trace,
+    __stl_mmu_s2e_trace,
+    __stq_mmu_s2e_trace,
+};
+
+
+#elif defined(CONFIG_TCG_PASS_AREG0)
+
 /* helper signature: helper_ld_mmu(CPUState *env, target_ulong addr,
    int mmu_idx) */
 static const void * const qemu_ld_helpers[4] = {

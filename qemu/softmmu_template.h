@@ -212,7 +212,11 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(ENV_PARAM target_phy
     int isSymb = 0;
     if (g_s2e_enable_mmio_checks && (isSymb = glue(s2e_is_mmio_symbolic_, SUFFIX)(naddr))) {
         //If at least one byte is symbolic, generate a label
+#ifdef TARGET_ARM
+        trace_port(label, "iommuread_", naddr, env->regs[15]);
+#elif defined(TARGET_I386)
         trace_port(label, "iommuread_", naddr, env->eip);
+#endif
     }
 
     //If it is not DMA, then check if it is normal memory

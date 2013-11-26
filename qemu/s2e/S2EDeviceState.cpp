@@ -144,7 +144,10 @@ void S2EDeviceState::initDeviceState()
 
     //The CPU is taken care of be the S2E executor
     //XXX: What about watchpoints and stuff like that?
+#ifndef TARGET_ARM
+    //TODO: check what to do for the ARM port
     ignoreList.insert("cpu");
+#endif
 
     g_s2e->getMessagesStream() << "Initing initial device state." << '\n';
 

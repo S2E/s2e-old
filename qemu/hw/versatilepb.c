@@ -190,6 +190,10 @@ static void versatile_init(ram_addr_t ram_size,
     }
     memory_region_init_ram(ram, "versatile.ram", ram_size);
     vmstate_register_ram_global(ram);
+#ifdef CONFIG_S2E
+        s2e_register_cpu(g_s2e, g_s2e_state, env);
+#endif
+
     /* ??? RAM should repeat to fill physical memory space.  */
     /* SDRAM at address zero.  */
     memory_region_add_subregion(sysmem, 0, ram);
@@ -199,6 +203,12 @@ static void versatile_init(ram_addr_t ram_size,
     qdev_prop_set_uint32(sysctl, "proc_id", 0x02000000);
     qdev_init_nofail(sysctl);
     sysbus_mmio_map(sysbus_from_qdev(sysctl), 0, 0x10000000);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state,
+                  0, ram_size,
+                  (uint64_t) memory_region_get_ram_ptr(ram), 0, 0, "ram");
+#endif
 
     cpu_pic = arm_pic_init_cpu(env);
     dev = sysbus_create_varargs("pl190", 0x10140000,
