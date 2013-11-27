@@ -452,10 +452,11 @@ ifdef CONFIG_S2E
 $(call set-vpath, $(SRC_PATH))
 
 s2eobj-arm-y = 
+s2eobj-arm-y += s2e/Plugins/ArmFunctionMonitor.o
 
 s2eobj-i386-y =
-s2eobj-i386-y += s2e/Plugins/FunctionMonitor.o
 s2eobj-i386-y += s2e/Plugins/LibraryCallMonitor.o
+s2eobj-i386-y += s2e/Plugins/X86FunctionMonitor.o
 s2eobj-i386-y += s2e/Plugins/InterruptInjector.o
 s2eobj-i386-y += s2e/Plugins/X86ExceptionInterceptor.o
 s2eobj-i386-y += s2e/Plugins/SymbolicHardware.o

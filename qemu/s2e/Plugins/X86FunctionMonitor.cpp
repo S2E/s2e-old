@@ -50,19 +50,19 @@ namespace plugins {
 
 S2E_DEFINE_PLUGIN(FunctionMonitor, "Function calls/returns monitoring plugin", "",);
 
-void FunctionMonitor::initialize()
+void X86FunctionMonitor::initialize()
 {
     s2e()->getCorePlugin()->onTranslateBlockEnd.connect(
-            sigc::mem_fun(*this, &FunctionMonitor::slotTranslateBlockEnd));
+            sigc::mem_fun(*this, &X86FunctionMonitor::slotTranslateBlockEnd));
 
     s2e()->getCorePlugin()->onTranslateJumpStart.connect(
-            sigc::mem_fun(*this, &FunctionMonitor::slotTranslateJumpStart));
+            sigc::mem_fun(*this, &X86FunctionMonitor::slotTranslateJumpStart));
 
 #if 0
     //Cannot do this here, because we do not have an execution state at this point.
     if(s2e()->getConfig()->getBool(getConfigKey() + ".enableTracing")) {
         getCallSignal(0, 0)->connect(sigc::mem_fun(*this,
-                                     &FunctionMonitor::slotTraceCall));
+                                     &X86FunctionMonitor::slotTraceCall));
     }
 #endif
 
@@ -70,16 +70,16 @@ void FunctionMonitor::initialize()
 }
 
 //XXX: Implement onmoduleunload to automatically clear all call signals
-FunctionMonitor::CallSignal* FunctionMonitor::getCallSignal(
+X86FunctionMonitor::CallSignal* X86FunctionMonitor::getCallSignal(
         S2EExecutionState *state,
         uint64_t eip, uint64_t cr3)
 {
-    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+    DECLARE_PLUGINSTATE(X86FunctionMonitorState, state);
 
     return plgState->getCallSignal(eip, cr3);
 }
 
-void FunctionMonitor::slotTranslateBlockEnd(ExecutionSignal *signal,
+void X86FunctionMonitor::slotTranslateBlockEnd(ExecutionSignal *signal,
                                       S2EExecutionState *state,
                                       TranslationBlock *tb,
                                       uint64_t pc, bool, uint64_t)
@@ -87,64 +87,64 @@ void FunctionMonitor::slotTranslateBlockEnd(ExecutionSignal *signal,
     /* We intercept all call and ret translation blocks */
     if (tb->s2e_tb_type == TB_CALL || tb->s2e_tb_type == TB_CALL_IND) {
         signal->connect(sigc::mem_fun(*this,
-                            &FunctionMonitor::slotCall));
+                            &X86FunctionMonitor::slotCall));
     }
 }
 
-void FunctionMonitor::slotTranslateJumpStart(ExecutionSignal *signal,
+void X86FunctionMonitor::slotTranslateJumpStart(ExecutionSignal *signal,
                                              S2EExecutionState *state,
                                              TranslationBlock *,
                                              uint64_t, int jump_type)
 {
     if(jump_type == JT_RET || jump_type == JT_LRET) {
         signal->connect(sigc::mem_fun(*this,
-                            &FunctionMonitor::slotRet));
+                            &X86FunctionMonitor::slotRet));
     }
 }
 
-void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
+void X86FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
 {
-    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+    DECLARE_PLUGINSTATE(X86FunctionMonitorState, state);
 
     return plgState->slotCall(state, pc);
 }
 
-void FunctionMonitor::disconnect(S2EExecutionState *state, const ModuleDescriptor &desc)
+void X86FunctionMonitor::disconnect(S2EExecutionState *state, const ModuleDescriptor &desc)
 {
-    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+    DECLARE_PLUGINSTATE(X86FunctionMonitorState, state);
 
     return plgState->disconnect(desc);
 }
 
 //See notes for slotRet to see how to use this function.
-void FunctionMonitor::eraseSp(S2EExecutionState *state, uint64_t pc)
+void X86FunctionMonitor::eraseSp(S2EExecutionState *state, uint64_t pc)
 {
-    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+    DECLARE_PLUGINSTATE(X86FunctionMonitorState, state);
 
     return plgState->slotRet(state, pc, false);
 }
 
-void FunctionMonitor::registerReturnSignal(S2EExecutionState *state, FunctionMonitor::ReturnSignal &sig)
+void X86FunctionMonitor::registerReturnSignal(S2EExecutionState *state, X86FunctionMonitor::ReturnSignal &sig)
 {
-    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+    DECLARE_PLUGINSTATE(X86FunctionMonitorState, state);
     plgState->registerReturnSignal(state, sig);
 }
 
 
-void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
+void X86FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
 {
-    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+    DECLARE_PLUGINSTATE(X86FunctionMonitorState, state);
 
     return plgState->slotRet(state, pc, true);
 }
 
 #if 0
-void FunctionMonitor::slotTraceCall(S2EExecutionState *state, FunctionMonitorState *fns)
+void X86FunctionMonitor::slotTraceCall(S2EExecutionState *state, X86FunctionMonitorState *fns)
 {
     static int f = 0;
 
-    FunctionMonitor::ReturnSignal returnSignal;
-    returnSignal.connect(sigc::bind(sigc::mem_fun(*this, &FunctionMonitor::slotTraceRet), f));
+    X86FunctionMonitor::ReturnSignal returnSignal;
+    returnSignal.connect(sigc::bind(sigc::mem_fun(*this, &X86FunctionMonitor::slotTraceRet), f));
     fns->registerReturnSignal(state, returnSignal);
 
     s2e()->getMessagesStream(state) << "Calling function " << f
@@ -153,39 +153,39 @@ void FunctionMonitor::slotTraceCall(S2EExecutionState *state, FunctionMonitorSta
 }
 
 
-void FunctionMonitor::slotTraceRet(S2EExecutionState *state, int f)
+void X86FunctionMonitor::slotTraceRet(S2EExecutionState *state, int f)
 {
     s2e()->getMessagesStream(state) << "Returning from function "
                 << f << std::endl;
 }
 #endif
 
-FunctionMonitorState::FunctionMonitorState()
+X86FunctionMonitorState::X86FunctionMonitorState()
 {
 
 }
 
-FunctionMonitorState::~FunctionMonitorState()
+X86FunctionMonitorState::~X86FunctionMonitorState()
 {
 
 }
 
-FunctionMonitorState* FunctionMonitorState::clone() const
+X86FunctionMonitorState* X86FunctionMonitorState::clone() const
 {
-    FunctionMonitorState *ret = new FunctionMonitorState(*this);
+    X86FunctionMonitorState *ret = new X86FunctionMonitorState(*this);
     m_plugin->s2e()->getDebugStream() << "Forking FunctionMonitorState ret=" << hexval(ret) << '\n';
     assert(ret->m_returnDescriptors.size() == m_returnDescriptors.size());
     return ret;
 }
 
-PluginState *FunctionMonitorState::factory(Plugin *p, S2EExecutionState *s)
+PluginState *X86FunctionMonitorState::factory(Plugin *p, S2EExecutionState *s)
 {
-    FunctionMonitorState *ret = new FunctionMonitorState();
-    ret->m_plugin = static_cast<FunctionMonitor*>(p);
+    X86FunctionMonitorState *ret = new X86FunctionMonitorState();
+    ret->m_plugin = static_cast<X86FunctionMonitor*>(p);
     return ret;
 }
 
-FunctionMonitor::CallSignal* FunctionMonitorState::getCallSignal(
+X86FunctionMonitor::CallSignal* X86FunctionMonitorState::getCallSignal(
         uint64_t eip, uint64_t cr3)
 {
     std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
@@ -197,7 +197,7 @@ FunctionMonitor::CallSignal* FunctionMonitorState::getCallSignal(
     }
 
 
-    CallDescriptor descriptor = { cr3, FunctionMonitor::CallSignal() };
+    CallDescriptor descriptor = { cr3, X86FunctionMonitor::CallSignal() };
     CallDescriptorsMap::iterator it =
             m_newCallDescriptors.insert(std::make_pair(eip, descriptor));
 
@@ -205,7 +205,7 @@ FunctionMonitor::CallSignal* FunctionMonitorState::getCallSignal(
 }
 
 
-void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
+void X86FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
 {
     target_ulong cr3 = state->getPid();
     target_ulong eip = state->getPc();
@@ -261,7 +261,7 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
  *  XXX: We assume that the passed execution state corresponds to the state in which
  *  this instance of FunctionMonitorState is used.
  */
-void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, FunctionMonitor::ReturnSignal &sig)
+void X86FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, X86FunctionMonitor::ReturnSignal &sig)
 {
     if(sig.empty()) {
         return;
@@ -295,7 +295,7 @@ void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, Functi
  * that issued the call. Also note that it not possible to return from the handler normally
  * whenever this function is called from within a return handler.
  */
-void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal)
+void X86FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal)
 {
     target_ulong cr3 = state->readCpuState(CPU_OFFSET(cr[3]), 8*sizeof(target_ulong));
 
@@ -340,7 +340,7 @@ void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool e
     } while(!finished);
 }
 
-void FunctionMonitorState::disconnect(const ModuleDescriptor &desc, CallDescriptorsMap &descMap)
+void X86FunctionMonitorState::disconnect(const ModuleDescriptor &desc, CallDescriptorsMap &descMap)
 {
     CallDescriptorsMap::iterator it = descMap.begin();
     while (it != descMap.end()) {
@@ -358,7 +358,7 @@ void FunctionMonitorState::disconnect(const ModuleDescriptor &desc, CallDescript
 
 //Disconnect all address that belong to desc.
 //This is useful to unregister all handlers when a module is unloaded
-void FunctionMonitorState::disconnect(const ModuleDescriptor &desc)
+void X86FunctionMonitorState::disconnect(const ModuleDescriptor &desc)
 {
 
     disconnect(desc, m_callDescriptors);
