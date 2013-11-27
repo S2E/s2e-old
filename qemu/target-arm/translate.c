@@ -9998,6 +9998,7 @@ static inline void gen_intermediate_code_internal(CPUARMState *env,
     dc->enable_jmp_im = 1;
     dc->cpuState = env;
     tb->s2e_tb_type = TB_DEFAULT;
+    tb->instruction_set = env->thumb ? INSTRUCTION_SET_THUMB : INSTRUCTION_SET_ARM;
 
     tmp64 = tcg_temp_new_i64();
     tcg_gen_movi_i64(tmp64, (uint64_t) tb);
