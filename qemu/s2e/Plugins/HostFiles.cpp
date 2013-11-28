@@ -42,6 +42,7 @@ extern "C" {
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+#include <s2e/Plugins/Opcodes.h>
 
 #include <iostream>
 #include <errno.h>
@@ -227,14 +228,11 @@ void HostFiles::close(S2EExecutionState *state)
 
 void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
 {
-    //XXX: find a better way of allocating custom opcodes
-    if (!(((opcode>>8) & 0xFF) == 0xEE)) {
+    if (!OPCODE_CHECK(opcode, HOSTFILES_OPCODE)) {
         return;
     }
 
-    opcode >>= 16;
-    uint8_t op = opcode & 0xFF;
-    opcode >>= 8;
+    uint8_t op = OPCODE_GETSUBFUNCTION(opcode);
 
     switch(op) {
     case 0: {
