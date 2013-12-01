@@ -1,0 +1,20 @@
+#!/bin/sh
+
+BUILD_DIR="$(pwd)"
+
+cd "$(dirname $0)"
+TOOLS_DIR="$(pwd)"
+cd "$BUILD_DIR"
+
+if [ "$BUILD_DIR" = "$TOOLS_DIR" ]; then
+echo "Do not build in the source directory!"
+   exit
+fi
+
+rm -f config.mak
+echo "TOOLS_DIR = $TOOLS_DIR" >> config.mak
+echo "BUILD_DIR = $BUILD_DIR" >> config.mak
+
+ln -fs "$TOOLS_DIR/Makefile" Makefile
+
+
