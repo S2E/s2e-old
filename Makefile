@@ -9,11 +9,17 @@
 #  EXTRA_QEMU_FLAGS=...
 #      Pass additional flags to QEMU's configure script.
 #
-# PARALLEL=no
+#  PARALLEL=no
 #      Turn off build parallelization.
+#
+#  LLVMBUILD=...
+#  Contains llvm-native, llvm-debug, llvm-release, and llvm source folders
+#  Can be used to avoid rebuilding clang/llvm for every branch of S2E
+#
 
 S2ESRC := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 S2EBUILD:=$(CURDIR)
+LLVMBUILD?=$(S2EBUILD)
 
 OS := $(shell uname)
 JOBS:=2
@@ -56,7 +62,10 @@ COMPILER_RT_SRC_DIR=compiler-rt-$(LLVM_VERSION).src
 COMPILER_RT_DEST_DIR=$(LLVM_NATIVE_SRC_DIR)/projects/compiler-rt
 
 KLEE_QEMU_DIRS = $(foreach suffix,-debug -release,$(addsuffix $(suffix),klee klee-asan qemu qemu-asan))
+
+ifeq ($(LLVMBUILD),$(S2EBUILD))
 LLVM_DIRS = llvm-debug llvm-native llvm-release
+endif
 
 clean:
 	-rm -Rf $(KLEE_QEMU_DIRS)
@@ -92,6 +101,7 @@ stamps/%-make:
 # Downloads #
 #############
 
+ifeq ($(LLVMBUILD),$(S2EBUILD))
 LLVM_SRC_URL = http://llvm.org/releases/$(LLVM_VERSION)/
 
 $(CLANG_SRC) $(COMPILER_RT_SRC) $(LLVM_SRC):
@@ -105,25 +115,28 @@ $(LLVM_SRC_DIR): $(LLVM_SRC)
 $(CLANG_SRC_DIR) $(COMPILER_RT_SRC_DIR) $(LLVM_SRC_DIR):
 	tar -xmzf $<
 
-stp stp-asan: $(S2ESRC)/stp
 $(LLVM_NATIVE_SRC_DIR): $(LLVM_SRC_DIR)
-$(LLVM_NATIVE_SRC_DIR) stp stp-asan:
+$(LLVM_NATIVE_SRC_DIR):
 	cp -r $< $@
 
 $(CLANG_DEST_DIR): $(CLANG_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 $(COMPILER_RT_DEST_DIR): $(COMPILER_RT_SRC_DIR) $(LLVM_NATIVE_SRC_DIR)
 $(CLANG_DEST_DIR) $(COMPILER_RT_DEST_DIR):
 	mv $< $@
+endif
 
-
+stp stp-asan: $(S2ESRC)/stp
+stp stp-asan:
+	cp -r $< $@
 
 ########
 # LLVM #
 ########
 
-CLANG_CC=$(S2EBUILD)/llvm-native/Release/bin/clang
-CLANG_CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
+CLANG_CC=$(LLVMBUILD)/llvm-native/Release/bin/clang
+CLANG_CXX=$(LLVMBUILD)/llvm-native/Release/bin/clang++
 
+ifeq ($(LLVMBUILD),$(S2EBUILD))
 LLVM_CONFIGURE_FLAGS = --prefix=$(S2EBUILD)/opt \
                        --enable-jit --enable-optimized \
 
@@ -151,6 +164,10 @@ stamps/llvm-debug-make: BUILD_OPTS = ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1
 stamps/llvm-release-make: stamps/llvm-release-configure
 stamps/llvm-release-make: BUILD_OPTS = ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1
 
+else
+stamps/llvm-release-make stamps/llvm-debug-make stamps/llvm-native-make:
+	@echo "Won't build $@, using $(LLVMBUILD) folder"
+endif
 
 #######
 # STP #
@@ -189,7 +206,7 @@ stamps/klee-debug-make stamps/klee-asan-debug-make stamps/klee-release-make stam
 
 KLEE_CONFIGURE_COMMON = $(S2ESRC)/klee/configure \
                         --prefix=$(S2EBUILD)/opt \
-                        --with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
+                        --with-llvmsrc=$(LLVMBUILD)/$(LLVM_SRC_DIR) \
                         --target=x86_64 --enable-exceptions \
                         CC=$(CLANG_CC) CXX=$(CLANG_CXX)
 
@@ -197,12 +214,12 @@ KLEE_CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMON) --with-stp=$(S2EBUILD)/stp
 
 stamps/klee-debug-configure: stamps/stp-make stamps/llvm-debug-make
 stamps/klee-debug-configure: CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMAND) \
-                                                 --with-llvmobj=$(S2EBUILD)/llvm-debug \
+                                                 --with-llvmobj=$(LLVMBUILD)/llvm-debug \
                                                  CXXFLAGS="-g -O0" LDFLAGS="-g"
 
 stamps/klee-release-configure: stamps/stp-make stamps/llvm-release-make
 stamps/klee-release-configure: CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMAND) \
-                                                   --with-llvmobj=$(S2EBUILD)/llvm-release
+                                                   --with-llvmobj=$(LLVMBUILD)/llvm-release
 
 stamps/klee-debug-make: stamps/klee-debug-configure
 stamps/klee-debug-make: BUILD_OPTS = ENABLE_OPTIMIZED=0
@@ -216,13 +233,13 @@ KLEE_ASAN_CONFIGURE_COMMAND = $(KLEE_CONFIGURE_COMMON) --with-stp=$(S2EBUILD)/st
 
 stamps/klee-asan-debug-configure: stamps/stp-asan-make stamps/llvm-debug-make
 stamps/klee-asan-debug-configure: CONFIGURE_COMMAND = $(KLEE_ASAN_CONFIGURE_COMMAND) \
-                                                      --with-llvmobj=$(S2EBUILD)/llvm-debug \
+                                                      --with-llvmobj=$(LLVMBUILD)/llvm-debug \
                                                       CXXFLAGS="-g -O0 -fsanitize=address" \
                                                       LDFLAGS="-g -fsanitize=address"
 
 stamps/klee-asan-release-configure: stamps/stp-asan-make stamps/llvm-release-make
 stamps/klee-asan-release-configure: CONFIGURE_COMMAND = $(KLEE_ASAN_CONFIGURE_COMMAND) \
-                                                        --with-llvmobj=$(S2EBUILD)/llvm-release \
+                                                        --with-llvmobj=$(LLVMBUILD)/llvm-release \
                                                         CXXFLAGS="-fsanitize=address" \
                                                         LDFLAGS="-fsanitize=address"
 
@@ -249,10 +266,10 @@ QEMU_COMMON_FLAGS = --prefix=$(S2EBUILD)/opt\
 QEMU_CONFIGURE_FLAGS = --with-stp=$(S2EBUILD)/stp \
                        $(QEMU_COMMON_FLAGS)
 
-QEMU_DEBUG_FLAGS = --with-llvm=$(S2EBUILD)/llvm-debug/Debug+Asserts \
+QEMU_DEBUG_FLAGS = --with-llvm=$(LLVMBUILD)/llvm-debug/Debug+Asserts \
                    --enable-debug
 
-QEMU_RELEASE_FLAGS = --with-llvm=$(S2EBUILD)/llvm-release/Release+Asserts
+QEMU_RELEASE_FLAGS = --with-llvm=$(LLVMBUILD)/llvm-release/Release+Asserts
 
 stamps/qemu-debug-configure: stamps/klee-debug-make
 stamps/qemu-debug-configure: CONFIGURE_COMMAND = $(S2ESRC)/qemu/configure \
@@ -294,17 +311,17 @@ stamps/qemu-asan-release-make: stamps/qemu-asan-release-configure
 #########
 
 TOOLS_CONFIGURE_COMMAND = $(S2ESRC)/tools/configure \
-                          --with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
+                          --with-llvmsrc=$(LLVMBUILD)/$(LLVM_SRC_DIR) \
                           --with-s2esrc=$(S2ESRC)/qemu \
                           --target=x86_64 CC=$(CLANG_CC) CXX=$(CLANG_CXX)
 
 stamps/tools-debug-configure: stamps/llvm-debug-make
 stamps/tools-debug-configure: CONFIGURE_COMMAND = $(TOOLS_CONFIGURE_COMMAND) \
-                                                  --with-llvmobj=$(S2EBUILD)/llvm-debug
+                                                  --with-llvmobj=$(LLVMBUILD)/llvm-debug
 
 stamps/tools-release-configure: stamps/llvm-release-make
 stamps/tools-release-configure: CONFIGURE_COMMAND = $(TOOLS_CONFIGURE_COMMAND) \
-                                                    --with-llvmobj=$(S2EBUILD)/llvm-release
+                                                    --with-llvmobj=$(LLVMBUILD)/llvm-release
 
 stamps/tools-debug-make stamps/tools-release-make: ALWAYS
 
