@@ -640,11 +640,9 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     //__DEFINE_EXT_FUNCTION(raise_exception)
     //__DEFINE_EXT_FUNCTION(raise_exception_err)
 
-#ifdef _WIN32
     __DEFINE_EXT_VARIABLE(g_s2e_concretize_io_addresses)
     __DEFINE_EXT_VARIABLE(g_s2e_concretize_io_writes)
     __DEFINE_EXT_VARIABLE(g_s2e_fork_on_symbolic_address)
-#endif
 
     __DEFINE_EXT_VARIABLE(g_s2e_enable_mmio_checks)
 
