@@ -46,6 +46,8 @@ extern "C" {
 
 #include <iostream>
 
+// TODO: this may still contains X86-specific assumptions
+
 namespace s2e {
 namespace plugins {
 
@@ -355,7 +357,7 @@ void StackMonitor::onTranslateRegisterAccess(
              ExecutionSignal *signal, S2EExecutionState* state, TranslationBlock* tb,
              uint64_t pc, uint64_t rmask, uint64_t wmask, bool accessesMemory)
 {
-    if ((wmask & (1 << R_ESP))) {
+    if ((wmask & (1 << SP_REG))) {
         bool isCall = false;
         if (tb->s2e_tb_type == TB_CALL || tb->s2e_tb_type == TB_CALL_IND) {
             isCall = true;

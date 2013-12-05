@@ -36,123 +36,35 @@
 #ifndef S2E_PLUGINS_FUNCTIONMONITOR_H
 #define S2E_PLUGINS_FUNCTIONMONITOR_H
 
+#include <tr1/unordered_map>
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Plugins/OSMonitor.h>
 
-#include <tr1/unordered_map>
+#ifdef TARGET_ARM
+#include "ArmFunctionMonitor.h"
+#elif defined (TARGET_I386)
+#include "X86FunctionMonitor.h"
+#endif
 
 namespace s2e {
 namespace plugins {
 
-class FunctionMonitorState;
+/**
+ * Note: the FunctionMonitor is target dependent, so the actual class
+ * is a compile-time alias to the arch-specific version.
+ */
 
-class FunctionMonitor : public Plugin
-{
-    S2E_PLUGIN
-public:
-    FunctionMonitor(S2E* s2e): Plugin(s2e) {}
+#ifdef TARGET_ARM
+typedef ARMFunctionMonitor FunctionMonitor;
+typedef ARMFunctionMonitorState FunctionMonitorState;
+#elif defined (TARGET_I386)
+typedef X86FunctionMonitor FunctionMonitor;
+typedef X86FunctionMonitorState FunctionMonitorState;
+#endif
 
-    typedef sigc::signal<void, S2EExecutionState*> ReturnSignal;
-    typedef sigc::signal<void, S2EExecutionState*, FunctionMonitorState*> CallSignal;
-
-    void initialize();
-    
-    CallSignal* getCallSignal(
-            S2EExecutionState *state,
-            uint64_t eip, uint64_t cr3 = 0);
-
-    void registerReturnSignal(S2EExecutionState *state, FunctionMonitor::ReturnSignal &sig);
-
-    void eraseSp(S2EExecutionState *state, uint64_t pc);
-    void disconnect(S2EExecutionState *state, const ModuleDescriptor &desc);
-protected:
-    void slotTranslateBlockEnd(ExecutionSignal*, S2EExecutionState *state,
-                               TranslationBlock *tb, uint64_t pc,
-                               bool, uint64_t);
-
-    void slotTranslateJumpStart(ExecutionSignal *signal,
-                                S2EExecutionState *state,
-                                TranslationBlock*,
-                                uint64_t, int jump_type);
-
-    void slotCall(S2EExecutionState* state, uint64_t pc);
-    void slotRet(S2EExecutionState* state, uint64_t pc);
-
-    void slotTraceCall(S2EExecutionState *state, FunctionMonitorState *fns);
-    void slotTraceRet(S2EExecutionState *state, int f);
-
-protected:
-    OSMonitor *m_monitor;
-
-    friend class FunctionMonitorState;
-
-};
-
-class FunctionMonitorState : public PluginState
-{
-
-    struct CallDescriptor {
-        uint64_t cr3;
-        // TODO: add sourceModuleID and targetModuleID
-        FunctionMonitor::CallSignal signal;
-    };
-
-    struct ReturnDescriptor {
-        //S2EExecutionState *state;
-        uint64_t cr3;
-        // TODO: add sourceModuleID and targetModuleID
-        FunctionMonitor::ReturnSignal signal;
-    };
-    typedef std::tr1::unordered_multimap<uint64_t, CallDescriptor> CallDescriptorsMap;
-    typedef std::tr1::unordered_multimap<uint64_t, ReturnDescriptor> ReturnDescriptorsMap;
-
-    CallDescriptorsMap m_callDescriptors;
-    CallDescriptorsMap m_newCallDescriptors;
-    ReturnDescriptorsMap m_returnDescriptors;
-
-    FunctionMonitor *m_plugin;
-
-    /* Get a signal that is emitted on function calls. Passing eip = 0 means
-       any function, and cr3 = 0 means any cr3 */
-    FunctionMonitor::CallSignal* getCallSignal(uint64_t eip, uint64_t cr3 = 0);
-
-    void slotCall(S2EExecutionState *state, uint64_t pc);
-    void slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal);
-
-    void disconnect(const ModuleDescriptor &desc, CallDescriptorsMap &descMap);
-    void disconnect(const ModuleDescriptor &desc);
-
-    bool exists(const CallDescriptorsMap &cdm,
-                uint64_t eip, uint64_t cr3) const;
-public:
-    FunctionMonitorState();
-    virtual ~FunctionMonitorState();
-    virtual FunctionMonitorState* clone() const;
-    static PluginState *factory(Plugin *p, S2EExecutionState *s);
-
-    void registerReturnSignal(S2EExecutionState *s, FunctionMonitor::ReturnSignal &sig);
-
-    friend class FunctionMonitor;
-};
-
-
-#define FUNCMON_REGISTER_RETURN(state, fns, func) \
-{ \
-    FunctionMonitor::ReturnSignal returnSignal; \
-    returnSignal.connect(sigc::mem_fun(*this, &func)); \
-    fns->registerReturnSignal(state, returnSignal); \
 }
-
-#define FUNCMON_REGISTER_RETURN_A(state, fns, func, ...) \
-{ \
-    FunctionMonitor::ReturnSignal returnSignal; \
-    returnSignal.connect(sigc::bind(sigc::mem_fun(*this, &func), __VA_ARGS__)); \
-    fns->registerReturnSignal(state, returnSignal); \
 }
-
-} // namespace plugins
-} // namespace s2e
 
 #endif // S2E_PLUGINS_FUNCTIONMONITOR_H

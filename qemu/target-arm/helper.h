@@ -1,5 +1,52 @@
 #include "def-helper.h"
 
+#define _M_CF    (1<<1)
+#define _M_VF   (1<<2)
+#define _M_NF   (1<<3)
+#define _M_ZF   (1<<4)
+#define _M_R0      (1<<5)
+#define _M_R1      (1<<6)
+#define _M_R2      (1<<7)
+#define _M_R3      (1<<8)
+#define _M_R4      (1<<9)
+#define _M_R5      (1<<10)
+#define _M_R6      (1<<11)
+#define _M_R7      (1<<12)
+#define _M_R8      (1<<13)
+#define _M_R9      (1<<14)
+#define _M_R10      (1<<15)
+#define _M_R11      (1<<16)
+#define _M_R12      (1<<17)
+#define _M_R13      (1<<18)
+#define _M_R14      (1<<19)
+#define _M_SPSR      (1<<20)
+#define _M_BANKED_SPSR	((unsigned long int)(63)<<21)
+#define _M_BANKED_R13	((unsigned long int)(63)<<27)
+#define _M_BANKED_R14   ((unsigned long int)(63)<<33)
+#define	_M_USR_REGS		((unsigned long int)(32)<<39)
+#define _M_REGS 		(32768<<5)
+#define _M_ALL		~((unsigned long int)(0)<<39)
+
+#define _RM_EXCP    (_M_CF | _M_VF | _M_NF | _M_ZF)
+#define _WM_EXCP    (_M_CF | _M_VF | _M_NF | _M_ZF)
+#define _AM_EXCP    0
+
+DEF_HELPER_2_M(cpsr_write, void, i32, i32, -1 , -1 , 1)
+DEF_HELPER_0_M(cpsr_read, i32, -1, -1, 1)
+
+DEF_HELPER_1_M(get_user_reg, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(set_user_reg, void, i32, i32, -1, -1 ,1)
+
+DEF_HELPER_2_M(add_cc, i32, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(adc_cc, i32, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(sub_cc, i32, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(sbc_cc, i32, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(shl_cc, i32, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(shr_cc, i32, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(sar_cc, i32, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(ror_cc, i32, i32, i32, -1, -1, 1)
+
+
 DEF_HELPER_1(clz, i32, i32)
 DEF_HELPER_1(sxtb16, i32, i32)
 DEF_HELPER_1(uxtb16, i32, i32)
@@ -53,8 +100,14 @@ DEF_HELPER_3(sel_flags, i32, i32, i32, i32)
 DEF_HELPER_1(exception, void, i32)
 DEF_HELPER_0(wfi, void)
 
-DEF_HELPER_2(cpsr_write, void, i32, i32)
-DEF_HELPER_0(cpsr_read, i32)
+DEF_HELPER_2(get_r13_banked, i32, env, i32)
+DEF_HELPER_3(set_r13_banked, void, env, i32, i32)
+
+DEF_HELPER_2(get_r14_banked, i32, env, i32)
+DEF_HELPER_3(set_r14_banked, void, env, i32, i32)
+
+DEF_HELPER_2(get_spsr_banked, i32, env, i32)
+DEF_HELPER_3(set_spsr_banked, void, env, i32, i32)
 
 DEF_HELPER_3(v7m_msr, void, env, i32, i32)
 DEF_HELPER_2(v7m_mrs, i32, env, i32)
@@ -64,12 +117,6 @@ DEF_HELPER_2(get_cp15, i32, env, i32)
 
 DEF_HELPER_3(set_cp, void, env, i32, i32)
 DEF_HELPER_2(get_cp, i32, env, i32)
-
-DEF_HELPER_2(get_r13_banked, i32, env, i32)
-DEF_HELPER_3(set_r13_banked, void, env, i32, i32)
-
-DEF_HELPER_1(get_user_reg, i32, i32)
-DEF_HELPER_2(set_user_reg, void, i32, i32)
 
 DEF_HELPER_1(vfp_get_fpscr, i32, env)
 DEF_HELPER_2(vfp_set_fpscr, void, env, i32)
@@ -143,18 +190,9 @@ DEF_HELPER_2(recpe_u32, i32, i32, env)
 DEF_HELPER_2(rsqrte_u32, i32, i32, env)
 DEF_HELPER_4(neon_tbl, i32, i32, i32, i32, i32)
 
-DEF_HELPER_2(add_cc, i32, i32, i32)
-DEF_HELPER_2(adc_cc, i32, i32, i32)
-DEF_HELPER_2(sub_cc, i32, i32, i32)
-DEF_HELPER_2(sbc_cc, i32, i32, i32)
-
 DEF_HELPER_2(shl, i32, i32, i32)
 DEF_HELPER_2(shr, i32, i32, i32)
 DEF_HELPER_2(sar, i32, i32, i32)
-DEF_HELPER_2(shl_cc, i32, i32, i32)
-DEF_HELPER_2(shr_cc, i32, i32, i32)
-DEF_HELPER_2(sar_cc, i32, i32, i32)
-DEF_HELPER_2(ror_cc, i32, i32, i32)
 
 /* neon_helper.c */
 DEF_HELPER_3(neon_qadd_u8, i32, env, i32, i32)

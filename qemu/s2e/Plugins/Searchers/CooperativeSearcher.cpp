@@ -54,6 +54,7 @@ extern "C" {
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 #include <s2e/S2EExecutor.h>
+#include <s2e/Plugins/Opcodes.h>
 
 #include <iostream>
 
@@ -135,25 +136,21 @@ bool CooperativeSearcher::empty()
 void CooperativeSearcher::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
 {
     //XXX: find a better way of allocating custom opcodes
-    if (((opcode>>8) & 0xFF) != COOPSEARCHER_OPCODE) {
+    if (!OPCODE_CHECK(opcode, COOPSEARCHER_OPCODE)) {
         return;
     }
 
-    //XXX: remove this mess. Should have a function for extracting
-    //info from opcodes.
-    opcode >>= 16;
-    uint8_t op = opcode & 0xFF;
-    opcode >>= 8;
+    uint8_t op = OPCODE_GETSUBFUNCTION(opcode);
 
     bool ok = true;
     target_ulong nextState = 0;
 
     CoopSchedulerOpcodes opc = (CoopSchedulerOpcodes)op;
     switch(opc) {
-        //Pick the next state specified by the EAX register
+        //Pick the next state specified as input ergument
         case ScheduleNext:
         {
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(COOPSEARCHER_NEXTSTATE),
                                                  &nextState, sizeof nextState);
             if(!ok) {
                 s2e()->getWarningsStream(state)
@@ -175,8 +172,7 @@ void CooperativeSearcher::onCustomInstruction(S2EExecutionState* state, uint64_t
                     "CooperativeSearcher picked the state " << nextState << '\n';
 
             //Force rescheduling
-            state->writeCpuState(CPU_OFFSET(eip), state->getPc() + 10,
-                                                            CPU_REG_SIZE << 3);
+            state->setPc(state->getPc() + S2E_OPCODE_SIZE);
             throw CpuExitException();
             break;
         }
@@ -197,8 +193,7 @@ void CooperativeSearcher::onCustomInstruction(S2EExecutionState* state, uint64_t
             }
 
             //Force rescheduling
-            state->writeCpuState(CPU_OFFSET(eip), state->getPc() + 10,
-                                                            CPU_REG_SIZE << 3);
+            state->setPc(state->getPc() + S2E_OPCODE_SIZE);
             throw CpuExitException();
             break;
         }

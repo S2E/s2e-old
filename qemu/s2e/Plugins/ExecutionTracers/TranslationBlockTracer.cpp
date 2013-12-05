@@ -35,12 +35,11 @@
 
 extern "C" {
 #include "config.h"
-//#include "cpu.h"
+#include "cpu.h"
 //#include "exec-all.h"
 #include "qemu-common.h"
-    extern struct CPUX86State *env;
+extern CPUArchState *env;
 }
-
 
 #include "TranslationBlockTracer.h"
 #include <s2e/S2E.h>

@@ -37,7 +37,7 @@
  *  This plugin provides the means of manually specifying the location
  *  of modules in memory.
  *
- *  This allows things like defining poritions of the BIOS.
+ *  This allows things like defining portions of the BIOS.
  *
  *  RESERVES THE CUSTOM OPCODE 0xAA
  */
@@ -160,11 +160,11 @@ void RawMonitor::opLoadConfiguredModule(S2EExecutionState *state)
     target_ulong rtloadbase, name, size;
     bool ok = true;
 
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(PARAM0),
                                          &name, sizeof name);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(PARAM1),
                                          &rtloadbase, sizeof rtloadbase);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(PARAM2),
                                          &size, sizeof size);
 
     if(!ok) {
@@ -201,7 +201,7 @@ void RawMonitor::opLoadModule(S2EExecutionState *state)
     target_ulong pModuleConfig;
     bool ok = true;
 
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(PARAM2),
                                          &pModuleConfig, sizeof(pModuleConfig));
     if(!ok) {
         s2e()->getWarningsStream(state)
@@ -241,11 +241,11 @@ void RawMonitor::opCreateImportDescriptor(S2EExecutionState *state)
 {
     target_ulong dllname, funcname, funcptr;
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(PARAM0),
                                          &dllname, sizeof dllname);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(PARAM1),
                                          &funcname, sizeof funcname);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(PARAM2),
                                          &funcptr, sizeof funcptr);
 
     if (!ok) {
@@ -282,35 +282,36 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
         return;
     }
 
-    opcode >>= 16;
-    uint8_t op = opcode & 0xFF;
-    opcode >>= 8;
+    uint8_t op = OPCODE_GETSUBFUNCTION(opcode);
 
     switch(op) {
     case 0: {
         //Module load
-        //eax = pointer to module name
-        //ebx = runtime load base
-        //ecx = entry point
+        // eax/r0 = pointer to module name
+        // ebx/r1 = runtime load base
+        // ecx/r2 = entry point
         opLoadConfiguredModule(state);
         break;
     }
 
     case 1: {
         //Specifying a new import descriptor
+        // eax/r0 = dll name
+        // ebx/r1 = function name
+        // ecx/r2 = function pointer
         opCreateImportDescriptor(state);
         break;
     }
 
     case 2: {
         //Load a non-configured module.
-        //Pointer to OpcodeModuleConfig structure is passed in ecx.
+        // ecx/r3 = pointer to OpcodeModuleConfig structure
         opLoadModule(state);
         break;
     }
 
     default:
-        s2e()->getWarningsStream() << "Invalid RawMonitor opcode " << hexval(opcode) << '\n';
+        s2e()->getWarningsStream() << "Invalid RawMonitor opcode " << hexval(op) << '\n';
         break;
     }
 }
@@ -372,7 +373,7 @@ bool RawMonitor::isKernelAddress(uint64_t pc) const
 
 uint64_t RawMonitor::getPid(S2EExecutionState *s, uint64_t pc)
 {
-    if (pc >= m_kernelStart) {
+    if (pc >= m_kernelStart && s->getPid() != -1) {
         return 0;
     }
     return s->getPid();

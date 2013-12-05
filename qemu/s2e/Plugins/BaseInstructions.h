@@ -68,6 +68,25 @@ private:
     void concretize(S2EExecutionState *state, bool addConstraint);
     void sleep(S2EExecutionState *state);
     void assume(S2EExecutionState *state);
+
+#ifdef TARGET_ARM
+
+#define PARAM0 CPU_OFFSET(regs[0])
+#define PARAM1 CPU_OFFSET(regs[1])
+#define PARAM2 CPU_OFFSET(regs[2])
+#define PARAM3 CPU_OFFSET(regs[3])
+
+#elif defined(TARGET_I386)
+
+#define PARAM0 CPU_OFFSET(regs[R_EAX])
+#define PARAM1 CPU_OFFSET(regs[R_EBX])
+#define PARAM2 CPU_OFFSET(regs[R_ECX])
+#define PARAM3 CPU_OFFSET(regs[R_EDX])
+
+#else
+#error "Target architecture not supported"
+#endif
+
 };
 
 class BaseInstructionsPluginInvokerInterface {

@@ -37,8 +37,9 @@ extern "C" {
 #include <qemu-common.h>
 #include <cpu-all.h>
 #include <exec-all.h>
+#include "cpu.h"
 
-extern struct CPUX86State *env;
+extern CPUArchState *env;
 }
 
 
@@ -47,6 +48,7 @@ extern struct CPUX86State *env;
 #include <s2e/Utils.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
+#include <s2e/S2EExecutor.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <sstream>
@@ -427,17 +429,60 @@ S2ELUAExecutionState::~S2ELUAExecutionState()
     g_s2e->getDebugStream() << "Deleting S2ELUAExecutionState" << '\n';
 }
 
-
-// Reads a concrete value from the stack
-// XXX Not correct for function parameters for 32 bit linux kernel
+// Read a function input parameter, optionally the calling convention
+// can be specified. If omitted, a sensible one is picked up for each architecture
 int S2ELUAExecutionState::readParameter(lua_State *L)
 {
+    uint64_t val = 0;
     uint32_t param = luaL_checkint(L, 1);
+    std::string regstr;
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Reading parameter " << param
             << " from stack" << '\n';
 
-    target_ulong val = 0;
+    // Optionally specify the calling convention
+    if (lua_isstring(L, 2)) {
+        regstr = luaL_checkstring(L, 2);
+    } else {
+#if defined(TARGET_I386)
+        regstr = "cdecl";
+#elif defined(TARGET_ARM)
+        regstr = "aapcs";
+#else
+        regstr = "cdecl";
+#endif
+    }
+
+    if (regstr == "cdecl") {
+        val = readParameterCdecl(L, param);
+    } else
+    if (regstr == "aapcs") {
+        val = readParameterAAPCS(L, param);
+    }
+    // TODO: implement more calling conventions
+
+    lua_pushnumber(L, val);        /* first result */
+    return 1;
+}
+
+uint64_t S2ELUAExecutionState::readParameterAAPCS(lua_State *L, uint32_t param)
+{
+  uint64_t val = 0;
+#ifdef TARGET_ARM
+  if (param <= 3) {
+      if (!m_state->readCpuRegisterConcrete(CPU_OFFSET(regs[param]), &val, CPU_REG_SIZE))
+          g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read parameter " << param << "\n";
+  }
+#endif
+  return val;
+}
+
+// Reads a concrete value from the stack
+// XXX Not correct for function parameters for 32 bit linux kernel
+uint64_t S2ELUAExecutionState::readParameterCdecl(lua_State *L, uint32_t param)
+{
+    uint64_t val = 0;
+#ifdef TARGET_I386
     uint32_t size = sizeof (uint32_t);
     target_ulong sp = m_state->getSp() + (param + 1) * size;
 
@@ -467,9 +512,8 @@ int S2ELUAExecutionState::readParameter(lua_State *L)
         g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read"
                 " parameter " << param << " at "<< hexval(sp) << '\n';
     }
-
-    lua_pushnumber(L, val);        /* first result */
-    return 1;
+#endif
+    return val;
 }
 
 // Writes a concrete value to the stack
@@ -477,39 +521,84 @@ int S2ELUAExecutionState::readParameter(lua_State *L)
 int S2ELUAExecutionState::writeParameter(lua_State *L)
 {
     uint32_t param = luaL_checkint(L, 1);
-    target_ulong val = luaL_checkint(L, 2);
-    uint32_t size = sizeof (uint32_t);
+    uint64_t val = luaL_checkint(L, 2);
+
+    std::string regstr;
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing parameter " << param
-            << " from stack" << '\n';
+            << " for function.\n";
 
-    target_ulong sp = m_state->getSp() + (param + 1) * size;
-
-#ifdef TARGET_X86_64
-    if ((env->hflags & HF_CS64_MASK) && param > 5) {
-        sp = m_state->getSp() + (param - 5) * CPU_REG_SIZE;
+    // Optionally specify the calling convention
+    if (lua_isstring(L, 3)) {
+        regstr = luaL_checkstring(L, 3);
+    } else {
+#if defined(TARGET_I386)
+        regstr = "cdecl";
+#elif defined(TARGET_ARM)
+        regstr = "aapcs";
+#else
+        regstr = "cdecl";
+#endif
     }
-    if ((env->hflags & HF_CS64_MASK) && param < 6) {
-        unsigned int offset = 0;
-        switch (param) {
-        default:
-        case 0: offset = CPU_OFFSET(regs[R_EDI]); break;
-        case 1: offset = CPU_OFFSET(regs[R_ESI]); break;
-        case 2: offset = CPU_OFFSET(regs[R_EDX]); break;
-        case 3: offset = CPU_OFFSET(regs[R_ECX]); break;
-        case 4: offset = CPU_OFFSET(regs[8]);     break;
-        case 5: offset = CPU_OFFSET(regs[9]);     break;
-        }
 
-        m_state->writeCpuRegisterConcrete(offset, &val, sizeof (val));
+    bool ok = false;
+    if (regstr == "cdecl") {
+        ok = writeParameterCdecl(L, param, val);
     } else
-#endif /* TARGET_X86_64 */
-    if (!m_state->writeMemoryConcrete(sp, &val, size)) {
-        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not write"
-                " parameter " << param << " at "<< hexval(sp) << '\n';
+    if (regstr == "aapcs") {
+        ok = writeParameterAAPCS(L, param, val);
+    }
+    // TODO: implement more calling conventions
+
+    if (!ok) {
+        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not write parameter " << param << ".\n";
     }
 
     return 0;
+}
+
+bool S2ELUAExecutionState::writeParameterCdecl(lua_State *L, uint32_t param, uint64_t val)
+{
+#if defined(TARGET_I386)
+  target_ulong archval = (target_ulong) val;
+
+  target_ulong sp = m_state->getSp() + (param + 1) * CPU_REG_SIZE;
+
+#ifdef TARGET_X86_64
+  if ((env->hflags & HF_CS64_MASK) && param > 5) {
+      sp = m_state->getSp() + (param - 5) * CPU_REG_SIZE;
+  }
+  if ((env->hflags & HF_CS64_MASK) && param < 6) {
+      unsigned int offset = 0;
+      switch (param) {
+      default:
+      case 0: offset = CPU_OFFSET(regs[R_EDI]); break;
+      case 1: offset = CPU_OFFSET(regs[R_ESI]); break;
+      case 2: offset = CPU_OFFSET(regs[R_EDX]); break;
+      case 3: offset = CPU_OFFSET(regs[R_ECX]); break;
+      case 4: offset = CPU_OFFSET(regs[8]);     break;
+      case 5: offset = CPU_OFFSET(regs[9]);     break;
+      }
+
+      m_state->writeCpuRegisterConcrete(offset, &archval, sizeof(archval));
+      return true;
+  } else
+#endif /* TARGET_X86_64 */
+      return m_state->writeMemoryConcrete(sp, &archval, sizeof(archval));
+#endif
+  return false;
+}
+
+bool S2ELUAExecutionState::writeParameterAAPCS(lua_State *L, uint32_t param, uint64_t val)
+{
+#ifdef TARGET_ARM
+    target_ulong archval = (target_ulong) val;
+    if (param <= 3) {
+        m_state->writeCpuRegisterConcrete(CPU_OFFSET(regs[param]), &archval, sizeof(archval));
+        return true;
+    }
+#endif
+    return false;
 }
 
 int S2ELUAExecutionState::readMemory(lua_State *L)
@@ -603,6 +692,72 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
     return 0;
 }
 
+#ifdef TARGET_ARM
+static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32 &size)
+{
+    if (regstr == "r0") {
+        regIndex = 0;
+        size = 4;
+    }else if (regstr == "r1") {
+        regIndex = 1;
+        size = 4;
+    }else if (regstr == "r2") {
+        regIndex = 2;
+        size = 4;
+    }else if (regstr == "r3") {
+        regIndex = 3;
+        size = 4;
+    }else if (regstr == "r4") {
+        regIndex = 4;
+        size = 4;
+    }else if (regstr == "r5") {
+        regIndex = 5;
+        size = 4;
+    }else if (regstr == "r6") {
+        regIndex = 6;
+        size = 4;
+    }else if (regstr == "r7") {
+        regIndex = 7;
+        size = 4;
+    }else if (regstr == "r8") {
+        regIndex = 8;
+        size = 4;
+    }else if (regstr == "r9") {
+        regIndex = 9;
+        size = 4;
+    }else if (regstr == "r10") {
+        regIndex = 10;
+        size = 4;
+    }else if (regstr == "r11") {
+        regIndex = 11;
+        size = 4;
+    }else if (regstr == "r12") {
+        regIndex = 12;
+        size = 4;
+    }else if (regstr == "r13") {
+        regIndex = 13;
+        size = 4;
+    }else if (regstr == "r14") {
+        regIndex = 14;
+        size = 4;
+    }else if (regstr == "r15") {
+        regIndex = 15;
+        size = 4;
+    }else if (regstr == "pc") {
+        regIndex = 15;
+        size = 4;
+    }else if (regstr == "sp") {
+        regIndex = 13;
+        size = 4;
+    }else if (regstr == "lr") { /* link register */
+        regIndex = 14;
+        size = 4;
+    }else {
+        return false;
+    }
+    return true;
+}
+#elif defined(TARGET_I386)
 static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32 &size)
 {
     if (regstr == "eax") {
@@ -634,6 +789,7 @@ static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32
     }
     return true;
 }
+#endif
 
 int S2ELUAExecutionState::writeRegister(lua_State *L)
 {
@@ -652,7 +808,14 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
         lua_error(L);
     }
 
-    m_state->writeCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
+    if (CPU_REG_OFFSET(regIndex) < CPU_CONC_LIMIT) {
+        m_state->writeCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
+    } else {
+        // This alters execution, abort current instruction
+        assert(CPU_REG_OFFSET(regIndex) == CPU_CONC_LIMIT);
+        m_state->setPc(value);
+        throw CpuExitException();
+    }
 
     return 0;                   /* number of results */
 }
@@ -727,7 +890,23 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
     }
 
     target_ulong value = 0;
-    m_state->readCpuRegisterConcrete(CPU_REG_OFFSET(regIndex), &value, size);
+
+    if (CPU_REG_OFFSET(regIndex) < CPU_CONC_LIMIT) {
+        klee::ref<klee::Expr> exprReg = m_state->readCpuRegister(CPU_REG_OFFSET(regIndex), klee::Expr::Width(size << 3));
+        if (isa<klee::ConstantExpr>(exprReg)) {
+            // Register is concrete, just read it
+            value = cast<klee::ConstantExpr>(exprReg)->getZExtValue();
+        }
+        else
+        {
+            // Register is symbolic, get an example (without concretizing in-place)
+            value = g_s2e->getExecutor()->toConstantSilent(*m_state, exprReg)->getZExtValue();
+        }
+    } else {
+        assert(CPU_REG_OFFSET(regIndex) == CPU_CONC_LIMIT);
+        value = (target_ulong) m_state->getPc();
+    }
+
 
     lua_pushnumber(L, value);        /* first result */
     return 1;

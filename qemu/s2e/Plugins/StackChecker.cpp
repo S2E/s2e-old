@@ -44,7 +44,7 @@
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(StackChecker, "Verfies the correct stack use", "", "MemoryChecker", "StackMonitor");
+S2E_DEFINE_PLUGIN(StackChecker, "Verifies the correct stack use", "", "MemoryChecker", "StackMonitor");
 
 void StackChecker::initialize()
 {

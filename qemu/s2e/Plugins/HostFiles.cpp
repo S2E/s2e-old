@@ -87,12 +87,12 @@ void HostFiles::open(S2EExecutionState *state)
     target_ulong fnamePtr = 0, flags = 0;
     target_ulong guestFd = (target_ulong) -1;
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &fnamePtr,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_OPENFILENAME), &fnamePtr,
                                                                  CPU_REG_SIZE);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &flags,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_OPENFLAGS), &flags,
                                                                  CPU_REG_SIZE);
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd,
+    state->writeCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_OPENFD), &guestFd,
                                                                  CPU_REG_SIZE);
 
     if (!ok) {
@@ -137,7 +137,7 @@ void HostFiles::open(S2EExecutionState *state)
     if(fd != -1) {
         m_openFiles.push_back(fd);
         guestFd = m_openFiles.size()-1;
-        state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd,
+        state->writeCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_OPENFD), &guestFd,
                                                                 CPU_REG_SIZE);
     }else {
         s2e()->getWarningsStream(state) <<
@@ -152,14 +152,14 @@ void HostFiles::read(S2EExecutionState *state)
     ssize_t read_ret = -1;
 
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_GUESTFD), &guestFd,
                                                                 CPU_REG_SIZE);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &bufAddr,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_BUFADDR), &bufAddr,
                                                                 CPU_REG_SIZE);
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EDX]), &count,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_COUNT), &count,
                                                                 CPU_REG_SIZE);
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret,
+    state->writeCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_RETURN), &ret,
                                                                 CPU_REG_SIZE);
 
     if (!ok) {
@@ -193,7 +193,7 @@ void HostFiles::read(S2EExecutionState *state)
         return;
     }
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret, CPU_REG_SIZE);
+    state->writeCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_RETURN), &ret, CPU_REG_SIZE);
 }
 
 void HostFiles::close(S2EExecutionState *state)
@@ -202,10 +202,10 @@ void HostFiles::close(S2EExecutionState *state)
     target_ulong ret = (target_ulong) -1;
 
     bool ok = true;
-    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &guestFd,
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_GUESTFD), &guestFd,
                                                                 CPU_REG_SIZE);
 
-    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret,
+    state->writeCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_RETURN), &ret,
                                                                 CPU_REG_SIZE);
 
     if (!ok) {
@@ -217,7 +217,7 @@ void HostFiles::close(S2EExecutionState *state)
     if(guestFd < m_openFiles.size() && m_openFiles[guestFd] != -1) {
         ret = ::close(m_openFiles[guestFd]);
         m_openFiles[guestFd] = -1;
-        state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &ret,
+        state->writeCpuRegisterConcrete(CPU_OFFSET(HOSTFILES_RETURN), &ret,
                                                                 CPU_REG_SIZE);
     } else {
         s2e()->getWarningsStream(state)

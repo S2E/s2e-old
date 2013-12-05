@@ -49,6 +49,16 @@
 
 #include "ModuleExecutionDetector.h"
 
+#if defined(TARGET_I386)
+#define IS_USERSPACE regs[R_ECX]
+#define PROC_ID regs[R_ECX]
+#define MOD_ID regs[R_ECX]
+#elif defined(TARGET_ARM)
+#define IS_USERSPACE regs[2]
+#define PROC_ID regs[2]
+#define MOD_ID regs[2]
+#endif
+
 namespace s2e {
 namespace plugins {
 

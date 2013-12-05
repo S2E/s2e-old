@@ -46,6 +46,20 @@
 #include <inttypes.h>
 #include "OSMonitor.h"
 
+#ifdef TARGET_I386
+
+#define MODULEID regs[R_ECX]
+#define MODULENAME regs[R_EAX]
+#define KERNELMODE regs[R_EDX]
+
+#elif defined(TARGET_ARM)
+
+#define MODULEID regs[2]
+#define MODULENAME regs[0]
+#define KERNELMODE regs[3]
+
+#endif
+
 namespace s2e {
 namespace plugins {
 

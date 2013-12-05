@@ -254,10 +254,23 @@ stamps/klee-asan-release-make: BUILD_OPTS = ENABLE_OPTIMIZED=1
 # QEMU #
 ########
 
+#HACK: LLVM does not recognize which processor features are supported, and uses SSE4 when it's not supported, so disable this
+EXTRA_QEMU_FLAGS += --extra-cflags=-mno-sse3 --extra-cxxflags=-mno-sse3
+
+QEMU_S2E_ARCH =
+QEMU_S2E_ARCH += i386-s2e-softmmu i386-softmmu
+QEMU_S2E_ARCH += x86_64-s2e-softmmu x86_64-softmmu
+QEMU_S2E_ARCH += arm-s2e-softmmu arm-softmmu
+
+empty :=
+comma := ,
+space := $(empty) $(empty)
+QEMU_S2E_ARCH := $(subst $(space),$(comma),$(strip $(QEMU_S2E_ARCH)))
+
 QEMU_COMMON_FLAGS = --prefix=$(S2EBUILD)/opt\
                     --cc=$(CLANG_CC) \
                     --cxx=$(CLANG_CXX) \
-                    --target-list=x86_64-s2e-softmmu,x86_64-softmmu,i386-s2e-softmmu,i386-softmmu \
+                    --target-list=$(QEMU_S2E_ARCH)\
                     --enable-llvm \
                     --enable-s2e \
                     --with-pkgversion=S2E \
