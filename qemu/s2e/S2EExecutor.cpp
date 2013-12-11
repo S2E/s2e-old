@@ -55,14 +55,18 @@ extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
 
 
-void s2e_do_interrupt_all(int intno, int is_int, int error_code,
-                             target_ulong next_eip, int is_hw);
+
+
 #ifdef TARGET_ARM
-void do_interrupt_all(void);
+void do_interrupt(CPUArchState *env);
+void s2e_do_interrupt(void);
 #elif defined(TARGET_I386)
 void do_interrupt_all(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw);
+void s2e_do_interrupt_all(int intno, int is_int, int error_code,
+                             target_ulong next_eip, int is_hw);
 #endif
+
 uint64_t helper_set_cc_op_eflags(void);
 
 }
@@ -1025,14 +1029,7 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
     /* Add registers and eflags area as a true symbolic area */
 
     initialState->m_cpuRegistersState =
-        addExternalObject(*initialState, cpuEnv,
-#ifdef TARGET_I386
-                      offsetof(CPUX86State, eip),
-#elif defined(TARGET_ARM)
-                      offsetof(CPUARMState, regs[15]),
-#else
-#error "Target architecture not supported"
-#endif
+        addExternalObject(*initialState, cpuEnv, CPU_CONC_LIMIT,
                       /* isReadOnly = */ false,
                       /* isUserSpecified = */ false,
                       /* isSharedConcrete = */ false);
@@ -1043,15 +1040,8 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
     /* Add the rest of the structure as concrete-only area */
     initialState->m_cpuSystemState =
         addExternalObject(*initialState,
-#ifdef TARGET_I386
-                      ((uint8_t*)cpuEnv) + offsetof(CPUX86State, eip),
-                      sizeof(CPUX86State) - offsetof(CPUX86State, eip),
-#elif defined(TARGET_ARM)
-                      ((uint8_t*)cpuEnv) + offsetof(CPUARMState, regs[15]),
-                      sizeof(CPUARMState) - offsetof(CPUARMState, regs[15]),
-#else
-#error "Target architecture not supported"
-#endif
+                      ((uint8_t*)cpuEnv) + CPU_CONC_LIMIT,
+                      sizeof(CPUArchState) - CPU_CONC_LIMIT,
                       /* isReadOnly = */ false,
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
@@ -2242,11 +2232,7 @@ void S2EExecutor::yieldState(ExecutionState &s)
     g_s2e->getDebugStream().flush();
 
     // Skip the opcode
-#ifdef TARGET_I386
-    state.writeCpuState(CPU_OFFSET(eip), state.getPc() + 10, CPU_REG_SIZE << 3);
-#elif defined(TARGET_ARM)
-    state.writeCpuState(CPU_OFFSET(regs[15]), state.getPc() + 10, CPU_REG_SIZE << 3);
-#endif
+    state.writeCpuState(CPU_OFFSET(PROG_COUNTER), state.getPc() + S2E_OPCODE_SIZE, CPU_REG_SIZE << 3);
 
     // Stop current execution
     state.writeCpuState(CPU_OFFSET(exception_index), EXCP_S2E, 8*sizeof(int));
@@ -2295,9 +2281,13 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
 #endif
 }
 
+/* Note that each QEMU target have different handlers naming and signature:
+ * on ARM - do_interrupt()/s2e_do_interrupt() - 0 args
+ * on X86 - do_interrupt_all()/s2e_do_interrupt_all() - 5 args
+ */
 
 #ifdef TARGET_ARM
-void S2EExecutor::doInterrupt(S2EExecutionState *state)
+inline void S2EExecutor::doInterrupt(S2EExecutionState *state)
 {
     if(state->m_cpuRegistersObject->isAllConcrete() && !m_executeAlwaysKlee) {
         if(!state->m_runningConcrete)
@@ -2316,6 +2306,7 @@ void S2EExecutor::doInterrupt(S2EExecutionState *state)
             s2e_longjmp(env->jmp_env, 1);
         }
     }
+
 }
 #elif defined(TARGET_I386)
 inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
@@ -2346,8 +2337,6 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
     }
 }
 #endif
-
-
 
 void S2EExecutor::setupTimersHandler()
 {
@@ -2532,26 +2521,28 @@ void s2e_set_cc_op_eflags(CPUArchState *env1)
  *  code performs internally, therefore, there must be a means for such
  *  plugins to enable/disable tracing upon exiting/entering
  *  the emulation code.
+ *  The interrupt-handling methods here below are target-specific,
+ *  signatures must match the ones in QEMU target.
  */
+
 #ifdef TARGET_ARM
-void s2e_do_interrupt(void)
+void do_interrupt(CPUArchState *env)
+{
+    g_s2e_state->setRunningExceptionEmulationCode(true);
+    g_s2e->getExecutor()->doInterrupt(g_s2e_state);
+    g_s2e_state->setRunningExceptionEmulationCode(false);
+}
 #elif defined(TARGET_I386)
 void do_interrupt_all(int intno, int is_int, int error_code,
                       target_ulong next_eip, int is_hw)
-#endif
 {
     g_s2e_state->setRunningExceptionEmulationCode(true);
-
-#ifdef TARGET_ARM
-    g_s2e->getExecutor()->doInterrupt(g_s2e_state);
-#elif defined(TARGET_I386)
     s2e_on_exception(intno);
     g_s2e->getExecutor()->doInterrupt(g_s2e_state, intno, is_int, error_code,
                                     next_eip, is_hw);
-#endif
-
     g_s2e_state->setRunningExceptionEmulationCode(false);
 }
+#endif
 
 /**
  *  Checks whether we are trying to access an I/O port that returns a symbolic value.

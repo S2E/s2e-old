@@ -50,9 +50,11 @@
  *  S2E_OPCODE_SIZE is the size in byte of S2E custom opcodes. */
 
 #if defined(TARGET_I386)
+#define PROG_COUNTER eip
 #define S2E_TARGET_CONC_LIMIT eip
 #define S2E_OPCODE_SIZE 10
 #elif defined(TARGET_ARM)
+#define PROG_COUNTER regs[15]
 #define S2E_TARGET_CONC_LIMIT regs[15]
 #define S2E_OPCODE_SIZE 4
 #else

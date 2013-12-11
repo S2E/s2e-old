@@ -233,9 +233,11 @@ void s2e_set_cc_op_eflags(CPUArchState *state);
 
 #ifdef TARGET_ARM
 void s2e_do_interrupt(void);
+void s2e_helper_do_interrupt(struct CPUARMState *);
 #elif defined(TARGET_I386)
 void s2e_do_interrupt(int intno, int is_int, int error_code, uint64_t next_eip, int is_hw);
 #endif
+
 /** This function is called when RAM is read by concretely executed
     generated code. If the memory location turns out to be symbolic,
     this function will either concretize it of switch to execution
