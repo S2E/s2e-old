@@ -21,6 +21,10 @@
 
 #include "bswap.h"
 
+typedef uint16_t fdt16_t;
+typedef uint32_t fdt32_t;
+typedef uint64_t fdt64_t;
+
 #ifdef HOST_WORDS_BIGENDIAN
 #define fdt32_to_cpu(x)		(x)
 #define cpu_to_fdt32(x)		(x)
