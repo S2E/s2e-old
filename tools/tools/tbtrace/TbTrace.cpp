@@ -379,6 +379,13 @@ void TbTrace::onItem(unsigned traceIndex,
         return;
     }
 
+    if (hdr.type == s2e::plugins::TRACE_STATE_SWITCH) {
+        const s2e::plugins::ExecutionTraceStateSwitch &s = *(s2e::plugins::ExecutionTraceStateSwitch*)item;
+        m_output << "State switch " << hdr.stateId << " => " << s.newStateId;
+        m_output << std::endl;
+        return;
+    }
+
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         m_output << "Forked at 0x" << std::hex << f->pc << " - ";

@@ -72,6 +72,7 @@ enum ExecTraceEntryType {
     TRACE_ICOUNT,
     TRACE_MEM_CHECKER,
     TRACE_EXCEPTION,
+    TRACE_STATE_SWITCH,
     TRACE_MAX
 };
 
@@ -386,6 +387,10 @@ struct ExecutionTraceTb
 struct ExecutionTraceException {
     uint64_t pc;
     uint32_t vector;
+}__attribute__((packed));
+
+struct ExecutionTraceStateSwitch {
+    uint32_t newStateId;
 }__attribute__((packed));
 
 union ExecutionTraceAll {
