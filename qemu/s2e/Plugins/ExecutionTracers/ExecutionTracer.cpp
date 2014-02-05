@@ -174,3 +174,20 @@ void ExecutionTracer::onFork(S2EExecutionState *state,
 
 } // namespace plugins
 } // namespace s2e
+
+extern "C" {
+
+/** Can be called from GDB to flush the trace from the debugger */
+void execution_tracer_flush(void);
+void execution_tracer_flush(void)
+{
+    s2e::plugins::ExecutionTracer *tracer;
+
+    tracer = static_cast<s2e::plugins::ExecutionTracer*>(g_s2e->getPlugin("ExecutionTracer"));
+    if (!tracer) {
+        return;
+    }
+
+    tracer->flush();
+}
+}
