@@ -300,6 +300,7 @@ struct ExecutionTraceTestCase {
 #define EXECTRACE_MEM_SYMBADDR 8
 #define EXECTRACE_MEM_HASHOSTADDR 16
 #define EXECTRACE_MEM_SYMBHOSTADDR 32
+#define EXECTRACE_MEM_OBJECTSTATE 64
 struct ExecutionTraceMemory
 {
     uint64_t pc;
@@ -310,6 +311,9 @@ struct ExecutionTraceMemory
 
     //The next field is written only if  EXECTRACE_MEM_HASHOST is set!
     uint64_t hostAddress;
+
+    //Only if EXECTRACE_MEM_OBJECTSTATE is set
+    uint64_t concreteBuffer;
 }__attribute__((packed));
 
 struct ExecutionTracePageFault

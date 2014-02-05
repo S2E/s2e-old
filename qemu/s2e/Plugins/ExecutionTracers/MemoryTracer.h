@@ -71,6 +71,7 @@ private:
     bool m_monitorModules;
     bool m_monitorStack;
     bool m_traceHostAddresses;
+    bool m_debugObjectStates;
     uint64_t m_catchAbove;
     uint64_t m_catchBelow;
 

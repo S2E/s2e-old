@@ -425,9 +425,14 @@ void TbTrace::onItem(unsigned traceIndex,
         m_output << "S=" << std::dec << hdr.stateId << " P=0x" << std::hex << hdr.pid << " PC=0x" << std::hex << te->pc << " " << type << (int)te->size << "[0x"
                 << std::hex << te->address << "]=0x" << std::setw(10) << std::setfill('0') << te->value;
 
-	if (te->flags & EXECTRACE_MEM_HASHOSTADDR) {
+        if (te->flags & EXECTRACE_MEM_HASHOSTADDR) {
            m_output << " hostAddr=0x" << te->hostAddress << " ";
         }
+
+        if (te->flags & EXECTRACE_MEM_OBJECTSTATE) {
+           m_output << " cb=0x" << te->concreteBuffer << " ";
+        }
+
         m_output << "\t";
 
         printDebugInfo(hdr.pid, te->pc, 0, false);
