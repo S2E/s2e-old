@@ -3494,7 +3494,7 @@ static uint64_t s2edma_mem_read(void *opaque, target_phys_addr_t ram_addr, unsig
     switch(size) {
         case 1: return ldub_raw(qemu_get_ram_ptr(ram_addr));
         case 2: return lduw_raw(qemu_get_ram_ptr(ram_addr));
-        case 4: return ldq_raw(qemu_get_ram_ptr(ram_addr));
+        case 4: return ldl_raw(qemu_get_ram_ptr(ram_addr));
     }
     assert(false && "Invalid size");
     return 0;
