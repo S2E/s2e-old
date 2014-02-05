@@ -44,6 +44,7 @@ these four paragraphs for those parts of this code that are retained.
 
 #include <inttypes.h>
 #include "config-host.h"
+#include "osdep.h"
 
 /*----------------------------------------------------------------------------
 | Each of the following `typedef's defines the most convenient type that holds
@@ -54,19 +55,8 @@ these four paragraphs for those parts of this code that are retained.
 | to the same as `int'.
 *----------------------------------------------------------------------------*/
 typedef uint8_t flag;
-
-/*
-#ifdef __APPLE__
-#define uint16 qemu_uint16
-#endif
-*/
-
 typedef uint8_t uint8;
 typedef int8_t int8;
-#ifndef _AIX
-typedef int uint16;
-typedef int int16;
-#endif
 typedef unsigned int uint32;
 typedef signed int int32;
 typedef uint64_t uint64;
@@ -229,7 +219,7 @@ void float_raise( int8 flags STATUS_PARAM);
 enum {
     float_muladd_negate_c = 1,
     float_muladd_negate_product = 2,
-    float_muladd_negate_result = 3,
+    float_muladd_negate_result = 4,
 };
 
 /*----------------------------------------------------------------------------
@@ -247,6 +237,7 @@ float64 int64_to_float64( int64 STATUS_PARAM );
 float64 uint64_to_float64( uint64 STATUS_PARAM );
 floatx80 int64_to_floatx80( int64 STATUS_PARAM );
 float128 int64_to_float128( int64 STATUS_PARAM );
+float128 uint64_to_float128( uint64 STATUS_PARAM );
 
 /*----------------------------------------------------------------------------
 | Software half-precision conversion routines.
@@ -261,6 +252,11 @@ int float16_is_quiet_nan( float16 );
 int float16_is_signaling_nan( float16 );
 float16 float16_maybe_silence_nan( float16 );
 
+INLINE int float16_is_any_nan(float16 a)
+{
+    return ((float16_val(a) & ~0x8000) > 0x7c00);
+}
+
 /*----------------------------------------------------------------------------
 | The pattern for a default generated half-precision NaN.
 *----------------------------------------------------------------------------*/
@@ -269,8 +265,8 @@ extern const float16 float16_default_nan;
 /*----------------------------------------------------------------------------
 | Software IEC/IEEE single-precision conversion routines.
 *----------------------------------------------------------------------------*/
-int16 float32_to_int16_round_to_zero( float32 STATUS_PARAM );
-uint16 float32_to_uint16_round_to_zero( float32 STATUS_PARAM );
+int_fast16_t float32_to_int16_round_to_zero(float32 STATUS_PARAM);
+uint_fast16_t float32_to_uint16_round_to_zero(float32 STATUS_PARAM);
 int32 float32_to_int32( float32 STATUS_PARAM );
 int32 float32_to_int32_round_to_zero( float32 STATUS_PARAM );
 uint32 float32_to_uint32( float32 STATUS_PARAM );
@@ -373,8 +369,8 @@ extern const float32 float32_default_nan;
 /*----------------------------------------------------------------------------
 | Software IEC/IEEE double-precision conversion routines.
 *----------------------------------------------------------------------------*/
-int16 float64_to_int16_round_to_zero( float64 STATUS_PARAM );
-uint16 float64_to_uint16_round_to_zero( float64 STATUS_PARAM );
+int_fast16_t float64_to_int16_round_to_zero(float64 STATUS_PARAM);
+uint_fast16_t float64_to_uint16_round_to_zero(float64 STATUS_PARAM);
 int32 float64_to_int32( float64 STATUS_PARAM );
 int32 float64_to_int32_round_to_zero( float64 STATUS_PARAM );
 uint32 float64_to_uint32( float64 STATUS_PARAM );
@@ -634,6 +630,8 @@ INLINE int float128_is_any_nan(float128 a)
     return ((a.high >> 48) & 0x7fff) == 0x7fff &&
         ((a.low != 0) || ((a.high & 0xffffffffffffLL) != 0));
 }
+
+#define float128_zero make_float128(0, 0)
 
 /*----------------------------------------------------------------------------
 | The pattern for a default generated quadruple-precision NaN.
