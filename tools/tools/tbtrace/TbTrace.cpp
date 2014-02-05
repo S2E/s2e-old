@@ -372,6 +372,13 @@ void TbTrace::onItem(unsigned traceIndex,
         return;
     }
 
+    if (hdr.type == s2e::plugins::TRACE_EXCEPTION) {
+        const s2e::plugins::ExecutionTraceException &fault = *(s2e::plugins::ExecutionTraceException*)item;
+        m_output << "EXCP @" << std::hex << fault.pc << " vec=" <<  fault.vector;
+        m_output << std::endl;
+        return;
+    }
+
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         m_output << "Forked at 0x" << std::hex << f->pc << " - ";
