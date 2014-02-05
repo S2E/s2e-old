@@ -365,6 +365,13 @@ void TbTrace::onItem(unsigned traceIndex,
         return;
     }
 
+    if (hdr.type == s2e::plugins::TRACE_PAGEFAULT) {
+        const s2e::plugins::ExecutionTracePageFault &fault = *(s2e::plugins::ExecutionTracePageFault*)item;
+        m_output << "PF @" << std::hex << fault.pc << " addr=" <<  fault.address << " isWrite=" << (int) fault.isWrite;
+        m_output << std::endl;
+        return;
+    }
+
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         m_output << "Forked at 0x" << std::hex << f->pc << " - ";
