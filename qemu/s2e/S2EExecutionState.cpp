@@ -283,15 +283,11 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
     }
 }
 
-ExecutionState* S2EExecutionState::clone()
+void S2EExecutionState::clearTlbOwnership()
 {
-    // When cloning, all ObjectState becomes not owned by neither of states
-    // This means that we must clean owned-by-us flag in S2E TLB
-    assert(m_active && m_cpuSystemState);
 #ifdef S2E_ENABLE_S2E_TLB
     CPUArchState* cpu = (CPUArchState*)(m_cpuSystemState->address
-                          - CPU_CONC_LIMIT);
-
+                                        - CPU_CONC_LIMIT);
 
     foreach2(it, m_tlbMap.begin(), m_tlbMap.end()) {
         ObjectStateTlbReferences &vec = (*it).second;
@@ -306,7 +302,14 @@ ExecutionState* S2EExecutionState::clone()
         }
     }
 #endif
+}
 
+ExecutionState* S2EExecutionState::clone()
+{
+    // When cloning, all ObjectState becomes not owned by neither of states
+    // This means that we must clean owned-by-us flag in S2E TLB
+    assert(m_active && m_cpuSystemState);
+    clearTlbOwnership();
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->addressSpace.state = ret;
     ret->m_deviceState.setExecutionState(ret);

@@ -1352,6 +1352,17 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         }
         */
 
+        foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+            if(mo == cpuMo)
+                continue;
+
+            const ObjectState *oldOS = oldState->addressSpace.findObject(mo);
+            ObjectState *oldWOS = oldState->addressSpace.getWriteable(mo, oldOS);
+            uint8_t *oldStore = oldWOS->getConcreteStore();
+            assert(oldStore);
+            memcpy(oldStore, (uint8_t*) mo->address, mo->size);
+        }
+
         //copyInConcretes(*oldState);
         oldState->getDeviceState()->saveDeviceState();
         //oldState->m_qemuIcount = qemu_icount;
@@ -1362,6 +1373,9 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
         oldState->m_active = false;
     }
+
+    uint64_t totalCopied = 0;
+    uint64_t objectsCopied = 0;
 
     if(newState) {
         timers_state = *newState->m_timersState;
@@ -1375,6 +1389,19 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
         memcpy(&env->jmp_env, &jmp_env, sizeof(jmp_buf));
 
+        foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+            if(mo == cpuMo)
+                continue;
+
+            const ObjectState *newOS = newState->addressSpace.findObject(mo);
+            const uint8_t *newStore = newOS->getConcreteStore();
+            assert(newStore);
+            memcpy((uint8_t*) mo->address, newStore, mo->size);
+
+            totalCopied += mo->size;
+            objectsCopied++;
+        }
+
         newState->m_active = true;
 
         //Devices may need to write to memory, which can be done
@@ -1384,30 +1411,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         newState->getDeviceState()->restoreDeviceState();
     }
 
-    uint64_t totalCopied = 0;
-    uint64_t objectsCopied = 0;
-    foreach(MemoryObject* mo, m_saveOnContextSwitch) {
-        if(mo == cpuMo)
-            continue;
-
-        if(oldState) {
-            const ObjectState *oldOS = oldState->addressSpace.findObject(mo);
-            ObjectState *oldWOS = oldState->addressSpace.getWriteable(mo, oldOS);
-            uint8_t *oldStore = oldWOS->getConcreteStore();
-            assert(oldStore);
-            memcpy(oldStore, (uint8_t*) mo->address, mo->size);
-        }
-
-        if(newState) {
-            const ObjectState *newOS = newState->addressSpace.findObject(mo);
-            const uint8_t *newStore = newOS->getConcreteStore();
-            assert(newStore);
-            memcpy((uint8_t*) mo->address, newStore, mo->size);
-        }
-
-        totalCopied += mo->size;
-        objectsCopied++;
-    }
 
     cpu_enable_ticks();
 
@@ -2092,7 +2095,19 @@ void S2EExecutor::notifyBranch(ExecutionState &state)
     /* Checkpoint the device state before branching */
     qemu_aio_flush();
     bdrv_flush_all();
-    //s2eState->m_tlb.clearTlbOwnership();
+    s2eState->clearTlbOwnership();
+
+    /**
+     * These objects must be saved before the cpu state, because
+     * getWritable() may modify the TLB.
+     */
+    foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+        const ObjectState *os = s2eState->addressSpace.findObject(mo);
+        ObjectState *wos = s2eState->addressSpace.getWriteable(mo, os);
+        uint8_t *store = wos->getConcreteStore();
+        assert(store);
+        memcpy(store, (uint8_t*) mo->address, mo->size);
+    }
 
     /* Save CPU state */
     const MemoryObject* cpuMo = s2eState->m_cpuSystemState;
@@ -2104,13 +2119,6 @@ void S2EExecutor::notifyBranch(ExecutionState &state)
     *s2eState->m_timersState = timers_state;
     cpu_enable_ticks();
 
-    foreach(MemoryObject* mo, m_saveOnContextSwitch) {
-        const ObjectState *os = s2eState->addressSpace.findObject(mo);
-        ObjectState *wos = s2eState->addressSpace.getWriteable(mo, os);
-        uint8_t *store = wos->getConcreteStore();
-        assert(store);
-        memcpy(store, (uint8_t*) mo->address, mo->size);
-    }
 }
 
 void S2EExecutor::branch(klee::ExecutionState &state,

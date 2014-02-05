@@ -453,6 +453,7 @@ public:
     void updateTlbEntry(CPUArchState* env,
                               int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
     void flushTlbCache();
+    void clearTlbOwnership();
 
     void flushTlbCachePage(klee::ObjectState *objectState, int mmu_idx, int index);
 };
