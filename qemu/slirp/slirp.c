@@ -27,6 +27,8 @@
 #include "slirp.h"
 #include "hw/hw.h"
 
+int g_s2e_linked __attribute__((weak));
+
 /* host loopback address */
 struct in_addr loopback_addr;
 
@@ -202,6 +204,16 @@ Slirp *slirp_init(int restricted, struct in_addr vnetwork,
                   const char *bootfile, struct in_addr vdhcp_start,
                   struct in_addr vnameserver, void *opaque)
 {
+    if (g_s2e_linked) {
+        fprintf(stderr,
+          "\n\033[31m========================================================================\n"
+          "User-mode networking (slirp) is not supported by S2E.\n"
+          "Please use a TAP interface or the -net none option instead.\n"
+          "========================================================================\033[0m\n"
+        );
+        exit(-1);
+    }
+
     Slirp *slirp = g_malloc0(sizeof(Slirp));
 
     slirp_init_once();
