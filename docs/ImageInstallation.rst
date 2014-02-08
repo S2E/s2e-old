@@ -113,13 +113,13 @@ This is useful if your guest system is large and avoids cumbersome manipulations
 ::
 
     # Set up the guest, take a snapshot
-    $ ./qemu-release/x86_64-softmmu/qemu-system-x86_64 -enable-kvm -cpu core2duo
+    $ ./qemu-release/x86_64-softmmu/qemu-system-x86_64 -enable-kvm -cpu core2duo -net none
 
     # Resume the snapshot in DBT mode using vanilla QEMU, to finish the setup
-    $ ./qemu-release/x86_64-softmmu/qemu-system-x86_64 -cpu core2duo -loadvm mysnapshot
+    $ ./qemu-release/x86_64-softmmu/qemu-system-x86_64 -cpu core2duo -net none -loadvm mysnapshot
 
     # Resume the snapshot in S2E mode
-    $ ./qemu-release/x86_64-s2e-softmmu/qemu-system-x86_64 -cpu core2duo -loadvm mysnapshot
+    $ ./qemu-release/x86_64-s2e-softmmu/qemu-system-x86_64 -cpu core2duo -net none -loadvm mysnapshot
 
 Limitations:
 
