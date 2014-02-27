@@ -1442,8 +1442,9 @@ ExecutionState* S2EExecutor::selectNonSpeculativeState(S2EExecutionState *state)
         if (newState->isSpeculative()) {
             //The searcher wants us to execute a speculative state.
             //The engine must make sure that such a state
-            //satisfies all the path constraints.
-            if (!resolveSpeculativeState(*newState)) {
+            //satisfies all the path constraints.    //The speculative condition must satisfy the current path constraints
+            if (!checkSpeculativeState(*newState) ||
+            		!resolveSpeculativeState(*newState)) {
                 terminateState(*newState);
                 updateStates(state);
                 continue;
@@ -1477,7 +1478,7 @@ void S2EExecutor::restoreYieldedState(void) {
         S2EExecutionState* s2eYieldedState =
             static_cast<S2EExecutionState*>(yieldedState);
         s2eYieldedState->yield(false);
-        resumeState(yieldedState);
+        resumeState(yieldedState, true);
         yieldedState = NULL;
         // Yielded state is now available for scheduling
     }
@@ -2223,16 +2224,18 @@ void S2EExecutor::yieldState(ExecutionState &s)
         << "Yielding state " << state.getID() << "\n";
 
     // Check if the state we're yielding has reached the searcher
-    std::set<klee::ExecutionState*>::iterator it = addedStates.find(&state);
     assert (yieldedState == NULL);
     yieldedState = &state;
+#if 0
+    std::set<klee::ExecutionState*>::iterator it = addedStates.find(&state);
     if (it != addedStates.end()) {
         // never reached searcher
         addedStates.erase(it);
     }
+#endif
 
     // Suspend the state
-    bool result = suspendState(yieldedState);
+    bool result = suspendState(yieldedState, true);
     assert (result && "Searcher required to use yield");
     state.yield(true);
 

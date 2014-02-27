@@ -846,6 +846,10 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
         }
     }
 
+    // At this point, the fork is certain, for two reasons:
+    // (1) If speculative execution is enabled, or
+    // (2) If the alternate was proven to be feasible
+
     notifyBranch(current);
 
     ExecutionState *trueState, *falseState, *branchedState;
@@ -855,9 +859,8 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
     branchedState->speculative = true;
     branchedState->concolics.clear();
 
-    //We don't know if the branched state could be valid
-    //or not, so we mark it speculative and defer the
-    //actual determination of the speculative status to later.
+	// We add the branch condition as speculative, and resolve it either now,
+	// or defer it to when the state is next selected for execution.
     if (ce->isTrue()) {
         //Condition is true in the current state
         branchedState->speculativeCondition = Expr::createIsZero(condition);
@@ -870,6 +873,11 @@ Executor::concolicFork(ExecutionState &current, ref<Expr> condition, bool isInte
         addConstraint(current, Expr::createIsZero(condition));
         falseState = &current;
         trueState = branchedState;
+    }
+
+    if (!EnableSpeculativeForking) {
+    	bool result = resolveSpeculativeState(*branchedState);
+    	assert(result && "The state should have been feasible.");
     }
 
     current.ptreeNode->data = 0;
@@ -897,11 +905,6 @@ bool Executor::checkSpeculativeState(ExecutionState &state)
 bool Executor::resolveSpeculativeState(ExecutionState &state)
 {
     assert(state.isSpeculative());
-
-    //The speculative condition must satisfy the current path constraints
-    if (!checkSpeculativeState(state)) {
-        return false;
-    }
 
     state.addConstraint(state.speculativeCondition);
 
