@@ -354,6 +354,90 @@ void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
     }
 }
 
+void BaseInstructions::getPreciseBound(S2EExecutionState *state, bool upper) {
+	uint32_t address, size;
+
+	bool ok = true;
+    ok &= state->readCpuRegisterConcrete(PARAM0,
+                                         &address, sizeof address);
+    ok &= state->readCpuRegisterConcrete(PARAM1,
+                                         &size, sizeof size);
+
+	if(!ok) {
+		s2e()->getWarningsStream(state)
+			<< "ERROR: symbolic argument was passed to s2e_op "
+			   " get_example opcode\n";
+		return;
+	}
+
+	assert(size == 4 && "Can only compute bounds for unsigned ints.");
+
+	klee::ref<klee::Expr> expr = state->readMemory(address,
+			klee::Expr::Int32, S2EExecutionState::VirtualAddress);
+	if (isa<ConstantExpr>(expr)) {
+		return;
+	}
+
+	klee::ref<klee::Expr> example = s2e()->getExecutor()->toConstantSilent(
+			*state, expr);
+	klee::Expr::Width width = example->getWidth();
+
+	klee::ref<klee::Expr> left, right;
+
+	// TODO: We can perhaps optimize for the case where the upper/lower bounds
+	// define a small interval and start by looking around the example value.
+
+	if (upper) {
+		left = example;
+		right = klee::ConstantExpr::create((1L<<32) - 1, width);
+	} else {
+		left = klee::ConstantExpr::create(0, width);
+	}
+
+	Solver *solver = s2e()->getExecutor()->getSolver();
+
+	while(klee::UltExpr::create(left, right)->isTrue()) {
+		// Compute left + (right - left)/2
+		// Do this instead of (left + right)/2 to avoid overflows.
+		//
+		// Read http://googleresearch.blogspot.ch/2006/06/extra-extra-read-all-about-it-nearly.html
+		// for a funny story about this issue :)
+		klee::ref<klee::Expr> middle = klee::AddExpr::create(
+				left, klee::AShrExpr::create(
+						klee::SubExpr::create(right, left),
+						klee::ConstantExpr::create(1, width)));
+		klee::ref<klee::Expr> boolExpr;
+		if (upper) {
+			boolExpr = klee::UleExpr::create(expr, middle);
+		} else {
+			boolExpr = klee::UgeExpr::create(expr, middle);
+		}
+
+		bool truth;
+		Query query(state->constraints, boolExpr);
+		bool result = solver->mustBeTrue(query, truth);
+		assert(result && "FIXME");
+
+		if (truth) {
+			(upper ? right : left) = middle;
+		} else {
+			if (upper) {
+				left = klee::AddExpr::create(middle,
+						klee::ConstantExpr::create(1, width));
+			} else {
+				right = klee::SubExpr::create(middle,
+						klee::ConstantExpr::create(1, width));
+			}
+		}
+	}
+
+	// Now write back the result.
+	if (!state->writeMemory(address, left, S2EExecutionState::VirtualAddress)) {
+		s2e()->getWarningsStream(state) << "Cannot write memory at "
+				<< hexval(address) << '\n';
+	}
+}
+
 void BaseInstructions::sleep(S2EExecutionState *state)
 {
     target_ulong duration = 0;
@@ -593,7 +677,18 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
+        case 0x22: {
+        	getPreciseBound(state, true);
+        	break;
+        }
+
+        case 0x23: {
+        	getPreciseBound(state, false);
+        	break;
+        }
+
 #ifdef TARGET_I386
+
         case 0x30: { /* Get number of active states */
             target_ulong count = s2e()->getExecutor()->getStatesCount();
             state->writeCpuRegisterConcrete(PARAM0, &count,

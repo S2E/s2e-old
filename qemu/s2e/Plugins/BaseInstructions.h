@@ -66,6 +66,7 @@ private:
     void printMessage(S2EExecutionState *state, bool isWarning);
     void printMemory(S2EExecutionState *state);
     void concretize(S2EExecutionState *state, bool addConstraint);
+    void getPreciseBound(S2EExecutionState *state, bool upper);
     void sleep(S2EExecutionState *state);
     void assume(S2EExecutionState *state);
 
