@@ -15,8 +15,7 @@
 #include <map>
 #include <queue>
 
-// FIXME: Move out of header, use llvm streams.
-#include <ostream>
+#include <llvm/Support/raw_ostream.h>
 
 #include <inttypes.h>
 
