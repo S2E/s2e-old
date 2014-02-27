@@ -57,6 +57,9 @@ public:
 
     void initialize(void);
 
+    void enableTracing();
+    void disableTracing();
+
     enum TbTracerOpcodes {
         Enable = 0,
         Disable = 1
@@ -106,8 +109,6 @@ private:
     void onExecuteBlockStart(S2EExecutionState *state, uint64_t pc);
     void onExecuteBlockEnd(S2EExecutionState *state, uint64_t pc);
 
-    void enableTracing();
-    void disableTracing();
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
 };
 
