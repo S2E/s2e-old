@@ -91,8 +91,6 @@ private:
 
     void onTimer();
 
-    void enableTracing();
-    void disableTracing();
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
 
     void onDataMemoryAccess(S2EExecutionState *state,
@@ -111,6 +109,9 @@ public:
                                    klee::ref<klee::Expr> &hostAddress,
                                    klee::ref<klee::Expr> &value,
                                    bool isWrite, bool isIO);
+
+    void enableTracing();
+    void disableTracing();
 };
 
 
