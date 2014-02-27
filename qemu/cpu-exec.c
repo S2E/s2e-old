@@ -281,7 +281,8 @@ int cpu_exec(CPUArchState *env)
         if (s2e_setjmp(env->jmp_env) == 0) {
             #ifdef CONFIG_S2E
             assert(g_s2e_state);
-            assert (env->exception_index != EXCP_S2E);
+
+	    //assert (env->exception_index != EXCP_S2E);
             if (s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state)) {
                 s2e_qemu_cleanup_tb_exec();
                 continue;
