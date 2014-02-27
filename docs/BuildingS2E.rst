@@ -12,17 +12,9 @@ Required Packages
 
 ::
 
-    $ sudo apt-get install build-essential
-    $ sudo apt-get install subversion
-    $ sudo apt-get install git
-    $ sudo apt-get install gettext
-    $ sudo apt-get install liblua5.1-dev
-    $ sudo apt-get install libsdl1.2-dev
-    $ sudo apt-get install libsigc++-2.0-dev
-    $ sudo apt-get install binutils-dev
-    $ sudo apt-get install python-docutils
-    $ sudo apt-get install python-pygments
-    $ sudo apt-get install nasm
+    $ sudo apt-get install build-essential subversion git gettext \
+          liblua5.1-dev libsdl1.2-dev libsigc++-2.0-dev binutils-dev \
+          python-docutils python-pygments nasm
 
 The following commands ask ``apt-get`` to install build dependencies for llvm-3.0
 and qemu. ::
