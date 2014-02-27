@@ -232,6 +232,9 @@ public:
         return yieldedState;
     }
 
+    /** Kills the specified state and raises an exception to exit the cpu loop */
+    virtual void terminateState(klee::ExecutionState &state);
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,
@@ -319,9 +322,6 @@ protected:
               std::vector<klee::ExecutionState*> &result);
 
     void notifyBranch(klee::ExecutionState &state);
-
-    /** Kills the specified state and raises an exception to exit the cpu loop */
-    virtual void terminateState(klee::ExecutionState &state);
 
     /** Kills the specified state without exiting to the CPU loop */
     void terminateStateAtFork(S2EExecutionState &state);
