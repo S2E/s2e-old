@@ -83,7 +83,9 @@ namespace klee {
 
   inline std::ostream& operator<<(std::ostream& out, const hexval& h)
   {
+	  std::ios::fmtflags flags(out.flags());
       out << std::hex << "0x" << (h.value);
+      out.flags(flags);
       return out;
   }
 }
