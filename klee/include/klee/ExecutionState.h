@@ -152,6 +152,10 @@ public:
   bool isSpeculative() const {
       return speculative;
   }
+
+  virtual uint64_t getPc() const {
+      return 0;
+  }
 };
 
 }
