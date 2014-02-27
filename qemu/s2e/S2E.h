@@ -126,6 +126,9 @@ protected:
 
     std::string m_outputDirectoryBase;
 
+    typedef std::map<std::string, int> FileCountersMap;
+    FileCountersMap m_fileCounters;
+
     /* The following members are late-initialized when
     QEMU pc creation is complete */
     S2EHandler* m_s2eHandler;
@@ -177,6 +180,8 @@ public:
 
     /** Get a filename inside an output directory */
     std::string getOutputFilename(const std::string& fileName);
+
+    std::string getNextOutputFilename(const std::string& fileName);
 
     /** Create output file in an output directory */
     llvm::raw_ostream* openOutputFile(const std::string &filename);

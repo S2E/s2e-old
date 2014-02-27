@@ -344,6 +344,24 @@ std::string S2E::getOutputFilename(const std::string &fileName)
     return filePath.str();
 }
 
+std::string S2E::getNextOutputFilename(const std::string& fileName)
+{
+	// XXX: Check the fileName length
+
+	int counter = m_fileCounters[fileName]++;
+	char buffer[256];
+
+	size_t dot_pos = fileName.rfind('.');
+	if (dot_pos != std::string::npos) {
+		sprintf(buffer, "%s%05d.%s", fileName.substr(0, dot_pos).c_str(),
+				counter, fileName.substr(dot_pos + 1).c_str());
+	} else {
+		sprintf(buffer, "%s%05d", fileName.c_str(), counter);
+	}
+
+	return getOutputFilename(std::string(buffer));
+}
+
 llvm::raw_ostream* S2E::openOutputFile(const std::string &fileName)
 {
     std::string path = getOutputFilename(fileName);
@@ -432,12 +450,10 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
 
         if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
             perror("ERROR: Cannot unlink s2e-last");
-            exit(1);
-        }
-
-        if (symlink(m_outputDirectoryBase.c_str(), s2eLast.c_str()) < 0) {
+            // exit(1);
+        } else if (symlink(m_outputDirectoryBase.c_str(), s2eLast.c_str()) < 0) {
             perror("ERROR: Cannot make symlink s2e-last");
-            exit(1);
+            // exit(1);
         }
     }
 #endif
