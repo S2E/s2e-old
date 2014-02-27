@@ -158,6 +158,14 @@ public:
   }
 };
 
+struct concolics {
+	const ExecutionState *state;
+
+	concolics(const ExecutionState *state_) : state(state_) {}
+};
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const concolics &cc);
+
 }
 
 #endif

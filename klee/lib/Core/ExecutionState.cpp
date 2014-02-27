@@ -161,6 +161,22 @@ llvm::raw_ostream &klee::operator<<(llvm::raw_ostream &os, const MemoryMap &mm) 
   return os;
 }
 
+llvm::raw_ostream &klee::operator<<(llvm::raw_ostream &os, const concolics &cc) {
+	os << "Concolics[ ";
+
+	for (Assignment::bindings_ty::const_iterator
+			bit = cc.state->concolics.bindings.begin(),
+			bie = cc.state->concolics.bindings.end();
+			bit != bie; ++bit) {
+		std::string assgn_value(bit->second.begin(), bit->second.end());
+		os << bit->first->getOriginalName() << "=>";
+		os << '"'; os.write_escaped(assgn_value, true); os << '"';
+		os << ' ';
+	}
+	os << "]";
+	return os;
+}
+
 bool ExecutionState::merge(const ExecutionState &b) {
   if (DebugLogStateMerge)
     llvm::errs() << "-- attempting merge of A:"
