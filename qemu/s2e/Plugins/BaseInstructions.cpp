@@ -161,17 +161,40 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state)
 
     // readMemoryConcrete fails if the value is symbolic
     result = 0;
-    for (unsigned i=0; i<size; ++i) {
-        klee::ref<klee::Expr> ret = state->readMemory8(address + i);
-        if (!isa<ConstantExpr>(ret)) {
-            result = 1;
-        }
+    if (size) {
+		for (unsigned i=0; i<size; ++i) {
+			klee::ref<klee::Expr> ret = state->readMemory8(address + i);
+			if (ret.isNull()) {
+				s2e()->getWarningsStream(state) << "Cannot read memory at address "
+						<< hexval(address + i) << '\n';
+				break;
+			}
+			if (!isa<ConstantExpr>(ret)) {
+				result = 1;
+				break;
+			}
+		}
+    } else {
+    	for (unsigned i=0; ; ++i) {
+    		klee::ref<klee::Expr> ret = state->readMemory8(address + i);
+    		if (ret.isNull()) {
+    			s2e()->getWarningsStream(state) << "Cannot read memory at address "
+						<< hexval(address + i) << '\n';
+				break;
+    		}
+    		if (!isa<ConstantExpr>(ret)) {
+    			result = 1;
+    			break;
+    		}
+    		if (ret->isZero())
+    			break;
+    	}
     }
 
-    s2e()->getMessagesStream(state)
-            << "Testing whether data at " << hexval(address)
-            << " and size " << size << " is symbolic: "
-            << (result ? " true" : " false") << '\n';
+    //s2e()->getMessagesStream(state)
+    //        << "Testing whether data at " << hexval(address)
+    //        << " and size " << size << " is symbolic: "
+    //        << (result ? " true" : " false") << '\n';
 
     state->writeCpuRegisterConcrete(PARAM0, &result, sizeof(result));
 }
