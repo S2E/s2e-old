@@ -62,6 +62,12 @@ public:
     return constraints.size();
   }
 
+  // Danger zone. Make sure you're flushing constraints for variables no
+  // longer accessible in the state.
+  void flush() {
+    constraints = constraints_ty();
+  }
+
   bool operator==(const ConstraintManager &other) const {
     return constraints == other.constraints;
   }
