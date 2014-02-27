@@ -627,6 +627,23 @@ public:
 
   Expr::Width getDomain() const { return Expr::Int32; }
   Expr::Width getRange() const { return Expr::Int8; }
+
+  // XXX: This is a hack, the name shouldn't be mangled in the first place.
+  std::string getOriginalName() const {
+	size_t first_pos = name.find('_');
+	size_t last_pos = name.rfind('_');
+
+	if (first_pos == std::string::npos || last_pos == std::string::npos) {
+		return name;
+	}
+
+	if (first_pos >= last_pos) {
+		return name;
+	}
+
+	return name.substr(first_pos + 1, last_pos - first_pos - 1);
+  }
+
 };
 
 /// Class representing a complete list of updates into an array.
