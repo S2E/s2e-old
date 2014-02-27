@@ -532,7 +532,8 @@ void BaseInstructions::invokePlugin(S2EExecutionState *state)
         goto fail;
     }
 
-    iface->handleOpcodeInvocation(state, dataPointer, dataSize);
+    result = (uint32_t)(-iface->handleOpcodeInvocation(state, dataPointer,
+    		dataSize));
 
  fail:
     state->writeCpuRegisterConcrete(PARAM0, &result, sizeof(result));
