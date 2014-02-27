@@ -3820,7 +3820,7 @@ fi
 symlink $source_path/Makefile.target $target_dir/Makefile
 
 if test "$target_s2e" = "yes"; then
-  S2E_DIRS="s2e s2e/Interceptor s2e/Plugins s2e/Plugins/WindowsInterceptor s2e/Configuration s2e/Signals"
+  S2E_DIRS="s2e s2e/Interceptor s2e/Plugins s2e/Plugins/CloudTest s2e/Plugins/CloudTest/gen-cpp s2e/Plugins/WindowsInterceptor s2e/Configuration s2e/Signals"
   S2E_DIRS="$S2E_DIRS s2e/Plugins/DataSelectors s2e/Plugins/ExecutionTracers"
   S2E_DIRS="$S2E_DIRS s2e/Plugins/WindowsApi s2e/Plugins/Searchers"
   for dir in $S2E_DIRS ; do
