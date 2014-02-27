@@ -69,12 +69,18 @@ extern "C" {
 
 static void s2e_timer_cb(void *opaque)
 {
-    CorePlugin *c = (CorePlugin*)opaque;
-    g_s2e->getDebugStream() << "Firing timer event" << '\n';
+  CorePlugin *c = (CorePlugin*)opaque;
 
+  try {
     g_s2e->getExecutor()->updateStats(g_s2e_state);
     c->onTimer.emit();
-    qemu_mod_timer(c->getTimer(), qemu_get_clock_ms(rt_clock) + 1000);
+  } catch (s2e::CpuExitException&) {
+    g_s2e->getExecutor()->updateStates(g_s2e_state);
+    //qemu_mod_timer(c->getTimer(), qemu_get_clock_ms(rt_clock) + 1000);
+    //s2e_longjmp(env->jmp_env, 1);
+  }
+  
+  qemu_mod_timer(c->getTimer(), qemu_get_clock_ms(rt_clock) + 1000);
 }
 
 void CorePlugin::initializeTimers()
