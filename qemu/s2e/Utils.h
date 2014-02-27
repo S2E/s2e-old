@@ -42,6 +42,7 @@
 #include <iomanip>
 #include <sstream>
 #include <deque>
+#include <string>
 #include <inttypes.h>
 #include <llvm/Support/raw_ostream.h>
 #include <klee/Expr.h>
@@ -57,6 +58,12 @@ struct hexval {
     hexval(void* _value, int _width=0): value((uint64_t)_value), width(_width) {}
 };
 
+struct hexstring {
+	const std::string &value;
+
+	hexstring(const std::string &_value) : value(_value) {}
+};
+
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const hexval& h)
 {
     out << "0x";
@@ -64,9 +71,18 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const hexval& h)
     return out;
 }
 
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const hexstring &s) {
+	out << '"';
+	out.write_escaped(s.value, true);
+	out << '"';
+	return out;
+}
+
 inline std::ostream& operator<<(std::ostream& out, const hexval& h)
 {
-    out << std::hex << (h.value);
+	std::ios::fmtflags flags(out.flags());
+    out << "0x" << std::hex << (h.value);
+    out.flags(flags);
     return out;
 }
 
