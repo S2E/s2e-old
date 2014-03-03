@@ -1,0 +1,42 @@
+# Python experiments
+
+# A list of S2E configuration files
+config:
+- name: cupa-prio
+  file: config/cupa-prio.lua
+- name: cupa
+  file: config/cupa.lua
+- name: randsel
+  file: config/randsel.lua
+
+
+# A list of jobs to execute for each configuration file
+jobs:
+- name: ConfigParser
+  command: python python/overlays/asplos_tests.py ConfigParserTest
+
+- name: argparse
+  command: python python/overlays/asplos_tests.py ArgparseTest
+
+- name: HTMLParser
+  command: python python/overlays/asplos_tests.py HTMLParserTest
+
+# Third-party libraries
+
+- name: simplejson
+  command: python python/overlays/asplos_tests.py SimpleJSONTest
+
+- name: xlrd
+  command: python python/overlays/asplos_tests.py XLRDTest
+
+- name: unicodecsv
+  command: python python/overlays/asplos_tests.py UnicodeCSVTest
+
+
+#bintrees
+#pickle
+#synthetic code (protocol buffers)
+#decimal
+#biopython
+#nzmath
+#pandas

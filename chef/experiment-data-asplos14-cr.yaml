@@ -1,0 +1,282 @@
+# Experiment data location for graphs and analysis
+
+breakdown:
+    config:
+      - label: CUPA + Optimizations
+        strat-path: cupa
+        strat-stmt: cupa-prio
+        expdir: opt
+      - label: Optimizations Only
+        strat-path: randsel
+        strat-stmt: randsel
+        expdir: opt
+      - label: CUPA Only
+        strat-path: cupa
+        strat-stmt: cupa-prio
+        expdir: noopt
+      - label: Baseline
+        strat-path: randsel
+        strat-stmt: randsel
+        expdir: noopt
+    python:
+        title: Python
+        jobs:
+          - name: ConfigParser
+            coverage: "*/ConfigParser:112-228,231-243,274-283,310-324,464-554,"
+          - name: argparse
+            coverage: "*/argparse:-"
+          - name: HTMLParser
+            coverage: "*/HTMLParser:- */markupbase:-"
+          - name: simplejson
+            coverage: "*/simplejson/decoder:- */simplejson/scanner:-"
+          - name: xlrd
+            coverage: "*/xlrd/*:-"
+          - name: unicodecsv
+            coverage: "*/unicodecsv/*:-"
+        expdir:
+            noopt:
+              - asplos-python-opt0-10-2013-12-12-09-09-55
+              - asplos-python-opt0-1-2013-12-10-21-48-28
+              - asplos-python-opt0-1-2013-12-12-09-09-55
+              - asplos-python-opt0-2-2013-12-10-21-48-28
+              - asplos-python-opt0-2-2013-12-12-09-09-55
+              - asplos-python-opt0-3-2013-12-10-21-48-28
+              - asplos-python-opt0-3-2013-12-12-09-09-55
+              - asplos-python-opt0-4-2013-12-10-21-48-28
+              - asplos-python-opt0-4-2013-12-12-09-09-55
+              - asplos-python-opt0-5-2013-12-10-21-48-28
+              - asplos-python-opt0-5-2013-12-12-09-09-55
+              - asplos-python-opt0-6-2013-12-12-09-09-55
+              - asplos-python-opt0-7-2013-12-12-09-09-55
+              - asplos-python-opt0-8-2013-12-12-09-09-55
+              - asplos-python-opt0-9-2013-12-12-09-09-55
+
+            opt:
+              - asplos-python-opt4-10-2013-12-12-01-01-04
+              - asplos-python-opt4-1-2013-12-10-17-41-13
+              - asplos-python-opt4-1-2013-12-12-01-01-04
+              - asplos-python-opt4-2-2013-12-10-17-41-13
+              - asplos-python-opt4-2-2013-12-12-01-01-04
+              - asplos-python-opt4-3-2013-12-10-17-41-13
+              - asplos-python-opt4-3-2013-12-12-01-01-04
+              - asplos-python-opt4-4-2013-12-10-17-41-13
+              - asplos-python-opt4-4-2013-12-12-01-01-04
+              - asplos-python-opt4-5-2013-12-10-17-41-13
+              - asplos-python-opt4-5-2013-12-12-01-01-04
+              - asplos-python-opt4-6-2013-12-12-01-01-04
+              - asplos-python-opt4-7-2013-12-12-01-01-04
+              - asplos-python-opt4-8-2013-12-12-01-01-04
+              - asplos-python-opt4-9-2013-12-12-01-01-04
+    lua:
+        title: Lua
+        jobs:
+          - name: JSON
+            coverage: "*/Json.lua:-"
+          - name: Moonscript
+            coverage: "*/moonscript/*.lua:- */moonscript/transform/*.lua:-"
+          - name: cliargs
+            coverage: "*/cliargs.lua:-"
+          - name: markdown
+            coverage: "*/markdown.lua:-"
+          - name: lua-haml
+            coverage: "*/haml/*.lua:-"
+        expdir:
+            noopt:
+             - asplos-lua-noopt-10-2013-12-28-00-45-30
+             - asplos-lua-noopt-11-2013-12-28-00-45-30
+             - asplos-lua-noopt-1-2013-12-28-00-45-29
+             - asplos-lua-noopt-12-2013-12-28-00-45-30
+             - asplos-lua-noopt-13-2013-12-28-00-45-30
+             - asplos-lua-noopt-14-2013-12-28-00-45-30
+             - asplos-lua-noopt-15-2013-12-28-00-45-30
+             - asplos-lua-noopt-2-2013-12-28-00-45-29
+             - asplos-lua-noopt-3-2013-12-28-00-45-29
+             - asplos-lua-noopt-4-2013-12-28-00-45-29
+             - asplos-lua-noopt-5-2013-12-28-00-45-29
+             - asplos-lua-noopt-6-2013-12-28-00-45-29
+             - asplos-lua-noopt-7-2013-12-28-00-45-29
+             - asplos-lua-noopt-8-2013-12-28-00-45-30
+             - asplos-lua-noopt-9-2013-12-28-00-45-30
+
+            opt:
+             - asplos-lua-opt-10-2013-12-28-03-04-16
+             - asplos-lua-opt-11-2013-12-28-03-04-16
+             - asplos-lua-opt-1-2013-12-28-03-04-16
+             - asplos-lua-opt-12-2013-12-28-03-04-16
+             - asplos-lua-opt-13-2013-12-28-03-04-16
+             - asplos-lua-opt-14-2013-12-28-03-04-16
+             - asplos-lua-opt-15-2013-12-28-03-04-16
+             - asplos-lua-opt-2-2013-12-28-03-04-16
+             - asplos-lua-opt-3-2013-12-28-03-04-16
+             - asplos-lua-opt-4-2013-12-28-03-04-16
+             - asplos-lua-opt-5-2013-12-28-03-04-16
+             - asplos-lua-opt-6-2013-12-28-03-04-16
+             - asplos-lua-opt-7-2013-12-28-03-04-16
+             - asplos-lua-opt-8-2013-12-28-03-04-16
+             - asplos-lua-opt-9-2013-12-28-03-04-16
+          
+optimizations:
+    python:
+        title: Python
+        jobs: [ConfigParser, argparse, HTMLParser, simplejson, xlrd, unicodecsv]
+        config: cupa
+        opt:
+        - label:      No Optimizations
+          label-full: No Optimizations
+          expdir:
+            - asplos-python-opt0-10-2013-12-12-09-09-55
+            - asplos-python-opt0-1-2013-12-10-21-48-28
+            - asplos-python-opt0-1-2013-12-12-09-09-55
+            - asplos-python-opt0-2-2013-12-10-21-48-28
+            - asplos-python-opt0-2-2013-12-12-09-09-55
+            - asplos-python-opt0-3-2013-12-10-21-48-28
+            - asplos-python-opt0-3-2013-12-12-09-09-55
+            - asplos-python-opt0-4-2013-12-10-21-48-28
+            - asplos-python-opt0-4-2013-12-12-09-09-55
+            - asplos-python-opt0-5-2013-12-10-21-48-28
+            - asplos-python-opt0-5-2013-12-12-09-09-55
+            - asplos-python-opt0-6-2013-12-12-09-09-55
+            - asplos-python-opt0-7-2013-12-12-09-09-55
+            - asplos-python-opt0-8-2013-12-12-09-09-55
+            - asplos-python-opt0-9-2013-12-12-09-09-55
+
+        # - label: + Buff. Concret.
+        #   expdir:
+        #     - asplos-python-opt1-10-2013-12-12-07-07-35
+        #     - asplos-python-opt1-1-2013-12-10-20-46-25
+        #     - asplos-python-opt1-1-2013-12-12-07-07-35
+        #     - asplos-python-opt1-2-2013-12-10-20-46-25
+        #     - asplos-python-opt1-2-2013-12-12-07-07-35
+        #     - asplos-python-opt1-3-2013-12-10-20-46-25
+        #     - asplos-python-opt1-3-2013-12-12-07-07-35
+        #     - asplos-python-opt1-4-2013-12-10-20-46-25
+        #     - asplos-python-opt1-4-2013-12-12-07-07-35
+        #     - asplos-python-opt1-5-2013-12-10-20-46-25
+        #     - asplos-python-opt1-5-2013-12-12-07-07-35
+        #     - asplos-python-opt1-6-2013-12-12-07-07-35
+        #     - asplos-python-opt1-7-2013-12-12-07-07-35
+        #     - asplos-python-opt1-8-2013-12-12-07-07-35
+        #     - asplos-python-opt1-9-2013-12-12-07-07-35
+
+        - label:      + Sym. Ptr. Avoidance
+          label-full: + Symbolic Pointer Avoidance
+          expdir:
+            - asplos-python-opt2-10-2013-12-12-05-05-40
+            - asplos-python-opt2-1-2013-12-10-19-44-41
+            - asplos-python-opt2-1-2013-12-12-05-05-40
+            - asplos-python-opt2-2-2013-12-10-19-44-41
+            - asplos-python-opt2-2-2013-12-12-05-05-40
+            - asplos-python-opt2-3-2013-12-10-19-44-41
+            - asplos-python-opt2-3-2013-12-12-05-05-40
+            - asplos-python-opt2-4-2013-12-10-19-44-41
+            - asplos-python-opt2-4-2013-12-12-05-05-40
+            - asplos-python-opt2-5-2013-12-10-19-44-41
+            - asplos-python-opt2-5-2013-12-12-05-05-40
+            - asplos-python-opt2-6-2013-12-12-05-05-40
+            - asplos-python-opt2-7-2013-12-12-05-05-40
+            - asplos-python-opt2-8-2013-12-12-05-05-40
+            - asplos-python-opt2-9-2013-12-12-05-05-40
+
+        - label:      + Hash Neutral.
+          label-full: + Hash Neutralization
+          expdir:
+            - asplos-python-opt3-10-2013-12-12-03-03-51
+            - asplos-python-opt3-1-2013-12-10-18-42-58
+            - asplos-python-opt3-1-2013-12-12-03-03-51
+            - asplos-python-opt3-2-2013-12-10-18-42-58
+            - asplos-python-opt3-2-2013-12-12-03-03-51
+            - asplos-python-opt3-3-2013-12-10-18-42-58
+            - asplos-python-opt3-3-2013-12-12-03-03-51
+            - asplos-python-opt3-4-2013-12-10-18-42-58
+            - asplos-python-opt3-4-2013-12-12-03-03-51
+            - asplos-python-opt3-5-2013-12-10-18-42-58
+            - asplos-python-opt3-5-2013-12-12-03-03-51
+            - asplos-python-opt3-6-2013-12-12-03-03-51
+            - asplos-python-opt3-7-2013-12-12-03-03-51
+            - asplos-python-opt3-8-2013-12-12-03-03-51
+            - asplos-python-opt3-9-2013-12-12-03-03-51
+
+        - label:      + Fast Path Elim.
+          label-full: + Fast Path Elimination
+          expdir:
+            - asplos-python-opt4-10-2013-12-12-01-01-04
+            - asplos-python-opt4-1-2013-12-10-17-41-13
+            - asplos-python-opt4-1-2013-12-12-01-01-04
+            - asplos-python-opt4-2-2013-12-10-17-41-13
+            - asplos-python-opt4-2-2013-12-12-01-01-04
+            - asplos-python-opt4-3-2013-12-10-17-41-13
+            - asplos-python-opt4-3-2013-12-12-01-01-04
+            - asplos-python-opt4-4-2013-12-10-17-41-13
+            - asplos-python-opt4-4-2013-12-12-01-01-04
+            - asplos-python-opt4-5-2013-12-10-17-41-13
+            - asplos-python-opt4-5-2013-12-12-01-01-04
+            - asplos-python-opt4-6-2013-12-12-01-01-04
+            - asplos-python-opt4-7-2013-12-12-01-01-04
+            - asplos-python-opt4-8-2013-12-12-01-01-04
+            - asplos-python-opt4-9-2013-12-12-01-01-04
+
+    lua:
+        title: Lua
+        jobs: [JSON, Moonscript, cliargs, markdown, lua-haml]
+        config: cupa
+        opt:
+          - label: No Optimizations
+            expdir:
+              - asplos-lua-noopt-10-2013-12-28-00-45-30
+              - asplos-lua-noopt-11-2013-12-28-00-45-30
+              - asplos-lua-noopt-1-2013-12-28-00-45-29
+              - asplos-lua-noopt-12-2013-12-28-00-45-30
+              - asplos-lua-noopt-13-2013-12-28-00-45-30
+              - asplos-lua-noopt-14-2013-12-28-00-45-30
+              - asplos-lua-noopt-15-2013-12-28-00-45-30
+              - asplos-lua-noopt-2-2013-12-28-00-45-29
+              - asplos-lua-noopt-3-2013-12-28-00-45-29
+              - asplos-lua-noopt-4-2013-12-28-00-45-29
+              - asplos-lua-noopt-5-2013-12-28-00-45-29
+              - asplos-lua-noopt-6-2013-12-28-00-45-29
+              - asplos-lua-noopt-7-2013-12-28-00-45-29
+              - asplos-lua-noopt-8-2013-12-28-00-45-30
+              - asplos-lua-noopt-9-2013-12-28-00-45-30
+
+          - label: + Interning Elim.
+            expdir:
+              - asplos-lua-opt-10-2013-12-28-03-04-16
+              - asplos-lua-opt-11-2013-12-28-03-04-16
+              - asplos-lua-opt-1-2013-12-28-03-04-16
+              - asplos-lua-opt-12-2013-12-28-03-04-16
+              - asplos-lua-opt-13-2013-12-28-03-04-16
+              - asplos-lua-opt-14-2013-12-28-03-04-16
+              - asplos-lua-opt-15-2013-12-28-03-04-16
+              - asplos-lua-opt-2-2013-12-28-03-04-16
+              - asplos-lua-opt-3-2013-12-28-03-04-16
+              - asplos-lua-opt-4-2013-12-28-03-04-16
+              - asplos-lua-opt-5-2013-12-28-03-04-16
+              - asplos-lua-opt-6-2013-12-28-03-04-16
+              - asplos-lua-opt-7-2013-12-28-03-04-16
+              - asplos-lua-opt-8-2013-12-28-03-04-16
+              - asplos-lua-opt-9-2013-12-28-03-04-16
+
+nicecompare:
+    chef:
+        expdir: asplos-nice-opt4-2013-12-17-18-57-49
+        opt:
+          - label:      No Optimizations
+            label-full: No Optimizations
+            expdir: asplos-nice-opt0-2013-12-17-21-03-16
+          # - label: + Buff. Concret.
+          #  expdir: asplos-nice-opt1-2013-12-17-20-31-43
+          - label:      + Sym. Ptr. Avoidance
+            label-full: + Symbolic Pointer Avoidance
+            expdir: asplos-nice-opt2-2013-12-17-20-00-14
+          - label:      + Hash Neutral.
+            label-full: + Hash Neutralization
+            expdir: asplos-nice-opt3-2013-12-17-19-29-07
+          - label:      + Fast Path Elim.
+            label-full: + Fast Path Elimination
+            expdir: asplos-nice-opt4-2013-12-17-18-57-49
+        config: cupa-prio
+        jobname: "nice-%02d-packets"
+    nice:
+        timingfile: nice_timing.txt
+    min-frames: 1
+    max-frames: 10
