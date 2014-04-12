@@ -1409,6 +1409,20 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         //XXX: assigning g_s2e_state here is ugly but is required for restoreDeviceState...
         g_s2e_state = newState;
         newState->getDeviceState()->restoreDeviceState();
+
+        /**
+         * Memory region layout may change in between state switches.
+         * We need to go through the iotlb and check that the entries there
+         * still match with the new layout. If not, we invalidate these
+         * entries.
+         * XXX: need to make sure that the state hasn't branched on the old
+         * entry, otherwise bad things could happen. For now, invalidation
+         * mostly occurs because VGA memory layout changes unpredictably, shifting
+         * MMIO regions further in the list. Normal RAM comes first, so it's not
+         * affected.
+         */
+        CPUArchState *cpu_state = env;
+        s2e_phys_section_check(cpu_state);
     }
 
 

@@ -128,6 +128,12 @@ typedef struct CPUTLBEntry {
                    sizeof(unsigned long))];
 } CPUTLBEntry;
 
+#ifdef CONFIG_S2E
+#define CPU_IOTLB_CHECK target_phys_addr_t iotlb_ramaddr[NB_MMU_MODES][CPU_TLB_SIZE];
+#else
+#define CPU_IOTLB_CHECK
+#endif
+
 extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BITS) ? 1 : -1];
 
 #define CPU_COMMON_TLB \
@@ -135,6 +141,7 @@ extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BIT
     CPUTLBEntry tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];                  \
     _CPU_COMMON_S2E_TLB_TABLE                                           \
     target_phys_addr_t iotlb[NB_MMU_MODES][CPU_TLB_SIZE];               \
+    CPU_IOTLB_CHECK                                                     \
     target_ulong tlb_flush_addr;                                        \
     target_ulong tlb_flush_mask;
 

@@ -216,6 +216,9 @@ static uint16_t phys_section_unassigned;
 static uint16_t phys_section_notdirty;
 static uint16_t phys_section_rom;
 static uint16_t phys_section_watch;
+#ifdef CONFIG_S2E
+static uint64_t phys_section_max_dummy;
+#endif
 
 struct PhysPageEntry {
     uint16_t is_leaf : 1;
@@ -2394,6 +2397,11 @@ void tlb_set_page(CPUArchState *env, target_ulong vaddr,
 
     index = (vaddr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     env->iotlb[mmu_idx][index] = iotlb - vaddr;
+
+    #ifdef CONFIG_S2E
+    env->iotlb_ramaddr[mmu_idx][index] = section->offset_within_address_space;
+    #endif
+
     te = &env->tlb_table[mmu_idx][index];
     te->addend = addend - vaddr;
     if (prot & PAGE_READ) {
@@ -2783,6 +2791,47 @@ static void phys_sections_clear(void)
 {
     phys_sections_nb = 0;
 }
+
+#ifdef CONFIG_S2E
+void s2e_phys_section_print(void)
+{
+    s2e_debug_print("Dumping memory sections\n");
+    for (unsigned i = 0; i < phys_sections_nb; ++i) {
+        const MemoryRegionSection *section = &phys_sections[i];
+        s2e_debug_print("Section %d: addr=%x size=%x name=%s\n", i,
+                        section->offset_within_address_space, section->size, section->mr->name);
+    }
+}
+
+void s2e_phys_section_check(CPUArchState *cpu_state)
+{
+    for (unsigned i = 0; i < NB_MMU_MODES; i++) {
+        for (unsigned j = 0; j < CPU_TLB_SIZE; j++) {
+            target_phys_addr_t physaddr = cpu_state->iotlb[i][j];
+            unsigned index = physaddr & ~TARGET_PAGE_MASK;
+
+            if (index < phys_section_max_dummy) {
+                //Dummy sections for physical memory are always created first
+                //in the same order, they are not affected by layout changes.
+                continue;
+            }
+
+            //XXX: how to deal with large pages? Is it necessary?
+            if (index >= phys_sections_nb) {
+                s2e_flush_tlb_cache_page(cpu_state->s2e_tlb_table[i][j].objectState, i, j);
+                cpu_state->tlb_table[i][j] = s_cputlb_empty_entry;
+            } else {
+                target_phys_addr_t off = phys_sections[index].offset_within_address_space;
+                if (off != cpu_state->iotlb_ramaddr[i][j]) {
+                    s2e_flush_tlb_cache_page(cpu_state->s2e_tlb_table[i][j].objectState, i, j);
+                    cpu_state->tlb_table[i][j] = s_cputlb_empty_entry;
+                }
+            }
+        }
+    }
+}
+
+#endif
 
 /* register physical memory.
    For RAM, 'size' must be a multiple of the target page size.
@@ -3778,6 +3827,10 @@ static void core_begin(MemoryListener *listener)
     phys_section_notdirty = dummy_section(&io_mem_notdirty);
     phys_section_rom = dummy_section(&io_mem_rom);
     phys_section_watch = dummy_section(&io_mem_watch);
+
+#ifdef CONFIG_S2E
+    phys_section_max_dummy = phys_sections_nb;
+#endif
 }
 
 static void core_commit(MemoryListener *listener)
