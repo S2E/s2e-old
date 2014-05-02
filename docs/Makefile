@@ -11,3 +11,5 @@ clean:
 	    --stylesheet=$$(echo $< | sed -e 's:[^/]\+/:../:g' | xargs dirname)/s2e.css \
 	    --link-stylesheet --source-link --no-toc-backlinks \
 	    --input-encoding utf-8:strict $< $@
+	sed -i 's/\.rst/\.html/' $@
+	sed -i 's/$(basename $(notdir $@))\.html/$(basename $(notdir $@)).rst/' $@

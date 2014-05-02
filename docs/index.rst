@@ -4,51 +4,51 @@ The Selective Symbolic Execution (S²E) Platform
 
 .. contents::
 
-Do not forget the `FAQ <FAQ.html>`_ if you have questions.
+Do not forget the `FAQ <FAQ.rst>`_ if you have questions.
 
 S²E Documentation
 =================
 
 * Getting Started
 
-  1. `Building S2E <BuildingS2E.html>`_
-  2. `Preparing a VM image for S2E <ImageInstallation.html>`_
-  3. `Quickly uploading programs to the guest with s2eget <UsingS2EGet.html>`_
+  1. `Building S2E <BuildingS2E.rst>`_
+  2. `Preparing a VM image for S2E <ImageInstallation.rst>`_
+  3. `Quickly uploading programs to the guest with s2eget <UsingS2EGet.rst>`_
 
-  4. `Testing a simple program <TestingMinimalProgram.html>`_
-  5. `Testing Linux binaries <Howtos/init_env.html>`_
-  6. `Analyzing large programs using concolic execution <Howtos/Concolic.html>`_
-  7. `Equivalence testing <EquivalenceTesting.html>`_
+  4. `Testing a simple program <TestingMinimalProgram.rst>`_
+  5. `Testing Linux binaries <Howtos/init_env.rst>`_
+  6. `Analyzing large programs using concolic execution <Howtos/Concolic.rst>`_
+  7. `Equivalence testing <EquivalenceTesting.rst>`_
   
 * Analyzing Windows Device Drivers
 
-  1. `Step-by-step tutorial <Windows/DriverTutorial.html>`_
-  2. `Setting up the checked build of Windows <Windows/CheckedBuild.html>`_  
+  1. `Step-by-step tutorial <Windows/DriverTutorial.rst>`_
+  2. `Setting up the checked build of Windows <Windows/CheckedBuild.rst>`_  
   
 * Analyzing the Linux Kernel
 
-  1. `Building the Linux kernel <BuildingLinux.html>`_
-  2. `Using SystemTap with S2E <SystemTap.html>`_
+  1. `Building the Linux kernel <BuildingLinux.rst>`_
+  2. `Using SystemTap with S2E <SystemTap.rst>`_
 
 * Howtos
 
-  1. `How to use execution tracers? <Howtos/ExecutionTracers.html>`_
-  2. `How to write an S2E plugin? <Howtos/WritingPlugins.html>`_
-  3. `How to run S2E on multiple cores? <Howtos/Parallel.html>`_
-  4. `How to debug guest code? <Howtos/Debugging.html>`_
+  1. `How to use execution tracers? <Howtos/ExecutionTracers.rst>`_
+  2. `How to write an S2E plugin? <Howtos/WritingPlugins.rst>`_
+  3. `How to run S2E on multiple cores? <Howtos/Parallel.rst>`_
+  4. `How to debug guest code? <Howtos/Debugging.rst>`_
 
 * S2E Tools
   
   1. Available Tools
      
-     1. `Fork profiler <Tools/ForkProfiler.html>`_
-     2. `Trace printer <Tools/TbPrinter.html>`_
-     3. `Execution profiler <Tools/ExecutionProfiler.html>`_
-     4. `Coverage generator <Tools/CoverageGenerator.html>`_
+     1. `Fork profiler <Tools/ForkProfiler.rst>`_
+     2. `Trace printer <Tools/TbPrinter.rst>`_
+     3. `Execution profiler <Tools/ExecutionProfiler.rst>`_
+     4. `Coverage generator <Tools/CoverageGenerator.rst>`_
    
-  2. `Supported debug information <Tools/DebugInfo.html>`_
+  2. `Supported debug information <Tools/DebugInfo.rst>`_
   
-* `Frequently Asked Questions <FAQ.html>`_
+* `Frequently Asked Questions <FAQ.rst>`_
 
 S²E Plugin Reference
 ====================
@@ -60,35 +60,35 @@ OS Event Monitors
 To implement selectivity, S2E relies on several OS-specific plugins to detect
 module loads/unloads and execution of modules of interest.
 
-* `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
-* `RawMonitor <Plugins/RawMonitor.html>`_
-* `ModuleExecutionDetector <Plugins/ModuleExecutionDetector.html>`_
+* `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.rst>`_
+* `RawMonitor <Plugins/RawMonitor.rst>`_
+* `ModuleExecutionDetector <Plugins/ModuleExecutionDetector.rst>`_
 
 Execution Tracers
 -----------------
 
 These plugins record various types of multi-path information during execution.
 This information can be processed by offline analysis tools. Refer to
-the `How to use execution tracers? <Howtos/ExecutionTracers.html>`_ tutorial to understand
+the `How to use execution tracers? <Howtos/ExecutionTracers.rst>`_ tutorial to understand
 how to combine these tracers.
 
-* `ExecutionTracer <Plugins/Tracers/ExecutionTracer.html>`_
-* `ModuleTracer <Plugins/Tracers/ModuleTracer.html>`_
-* `TestCaseGenerator <Plugins/Tracers/TestCaseGenerator.html>`_
-* `TranslationBlockTracer <Plugins/Tracers/TranslationBlockTracer.html>`_
-* `InstructionCounter <Plugins/Tracers/InstructionCounter.html>`_
+* `ExecutionTracer <Plugins/Tracers/ExecutionTracer.rst>`_
+* `ModuleTracer <Plugins/Tracers/ModuleTracer.rst>`_
+* `TestCaseGenerator <Plugins/Tracers/TestCaseGenerator.rst>`_
+* `TranslationBlockTracer <Plugins/Tracers/TranslationBlockTracer.rst>`_
+* `InstructionCounter <Plugins/Tracers/InstructionCounter.rst>`_
 
 Selection Plugins
 -----------------
 
 These plugins allow you to specify which paths to execute and where to inject symbolic values
 
-* `StateManager <Plugins/StateManager.html>`_ helps exploring library entry points more efficiently.
-* `EdgeKiller <Plugins/EdgeKiller.html>`_ kills execution paths that execute some sequence of instructions (e.g., polling loops).
-* `BaseInstructions <Plugins/BaseInstructions.html>`_ implements various custom instructions to control symbolic execution from the guest.
-* *SymbolicHardware* implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the `Windows driver testing <Windows/DriverTutorial.html>`_ tutorial for usage instructions.
+* `StateManager <Plugins/StateManager.rst>`_ helps exploring library entry points more efficiently.
+* `EdgeKiller <Plugins/EdgeKiller.rst>`_ kills execution paths that execute some sequence of instructions (e.g., polling loops).
+* `BaseInstructions <Plugins/BaseInstructions.rst>`_ implements various custom instructions to control symbolic execution from the guest.
+* *SymbolicHardware* implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the `Windows driver testing <Windows/DriverTutorial.rst>`_ tutorial for usage instructions.
 * *CodeSelector* disables forking outside of the modules of interest
-* `Annotation <Plugins/Annotation.html>`_ plugin lets you intercept arbitrary instructions and function calls/returns and write Lua scripts to manipulate the execution state, kill paths, etc.
+* `Annotation <Plugins/Annotation.rst>`_ plugin lets you intercept arbitrary instructions and function calls/returns and write Lua scripts to manipulate the execution state, kill paths, etc.
 
 Analysis Plugins
 ----------------
@@ -99,14 +99,14 @@ Analysis Plugins
 Miscellaneous Plugins
 ---------------------
 
-* `FunctionMonitor <Plugins/FunctionMonitor.html>`_ provides client plugins with events triggered when the guest code invokes specified functions.
-* `HostFiles <UsingS2EGet.html>`_ allows to quickly upload files to the guest.
+* `FunctionMonitor <Plugins/FunctionMonitor.rst>`_ provides client plugins with events triggered when the guest code invokes specified functions.
+* `HostFiles <UsingS2EGet.rst>`_ allows to quickly upload files to the guest.
 
 S²E Development
 ===============
 
-* `Contributing to S2E <Contribute.html>`_
-* `Profiling S2E <ProfilingS2E.html>`_
+* `Contributing to S2E <Contribute.rst>`_
+* `Profiling S2E <ProfilingS2E.rst>`_
 
 
 S²E Publications

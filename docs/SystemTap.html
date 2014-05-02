@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8.1: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.11: http://docutils.sourceforge.net/" />
 <title>Using SystemTap with S2E</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -143,7 +143,7 @@ and replace the content of the IP header field with symbolic values.</p>
 
 <span class="cp"># Terminate current state.</span>
 <span class="cp"># This is a SystemTap function that can be called from SystemTap code.</span>
-<span class="n">function</span> <span class="n">s2e_kill_state</span><span class="p">(</span><span class="n">status</span><span class="o">:</span><span class="kt">long</span><span class="p">,</span> <span class="n">message</span><span class="o">:</span> <span class="n">string</span><span class="p">)</span> <span class="o">%</span><span class="p">{</span>
+<span class="n">function</span> <span class="nf">s2e_kill_state</span><span class="p">(</span><span class="n">status</span><span class="o">:</span><span class="kt">long</span><span class="p">,</span> <span class="n">message</span><span class="o">:</span> <span class="n">string</span><span class="p">)</span> <span class="o">%</span><span class="p">{</span>
   <span class="n">__asm__</span> <span class="n">__volatile__</span><span class="p">(</span>
     <span class="s">&quot;.byte 0x0f, 0x3f</span><span class="se">\n</span><span class="s">&quot;</span>
     <span class="s">&quot;.byte 0x00, 0x06, 0x00, 0x00</span><span class="se">\n</span><span class="s">&quot;</span>
