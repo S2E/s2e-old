@@ -16,18 +16,20 @@ Required Packages
     $ sudo apt-get install subversion
     $ sudo apt-get install git
     $ sudo apt-get install gettext
-    $ sudo apt-get install liblua5.1-dev
+    $ sudo apt-get install liblua5.1-0-dev
     $ sudo apt-get install libsdl1.2-dev
     $ sudo apt-get install libsigc++-2.0-dev
     $ sudo apt-get install binutils-dev
     $ sudo apt-get install python-docutils
     $ sudo apt-get install python-pygments
     $ sudo apt-get install nasm
+    $ sudo apt-get install libiberty-dev
+    $ sudo apt-get install libc6-dev-i386
 
 The following commands ask ``apt-get`` to install build dependencies for llvm-3.0
 and qemu. ::
 
-    $ sudo apt-get build-dep llvm-3.0
+    $ sudo apt-get build-dep llvm-3.3
     $ sudo apt-get build-dep qemu
 
 Checking out S2E
