@@ -95,7 +95,11 @@ stamps/%-make:
 	$(MAKE) -C $* $(BUILD_OPTS)
 	touch $@
 
-
+# On Ubuntu 14.04, c++config.h is located in a platform-specific path
+ifeq (,$(wildcard /usr/include/x86_64-linux-gnu/c++/4.8/c++config.h))
+ export CPLUS_INCLUDE_PATH=/usr/include:/usr/include/x86_64-linux-gnu:/usr/include/x86_64-linux-gnu/c++/4.8
+ export C_INCLUDE_PATH=/usr/include:/usr/include/x86_64-linux-gnu
+endif
 
 #############
 # Downloads #
@@ -176,8 +180,7 @@ endif
 stamps/stp-make stamps/stp-asan-make: ALWAYS
 
 STP_CONFIGURE_FLAGS = --with-prefix=$(S2EBUILD)/stp --with-fpic \
-                      --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC) \
-                      --with-cryptominisat2
+                      --with-g++=$(CLANG_CXX) --with-gcc=$(CLANG_CC)
 
 stamps/stp-configure: stamps/llvm-native-make
 stamps/stp-configure: CONFIGURE_COMMAND = scripts/configure $(STP_CONFIGURE_FLAGS)
@@ -274,6 +277,8 @@ QEMU_COMMON_FLAGS = --prefix=$(S2EBUILD)/opt\
                     --enable-llvm \
                     --enable-s2e \
                     --with-pkgversion=S2E \
+                    --disable-virtfs \
+                    --disable-fdt \
                     $(EXTRA_QEMU_FLAGS)
 
 QEMU_CONFIGURE_FLAGS = --with-stp=$(S2EBUILD)/stp \

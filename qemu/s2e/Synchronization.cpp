@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <iostream>
 #include <stdlib.h>
+#include <unistd.h>
 #endif
 
 #ifdef CONFIG_DARWIN
