@@ -1,0 +1,5 @@
+S2E as a whole is released under the GNU General Public License version 2.
+
+Some S2E files are released under GPL, LGPL or BSD licenses. Please consult
+LICENSE files in the subfolders and the headers of each individual files for
+more details.
