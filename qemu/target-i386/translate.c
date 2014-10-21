@@ -2267,8 +2267,19 @@ static void gen_nop_modrm(DisasContext *s, int modrm)
             break;
         default:
         case 2:
-            s->pc += 4;
-            break;
+            {
+#ifdef CONFIG_S2E
+                /* TODO magic numbers */
+                if (code == 0x42) {
+                    uint32_t s2e_op = ldl_code(s->pc);
+                    printf("\033[1mS2E custom instruction (%08X)\033[0m\n",
+                           s2e_op);
+                    s2e_tcg_emit_custom_instruction(g_s2e, s2e_op);
+                }
+#endif
+                s->pc += 4;
+                break;
+            }
         }
     } else {
         switch (mod) {
