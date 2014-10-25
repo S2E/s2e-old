@@ -63,7 +63,7 @@ typedef struct _s2e_opcode_module_config_t {
 #endif
 
 #define S2E_INSTRUCTION_REGISTERS_SIMPLE(val)           \
-    S2E_INSTRUCTION_REGISTERS_COMPLEX(val, 00)
+    S2E_INSTRUCTION_REGISTERS_COMPLEX(val, 0x00)
 
 /** Forces the read of every byte of the specified string.
   * This makes sure the memory pages occupied by the string are paged in

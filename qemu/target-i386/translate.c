@@ -6485,12 +6485,14 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             SET_TB_TYPE(TB_JMP);
             tval = (int8_t)insn_get(s, OT_BYTE);
 #ifdef CONFIG_S2E
+            /* TODO magic numbers */
             if (tval == 0x06) {
                 uint16_t efof = lduw_code(s->pc);
                 if (efof == 0x3f0f) {
-                    uint64_t arg = ldl_code(s->pc+sizeof(efof));
-                    printf("\033[1mS2E custom instruction (%08lX)\033[0m\n",arg);
-                    s2e_tcg_emit_custom_instruction(g_s2e, arg);
+                    uint32_t s2e_op = ldl_code(s->pc+sizeof(efof));
+                    printf("\033[1mS2E custom instruction (%08X)\033[0m\n",
+                           s2e_op);
+                    s2e_tcg_emit_custom_instruction(g_s2e, s2e_op);
                 }
             }
 #endif

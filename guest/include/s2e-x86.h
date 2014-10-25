@@ -33,13 +33,27 @@
  * All contributors are listed in the S2E-AUTHORS file.
  */
 
-#define S2E_INSTRUCTION_COMPLEX(val1, val2)             \
+#ifdef S2E_INSTRUCTION_USE_NOP
+# define S2E_INSTRUCTION_COMPLEX(val1, val2)            \
+    ".byte 0x0F, 0x1F, 0x84, 0x42, "                    \
+          "0x00, " #val1 ", " #val2 ", 0x00\n"
+#else
+# ifdef S2E_INSTRUCTION_USE_JUMP
+#  define S2E_INSTRUCTION_COMPLEX(val1, val2)           \
+    "jmp .+0x08\n"                                      \
     ".byte 0x0F, 0x3F\n"                                \
-    ".byte 0x00, 0x" #val1 ", 0x" #val2 ", 0x00\n"      \
+    ".byte 0x00, " #val1 ", " #val2 ", 0x00\n"
+# else
+#  define S2E_INSTRUCTION_COMPLEX(val1, val2)           \
+    ".byte 0x0F, 0x3F\n"                                \
+    ".byte 0x00, " #val1 ", " #val2 ", 0x00\n"          \
     ".byte 0x00, 0x00, 0x00, 0x00\n"
+# endif
+#endif
 
 #define S2E_INSTRUCTION_SIMPLE(val)                     \
-    S2E_INSTRUCTION_COMPLEX(val, 00)
+    S2E_INSTRUCTION_COMPLEX(val, 0x00)
+
 
 
 
@@ -48,7 +62,7 @@ static inline int s2e_version(void)
 {
     int version;
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(00)
+        S2E_INSTRUCTION_SIMPLE(0x00)
         : "=a" (version)  : "a" (0)
     );
     return version;
@@ -58,7 +72,7 @@ static inline int s2e_version(void)
 static inline void s2e_enable_symbolic(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(01)
+        S2E_INSTRUCTION_SIMPLE(0x01)
     );
 }
 
@@ -66,7 +80,7 @@ static inline void s2e_enable_symbolic(void)
 static inline void s2e_disable_symbolic(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(02)
+        S2E_INSTRUCTION_SIMPLE(0x02)
     );
 }
 
@@ -75,7 +89,7 @@ static inline void s2e_message(const char *message)
 {
     __s2e_touch_string(message);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(10)
+        S2E_INSTRUCTION_SIMPLE(0x10)
         : : "a" (message)
     );
 }
@@ -85,7 +99,7 @@ static inline void s2e_warning(const char *message)
 {
     __s2e_touch_string(message);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(10, 01)
+        S2E_INSTRUCTION_COMPLEX(0x10, 0x01)
         : : "a" (message)
     );
 }
@@ -95,7 +109,7 @@ static inline void s2e_print_expression(const char *name, int expression)
 {
     __s2e_touch_string(name);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(07, 01)
+        S2E_INSTRUCTION_COMPLEX(0x07, 0x01)
         : : "a" (expression), "c" (name)
     );
 }
@@ -104,7 +118,7 @@ static inline void s2e_print_expression(const char *name, int expression)
 static inline void s2e_enable_forking(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(09)
+        S2E_INSTRUCTION_SIMPLE(0x09)
     );
 }
 
@@ -112,7 +126,7 @@ static inline void s2e_enable_forking(void)
 static inline void s2e_disable_forking(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(0A)
+        S2E_INSTRUCTION_SIMPLE(0x0A)
     );
 }
 
@@ -120,7 +134,7 @@ static inline void s2e_disable_forking(void)
 static inline void s2e_yield(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(0F)
+        S2E_INSTRUCTION_SIMPLE(0x0F)
     );
 }
 
@@ -129,7 +143,7 @@ static inline unsigned s2e_get_path_id(void)
 {
     unsigned id;
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(05)
+        S2E_INSTRUCTION_SIMPLE(0x05)
         : "=a" (id)
     );
     return id;
@@ -148,7 +162,7 @@ static inline void s2e_make_symbolic(void *buf, int size, const char *name)
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
 #endif
-        S2E_INSTRUCTION_SIMPLE(03)
+        S2E_INSTRUCTION_SIMPLE(0x03)
 #ifdef __x86_64__
         "pop %%rbx\n"
 #else
@@ -171,7 +185,7 @@ static inline void s2e_make_concolic(void *buf, int size, const char *name)
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
 #endif
-        S2E_INSTRUCTION_SIMPLE(11)
+        S2E_INSTRUCTION_SIMPLE(0x11)
 #ifdef __x86_64__
         "pop %%rbx\n"
 #else
@@ -186,7 +200,7 @@ static inline void s2e_make_concolic(void *buf, int size, const char *name)
 static inline void s2e_assume(int expression)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(0c)
+        S2E_INSTRUCTION_SIMPLE(0x0C)
         : : "a" (expression)
     );
 }
@@ -198,7 +212,7 @@ static inline int s2e_is_symbolic(void *ptr, size_t size)
     int result;
     __s2e_touch_buffer(ptr, 1);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(04)
+        S2E_INSTRUCTION_SIMPLE(0x04)
         : "=a" (result) : "a" (size), "c" (ptr)
     );
     return result;
@@ -216,7 +230,7 @@ static inline void s2e_concretize(void *buf, int size)
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
 #endif
-        S2E_INSTRUCTION_SIMPLE(20)
+        S2E_INSTRUCTION_SIMPLE(0x20)
 #ifdef __x86_64__
         "pop %%rbx\n"
 #else
@@ -238,7 +252,7 @@ static inline void s2e_get_example(void *buf, int size)
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
 #endif
-        S2E_INSTRUCTION_SIMPLE(21)
+        S2E_INSTRUCTION_SIMPLE(0x21)
 #ifdef __x86_64__
         "pop %%rbx\n"
 #else
@@ -261,7 +275,7 @@ static inline unsigned s2e_get_example_uint(unsigned val)
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
 #endif
-        S2E_INSTRUCTION_SIMPLE(21)
+        S2E_INSTRUCTION_SIMPLE(0x21)
 #ifdef __x86_64__
         "pop %%rbx\n"
 #else
@@ -284,7 +298,7 @@ static inline void s2e_kill_state(int status, const char *message)
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
 #endif
-        S2E_INSTRUCTION_SIMPLE(06)
+        S2E_INSTRUCTION_SIMPLE(0x06)
 #ifdef __x86_64__
         "pop %%rbx\n"
 #else
@@ -298,7 +312,7 @@ static inline void s2e_kill_state(int status, const char *message)
 static inline void s2e_disable_timer_interrupt(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(50, 01)
+        S2E_INSTRUCTION_COMPLEX(0x50, 0x01)
     );
 }
 
@@ -306,7 +320,7 @@ static inline void s2e_disable_timer_interrupt(void)
 static inline void s2e_enable_timer_interrupt(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(50)
+        S2E_INSTRUCTION_SIMPLE(0x50)
     );
 }
 
@@ -314,7 +328,7 @@ static inline void s2e_enable_timer_interrupt(void)
 static inline void s2e_disable_all_apic_interrupts(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(51, 01)
+        S2E_INSTRUCTION_COMPLEX(0x51, 0x01)
     );
 }
 
@@ -322,7 +336,7 @@ static inline void s2e_disable_all_apic_interrupts(void)
 static inline void s2e_enable_all_apic_interrupts(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(51)
+        S2E_INSTRUCTION_SIMPLE(0x51)
     );
 }
 
@@ -331,7 +345,7 @@ static inline int s2e_get_ram_object_bits(void)
 {
     int bits;
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(52)
+        S2E_INSTRUCTION_SIMPLE(0x52)
         : "=a" (bits)  : "a" (0)
     );
     return bits;
@@ -344,7 +358,7 @@ static inline int s2e_get_ram_object_bits(void)
 static inline void s2e_merge_point(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(70)
+        S2E_INSTRUCTION_SIMPLE(0x70)
     );
 }
 
@@ -356,7 +370,7 @@ static inline int s2e_open(const char *fname)
     int fd;
     __s2e_touch_string(fname);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(EE)
+        S2E_INSTRUCTION_SIMPLE(0xEE)
         : "=a" (fd) : "a"(-1), "b" (fname), "c" (0)
     );
     return fd;
@@ -369,7 +383,7 @@ static inline int s2e_close(int fd)
 {
     int res;
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(EE, 01)
+        S2E_INSTRUCTION_COMPLEX(0xEE, 0x01)
         : "=a" (res) : "a" (-1), "b" (fd)
     );
     return res;
@@ -390,7 +404,7 @@ static inline int s2e_read(int fd, char *buf, int count)
         "pushl %%ebx\n"
         "movl %%esi, %%ebx\n"
 #endif
-        S2E_INSTRUCTION_COMPLEX(EE, 02)
+        S2E_INSTRUCTION_COMPLEX(0xEE, 0x02)
 #ifdef __x86_64__
         "pop %%rbx\n"
 #else
@@ -405,7 +419,7 @@ static inline int s2e_read(int fd, char *buf, int count)
 static inline void s2e_memtracer_enable(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(AC)
+        S2E_INSTRUCTION_SIMPLE(0xAC)
     );
 }
 
@@ -413,7 +427,7 @@ static inline void s2e_memtracer_enable(void)
 static inline void s2e_memtracer_disable(void)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(AC, 01)
+        S2E_INSTRUCTION_COMPLEX(0xAC, 0x01)
     );
 }
 
@@ -431,7 +445,7 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
 #endif
-        S2E_INSTRUCTION_SIMPLE(AA)
+        S2E_INSTRUCTION_SIMPLE(0xAA)
 #ifdef __x86_64__
         "pop %%rbx\n"
 #else
@@ -462,7 +476,7 @@ static inline void s2e_rawmon_loadmodule2(const char *name,
     __s2e_touch_string(name);
 
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(AA, 02)
+        S2E_INSTRUCTION_COMPLEX(0xAA, 0x02)
         : : "c" (&cfg)
     );
 }
@@ -472,7 +486,7 @@ static inline void s2e_rawmon_loadmodule2(const char *name,
 static inline void s2e_codeselector_enable_address_space(unsigned user_mode_only)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(AE)
+        S2E_INSTRUCTION_SIMPLE(0xAE)
         : : "c" (user_mode_only)
     );
 }
@@ -482,7 +496,7 @@ static inline void s2e_codeselector_enable_address_space(unsigned user_mode_only
 static inline void s2e_codeselector_disable_address_space(uint64_t pagedir)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(AE, 01)
+        S2E_INSTRUCTION_COMPLEX(0xAE, 0x01)
         : : "c" (pagedir)
     );
 }
@@ -491,7 +505,7 @@ static inline void s2e_codeselector_select_module(const char *moduleId)
 {
     __s2e_touch_string(moduleId);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_COMPLEX(AE, 02)
+        S2E_INSTRUCTION_COMPLEX(0xAE, 0x02)
         : : "c" (moduleId)
     );
 }
@@ -502,7 +516,7 @@ static inline void s2e_moduleexec_add_module(const char *moduleId, const char *m
     __s2e_touch_string(moduleId);
     __s2e_touch_string(moduleName);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(AF)
+        S2E_INSTRUCTION_SIMPLE(0xAF)
             : : "c" (moduleId), "a" (moduleName), "d" (kernelMode)
     );
 }
@@ -517,7 +531,7 @@ static inline int s2e_invoke_plugin(const char *pluginName, void *data, uint32_t
     __s2e_touch_string(pluginName);
     __s2e_touch_buffer(data, dataSize);
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(0B)
+        S2E_INSTRUCTION_SIMPLE(0x0B)
         : "=a" (result) : "a" (pluginName), "c" (data), "d" (dataSize) : "memory"
     );
 
