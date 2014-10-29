@@ -12,8 +12,9 @@ symbolically executing it.
 Setting up HostFiles Plugin
 ===========================
 
-To use ``s2eget``, you enable the ``HostFiles`` plugin in the S2E configuration file.
-Add the following lines to your ``config.lua`` file:
+To use ``s2eget``, enable the ``HostFiles`` plugin in the S2E configuration file.
+This file is called ``config.lua`` and can be placed anywhere you wish; its location
+will be passed via a command line argument.  Add the following lines to ``config.lua``:
 
 .. code-block:: lua
 
