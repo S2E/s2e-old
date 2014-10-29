@@ -60,7 +60,7 @@ VM image corruptions. QCOW2 is one example of such formats.
 
 The S2E image format, unlike the other formats, is multi-path aware.
 When in S2E mode, writes are local to each state and do not clobber other states.
-Moreover, writes are NEVER written to the image (or the snapshot). This makes it possible
+Moreover, writes are NEVER propagated from the state to the image (or the snapshot). This makes it possible
 to share one disk image and snapshots among many instances of S2E.
 
 The S2E image format is identical to the RAW format, except that the
