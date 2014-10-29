@@ -64,13 +64,9 @@ When in S2E mode, writes are local to each state and do not clobber other states
 Moreover, writes are NEVER propagated from the state to the image (or the snapshot). This makes it possible
 to share one disk image and snapshots among many instances of S2E.
 
-The S2E image format is identical to the RAW format, except that the
-image file name has the ``.s2e`` extension. Therefore, to convert from
-RAW to S2E, renaming the file is enough (a symlink is fine too).
-
 The S2E image format stores snapshots in a separate file, suffixed by the name of the
 snapshot. For example, if the base image is called "my_image.raw.s2e",
-the snapshot ``ready`` (as in ``savevm ready``) will be saved in the file
+the snapshot ``ready`` (generated with ``savevm ready``) will be saved in the file
 ``my_image.raw.s2e.ready`` in the same folder as ``my_image.raw.s2e``.
 
 
