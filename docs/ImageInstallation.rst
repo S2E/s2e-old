@@ -40,16 +40,16 @@ followed the installation tutorials.
    $ # inside the guest to install C and C++ compilers
    guest$ su -c "apt-get install build-essential"
 
-You have just set up a disk image in RAW format. You need to convert it to the S2E format for use
-with S2E (the reasons for this are described in the next section).
-
-The S2E image format is identical to the RAW format, except that the
-image file name has the ".s2e" extension. Therefore, to convert from
-RAW to S2E, renaming the file is enough (a symlink is fine too).
+You have just set up a disk image in RAW format. You will need to give it
+a .s2e extension for use with S2E (the reasons for this are described in 
+the next section).  The S2E image format is identical to the RAW format, so
+no conversion needs to take place.  We therefore create a .raw.s2e copy that
+will be treated as read-only by S2E, and we keep around the .raw image in
+case we want to make modifications to the base image in the future.
 
 ::
 
-   $ cp s2e_disk.raw s2e_disk.raw.s2e
+   $ ln s2e_disk.raw s2e_disk.raw.s2e
 
 The S2E VM Image Format
 =======================
