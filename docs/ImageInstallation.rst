@@ -35,7 +35,7 @@ followed the installation tutorials.
    > Follow on-screen instructions to install Debian Linux inside VM (use the most basic setup that includes ssh)
    > If you're having trouble navigating the menus, try specifying a keymap (e.g., -k en-us) 
 
-   $ # When you system is installed and rebooted, run the following command
+   $ # When your system is installed and rebooted, run the following command
    $ # inside the guest to install C and C++ compilers
    guest$ su -c "apt-get install build-essential"
 
