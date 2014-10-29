@@ -2,7 +2,7 @@
 Quickly Uploading Programs to the Guest with ``s2eget``
 =======================================================
 
-The ``s2eget`` tool allows to easily download files from the host into the guest in
+The ``s2eget`` tool allows to easily upload files from the host into the guest in
 S2E mode. The typical use case for this tool is to set up a VM snapshot that, when
 resumed in S2E mode, automatically downloads a program from the host and starts
 symbolically executing it.
