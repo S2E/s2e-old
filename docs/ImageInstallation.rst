@@ -27,13 +27,13 @@ followed the installation tutorials.
    $ # Create an empty disk image
    $ $S2EDIR/build/qemu-release/qemu-img create -f raw s2e_disk.raw 2G
 
-   $ # Download debian install CD
-   $ wget http://cdimage.debian.org/debian-cd/current/i386/iso-cd/debian-6.0.6-i386-businesscard.iso
+   $ # Download debian install CD (the exact version doesn't really matter, below is an example)
+   $ wget http://cdimage.debian.org/debian-cd/7.7.0/i386/iso-cd/debian-7.7.0-i386-CD-1.iso
 
    $ # Run QEMU and install the OS
-   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.raw -cdrom debian-6.0.2.1-i386-businesscard.iso
-   > Follow on-screen instructions to install Debian Linux inside VM
-   > Select only "Standard System" component to install
+   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.raw -m 1024 -cdrom debian-7.7.0-i386-CD-1.iso
+   > Follow on-screen instructions to install Debian Linux inside VM (use the most basic setup that includes ssh)
+   > If you're having trouble navigating the menus, try specifying a keymap (e.g., -k en-us) 
 
    $ # When you system is installed and rebooted, run the following command
    $ # inside the guest to install C and C++ compilers
