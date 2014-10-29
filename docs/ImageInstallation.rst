@@ -31,9 +31,10 @@ followed the installation tutorials.
    $ wget http://cdimage.debian.org/debian-cd/7.7.0/i386/iso-cd/debian-7.7.0-i386-CD-1.iso
 
    $ # Run QEMU and install the OS
-   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.raw -m 1024 -cdrom debian-7.7.0-i386-CD-1.iso
+   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.raw -enable-kvm -m 1024 -cdrom debian-7.7.0-i386-CD-1.iso
    > Follow on-screen instructions to install Debian Linux inside VM (use the most basic setup that includes ssh)
-   > If you're having trouble navigating the menus, try specifying a keymap (e.g., -k en-us) 
+   > If you have trouble navigating the menus, try specifying a keymap (e.g., -k en-us) 
+   > If you have trouble using KVM mode, make sure your username is in the 'kvm' group
 
    $ # When your system is installed and rebooted, run the following command
    $ # inside the guest to install C and C++ compilers
