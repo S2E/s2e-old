@@ -14,14 +14,15 @@ Setting up HostFiles Plugin
 
 To use ``s2eget``, enable the ``HostFiles`` plugin in the S2E configuration file.
 This file is called ``config.lua`` and can be placed anywhere you wish; its location
-will be passed via a command line argument.  Add the following lines to ``config.lua``:
+will be passed via a command line argument.  For example, here is a simple ``config.lua``:
 
 .. code-block:: lua
 
    plugins = {
-     ...
      "HostFiles"
    }
+
+   pluginsConfig = {}
 
    pluginsConfig.HostFiles = {
      baseDirs = {"/path/to/host/dir1", "/path/to/host/dir2"}
@@ -35,8 +36,11 @@ will be exported.
 Running ``s2eget``
 ==================
 
-First, boot the VM in the S2E version of QEMU in non-S2E mode. Copy ``s2eget``
-into the guest over SSH (or any other method). Then run the tool, for example,
+First, boot the VM in the S2E version of QEMU in non-S2E mode::
+
+  $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.raw.s2e -m 1024
+
+Copy ``s2eget`` into the guest over SSH (or any other method). Then run the tool, for example,
 as follows::
 
   guest$ ./s2eget <filename> && chmod +x ./<filename> && ./<filename>
