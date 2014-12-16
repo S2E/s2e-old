@@ -56,7 +56,7 @@ Before testing the program in S2E, compile and run it in the native QEMU build
 (the one in the ``i386-softmmu`` directory).
 Launch QEMU with the following command::
 
-   $ $S2EDIR/build/i386-softmmu/qemu-system-i386 your_image.raw
+   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 your_image.raw
 
 You need to copy the example source code into the VM. As you will likely need to do this
 frequently, we recommend to install either ``ssh`` or an http server on your host
