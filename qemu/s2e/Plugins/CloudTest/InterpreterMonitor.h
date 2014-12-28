@@ -1,5 +1,4 @@
 /*
-/*
  * S2E Selective Symbolic Execution Framework
  *
  * Copyright (c) 2014, Dependable Systems Laboratory, EPFL
