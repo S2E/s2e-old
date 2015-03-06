@@ -55,7 +55,7 @@ Copying files
 
 Copy the *devcon.exe* utility in the Windows image.
 Then, copy the following script into *c:\\s2e\\pcnet.bat* (or to any location you wish) in the guest OS.
-You may beed to setup and ftp server on your host machine to do the file transfer. The NE2K card we set up previously
+You may need to setup and ftp server on your host machine to do the file transfer. The NE2K card we set up previously
 should have an address obtained by DHCP. The gateway should be 10.0.2.2. Refer to the QEMU documentation for more details.
 
 ::
@@ -125,7 +125,7 @@ Converting the image
 
 1. Once you have set registry settings, make sure the adapter is disabled, then shutdown the guest OS.
 2. Save a copy of the *RAW* image
-3. `Convert the *RAW* image to *S2E* by renaming (or makeing a symlink) the image file <../ImageInstallation.html>`_.
+3. `Convert the *RAW* image to *S2E* by renaming (or making a symlink) the image file <../ImageInstallation.html>`_.
 
    ::
 
@@ -164,7 +164,7 @@ We will use the remote target feature of GDB to connect to the guest OS, set a b
 4. Now, open GDB, attach to the remote QEMU guest, set a breakpoint in the kernel, then resume execution.
    In this example, we assume that you have installed the **checked build** of Windows XP **SP3** without any update installed.
    If you have a **free build** of Windows XP SP3 (as it comes on the distribution CD), use **0x805A399A** instead of **0x80b3f5d6**.
-   This number if the program counter of the call instruction that invokes the entry point of the driver.
+   This number is the program counter of the call instruction that invokes the entry point of the driver.
 
    ::
 
