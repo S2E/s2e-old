@@ -469,6 +469,15 @@ void BaseInstructions::assume(S2EExecutionState *state)
 }
 #endif
 
+void BaseInstructions::printPathConstraint(S2EExecutionState *state)
+{
+    s2e()->getMessagesStream() << "Path Constraint - ";
+    for (int i = 0 ; i < state->constraints.constraints.size() ; i++) {
+        s2e()->getMessagesStream() << state->constraints.constraints[i];
+    }
+    s2e()->getMessagesStream() << "\nPath ConstraintSize - Value: " << state->constraints.constraints.size() << "\n";
+}
+
 
 /** Handle s2e_op instruction. Instructions:
 
@@ -546,6 +555,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 #endif
+        case 0xd: { // path constraint
+            printPathConstraint(state);
+            break;
+        }
+
         case 0xF: { // MJR
             s2e()->getExecutor()->yieldState(*state);
             break;
