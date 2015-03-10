@@ -24,6 +24,18 @@ void InputGenerator::onInputGeneration(S2EExecutionState *state, const std::stri
                 new klee::ExecutionState(*state);
     pruneInputConstraints(state, exploitState);
 
+    s2e()->getDebugStream() << "========== Exploit Constraints ==========\n";
+    for (int i = 0; i < exploitState->constraints.constraints.size(); i++) {
+        s2e()->getDebugStream() << exploitState->constraints.constraints[i] << '\n';
+    }
+    s2e()->getDebugStream() << "Exploit Constraint Size: " << exploitState->constraints.constraints.size() << "\n\n";
+
+    s2e()->getDebugStream(state) << "========== Original Constraints ==========\n";
+    for (int i = 0; i < state->constraints.constraints.size(); i++) {
+        s2e()->getDebugStream(state) << state->constraints.constraints[i] << '\n';
+    }
+    s2e()->getDebugStream(state) << "Original Constraint Size: " << state->constraints.constraints.size() << "\n\n";
+
 }
 
 void InputGenerator::pruneInputConstraints(
