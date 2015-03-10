@@ -15,6 +15,11 @@ public:
     InputGenerator(S2E *s2e): Plugin(s2e) {}
 
     void initialize();
+
+private:
+    void onInputGeneration(S2EExecutionState *state, const std::string &message);
+
+    void pruneInputConstraints(S2EExecutionState *state, klee::ExecutionState *exploitState);
 };
 
 } // namespace plugins
