@@ -36,6 +36,17 @@ void InputGenerator::onInputGeneration(S2EExecutionState *state, const std::stri
     }
     s2e()->getDebugStream(state) << "Original Constraint Size: " << state->constraints.constraints.size() << "\n\n";
 
+    s2e()->getDebugStream(state) << "========== Argument Constraints ==========\n";
+    s2e()->getDebugStream(state) << "Argument Constraints Vector Size: " << state->argsConstraintsAll.size() << "\n";
+    for (int i = 0; i < state->argsConstraintsAll.size(); i++) {
+        s2e()->getDebugStream(state) << "type: " << state->argsConstraintsType[i] << '\n';
+        for(int j = 0; j < state->argsConstraintsAll[i].size(); j++)
+        {
+            s2e()->getDebugStream(state) << state->argsConstraintsAll[i][j] << '\n';
+        }
+        s2e()->getDebugStream(state) << "Argument Constraint Size: " << state->argsConstraintsAll[i].size() << "\n\n";
+    }
+
 }
 
 void InputGenerator::pruneInputConstraints(
