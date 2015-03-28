@@ -473,11 +473,11 @@ void BaseInstructions::assume(S2EExecutionState *state)
 
 void BaseInstructions::printPathConstraint(S2EExecutionState *state)
 {
-    s2e()->getMessagesStream() << "Path Constraint - ";
+    s2e()->getDebugStream() << "Path Constraint - ";
     for (int i = 0 ; i < state->constraints.constraints.size() ; i++) {
-        s2e()->getMessagesStream() << state->constraints.constraints[i];
+        s2e()->getDebugStream() << state->constraints.constraints[i];
     }
-    s2e()->getMessagesStream() << "\nPath ConstraintSize - Value: " << state->constraints.constraints.size() << "\n";
+    s2e()->getDebugStream() << "\nPath ConstraintSize - Value: " << state->constraints.constraints.size() << "\n";
 }
 
 void BaseInstructions::collectArgsConstraint(S2EExecutionState *state)
