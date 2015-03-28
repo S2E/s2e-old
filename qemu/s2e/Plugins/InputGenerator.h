@@ -17,6 +17,10 @@ public:
     void initialize();
 
 private:
+    int pathConstraintSize;
+    int inputConstraintSize;
+    int argsConstraintVectorSize;
+
     void onInputGeneration(S2EExecutionState *state, const std::string &message);
 
     void pruneInputConstraints(S2EExecutionState *state, klee::ExecutionState *exploitState);

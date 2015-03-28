@@ -1,5 +1,7 @@
+#include <string>
 #include <s2e/S2E.h>
 #include <s2e/Utils.h>
+#include <s2e/S2EExecutor.h>
 #include "InputGenerator.h"
 
 namespace s2e {
@@ -15,10 +17,19 @@ void InputGenerator::initialize()
 
 void InputGenerator::onInputGeneration(S2EExecutionState *state, const std::string &message)
 {
+    pathConstraintSize = state->constraints.constraints.size();
+    inputConstraintSize = state->inputConstraints.size();
+    argsConstraintVectorSize = state->argsConstraintsAll.size();
+
     s2e()->getMessagesStream()
             << "InputGenerator: processTestCase of state " << state->getID()
             << " at address " << hexval(state->getPc())
             << '\n';
+
+    if (argsConstraintVectorSize == 0) {
+        s2e()->getWarningsStream() << "No tainted any sensitive function" << '\n';
+        return;
+    }
 
     klee::ExecutionState* exploitState =
                 new klee::ExecutionState(*state);
@@ -31,21 +42,10 @@ void InputGenerator::onInputGeneration(S2EExecutionState *state, const std::stri
     s2e()->getDebugStream() << "Exploit Constraint Size: " << exploitState->constraints.constraints.size() << "\n\n";
 
     s2e()->getDebugStream(state) << "========== Original Constraints ==========\n";
-    for (int i = 0; i < state->constraints.constraints.size(); i++) {
+    for (int i = 0; i < pathConstraintSize; i++) {
         s2e()->getDebugStream(state) << state->constraints.constraints[i] << '\n';
     }
-    s2e()->getDebugStream(state) << "Original Constraint Size: " << state->constraints.constraints.size() << "\n\n";
-
-    s2e()->getDebugStream(state) << "========== Argument Constraints ==========\n";
-    s2e()->getDebugStream(state) << "Argument Constraints Vector Size: " << state->argsConstraintsAll.size() << "\n";
-    for (int i = 0; i < state->argsConstraintsAll.size(); i++) {
-        s2e()->getDebugStream(state) << "type: " << state->argsConstraintsType[i] << '\n';
-        for(int j = 0; j < state->argsConstraintsAll[i].size(); j++)
-        {
-            s2e()->getDebugStream(state) << state->argsConstraintsAll[i][j] << '\n';
-        }
-        s2e()->getDebugStream(state) << "Argument Constraint Size: " << state->argsConstraintsAll[i].size() << "\n\n";
-    }
+    s2e()->getDebugStream(state) << "Original Constraint Size: " << pathConstraintSize << "\n\n";
 
 }
 
@@ -54,7 +54,7 @@ void InputGenerator::pruneInputConstraints(
         klee::ExecutionState *exploitState)
 {
     std::vector< klee::ref<klee::Expr> >
-        pathConstraints(state->constraints.size());
+        pathConstraints(pathConstraintSize);
     std::vector< klee::ref<klee::Expr> >::iterator it;
 
     it = std::set_difference(state->constraints.begin(),
@@ -69,8 +69,8 @@ void InputGenerator::pruneInputConstraints(
         *(new klee::ConstraintManager(pathConstraints));
 
     s2e()->getMessagesStream(state) << "Pruned "
-        << state->inputConstraints.size() << " out of "
-        << state->constraints.size() << " constraints\n\n";
+        << inputConstraintSize << " out of "
+        << pathConstraintSize << " constraints\n\n";
 }
 
 } // namespace plugins
