@@ -74,9 +74,6 @@ std::vector<void *> S2EDeviceState::s_devices;
 llvm::SmallVector<struct BlockDriverState*, 5> S2EDeviceState::s_blockDevices;
 
 QEMUFile *S2EDeviceState::s_memFile = NULL;
-uint8_t *S2EDeviceState::s_tempStateBuffer = NULL;
-unsigned S2EDeviceState::s_tempStateSize = 0;
-unsigned S2EDeviceState::s_finalStateSize = 0;
 
 bool S2EDeviceState::s_devicesInited=false;
 
@@ -103,15 +100,17 @@ void s2e_init_device_state(S2EExecutionState *s)
 S2EDeviceState::S2EDeviceState(const S2EDeviceState &state):
         m_deviceState(state.m_deviceState)
 {
-    assert( state.m_stateBuffer && s_finalStateSize > 0);
-    m_stateBuffer = (uint8_t*) malloc(s_finalStateSize);
-    memcpy(m_stateBuffer, state.m_stateBuffer, s_finalStateSize);
+    assert(state.m_stateBuffer);
+    m_stateBuffer = (uint8_t*) malloc(state.m_stateBufferSize);
+    m_stateBufferSize = state.m_stateBufferSize;
+    memcpy(m_stateBuffer, state.m_stateBuffer, m_stateBufferSize);
     s_memFile = state.s_memFile;
 }
 
 S2EDeviceState::S2EDeviceState(klee::ExecutionState *state):m_deviceState(state)
 {
     m_stateBuffer = NULL;
+    m_stateBufferSize = 0;
     s_memFile = NULL;
 }
 
@@ -194,32 +193,11 @@ void S2EDeviceState::saveDeviceState()
     }
     //DPRINTF("\n");
     qemu_fflush(s_memFile);
-    initFirstSnapshot();
-}
-
-void S2EDeviceState::initFirstSnapshot()
-{
-    if (s_finalStateSize) {
-        return;
-    }
-
-    assert(!m_stateBuffer && s_tempStateBuffer && s_tempStateSize);
-    m_stateBuffer = (uint8_t*) malloc(s_tempStateSize);
-    if (!m_stateBuffer) {
-        llvm::errs() << "S2EDeviceState: could not allocate memory\n";
-        exit(-1);
-    }
-
-    memcpy(m_stateBuffer, s_tempStateBuffer, s_tempStateSize);
-    s_finalStateSize = s_tempStateSize;
-    free(s_tempStateBuffer);
-    s_tempStateBuffer = NULL;
-    s_tempStateSize = 0;
 }
 
 void S2EDeviceState::restoreDeviceState()
 {
-    assert(s_finalStateSize && m_stateBuffer);
+    assert(m_stateBuffer);
 
     qemu_make_readable(s_memFile);
     //DPRINTF("Restoring device state %p\n", this);
@@ -236,31 +214,28 @@ void S2EDeviceState::restoreDeviceState()
 /*****************************************************************************/
 /*****************************************************************************/
 
-void S2EDeviceState::allocateBuffer(unsigned int Sz)
+void S2EDeviceState::allocateBuffer(unsigned int size)
 {
-    if (Sz < s_tempStateSize) {
+    if (size < m_stateBufferSize) {
         return;
     }
 
     /* Need to expand the buffer */
-    s_tempStateSize = Sz;
-    s_tempStateBuffer = (uint8_t*) realloc(s_tempStateBuffer, s_tempStateSize);
-    if (!s_tempStateBuffer) {
+    uint8_t *new_buffer = (uint8_t*) realloc(m_stateBuffer, size);
+    if (!new_buffer) {
         cerr << "Cannot reallocate memory for device state snapshot" << endl;
         exit(-1);
     }
+    m_stateBuffer = new_buffer;
+    m_stateBufferSize = size;
 }
 
 int S2EDeviceState::putBuffer(const uint8_t *buf, int64_t pos, int size)
 {
     uint8_t *dest;
 
-    if (!m_stateBuffer) {
-        allocateBuffer(pos + size);
-        dest = &s_tempStateBuffer[pos];
-    } else {
-        dest = &m_stateBuffer[pos];
-    }
+    allocateBuffer(pos + size);
+    dest = &m_stateBuffer[pos];
 
     memcpy(dest, buf, size);
     return size;
@@ -269,7 +244,7 @@ int S2EDeviceState::putBuffer(const uint8_t *buf, int64_t pos, int size)
 int S2EDeviceState::getBuffer(uint8_t *buf, int64_t pos, int size)
 {
     assert(m_stateBuffer);
-    int toCopy = pos + size <= s_finalStateSize ? size : s_finalStateSize - pos;
+    int toCopy = pos + size <= m_stateBufferSize ? size : m_stateBufferSize - pos;
     memcpy(buf, &m_stateBuffer[pos], toCopy);
     return size;
 

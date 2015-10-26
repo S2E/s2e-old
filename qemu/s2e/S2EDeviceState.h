@@ -68,14 +68,8 @@ private:
 
     static QEMUFile *s_memFile;
 
-    /* Scratch buffer for the first snapshot */
-    static uint8_t *s_tempStateBuffer;
-
-    /* Once determined, the size of the device state is constant */
-    static unsigned s_tempStateSize;
-    static unsigned s_finalStateSize;
-
     uint8_t *m_stateBuffer;
+    unsigned m_stateBufferSize;
 
 
     static llvm::SmallVector<struct BlockDriverState*, 5> s_blockDevices;
@@ -85,8 +79,6 @@ private:
 
     static unsigned getBlockDeviceId(struct BlockDriverState* dev);
     static uint64_t getBlockDeviceStart(struct BlockDriverState* dev);
-
-    void initFirstSnapshot();
 
 public:
     S2EDeviceState(klee::ExecutionState *state);
