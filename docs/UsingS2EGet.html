@@ -11,7 +11,7 @@
 <div class="document" id="quickly-uploading-programs-to-the-guest-with-s2eget">
 <h1 class="title">Quickly Uploading Programs to the Guest with <tt class="docutils literal">s2eget</tt></h1>
 
-<p>The <tt class="docutils literal">s2eget</tt> tool allows to easily download files from the host into the guest in
+<p>The <tt class="docutils literal">s2eget</tt> tool allows to easily upload files from the host into the guest in
 S2E mode. The typical use case for this tool is to set up a VM snapshot that, when
 resumed in S2E mode, automatically downloads a program from the host and starts
 symbolically executing it.</p>
@@ -24,12 +24,14 @@ symbolically executing it.</p>
 </div>
 <div class="section" id="setting-up-hostfiles-plugin">
 <h1>Setting up HostFiles Plugin</h1>
-<p>To use <tt class="docutils literal">s2eget</tt>, you enable the <tt class="docutils literal">HostFiles</tt> plugin in the S2E configuration file.
-Add the following lines to your <tt class="docutils literal">config.lua</tt> file:</p>
+<p>To use <tt class="docutils literal">s2eget</tt>, enable the <tt class="docutils literal">HostFiles</tt> plugin in the S2E configuration file.
+Here is a minimal <tt class="docutils literal">config.lua</tt> to use <tt class="docutils literal">s2eget</tt>:</p>
 <div class="highlight"><pre><span class="n">plugins</span> <span class="o">=</span> <span class="p">{</span>
-  <span class="o">...</span>
+  <span class="s2">&quot;</span><span class="s">BaseInstructions&quot;</span><span class="p">,</span>
   <span class="s2">&quot;</span><span class="s">HostFiles&quot;</span>
 <span class="p">}</span>
+
+<span class="n">pluginsConfig</span> <span class="o">=</span> <span class="p">{}</span>
 
 <span class="n">pluginsConfig</span><span class="p">.</span><span class="n">HostFiles</span> <span class="o">=</span> <span class="p">{</span>
   <span class="n">baseDirs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;</span><span class="s">/path/to/host/dir1&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">/path/to/host/dir2&quot;</span><span class="p">}</span>
@@ -42,20 +44,40 @@ will be exported.</p>
 </div>
 <div class="section" id="running-s2eget">
 <h1>Running <tt class="docutils literal">s2eget</tt></h1>
-<p>First, boot the VM in the S2E version of QEMU in non-S2E mode. Copy <tt class="docutils literal">s2eget</tt>
-into the guest over SSH (or any other method). Then run the tool, for example,
-as follows:</p>
+<p>We need to copy the <tt class="docutils literal">s2eget</tt> binary into the guest image.</p>
+<ol class="arabic">
+<li><p class="first">Boot the VM in the S2E version of QEMU in non-S2E mode:</p>
+<pre class="literal-block">
+host$ $S2EDIR/build/qemu-release/i386-softmmu/qemu-system-i386 s2e_disk.raw.s2e
+</pre>
+</li>
+<li><p class="first">Copy <tt class="docutils literal">s2eget</tt> into the guest over SSH (or any other method).</p>
+</li>
+<li><p class="first">Launch <tt class="docutils literal">s2eget</tt>, for example, as follows:</p>
 <pre class="literal-block">
 guest$ ./s2eget &lt;filename&gt; &amp;&amp; chmod +x ./&lt;filename&gt; &amp;&amp; ./&lt;filename&gt;
 </pre>
 <p>where <tt class="docutils literal">&lt;filename&gt;</tt> specifies what file to download from the host and execute
 in the guest.</p>
-<p>When being run like that in non-S2E mode, <tt class="docutils literal">s2eget</tt> simply waits. At that
-point, save the VM snapshot and then load it in S2E mode. <tt class="docutils literal">s2eget</tt> will
-detect it and download the file. The rest of the command line will make it
-executable and execute it.</p>
-<p>Note that you could resume this snapshot as many times as you want, changing
-the program and/or trying different S2E options.</p>
+<p>When being run like that in non-S2E mode, <tt class="docutils literal">s2eget</tt> simply waits.</p>
+</li>
+<li><p class="first">Save a VM snapshot (e.g., call it &quot;ready&quot;)</p>
+</li>
+<li><p class="first">Resume the snapshot in S2E mode. Here is an example of how to start in S2E mode:</p>
+<pre class="literal-block">
+host$ $S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu-system-i386 s2e_disk.raw.s2e -s2e-config-file config.lua -loadvm ready
+</pre>
+<p><tt class="docutils literal">s2eget</tt> detects that it runs in
+S2E mode and downloads the file. The rest of the command line makes
+the downloaded file executable and then executes it.</p>
+</li>
+</ol>
+<p>The most convenient way of using S2E is to download a bootstrap file
+with <tt class="docutils literal">s2eget</tt>, then launch the bootstrap file after resuming in
+S2E mode. The bootstrap file can further use <tt class="docutils literal">s2eget</tt> to download
+and execute more files. This way, you can resume the snapshot as
+many times as you want, changing the code to run in S2E just by
+tweaking the bootstrap file.</p>
 </div>
 </div>
 <div class="footer">
