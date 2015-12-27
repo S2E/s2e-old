@@ -64,6 +64,8 @@ StackFrame::~StackFrame() {
 ExecutionState::ExecutionState(KFunction *kf) 
   : fakeState(false),
     underConstrained(false),
+    m_is_carry_on_state(false),//epeius
+    m_silently_concretized(false),//epeius
     depth(0),
     pc(kf->instructions),
     prevPC(pc),
@@ -83,6 +85,8 @@ ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
   : fakeState(true),
     underConstrained(false),
     constraints(assumptions),
+    m_is_carry_on_state(false),//epeius
+    m_silently_concretized(false),//epeius
     queryCost(0.),
     addressSpace(this),
     ptreeNode(0),

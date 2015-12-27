@@ -1459,7 +1459,8 @@ ExecutionState* S2EExecutor::selectNonSpeculativeState(S2EExecutionState *state)
             //The engine must make sure that such a state
             //satisfies all the path constraints.
             if (!resolveSpeculativeState(*newState)) {
-                terminateState(*newState);
+                g_s2e->getDebugStream() << "selectNonSpeculativeState: terminateState\n";
+            	terminateState(*newState);
                 updateStates(state);
                 continue;
             }
@@ -1529,6 +1530,10 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         vm_stop(RUN_STATE_SAVE_VM);
         doStateSwitch(state, newState);
         vm_start();
+        g_s2e->getCorePlugin()->onStateSwitchEnd.emit(state, newState);
+		if(newState->m_is_carry_on_state){ // 在这里判断是否为种子状态
+			newState = selectNextState(newState);
+		}
     }
 
     //We can't free the state immediately if it is the current state.
