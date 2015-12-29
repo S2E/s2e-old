@@ -512,6 +512,7 @@ s2eobj-y += s2e/Plugins/Searchers/MaxTbSearcher.o
 
 #epeius plug-ins
 s2eobj-y += s2e/Plugins/AFLControllers/AutoShFileGenerator.o
+s2eobj-y += s2e/Plugins/AFLControllers/ForkController.o
 #epeius end
 
 #sqlite database is deprecated now
