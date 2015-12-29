@@ -688,40 +688,41 @@ bool FuzzySearcher::generateCaseFile(S2EExecutionState *state, std::string destf
 #define BUFFER_SIZE 4
 bool FuzzySearcher::copyfile(const char* fromfile, const char* tofile) {
 	int from_fd, to_fd;
-	int bytes_read, bytes_write;
-	char buffer[BUFFER_SIZE];
-	char *ptr;
+		int bytes_read, bytes_write;
+		char buffer[BUFFER_SIZE];
+		char *ptr;
 
-	{
-		fprintf(stderr, "Open %s Error:%s\n", fromfile, strerror(errno));
-		return false;
-	}
-	if ((to_fd = open(tofile, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR)) == -1) {
-		fprintf(stderr, "Open %s Error:%s\n", tofile, strerror(errno));
-		return false;
-	}
-	while ((bytes_read = read(from_fd, buffer, BUFFER_SIZE))) {
-		if ((bytes_read == -1) && (errno != EINTR))
-			break;
-		else if (bytes_read > 0) {
-			ptr = buffer;
-			while ((bytes_write = write(to_fd, ptr, bytes_read))) {
-				if ((bytes_write == -1) && (errno != EINTR))
-					break;
-				else if (bytes_write == bytes_read)
-					break;
-				else if (bytes_write > 0) {
-					ptr += bytes_write;
-					bytes_read -= bytes_write;
-				}
-			}
-			if (bytes_write == -1)
-				break;
+		if ((from_fd = open(fromfile, O_RDONLY)) == -1) /*open file readonly*/
+		{
+			fprintf(stderr, "Open %s Error:%s\n", fromfile, strerror(errno));
+			return false;
 		}
-	}
-	close(from_fd);
-	close(to_fd);
-	return true;
+		if ((to_fd = open(tofile, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR)) == -1) {
+			fprintf(stderr, "Open %s Error:%s\n", tofile, strerror(errno));
+			return false;
+		}
+		while ((bytes_read = read(from_fd, buffer, BUFFER_SIZE))) {
+			if ((bytes_read == -1) && (errno != EINTR))
+				break;
+			else if (bytes_read > 0) {
+				ptr = buffer;
+				while ((bytes_write = write(to_fd, ptr, bytes_read))) {
+					if ((bytes_write == -1) && (errno != EINTR))
+						break;
+					else if (bytes_write == bytes_read)
+						break;
+					else if (bytes_write > 0) {
+						ptr += bytes_write;
+						bytes_read -= bytes_write;
+					}
+				}
+				if (bytes_write == -1)
+					break;
+			}
+		}
+		close(from_fd);
+		close(to_fd);
+		return true;
 }
 
 void FuzzySearcher::onModuleLoad(S2EExecutionState* state, const ModuleDescriptor &md){
