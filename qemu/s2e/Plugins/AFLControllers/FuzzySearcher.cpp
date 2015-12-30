@@ -69,7 +69,7 @@ extern "C" {
 #include <llvm/Support/Path.h>
 #include "FileUtil.h"
 
-#define DEBUG
+//#define DEBUG
 
 extern "C" void kbd_put_keycode(int keycode);
 
@@ -114,7 +114,8 @@ void FuzzySearcher::initialize()
 			getConfigKey() + ".aflBinaryMode", false, &ok);
 	m_MAXLOOPs = s2e()->getConfig()->getInt(getConfigKey() + ".MaxLoops", 10,
 			&ok);
-
+	m_verbose = s2e()->getConfig()->getBool(
+			getConfigKey() + ".debugVerbose", false, &ok);
 	m_symbolicfilename = s2e()->getConfig()->getString(
 			cfgkey + ".symbolicfilename", "testcase", &ok);
 	m_inicasepool = s2e()->getConfig()->getString(cfgkey + ".inicasepool",
@@ -344,11 +345,10 @@ void FuzzySearcher::onStateSwitchEnd(S2EExecutionState *currentState,
 	}
 	// if S2E only has the carry on state, then carry on to next iteration
 	if (nextState && nextState->m_is_carry_on_state) {
-#ifdef DEBUG
-		s2e()->getDebugStream()
-				<< "FuzzySearcher: We only have the seed state, now fetching new testcase.\n";
-#endif
-		//
+		if(m_verbose){
+			s2e()->getDebugStream()
+					<< "FuzzySearcher: We only have the seed state, now fetching new testcase.\n";
+		}
 		assert(m_AFLStarted && "AFL has not started, why?");
 		{
 			std::stringstream ssAflQueue;
@@ -358,10 +358,11 @@ void FuzzySearcher::onStateSwitchEnd(S2EExecutionState *currentState,
 			std::vector<std::string> taskfiles;
 			int taskcount = FileUtil::count_file(ssAflQueue.str().c_str(),
 					taskfiles);
-#ifdef DEBUG
-			s2e()->getDebugStream() << "FuzzySearcher: we found " << taskcount
-					<< " testcase(s) in " << ssAflQueue.str() << "\n";
-#endif
+			if(m_verbose){
+				s2e()->getDebugStream() << "FuzzySearcher: we found " << taskcount
+						<< " testcase(s) in " << ssAflQueue.str() << "\n";
+			}
+
 			typeof(taskfiles.begin()) it = taskfiles.begin();
 			while (it != taskfiles.end()) {
 				std::stringstream taskfile;
@@ -374,11 +375,11 @@ void FuzzySearcher::onStateSwitchEnd(S2EExecutionState *currentState,
 				taskfile << (*it).c_str();
 				std::stringstream bckfile;
 				bckfile << m_inicasepool.c_str() << filename;
-#ifdef DEBUG
-				s2e()->getDebugStream() << "FuzzySearcher: Copying filename: "
-						<< taskfile.str() << " from the queue to"
-								" filename: " << bckfile.str() << "\n";
-#endif
+				if(m_verbose){
+					s2e()->getDebugStream() << "FuzzySearcher: Copying filename: "
+							<< taskfile.str() << " from the queue to"
+									" filename: " << bckfile.str() << "\n";
+				}
 				FileUtil::copyfile(taskfile.str().c_str(),
 						bckfile.str().c_str(), false, false);
 				it++;
@@ -403,10 +404,10 @@ void FuzzySearcher::onStateKill(S2EExecutionState *currentState)
 				<< "-" << currentState->getID() << "-" << m_symbolicfilename; // Lopp-StateID-m_symbolicfilename
 		destfilename = ssgeneratedCase.str();
 	}
-#ifdef DEBUG
-	s2e()->getDebugStream() << "FuzzySearcher: Generating testcase: "
-			<< destfilename << ".\n";
-#endif
+	if(m_verbose){
+		s2e()->getDebugStream() << "FuzzySearcher: Generating testcase: "
+				<< destfilename << ".\n";
+	}
 	generateCaseFile(currentState, destfilename);
 	/*
 	 * AFLROOT=/home/epeius/work/afl-1.96b
@@ -418,10 +419,10 @@ void FuzzySearcher::onStateKill(S2EExecutionState *currentState)
 		aflCmdline << m_aflRoot << "afl-fuzz -m 4096M -t 5000 -i "
 				<< generated_dir << " -o " << m_aflOutputpool
 				<< (m_aflBinaryMode ? " -Q " : "") << m_aflAppArgs << " &";
-#ifdef DEBUG
-		s2e()->getDebugStream() << "FuzzySearcher: AFL command line is: "
-				<< aflCmdline.str() << "\n";
-#endif
+		if(m_verbose){
+			s2e()->getDebugStream() << "FuzzySearcher: AFL command line is: "
+					<< aflCmdline.str() << "\n";
+		}
 		system(aflCmdline.str().c_str()); //we don't want to suspend it, so we add "&":
 		m_AFLStarted = true;
 	}
@@ -466,9 +467,9 @@ klee::Executor::StatePair FuzzySearcher::prepareNextState(
 	m_current_conditon++;
 
 	if (m_loops >= m_MAXLOOPs) { //reach the maximum
-#ifdef DEBUG
-		s2e()->getDebugStream() << "FuzzySearcher: Ready to exit\n";
-#endif
+		if(m_verbose){
+			s2e()->getDebugStream() << "FuzzySearcher: Ready to exit\n";
+		}
 		try {
 			char cmd[] = "pgrep -l afl-fuzz";
 			FILE *pp = popen(cmd, "r");
@@ -485,20 +486,18 @@ klee::Executor::StatePair FuzzySearcher::prepareNextState(
 				std::string str_tmp = tmp;
 				str_tmp = str_tmp.substr(0, str_tmp.find_first_of(' '));
 				int tmpPid = atoi(str_tmp.c_str());
-#ifdef DEBUG
-				s2e()->getDebugStream() << "FuzzySearcher: try to kill pid: "
-						<< tmpPid << "\n";
-#endif
+				if(m_verbose){
+					s2e()->getDebugStream() << "FuzzySearcher: try to kill pid: " << tmpPid << "\n";
+				}
 				kill(tmpPid, SIGKILL);
 			}
 			pclose(pp); //close pipe
 		} catch (...) {
 			s2e()->getDebugStream() << "FuzzySearcher: Cannot kill AFL, why?\n";
 		}
-#ifdef DEBUG
-		s2e()->getDebugStream()
-				<< "FuzzySearcher: Reach the maxmium iteration, quitting...\n";
-#endif
+		if(m_verbose){
+			s2e()->getDebugStream() << "FuzzySearcher: Reach the maxmium iteration, quitting...\n";
+		}
 
 		qemu_system_shutdown_request(); //This invocation will cause illegal instruction (ud2) if there has no return for current function
 		return sp;
@@ -507,10 +506,10 @@ klee::Executor::StatePair FuzzySearcher::prepareNextState(
 	//fetch a new testcase from pool
 	getNewCaseFromPool(fs);
 	m_loops += 1;
-#ifdef DEBUG
-	s2e()->getDebugStream() << "FuzzySearcher: Ready to start " << m_loops
-			<< " iteration(s).\n";
-#endif
+	if(m_verbose){
+		s2e()->getDebugStream() << "FuzzySearcher: Ready to start " << m_loops
+				<< " iteration(s).\n";
+	}
 
 	m_key_enter_sent = false;
 	CorePlugin *plg = s2e()->getCorePlugin();
@@ -537,10 +536,10 @@ void FuzzySearcher::onTimer()
 			}
 			kbd_put_keycode(keycode & 0x7f);
 
-#ifdef DEBUG
-			s2e()->getDebugStream()
-					<< "FuzzySearcher: Automatically sent kp_enter to QEMU.\n";
-#endif
+			if(m_verbose){
+				s2e()->getDebugStream()
+						<< "FuzzySearcher: Automatically sent kp_enter to QEMU.\n";
+			}
 			//kbd_put_keycode(keycode);
 			m_key_enter_sent = true;
 			m_timerconn.disconnect();
@@ -561,10 +560,10 @@ S2EExecutionState* FuzzySearcher::getNewCaseFromPool(S2EExecutionState* instate)
 		std::vector<std::string> taskfiles;
 		int taskcount = FileUtil::count_file(this->m_inicasepool.c_str(),
 				taskfiles);
-#ifdef DEBUG
-		s2e()->getDebugStream() << "FuzzySearcher: Find " << taskcount
-				<< " testcases in the queue.\n";
-#endif
+		if(m_verbose){
+			s2e()->getDebugStream() << "FuzzySearcher: Find " << taskcount
+					<< " testcases in the queue.\n";
+		}
 		int maxfile = 0;
 		std::string selectedcasename;
 		// select random a file to handle
@@ -586,10 +585,10 @@ S2EExecutionState* FuzzySearcher::getNewCaseFromPool(S2EExecutionState* instate)
 			try {
 				std::stringstream taskfile;
 				taskfile << selectedcasename;
-#ifdef DEBUG
-				s2e()->getDebugStream() << "FuzzySearcher: Selecting filename: "
-						<< selectedcasename << " from the queue.\n";
-#endif
+				if(m_verbose){
+					s2e()->getDebugStream() << "FuzzySearcher: Selecting filename: "
+							<< selectedcasename << " from the queue.\n";
+				}
 				//copy this to queue and rename it.
 				const char *filename = basename(selectedcasename.c_str());
 				if (!filename) {
@@ -599,21 +598,21 @@ S2EExecutionState* FuzzySearcher::getNewCaseFromPool(S2EExecutionState* instate)
 				}
 				std::stringstream bckfile;
 				bckfile << m_curcasepool.c_str() << filename;
-#ifdef DEBUG
-				s2e()->getDebugStream() << "FuzzySearcher: Copying filename: "
-						<< taskfile.str() << " from the queue to"
-								" filename: " << bckfile.str() << "\n";
-#endif
+				if(m_verbose){
+					s2e()->getDebugStream() << "FuzzySearcher: Copying filename: "
+							<< taskfile.str() << " from the queue to"
+									" filename: " << bckfile.str() << "\n";
+				}
 				FileUtil::copyfile(taskfile.str().c_str(),
 						bckfile.str().c_str(), false, false);
 
 				std::stringstream rnmfile;
 				rnmfile << m_curcasepool.c_str() << m_symbolicfilename;
-#ifdef DEBUG
-				s2e()->getDebugStream() << "FuzzySearcher: Renaming filename: "
-						<< bckfile.str() << " from the queue to"
-								" filename: " << rnmfile.str() << "\n";
-#endif
+				if(m_verbose){
+					s2e()->getDebugStream() << "FuzzySearcher: Renaming filename: "
+							<< bckfile.str() << " from the queue to"
+									" filename: " << rnmfile.str() << "\n";
+				}
 				FileUtil::renamefile(bckfile.str().c_str(),
 						rnmfile.str().c_str());
 			} catch (...) {
@@ -656,8 +655,7 @@ bool FuzzySearcher::generateCaseFile(S2EExecutionState *state,
 	std::string delim_str = "_";
 	const char *delim = delim_str.c_str();
 	char *p;
-	char maxvarname[1024] =
-	{ 0 };
+	char maxvarname[1024] = { 0 };
 	ConcreteInputs out;
 	bool success = s2e()->getExecutor()->getSymbolicSolution(*state, out);
 
@@ -803,11 +801,11 @@ void FuzzySearcher::slotExecuteBlockStart(S2EExecutionState *state, uint64_t pc)
 	if (!curMd) {
 		return;
 	}
-#ifdef DEBUG
-	s2e()->getDebugStream(state)
-			<< "FuzzySearcher: Find module when executing, we are in "
-			<< curMd->Name << ", current BB is: " << hexval(pc) << ".\n";
-#endif
+	if(m_verbose){
+		s2e()->getDebugStream(state)
+				<< "FuzzySearcher: Find module when executing, we are in "
+				<< curMd->Name << ", current BB is: " << hexval(pc) << ".\n";
+	}
 	// do work here.
 	if (!m_AFLStarted)			//let AFL create the bitmap
 		return;
@@ -832,7 +830,7 @@ void FuzzySearcher::slotExecuteBlockStart(S2EExecutionState *state, uint64_t pc)
 			s2e()->getDebugStream(state)
 					<< "FuzzySearcher: Failed to update AFL bitmap.\n";
 #else
-		bool success = plgState->updateAFLBitmapSHM(m_aflBitmapSHM, pc);
+		plgState->updateAFLBitmapSHM(m_aflBitmapSHM, pc);
 #endif
 	}
 }
@@ -870,10 +868,10 @@ bool FuzzySearcher::getAFLBitmapSHM()
 			}
 			m_aflBitmapSHM = (unsigned char*) afl_area_ptr;
 			m_findBitMapSHM = true;
-#ifdef DEBUG
-			s2e()->getDebugStream() << "FuzzySearcher: Share memory id is "
-					<< shm_id << "\n";
-#endif
+			if(m_verbose){
+				s2e()->getDebugStream() << "FuzzySearcher: Share memory id is "
+						<< shm_id << "\n";
+			}
 		} catch (...) {
 			return false;
 		}

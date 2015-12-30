@@ -155,6 +155,8 @@ private:
 	int m_loops;	//current iteration
 	int m_MAXLOOPs;	//stop condition
 
+	bool m_verbose; //verbose debug output
+
 public:
 	FuzzySearcher(S2E* s2e) :
 			Plugin(s2e)
@@ -174,6 +176,7 @@ public:
 		m_findBitMapSHM = false;
 		m_AFLStarted = false;
 		m_aflBinaryMode = false;
+		m_verbose = false;
 	}
 	virtual ~FuzzySearcher();
 	void initialize();
