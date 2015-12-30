@@ -113,6 +113,7 @@ ARCHIVE = AFL-1.96b.zip
 BITMAP = /tmp/aflbitmap
 BUILDQEMUSH = build_qemu_support.sh 
 AFLQEMUARCHIVE = $(AFL_DIR)/qemu_mode/qemu-2.3.0.tar.bz2
+QEMUBUILDFLAG = $(AFL_DIR)/qemu_mode/qemubuiltflag
 stamps/afl-make:
 ifneq ($(ARCHIVE), $(wildcard $(ARCHIVE)))
 	@echo "[*] Downloading afl from the web..."
@@ -127,9 +128,13 @@ endif
 	@echo "[*] Attempting to build afl (fingers crossed!)..."
 	cd $(AFL_DIR) && touch $(BITMAP) && make || exit 1 
 	@echo "[+] Build process successful!"
+ifneq ($(QEMUBUILDFLAG), $(wildcard $(QEMUBUILDFLAG)))
 	@echo "[*] Attempting to build AFL-QEMU (fingers crossed!)..."
-	cd $(AFL_DIR)/qemu_mode && sh $(BUILDQEMUSH) || exit 1
+	cd $(AFL_DIR)/qemu_mode && sh $(BUILDQEMUSH) && touch $(QEMUBUILDFLAG) || exit 1
 	@echo "[+] Build process successful!"
+else
+	@echo "[+] QEMU has been built, go ahead."
+endif
 
 #############
 # Downloads #
