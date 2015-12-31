@@ -67,7 +67,6 @@ extern "C" {
 #include <llvm/Support/TimeValue.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Path.h>
-#include "FileUtil.h"
 
 //#define DEBUG
 
@@ -114,8 +113,8 @@ void FuzzySearcher::initialize()
 			getConfigKey() + ".aflBinaryMode", false, &ok);
 	m_MAXLOOPs = s2e()->getConfig()->getInt(getConfigKey() + ".MaxLoops", 10,
 			&ok);
-	m_verbose = s2e()->getConfig()->getBool(
-			getConfigKey() + ".debugVerbose", false, &ok);
+	m_verbose = s2e()->getConfig()->getBool(getConfigKey() + ".debugVerbose",
+			false, &ok);
 	m_symbolicfilename = s2e()->getConfig()->getString(
 			cfgkey + ".symbolicfilename", "testcase", &ok);
 	m_inicasepool = s2e()->getConfig()->getString(cfgkey + ".inicasepool",
@@ -345,7 +344,7 @@ void FuzzySearcher::onStateSwitchEnd(S2EExecutionState *currentState,
 	}
 	// if S2E only has the carry on state, then carry on to next iteration
 	if (nextState && nextState->m_is_carry_on_state) {
-		if(m_verbose){
+		if (m_verbose) {
 			s2e()->getDebugStream()
 					<< "FuzzySearcher: We only have the seed state, now fetching new testcase.\n";
 		}
@@ -353,36 +352,55 @@ void FuzzySearcher::onStateSwitchEnd(S2EExecutionState *currentState,
 		{
 			std::stringstream ssAflQueue;
 			ssAflQueue << m_aflOutputpool << "queue/";
-			FileUtil::cleardir(m_inicasepool.c_str());
-			FileUtil::cleardir(m_curcasepool.c_str());
-			std::vector<std::string> taskfiles;
-			int taskcount = FileUtil::count_file(ssAflQueue.str().c_str(),
-					taskfiles);
-			if(m_verbose){
-				s2e()->getDebugStream() << "FuzzySearcher: we found " << taskcount
-						<< " testcase(s) in " << ssAflQueue.str() << "\n";
+			llvm::sys::Path inicasepool_llvm(m_inicasepool);
+			llvm::sys::Path curcasepool_llvm(m_curcasepool);
+			llvm::sys::Path aflqueuecasepool_llvm(ssAflQueue.str());
+			std::set<llvm::sys::Path> taskfiles;
+			std::set<llvm::sys::Path> oldfiles;
+			std::string ErrorMsg;
+			// clear the initial testcase pool
+			if (!inicasepool_llvm.getDirectoryContents(oldfiles, &ErrorMsg)) {
+				typeof(oldfiles.begin()) it = oldfiles.begin();
+				while (it != oldfiles.end()) {
+					(*it).eraseFromDisk();
+					it++;
+				}
 			}
 
-			typeof(taskfiles.begin()) it = taskfiles.begin();
-			while (it != taskfiles.end()) {
-				std::stringstream taskfile;
-				const char *filename = basename((*it).c_str());
-				if (!filename) {
-					s2e()->getDebugStream()
-							<< "FuzzySearcher: Could not allocate memory for file basename.\n";
-					exit(0); // must be interrupted
+			if (!aflqueuecasepool_llvm.getDirectoryContents(taskfiles,
+					&ErrorMsg))
+			{
+				int taskcount = taskfiles.size();
+				if (m_verbose) {
+					s2e()->getDebugStream() << "FuzzySearcher: we found "
+							<< taskcount << " testcase(s) in "
+							<< ssAflQueue.str() << "\n";
 				}
-				taskfile << (*it).c_str();
-				std::stringstream bckfile;
-				bckfile << m_inicasepool.c_str() << filename;
-				if(m_verbose){
-					s2e()->getDebugStream() << "FuzzySearcher: Copying filename: "
-							<< taskfile.str() << " from the queue to"
-									" filename: " << bckfile.str() << "\n";
+				typeof(taskfiles.begin()) it = taskfiles.begin();
+				while (it != taskfiles.end()) {
+					std::string fullfilename = (*it).str();
+					const char *filename = basename(fullfilename.c_str());
+					if (!strcmp(filename, ".")) {
+						it++;
+						continue;
+					}
+					if (!strcmp(filename, "..")) {
+						it++;
+						continue;
+					}
+					//std::string filename = (*it).filename();
+					std::stringstream bckfile;
+					bckfile << m_inicasepool.c_str() << filename;
+					if (m_verbose) {
+						s2e()->getDebugStream()
+								<< "FuzzySearcher: Copying filename: "
+								<< (*it).str() << " from the queue to"
+										" filename: " << bckfile.str() << "\n";
+					}
+					copyfile(fullfilename.c_str(), bckfile.str().c_str());
+					it++;
 				}
-				FileUtil::copyfile(taskfile.str().c_str(),
-						bckfile.str().c_str(), false, false);
-				it++;
+
 			}
 		}
 		prepareNextState(nextState);
@@ -404,7 +422,7 @@ void FuzzySearcher::onStateKill(S2EExecutionState *currentState)
 				<< "-" << currentState->getID() << "-" << m_symbolicfilename; // Lopp-StateID-m_symbolicfilename
 		destfilename = ssgeneratedCase.str();
 	}
-	if(m_verbose){
+	if (m_verbose) {
 		s2e()->getDebugStream() << "FuzzySearcher: Generating testcase: "
 				<< destfilename << ".\n";
 	}
@@ -419,11 +437,11 @@ void FuzzySearcher::onStateKill(S2EExecutionState *currentState)
 		aflCmdline << m_aflRoot << "afl-fuzz -m 4096M -t 5000 -i "
 				<< generated_dir << " -o " << m_aflOutputpool
 				<< (m_aflBinaryMode ? " -Q " : "") << m_aflAppArgs << " &";
-		if(m_verbose){
+		if (m_verbose) {
 			s2e()->getDebugStream() << "FuzzySearcher: AFL command line is: "
 					<< aflCmdline.str() << "\n";
 		}
-		system(aflCmdline.str().c_str()); //we don't want to suspend it, so we add "&":
+		//system(aflCmdline.str().c_str()); //we don't want to suspend it, so we add "&":
 		m_AFLStarted = true;
 	}
 }
@@ -467,46 +485,15 @@ klee::Executor::StatePair FuzzySearcher::prepareNextState(
 	m_current_conditon++;
 
 	if (m_loops >= m_MAXLOOPs) { //reach the maximum
-		if(m_verbose){
+		if (m_verbose) {
 			s2e()->getDebugStream() << "FuzzySearcher: Ready to exit\n";
 		}
-		try {
-			char cmd[] = "pgrep -l afl-fuzz";
-			FILE *pp = popen(cmd, "r");
-			if (!pp) {
-				s2e()->getDebugStream()
-						<< "FuzzySearcher: Cannot open the pipe to read\n";
-				exit(0);
-			}
-			char tmp[128]; //
-			while (fgets(tmp, sizeof(tmp), pp) != NULL) {
-				if (tmp[strlen(tmp) - 1] == '\n') {
-					tmp[strlen(tmp) - 1] = '\0';
-				}
-				std::string str_tmp = tmp;
-				str_tmp = str_tmp.substr(0, str_tmp.find_first_of(' '));
-				int tmpPid = atoi(str_tmp.c_str());
-				if(m_verbose){
-					s2e()->getDebugStream() << "FuzzySearcher: try to kill pid: " << tmpPid << "\n";
-				}
-				kill(tmpPid, SIGKILL);
-			}
-			pclose(pp); //close pipe
-		} catch (...) {
-			s2e()->getDebugStream() << "FuzzySearcher: Cannot kill AFL, why?\n";
-		}
-		if(m_verbose){
-			s2e()->getDebugStream() << "FuzzySearcher: Reach the maxmium iteration, quitting...\n";
-		}
-
-		qemu_system_shutdown_request(); //This invocation will cause illegal instruction (ud2) if there has no return for current function
-		return sp;
+		CleanAndQuit();
 	}
-
 	//fetch a new testcase from pool
 	getNewCaseFromPool(fs);
 	m_loops += 1;
-	if(m_verbose){
+	if (m_verbose) {
 		s2e()->getDebugStream() << "FuzzySearcher: Ready to start " << m_loops
 				<< " iteration(s).\n";
 	}
@@ -536,7 +523,7 @@ void FuzzySearcher::onTimer()
 			}
 			kbd_put_keycode(keycode & 0x7f);
 
-			if(m_verbose){
+			if (m_verbose) {
 				s2e()->getDebugStream()
 						<< "FuzzySearcher: Automatically sent kp_enter to QEMU.\n";
 			}
@@ -547,6 +534,43 @@ void FuzzySearcher::onTimer()
 	}
 
 }
+
+void FuzzySearcher::CleanAndQuit()
+{
+	try {
+		char cmd[] = "pgrep -l afl-fuzz";
+		FILE *pp = popen(cmd, "r");
+		if (!pp) {
+			s2e()->getDebugStream()
+					<< "FuzzySearcher: Cannot open the pipe to read\n";
+			exit(0);
+		}
+		char tmp[128]; //
+		while (fgets(tmp, sizeof(tmp), pp) != NULL) {
+			if (tmp[strlen(tmp) - 1] == '\n') {
+				tmp[strlen(tmp) - 1] = '\0';
+			}
+			std::string str_tmp = tmp;
+			str_tmp = str_tmp.substr(0, str_tmp.find_first_of(' '));
+			int tmpPid = atoi(str_tmp.c_str());
+			if (m_verbose) {
+				s2e()->getDebugStream() << "FuzzySearcher: try to kill pid: "
+						<< tmpPid << "\n";
+			}
+			kill(tmpPid, SIGKILL);
+		}
+		pclose(pp); //close pipe
+	} catch (...) {
+		s2e()->getDebugStream() << "FuzzySearcher: Cannot kill AFL, why?\n";
+	}
+	if (m_verbose) {
+		s2e()->getDebugStream()
+				<< "FuzzySearcher: Reach the maxmium iteration, quitting...\n";
+	}
+
+	qemu_system_shutdown_request(); //XXX:This invocation will cause illegal instruction (ud2) if there has no return for current function
+	exit(0);
+}
 /**
  * Fetch a new testcase
  */
@@ -554,74 +578,75 @@ S2EExecutionState* FuzzySearcher::getNewCaseFromPool(S2EExecutionState* instate)
 {
 	bool done = false;
 	int idlecounter = 0;
+	llvm::sys::Path inicasepool_llvm(m_inicasepool);
+	llvm::sys::Path curcasepool_llvm(m_curcasepool);
+	std::set<llvm::sys::Path> oldfiles;
+	std::string ErrorMsg;
+	// clear the current testcase pool
+	if (!curcasepool_llvm.getDirectoryContents(oldfiles, &ErrorMsg)) {
+		typeof(oldfiles.begin()) it = oldfiles.begin();
+		while (it != oldfiles.end()) {
+			(*it).eraseFromDisk();
+			it++;
+		}
+	}
 	while (!done) {
 		sleep(1);
 		idlecounter++;
-		std::vector<std::string> taskfiles;
-		int taskcount = FileUtil::count_file(this->m_inicasepool.c_str(),
-				taskfiles);
-		if(m_verbose){
-			s2e()->getDebugStream() << "FuzzySearcher: Find " << taskcount
-					<< " testcases in the queue.\n";
-		}
-		int maxfile = 0;
-		std::string selectedcasename;
-		// select random a file to handle
-		try {
-			maxfile = taskcount;
-			int selectindex = maxfile - 1;
-			if (maxfile > 0) {
-				selectindex = rand() % maxfile;
-				selectedcasename = taskfiles[selectindex];
+		std::set<llvm::sys::Path> taskfiles;
+		std::string ErrorMsg;
+		if (!inicasepool_llvm.getDirectoryContents(taskfiles, &ErrorMsg)) {
+			int taskcount = taskfiles.size();
+			if (m_verbose) {
+				s2e()->getDebugStream() << "FuzzySearcher: Find " << taskcount
+						<< " testcases in the queue.\n";
+			}
+			if (taskcount <= 0) {
+				//pass
 			} else {
-				continue;
-			}
-		} catch (...) {
-			continue;
-		}
+				int selectindex = rand() % taskcount;
+				typeof(taskfiles.begin()) it = taskfiles.begin();
+				while (it != taskfiles.end()) {
+					std::string fullfilename = (*it).str();
+					const char *filename = basename(fullfilename.c_str());
+					if (!filename) {
+						s2e()->getDebugStream()
+								<< "FuzzySearcher: Could not allocate memory for file basename ---2.\n";
+						exit(0); // must be interrupted
+					}
+					if (!strcmp(filename, ".") || !strcmp(filename, "..")) {
+						it++;
+						continue;
+					} else {
+						if (!selectindex) {
+							try { // try to fetch this testcase and rename it so that the s2e guest can get it
+								std::stringstream bckfile;
+								bckfile << m_curcasepool.c_str()
+										<< m_symbolicfilename;
+								if (m_verbose) {
+									s2e()->getDebugStream()
+											<< "FuzzySearcher: Copying filename: "
+											<< fullfilename
+											<< " from the queue to"
+													" filename: "
+											<< bckfile.str() << "\n";
+								}
+								copyfile(fullfilename.c_str(),
+										bckfile.str().c_str());
+								done = true;
+								break;
+							} catch (...) {
+								it++;
+							}
+						} else {
+							selectindex -= 1;
+							it++;
+						}
+					}
+				}
 
-		if (maxfile > 0) {
-			std::string cachefile = "";
-			try {
-				std::stringstream taskfile;
-				taskfile << selectedcasename;
-				if(m_verbose){
-					s2e()->getDebugStream() << "FuzzySearcher: Selecting filename: "
-							<< selectedcasename << " from the queue.\n";
-				}
-				//copy this to queue and rename it.
-				const char *filename = basename(selectedcasename.c_str());
-				if (!filename) {
-					s2e()->getDebugStream()
-							<< "FuzzySearcher: Could not allocate memory for file basename ---2.\n";
-					exit(0); // must be interrupted
-				}
-				std::stringstream bckfile;
-				bckfile << m_curcasepool.c_str() << filename;
-				if(m_verbose){
-					s2e()->getDebugStream() << "FuzzySearcher: Copying filename: "
-							<< taskfile.str() << " from the queue to"
-									" filename: " << bckfile.str() << "\n";
-				}
-				FileUtil::copyfile(taskfile.str().c_str(),
-						bckfile.str().c_str(), false, false);
-
-				std::stringstream rnmfile;
-				rnmfile << m_curcasepool.c_str() << m_symbolicfilename;
-				if(m_verbose){
-					s2e()->getDebugStream() << "FuzzySearcher: Renaming filename: "
-							<< bckfile.str() << " from the queue to"
-									" filename: " << rnmfile.str() << "\n";
-				}
-				FileUtil::renamefile(bckfile.str().c_str(),
-						rnmfile.str().c_str());
-			} catch (...) {
-				continue;
 			}
-		} else {
-			continue;
 		}
-		done = true;
 	}
 	return instate;
 }
@@ -655,7 +680,8 @@ bool FuzzySearcher::generateCaseFile(S2EExecutionState *state,
 	std::string delim_str = "_";
 	const char *delim = delim_str.c_str();
 	char *p;
-	char maxvarname[1024] = { 0 };
+	char maxvarname[1024] =
+	{ 0 };
 	ConcreteInputs out;
 	bool success = s2e()->getExecutor()->getSymbolicSolution(*state, out);
 
@@ -801,7 +827,7 @@ void FuzzySearcher::slotExecuteBlockStart(S2EExecutionState *state, uint64_t pc)
 	if (!curMd) {
 		return;
 	}
-	if(m_verbose){
+	if (m_verbose) {
 		s2e()->getDebugStream(state)
 				<< "FuzzySearcher: Find module when executing, we are in "
 				<< curMd->Name << ", current BB is: " << hexval(pc) << ".\n";
@@ -821,14 +847,14 @@ void FuzzySearcher::slotExecuteBlockStart(S2EExecutionState *state, uint64_t pc)
 		 */
 #ifdef DEBUG
 		s2e()->getDebugStream(state)
-				<< "FuzzySearcher: Ready to update AFL bitmap.\n";
+		<< "FuzzySearcher: Ready to update AFL bitmap.\n";
 		bool success = plgState->updateAFLBitmapSHM(m_aflBitmapSHM, pc);
 		if (success)
-			s2e()->getDebugStream(state)
-					<< "FuzzySearcher: Successfully updated AFL bitmap.\n";
+		s2e()->getDebugStream(state)
+		<< "FuzzySearcher: Successfully updated AFL bitmap.\n";
 		else
-			s2e()->getDebugStream(state)
-					<< "FuzzySearcher: Failed to update AFL bitmap.\n";
+		s2e()->getDebugStream(state)
+		<< "FuzzySearcher: Failed to update AFL bitmap.\n";
 #else
 		plgState->updateAFLBitmapSHM(m_aflBitmapSHM, pc);
 #endif
@@ -868,7 +894,7 @@ bool FuzzySearcher::getAFLBitmapSHM()
 			}
 			m_aflBitmapSHM = (unsigned char*) afl_area_ptr;
 			m_findBitMapSHM = true;
-			if(m_verbose){
+			if (m_verbose) {
 				s2e()->getDebugStream() << "FuzzySearcher: Share memory id is "
 						<< shm_id << "\n";
 			}

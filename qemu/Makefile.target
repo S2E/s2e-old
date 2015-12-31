@@ -513,7 +513,6 @@ s2eobj-y += s2e/Plugins/Searchers/MaxTbSearcher.o
 #epeius plug-ins
 s2eobj-y += s2e/Plugins/AFLControllers/AutoShFileGenerator.o
 s2eobj-y += s2e/Plugins/AFLControllers/ForkController.o
-s2eobj-y += s2e/Plugins/AFLControllers/FileUtil.o #file utils, more easily
 s2eobj-y += s2e/Plugins/AFLControllers/FuzzySearcher.o #Core plug-in so that we can exchange sth. with AFL
 #epeius end
 

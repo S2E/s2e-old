@@ -127,6 +127,7 @@ public:
 	void onStateKill(S2EExecutionState *State);
 	bool generateCaseFile(S2EExecutionState *state, std::string templatefile);
 	static bool copyfile(const char* fromfile, const char* tofile);
+	void CleanAndQuit(void);
 private:
 	/**
 	 * schduelar
