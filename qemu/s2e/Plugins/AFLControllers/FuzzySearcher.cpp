@@ -348,6 +348,25 @@ void FuzzySearcher::onStateSwitchEnd(S2EExecutionState *currentState,
 			s2e()->getDebugStream()
 					<< "FuzzySearcher: We only have the seed state, now fetching new testcase.\n";
 		}
+		/*
+		 * AFLROOT=/home/epeius/work/afl-1.96b
+		 * $AFLROOT/afl-fuzz -m 4096M -t 50000 -i /home/epeius/work/DSlab.EPFL/FinalTest/evincetest/seeds/ -o /home/epeius/work/DSlab.EPFL/FinalTest/evincetest/res/ -Q /usr/bin/evince @@
+		 */
+		if (!m_AFLStarted) { //if AFL not started, then starts it
+			std::stringstream aflCmdline;
+			std::string generated_dir = s2e()->getOutputDirectory() + "/testcases";
+			aflCmdline << m_aflRoot << "afl-fuzz -m 4096M -t 5000 -i "
+					<< generated_dir << " -o " << m_aflOutputpool
+					<< (m_aflBinaryMode ? " -Q " : "") << m_aflAppArgs << " &";
+			if (m_verbose) {
+				s2e()->getDebugStream() << "FuzzySearcher: AFL command line is: "
+						<< aflCmdline.str() << "\n";
+			}
+			system(aflCmdline.str().c_str()); //we don't want to suspend it, so we add "&":
+			m_AFLStarted = true;
+			sleep(10);//let us wait for new testcases
+		}
+
 		assert(m_AFLStarted && "AFL has not started, why?");
 		{
 			std::stringstream ssAflQueue;
@@ -427,23 +446,6 @@ void FuzzySearcher::onStateKill(S2EExecutionState *currentState)
 				<< destfilename << ".\n";
 	}
 	generateCaseFile(currentState, destfilename);
-	/*
-	 * AFLROOT=/home/epeius/work/afl-1.96b
-	 * $AFLROOT/afl-fuzz -m 4096M -t 50000 -i /home/epeius/work/DSlab.EPFL/FinalTest/evincetest/seeds/ -o /home/epeius/work/DSlab.EPFL/FinalTest/evincetest/res/ -Q /usr/bin/evince @@
-	 */
-	if (!m_AFLStarted) { //if AFL not started, then starts it
-		std::stringstream aflCmdline;
-		std::string generated_dir = s2e()->getOutputDirectory() + "/testcases";
-		aflCmdline << m_aflRoot << "afl-fuzz -m 4096M -t 5000 -i "
-				<< generated_dir << " -o " << m_aflOutputpool
-				<< (m_aflBinaryMode ? " -Q " : "") << m_aflAppArgs << " &";
-		if (m_verbose) {
-			s2e()->getDebugStream() << "FuzzySearcher: AFL command line is: "
-					<< aflCmdline.str() << "\n";
-		}
-		//system(aflCmdline.str().c_str()); //we don't want to suspend it, so we add "&":
-		m_AFLStarted = true;
-	}
 }
 
 klee::Executor::StatePair FuzzySearcher::prepareNextState(
