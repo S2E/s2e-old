@@ -101,3 +101,40 @@ To be accepted, your code must follow the following rules:
    Please be as thorough as possible in the documentation. The clearer it is, the fewer questions will be asked.
 
 3. Notes about coding style/commits/commit messages, etc. described in the previous section also apply here.
+
+
+Submitting bug reports
+======================
+
+We need the following to debug S2E crashes:
+
+0. Ideally, we prefer an SSH login to the machine that contains your environment so that we can
+   debug live. This method has been pretty effective in the past and might be the easiest for
+   you to set up. Otherwise, see the next points:
+
+1. A stack trace for the crash + ``s2e-last`` folder + git revision of the S2E source you used.
+   Make sure to use the latest revision of the master branch if possible.
+   If you have changed the S2E source or need custom plugins, first check that
+   you can reproduce the bug with vanilla S2E. Otherwise, please read point 3 and 4 below.
+
+2. A guest image that is ready to run and a script to launch it. You must build your image in such a way that it
+   can be launched by a script. We should not have to type any commands or do any sort
+   of manipulation in the guest. We will reject your image if we spend more than 10 minutes trying
+   to run it.
+
+   Try to make the smallest image possible. If you can reproduce the bug with a 128 MB RAM guest,
+   do not submit an image that uses 512 MB. We prefer minimal Debian images
+   (no desktop, etc.), unless of course your project requires a specific setup.
+
+   Guest images can be quite large, feel free to use Dropbox, Gdrive, or any other
+   online service that suits you. Make sure that the interface for your download service is in english.
+   We should be able to download your image in a few clicks.
+
+If we cannot reproduce the bugs with the information you gave us above, we will ask you:
+
+3. A Virtual Box VM containing the host environment and the S2E guest.
+   It must come with a Vagrant file to minimize setup time on our side.
+   Check that you can reproduce the bug in such an environment first.
+   If not, see the next point.
+
+4. An SSH login so that we can debug live.
