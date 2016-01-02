@@ -51,25 +51,25 @@ class AutoShFileGenerator: public Plugin
 {
 S2E_PLUGIN
 
-	typedef std::pair<std::string, std::vector<unsigned char> > VarValuePair;
-	typedef std::vector<VarValuePair> ConcreteInputs;
-	std::string m_command_str;  //cmdline string
-	std::string m_command_file; // where to generate the file
-	std::string m_current_command;
-	void onStateKill(S2EExecutionState* state);
+    typedef std::pair<std::string, std::vector<unsigned char> > VarValuePair;
+    typedef std::vector<VarValuePair> ConcreteInputs;
+    std::string m_command_str;  //cmdline string
+    std::string m_command_file; // where to generate the file
+    std::string m_current_command;
+    void onStateKill(S2EExecutionState* state);
 
-	std::string m_randtemplate;
+    std::string m_randtemplate;
 
 public:
-	AutoShFileGenerator(S2E* s2e);
-	void initialize();
-	void generateCmdFile();
-	virtual ~AutoShFileGenerator();
-	std::string replace_randtemplate(std::string in_str);
-	std::string getCurrentCommand()
-	{
-		return m_current_command;
-	}
+    AutoShFileGenerator(S2E* s2e);
+    void initialize();
+    void generateCmdFile();
+    virtual ~AutoShFileGenerator();
+    std::string replace_randtemplate(std::string in_str);
+    std::string getCurrentCommand()
+    {
+        return m_current_command;
+    }
 };
 
 } /* namespace plugins */

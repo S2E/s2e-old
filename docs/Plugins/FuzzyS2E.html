@@ -126,8 +126,8 @@ forkRanges ={
 <div class="highlight"><pre><span class="c1">-- File: config.lua</span>
 <span class="n">s2e</span> <span class="o">=</span> <span class="p">{</span>
    <span class="n">kleeArgs</span> <span class="o">=</span> <span class="p">{</span>
-      <span class="s2">&quot;</span><span class="s">--use-concolic-execution=true&quot;</span><span class="p">,</span>
-      <span class="s2">&quot;</span><span class="s">--use-dfs-search=true&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;</span><span class="s">--use-concolic-execution=true&quot;</span><span class="p">,</span> <span class="c1">-- FuzzyS2E should be run in concolic mode</span>
+      <span class="s2">&quot;</span><span class="s">--use-dfs-search=true&quot;</span><span class="p">,</span> <span class="c1">-- It is not very important whether to specify the searcher for S2E</span>
    <span class="p">}</span>
 <span class="p">}</span>
 
@@ -144,6 +144,7 @@ forkRanges ={
 
 <span class="n">pluginsConfig</span> <span class="o">=</span> <span class="p">{}</span>
 
+<span class="c1">-- Enable guest OS to communicate with host OS</span>
 <span class="n">pluginsConfig</span><span class="p">.</span><span class="n">HostFiles</span> <span class="o">=</span> <span class="p">{</span>
    <span class="n">baseDirs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;</span><span class="s">/path/to/host &quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">/host/path to/cur&quot;</span><span class="p">}</span>
 <span class="p">}</span>
@@ -155,17 +156,26 @@ forkRanges ={
    <span class="n">kernelStart</span> <span class="o">=</span> <span class="mh">0xc0000000</span><span class="p">,</span>
 <span class="p">}</span>
 
+<span class="c1">-- ModuleExecutionDetector can help us to incept the module load event</span>
 <span class="n">pluginsConfig</span><span class="p">.</span><span class="n">ModuleExecutionDetector</span> <span class="o">=</span> <span class="p">{</span>
    <span class="n">trackAllModules</span><span class="o">=</span><span class="kc">false</span><span class="p">,</span>
    <span class="n">configureAllModules</span><span class="o">=</span><span class="kc">false</span><span class="p">,</span>
 <span class="p">}</span>
 
+<span class="c1">-- Enable us to perform more fine-grained fork control</span>
 <span class="n">pluginsConfig</span><span class="p">.</span><span class="n">ForkController</span> <span class="o">=</span> <span class="p">{</span>
    <span class="n">forkRanges</span> <span class="o">=</span><span class="p">{</span>
       <span class="n">r01</span> <span class="o">=</span> <span class="p">{</span><span class="mh">0x8048000</span><span class="p">,</span> <span class="mh">0x8049000</span><span class="p">},</span>
    <span class="p">},</span>
 <span class="p">}</span>
 
+<span class="c1">-- Core search plugin to schedule states and communication with AFL fuzzer</span>
+<span class="cm">--[[</span>
+<span class="cm">   *FuzzyS2E will start with a random concrete input file in &quot;inicasepool&quot; in host, and copy it to &quot;curcasepool&quot; in host and rename it as &quot;symbolicfilename&quot;.</span>
+<span class="cm">   *Then guest OS will get the &quot;AutoShFileGenerator.command_file&quot; from host and execute it, which will first mark the file with name of &quot;symbolicfilename&quot; as symbolic and start to execute &quot;mainModule&quot;. At a proper time stamp, \</span>
+<span class="cm">AFL will be started from &quot;aflRoot&quot; and its output directory is set to &quot;aflOutput&quot;, the target application auguments could be &quot;aflAppArgs&quot;, in which the input file is replaced with &quot;@@&quot;.</span>
+<span class="cm">   *Finally when FuzzyS2E executes for &quot;MaxLoops&quot; iterations, it stops both S2E and AFL.</span>
+<span class="cm">]]</span><span class="c1">--</span>
 <span class="n">pluginsConfig</span><span class="p">.</span><span class="n">FuzzySearcher</span> <span class="o">=</span> <span class="p">{</span>
    <span class="n">symbolicfilename</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">aa.txt&quot;</span><span class="p">,</span>
    <span class="n">inicasepool</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">/host/path/to/initialtestcasepool&quot;</span><span class="p">,</span>
@@ -180,6 +190,8 @@ forkRanges ={
    <span class="n">MaxLoops</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span>
    <span class="n">debugVerbose</span> <span class="o">=</span> <span class="kc">false</span><span class="p">,</span>
 <span class="p">}</span>
+
+<span class="c1">-- Generate shell script for guest OS to avoid tedious manual work</span>
 <span class="n">pluginsConfig</span><span class="p">.</span><span class="n">AutoShFileGenerator</span><span class="o">=</span><span class="p">{</span>
    <span class="n">command_str</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="s">#!/bin/bash </span><span class="se">\n</span><span class="s"> /guest/path/to/s2eget aa.txt &amp;&amp; cp aa.txt /tmp/aa.txt  &amp;&amp; /guest/path/to/s2ecmd symbfile /tmp/aa.txt &amp;&amp; LD_PRELOAD=/guest/path/to/init_env.so /guest/path/to/app --select-process-code /tmp/aa.txt&#39;</span><span class="p">,</span>
    <span class="n">command_file</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">/host/path/to/autostart.sh&quot;</span><span class="p">,</span>
@@ -196,7 +208,7 @@ guest$ $GUEST-TOOLs/s2eget autostart.sh &amp;&amp; chmod +x ./autostart.sh &amp;
 </pre>
 <p>A self-contained  VM image has been put on the Internet, and you can download it and have a try.</p>
 <ul class="simple">
-<li><a class="reference external" href="http://pan.baidu.com/s/1c1zsuM8">FuzzyS2E VM Image</a>. The Internet extract password is 'fs2d' (without the quto).</li>
+<li><a class="reference external" href="https://drive.google.com/file/d/0B6yf7Wx5zFZ7a3RKU1pXTFZBZk0/view?usp=sharing">FuzzyS2E VM Image</a>.</li>
 </ul>
 <dl class="docutils">
 <dt>The user and password for fuzzys2e is:</dt>

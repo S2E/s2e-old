@@ -50,27 +50,27 @@ class ForkController: public Plugin
 {
 S2E_PLUGIN
 
-	ModuleExecutionDetector *m_detector;
-	RangeEntries m_forkRanges;
+    ModuleExecutionDetector *m_detector;
+    RangeEntries m_forkRanges;
 
 public:
-	virtual ~ForkController();
-	ForkController(S2E* s2e) :
-			Plugin(s2e)
-	{
-		m_detector = NULL;
-	}
-	void initialize();
+    virtual ~ForkController();
+    ForkController(S2E* s2e) :
+            Plugin(s2e)
+    {
+        m_detector = NULL;
+    }
+    void initialize();
 
 public:
-	void slotExecuteBlockStart(S2EExecutionState* state, uint64_t pc);
-	void slotExecuteBlockEnd(S2EExecutionState* state, uint64_t pc);
+    void slotExecuteBlockStart(S2EExecutionState* state, uint64_t pc);
+    void slotExecuteBlockEnd(S2EExecutionState* state, uint64_t pc);
 
-	void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState*,
-			TranslationBlock*, uint64_t);
-	void onTranslateBlockEnd(ExecutionSignal *signal, S2EExecutionState* state,
-			TranslationBlock *tb, uint64_t endPc, bool staticTarget,
-			uint64_t targetPc);
+    void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState*,
+            TranslationBlock*, uint64_t);
+    void onTranslateBlockEnd(ExecutionSignal *signal, S2EExecutionState* state,
+            TranslationBlock *tb, uint64_t endPc, bool staticTarget,
+            uint64_t targetPc);
 };
 
 } // namespace plugins

@@ -77,13 +77,13 @@ extern "C" {
 namespace s2e {
 namespace plugins {
 S2E_DEFINE_PLUGIN(AutoShFileGenerator, "AutoShFileGenerator plugin",
-		"AutoShFileGenerator",);
+        "AutoShFileGenerator",);
 
 AutoShFileGenerator::AutoShFileGenerator(S2E* s2e) :
-		Plugin(s2e)
+        Plugin(s2e)
 {
-	m_current_command = " ";
-	m_randtemplate = "{seed}";
+    m_current_command = " ";
+    m_randtemplate = "{seed}";
 }
 
 AutoShFileGenerator::~AutoShFileGenerator()
@@ -91,48 +91,48 @@ AutoShFileGenerator::~AutoShFileGenerator()
 }
 void AutoShFileGenerator::initialize()
 {
-	bool ok = false;
-	m_command_file = s2e()->getConfig()->getString(
-			getConfigKey() + ".command_file", "", &ok);
-	if (!ok) {
-		s2e()->getWarningsStream() << "You must specifiy "
-				<< getConfigKey() + ".command_file" << '\n';
-		exit(-1);
-	}
-	m_command_str = s2e()->getConfig()->getString(
-			getConfigKey() + ".command_str", "", &ok);
-	if (!ok) {
-		s2e()->getWarningsStream() << "You must specifiy"
-				<< getConfigKey() + ".command_str" << "in XXX{seed}XXX form\n";
-		exit(-1);
-	}
-	s2e()->getCorePlugin()->onStateKill.connect(
-	sigc::mem_fun(*this, &AutoShFileGenerator::onStateKill));
+    bool ok = false;
+    m_command_file = s2e()->getConfig()->getString(
+            getConfigKey() + ".command_file", "", &ok);
+    if (!ok) {
+        s2e()->getWarningsStream() << "You must specifiy "
+                << getConfigKey() + ".command_file" << '\n';
+        exit(-1);
+    }
+    m_command_str = s2e()->getConfig()->getString(
+            getConfigKey() + ".command_str", "", &ok);
+    if (!ok) {
+        s2e()->getWarningsStream() << "You must specifiy"
+                << getConfigKey() + ".command_str" << "in XXX{seed}XXX form\n";
+        exit(-1);
+    }
+    s2e()->getCorePlugin()->onStateKill.connect(
+    sigc::mem_fun(*this, &AutoShFileGenerator::onStateKill));
 
-	generateCmdFile();
+    generateCmdFile();
 }
 void AutoShFileGenerator::generateCmdFile()
 {
-	std::ofstream cfile(m_command_file.c_str());
-	//Here we give a random replace so that we can randomly mark symbolic in s2ecmd
-	m_current_command = replace_randtemplate(m_command_str);
-	cfile << m_current_command;
-	cfile.close();
+    std::ofstream cfile(m_command_file.c_str());
+    //Here we give a random replace so that we can randomly mark symbolic in s2ecmd
+    m_current_command = replace_randtemplate(m_command_str);
+    cfile << m_current_command;
+    cfile.close();
 }
 void AutoShFileGenerator::onStateKill(S2EExecutionState* state)
 {
-	generateCmdFile();
+    generateCmdFile();
 }
 std::string AutoShFileGenerator::replace_randtemplate(std::string in_str)
 {
-	std::string out_str = in_str;
-	int pos = in_str.find(m_randtemplate);
-	std::stringstream target;
-	target << rand() % 65536;
-	if (in_str.find(m_randtemplate) != std::string::npos) {
-		out_str = in_str.replace(pos, m_randtemplate.length(), target.str());
-	}
-	return out_str;
+    std::string out_str = in_str;
+    int pos = in_str.find(m_randtemplate);
+    std::stringstream target;
+    target << rand() % 65536;
+    if (in_str.find(m_randtemplate) != std::string::npos) {
+        out_str = in_str.replace(pos, m_randtemplate.length(), target.str());
+    }
+    return out_str;
 }
 } /* namespace plugins */
 } /* namespace s2e */

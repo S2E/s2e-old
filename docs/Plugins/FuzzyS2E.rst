@@ -127,8 +127,8 @@ A Sample Complete Configure File
    -- File: config.lua
    s2e = {
       kleeArgs = {
-         "--use-concolic-execution=true",
-         "--use-dfs-search=true",
+         "--use-concolic-execution=true", -- FuzzyS2E should be run in concolic mode
+         "--use-dfs-search=true", -- It is not very important whether to specify the searcher for S2E
       }
    }
 
@@ -145,6 +145,7 @@ A Sample Complete Configure File
 
    pluginsConfig = {}
 
+   -- Enable guest OS to communicate with host OS 
    pluginsConfig.HostFiles = {
       baseDirs = {"/path/to/host ", "/host/path to/cur"}
    }
@@ -156,17 +157,26 @@ A Sample Complete Configure File
       kernelStart = 0xc0000000,
    }
 
+   -- ModuleExecutionDetector can help us to incept the module load event
    pluginsConfig.ModuleExecutionDetector = {
       trackAllModules=false,
       configureAllModules=false,
    }
 
+   -- Enable us to perform more fine-grained fork control
    pluginsConfig.ForkController = {
       forkRanges ={
          r01 = {0x8048000, 0x8049000},
       },
    }
 
+   -- Core search plugin to schedule states and communication with AFL fuzzer
+   --[[
+      *FuzzyS2E will start with a random concrete input file in "inicasepool" in host, and copy it to "curcasepool" in host and rename it as "symbolicfilename". 
+      *Then guest OS will get the "AutoShFileGenerator.command_file" from host and execute it, which will first mark the file with name of "symbolicfilename" as symbolic and start to execute "mainModule". At a proper time stamp, \
+   AFL will be started from "aflRoot" and its output directory is set to "aflOutput", the target application auguments could be "aflAppArgs", in which the input file is replaced with "@@". 
+      *Finally when FuzzyS2E executes for "MaxLoops" iterations, it stops both S2E and AFL.
+   ]]--
    pluginsConfig.FuzzySearcher = {
       symbolicfilename = "aa.txt",
       inicasepool = "/host/path/to/initialtestcasepool",
@@ -181,6 +191,8 @@ A Sample Complete Configure File
       MaxLoops = 50,
       debugVerbose = false,
    }
+
+   -- Generate shell script for guest OS to avoid tedious manual work
    pluginsConfig.AutoShFileGenerator={
       command_str = '#!/bin/bash \n /guest/path/to/s2eget aa.txt && cp aa.txt /tmp/aa.txt  && /guest/path/to/s2ecmd symbfile /tmp/aa.txt && LD_PRELOAD=/guest/path/to/init_env.so /guest/path/to/app --select-process-code /tmp/aa.txt',
       command_file = "/host/path/to/autostart.sh",
@@ -197,7 +209,7 @@ guest’s shell, after that, FuzzyS2E will automatically start the testprocedure
 A self-contained  VM image has been put on the Internet, and you can download it and have a try.
 
 * `FuzzyS2E VM Image
-  <http://pan.baidu.com/s/1c1zsuM8>`_. The Internet extract password is 'fs2d' (without the quto).
+  <https://drive.google.com/file/d/0B6yf7Wx5zFZ7a3RKU1pXTFZBZk0/view?usp=sharing>`_.
 
 The user and password for fuzzys2e is:
    For the host OS::

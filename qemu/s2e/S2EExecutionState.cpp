@@ -1947,7 +1947,8 @@ void S2EExecutionState::dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned siz
         } else {
             concreteStore = os->getConcreteStore(true);
             for (unsigned i=0; i<length; ++i) {
-                if (_s2e_check_concrete(os, offset+i, 1)) {
+                //if (_s2e_check_concrete(os, offset+i, 1)) { // epeius has no choice to avoid segment fault but force to readRamConcrete (NOTE: too slow)
+                if (0) {
                     buf[i] = concreteStore[offset+i];
                 }else {
                     readRamConcrete(hostAddress+i, &buf[i], sizeof(buf[i]));
