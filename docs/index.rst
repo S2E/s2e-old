@@ -102,6 +102,13 @@ Miscellaneous Plugins
 * `FunctionMonitor <Plugins/FunctionMonitor.rst>`_ provides client plugins with events triggered when the guest code invokes specified functions.
 * `HostFiles <UsingS2EGet.rst>`_ allows to quickly upload files to the guest.
 
+FuzzyS2E Plugins
+---------------------
+
+These plugins allow you to exchange concrete testcases and runtime information with AFL fuzzer
+
+* `FuzzyS2E <Plugins/FuzzyS2E.rst>`_
+
 S²E Development
 ===============
 
