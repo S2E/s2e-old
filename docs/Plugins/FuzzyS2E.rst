@@ -36,6 +36,7 @@ Required Plugins
 	CodeSelector
 	AutoShFileGenerator
 	FuzzySearcher
+    LoopFuzzer
 	ForkController
 
 "BaseInstructions", "HostFiles", "RawMonitor", "ModuleExecutionDetector", and "CodeSelector" can be found in other documentation.
@@ -105,6 +106,13 @@ is shown as follows.::
 
 "debugVerbose" can be use to output more detail information when set to be true.
 
+LoopFuzzer
+=============
+
+LoopFuzzer is inherited from FuzzySearcher, and it is used to reduce the test scale. The mechanism is that when we get stuck in a symbolic value controlled loop, LoopFuzzer will disable forking in this loop and generate a testcase for this loop, then LoopFuzzer continues forking when we get out from this loop. Notethat the generated testcase will be uploaded to AFL as what does in FuzzySearcher.
+
+LoopFuzzer's configuration is identical to LoopFuzzer, but they have different functions.
+
 ForkController
 ==============
 
@@ -117,8 +125,30 @@ follows.::
    forkRanges ={
       r01 = {0x8048000, 0x8049000},
    },
+   mainModule="app",
+   loopfilename="/host/path/to/loopsfile",
 
 “forkRanges” infers to the code regions that you want FuzzyS2E to fork in.
+
+“mainModule” infers to our target binary name.
+
+“loopfilename” infers to the loop file which is generated from static analysis in host OS.
+
+NOTE:
+
+Static analysis component is now implemented based on `barf: A multiplatform open source Binary Analysis and Reverse engineering Framework <https://github.com/programa-stic/barf-project/blob/master/documentation/papers/barf.pdf>`_ as a plug-in of IDA pro. 
+
+The loop file contains all the start addresses (in decimal) of basic blocks of a loop in a line, the sample file is listed below.
+
+.. code-block:: lua
+
+   -- a sample loopfile
+   134513930 134513920 134513930 134513940 -- loop0
+   134513920 134513930 -- loop1
+   134514174 134514166 -- loop2
+   134514664 134514690 -- loop3
+   134514643 134514619 134514651 134514608 --loop4
+
 
 A Sample Complete Configure File
 ================================
@@ -168,6 +198,8 @@ A Sample Complete Configure File
       forkRanges ={
          r01 = {0x8048000, 0x8049000},
       },
+      mainModule="app",
+      loopfilename="/host/path/to/loopsfile"
    }
 
    -- Core search plugin to schedule states and communication with AFL fuzzer

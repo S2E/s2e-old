@@ -19,9 +19,10 @@
 <li><a class="reference internal" href="#required-plugins" id="id2">Required Plugins</a></li>
 <li><a class="reference internal" href="#autoshfilegenerator" id="id3">AutoShFileGenerator</a></li>
 <li><a class="reference internal" href="#fuzzysearcher" id="id4">FuzzySearcher</a></li>
-<li><a class="reference internal" href="#forkcontroller" id="id5">ForkController</a></li>
-<li><a class="reference internal" href="#a-sample-complete-configure-file" id="id6">A Sample Complete Configure File</a></li>
-<li><a class="reference internal" href="#start-testing-a-binary-software" id="id7">Start Testing a binary software</a></li>
+<li><a class="reference internal" href="#loopfuzzer" id="id5">LoopFuzzer</a></li>
+<li><a class="reference internal" href="#forkcontroller" id="id6">ForkController</a></li>
+<li><a class="reference internal" href="#a-sample-complete-configure-file" id="id7">A Sample Complete Configure File</a></li>
+<li><a class="reference internal" href="#start-testing-a-binary-software" id="id8">Start Testing a binary software</a></li>
 </ul>
 </div>
 <div class="section" id="what-is-fuzzys2e">
@@ -45,14 +46,15 @@ shown in another documentation soon.</p>
 <div class="section" id="required-plugins">
 <h1>Required Plugins</h1>
 <pre class="literal-block">
-BaseInstructions
-HostFiles
-RawMonitor
-ModuleExecutionDetector
-CodeSelector
-AutoShFileGenerator
-FuzzySearcher
-ForkController
+    BaseInstructions
+    HostFiles
+    RawMonitor
+    ModuleExecutionDetector
+    CodeSelector
+    AutoShFileGenerator
+    FuzzySearcher
+LoopFuzzer
+    ForkController
 </pre>
 <p>&quot;BaseInstructions&quot;, &quot;HostFiles&quot;, &quot;RawMonitor&quot;, &quot;ModuleExecutionDetector&quot;, and &quot;CodeSelector&quot; can be found in other documentation.</p>
 <p>Let see the detail configuration of the last three plug-in, i.e &quot;AutoShFileGenerator&quot;, &quot;FuzzySearcher&quot; and &quot;ForkController&quot;.</p>
@@ -107,6 +109,11 @@ debugVerbose = false,
 <p>“MaxLoops” specifies the stop condition, and we currently stop the testing procedure when it reaches to maximum iteration numbers.</p>
 <p>&quot;debugVerbose&quot; can be use to output more detail information when set to be true.</p>
 </div>
+<div class="section" id="loopfuzzer">
+<h1>LoopFuzzer</h1>
+<p>LoopFuzzer is inherited from FuzzySearcher, and it is used to reduce the test scale. The mechanism is that when we get stuck in a symbolic value controlled loop, LoopFuzzer will disable forking in this loop and generate a testcase for this loop, then LoopFuzzer continues forking when we get out from this loop. Notethat the generated testcase will be uploaded to AFL as what does in FuzzySearcher.</p>
+<p>LoopFuzzer's configuration is identical to LoopFuzzer, but they have different functions.</p>
+</div>
 <div class="section" id="forkcontroller">
 <h1>ForkController</h1>
 <p>S2E can control the fork in several levels of testing grain, like
@@ -118,8 +125,22 @@ follows.:</p>
 forkRanges ={
    r01 = {0x8048000, 0x8049000},
 },
+mainModule=&quot;app&quot;,
+loopfilename=&quot;/host/path/to/loopsfile&quot;,
 </pre>
 <p>“forkRanges” infers to the code regions that you want FuzzyS2E to fork in.</p>
+<p>“mainModule” infers to our target binary name.</p>
+<p>“loopfilename” infers to the loop file which is generated from static analysis in host OS.</p>
+<p>NOTE:</p>
+<p>Static analysis component is now implemented based on <a class="reference external" href="https://github.com/programa-stic/barf-project/blob/master/documentation/papers/barf.pdf">barf: A multiplatform open source Binary Analysis and Reverse engineering Framework</a> as a plug-in of IDA pro.</p>
+<p>The loop file contains all the start addresses (in decimal) of basic blocks of a loop in a line, the sample file is listed below.</p>
+<div class="highlight"><pre><span class="c1">-- a sample loopfile</span>
+<span class="mi">134513930</span> <span class="mi">134513920</span> <span class="mi">134513930</span> <span class="mi">134513940</span> <span class="c1">-- loop0</span>
+<span class="mi">134513920</span> <span class="mi">134513930</span> <span class="c1">-- loop1</span>
+<span class="mi">134514174</span> <span class="mi">134514166</span> <span class="c1">-- loop2</span>
+<span class="mi">134514664</span> <span class="mi">134514690</span> <span class="c1">-- loop3</span>
+<span class="mi">134514643</span> <span class="mi">134514619</span> <span class="mi">134514651</span> <span class="mi">134514608</span> <span class="c1">--loop4</span>
+</pre></div>
 </div>
 <div class="section" id="a-sample-complete-configure-file">
 <h1>A Sample Complete Configure File</h1>
@@ -167,6 +188,8 @@ forkRanges ={
    <span class="n">forkRanges</span> <span class="o">=</span><span class="p">{</span>
       <span class="n">r01</span> <span class="o">=</span> <span class="p">{</span><span class="mh">0x8048000</span><span class="p">,</span> <span class="mh">0x8049000</span><span class="p">},</span>
    <span class="p">},</span>
+   <span class="n">mainModule</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">app&quot;</span><span class="p">,</span>
+   <span class="n">loopfilename</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">/host/path/to/loopsfile&quot;</span>
 <span class="p">}</span>
 
 <span class="c1">-- Core search plugin to schedule states and communication with AFL fuzzer</span>
