@@ -1,7 +1,7 @@
 /*
  * S2E Selective Symbolic Execution Framework
  *
- * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ * Copyright (c) 2015, Information Security Laboratory, NUDT
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,10 +25,6 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Currently maintained by:
- *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *
  * All contributors are listed in S2E-AUTHORS file.
  *
@@ -522,7 +518,7 @@ void FuzzySearcher::CleanAndQuit()
         s2e()->getDebugStream()
                 << "FuzzySearcher: Reach the maxmium iteration, quitting...\n";
     }
-    if(m_shmID){
+    if (m_shmID) {
         // remove share memory
         std::stringstream IPCRMCmdline;
         IPCRMCmdline << "ipcrm -m " << m_shmID << " &";
@@ -599,7 +595,7 @@ S2EExecutionState* FuzzySearcher::getNewCaseFromPool(S2EExecutionState* instate)
         }
     }
     while (!done) {
-        sleep(1);
+        //
         idlecounter++;
         std::set<Path> taskfiles;
         std::string ErrorMsg;
@@ -633,11 +629,13 @@ S2EExecutionState* FuzzySearcher::getNewCaseFromPool(S2EExecutionState* instate)
                                         << m_symbolicfilename;
                                 if (m_verbose) {
                                     s2e()->getDebugStream()
-                                            << "FuzzySearcher: Copying filename: " << fullfilename
+                                            << "FuzzySearcher: Copying filename: "
+                                            << fullfilename
                                             << " from the queue to filename: "
                                             << bckfile.str() << "\n";
                                 }
-                                copyfile(fullfilename.c_str(), bckfile.str().c_str());
+                                copyfile(fullfilename.c_str(),
+                                        bckfile.str().c_str());
                                 done = true;
                                 break;
                             } catch (...) {
@@ -652,6 +650,8 @@ S2EExecutionState* FuzzySearcher::getNewCaseFromPool(S2EExecutionState* instate)
 
             }
         }
+        if (!done)
+            sleep(1);
     }
     return instate;
 }
@@ -688,7 +688,10 @@ bool FuzzySearcher::generateCaseFile(S2EExecutionState *state,
     char maxvarname[1024] =
     { 0 };
     ConcreteInputs out;
-    bool success = s2e()->getExecutor()->getSymbolicSolution(*state, out);
+    //HACK: we have to create a new temple state, otherwise getting solution in half of a state may drive to crash
+    klee::ExecutionState* exploitState = new klee::ExecutionState(*state);
+    bool success = s2e()->getExecutor()->getSymbolicSolution(*exploitState,
+            out);
 
     if (!success) {
         s2e()->getWarningsStream() << "Could not get symbolic solutions"

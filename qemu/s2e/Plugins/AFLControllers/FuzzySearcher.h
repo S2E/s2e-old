@@ -1,7 +1,7 @@
 /*
  * S2E Selective Symbolic Execution Framework
  *
- * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ * Copyright (c) 2015, Information Security Laboratory, NUDT
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,10 +25,6 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Currently maintained by:
- *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *
  * All contributors are listed in S2E-AUTHORS file.
  *
@@ -60,7 +56,7 @@ class FuzzySearcher;
 
 class FuzzySearcherState: public PluginState
 {
-private:
+public:
     FuzzySearcher* m_plugin;
     S2EExecutionState *m_state;
 public:
@@ -82,6 +78,8 @@ public:
 class FuzzySearcher: public Plugin, public klee::Searcher
 {
 S2E_PLUGIN
+
+public:
     struct SortById
     {
         bool operator ()(const klee::ExecutionState *_s1,
@@ -102,7 +100,7 @@ S2E_PLUGIN
     ModuleExecutionDetector *m_detector;
     HostFiles *m_hostFiles;
     AutoShFileGenerator *m_AutoShFileGenerator;
-public:
+
     bool m_autosendkey_enter;
     int64_t m_autosendkey_interval;
     bool m_key_enter_sent;
@@ -125,7 +123,7 @@ public:
     S2EExecutionState* getNewCaseFromPool(S2EExecutionState* instate);
     void slotFirstInstructionTranslateStart(ExecutionSignal *signal,
             S2EExecutionState *state, TranslationBlock *tb, uint64_t pc);
-    void onStateSwitchEnd(S2EExecutionState *currentState,
+    virtual void onStateSwitchEnd(S2EExecutionState *currentState,
             S2EExecutionState *nextState);
     void onStateKill(S2EExecutionState *State);
     bool generateCaseFile(S2EExecutionState *state, std::string templatefile);
@@ -133,7 +131,7 @@ public:
     void CleanAndQuit(void);
     void ClearbeforeCopyto(llvm::sys::Path &dstDir, llvm::sys::Path &srcDir);
 
-private:
+public:
     /**
      * schduelar
      */
@@ -187,7 +185,7 @@ public:
         m_verbose = false;
     }
     virtual ~FuzzySearcher();
-    void initialize();
+    virtual void initialize();
     /*
      sigc::signal<void,
      S2EExecutionState*,
