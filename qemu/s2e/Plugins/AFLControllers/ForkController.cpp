@@ -1,7 +1,7 @@
 /*
  * S2E Selective Symbolic Execution Framework
  *
- * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ * Copyright (c) 2015, Information Security Laboratory, NUDT
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,10 +26,6 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Currently maintained by:
- *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
- *
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
@@ -38,8 +34,9 @@
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
-
+#include <fstream>
 #include <iostream>
+
 namespace s2e {
 namespace plugins {
 S2E_DEFINE_PLUGIN(ForkController, "ForkController plugin", "ForkController",
@@ -92,32 +89,96 @@ void ForkController::initialize()
             m_forkRanges.insert(rg);
         }
     }
+
+    bool ok = false;
+    m_mainModule = s2e()->getConfig()->getString(getConfigKey() + ".mainModule",
+            "MainModule", &ok);
+    m_loopfilename = s2e()->getConfig()->getString(
+            getConfigKey() + ".loopfilename", "", &ok);
+
+    if (!(m_controlloop = getLoopsfromFile())) {
+        s2e()->getDebugStream()
+                << "ForkController: Cannot get statically configured loops from file: "
+                << m_loopfilename << "\n";
+    }
+
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin(
             "ModuleExecutionDetector"));
     if (m_detector) {
-        s2e()->getCorePlugin()->onTranslateBlockStart.connect(
-        sigc::mem_fun(*this, &ForkController::onTranslateBlockStart));
-        s2e()->getCorePlugin()->onTranslateBlockEnd.connect(
-        sigc::mem_fun(*this, &ForkController::onTranslateBlockEnd));
+        m_detector->onModuleTranslateBlockStart.connect(
+        sigc::mem_fun(*this, &ForkController::onModuleTranslateBlockStart));
+        m_detector->onModuleTranslateBlockEnd.connect(
+        sigc::mem_fun(*this, &ForkController::onModuleTranslateBlockEnd));
     }
 }
 
-void ForkController::onTranslateBlockStart(ExecutionSignal* es,
-        S2EExecutionState* state, TranslationBlock* tb, uint64_t pc)
+bool ForkController::getLoopsfromFile(void)
 {
-    if (!tb) {
-        return;
+    try {
+        std::ifstream loopfile(m_loopfilename.c_str());
+        if (loopfile) {
+            std::string str_loopbody;
+            while (getline(loopfile, str_loopbody)) {
+                std::stringstream str_loop(str_loopbody);
+                std::string str_BB;
+                LoopBody _loopbody;
+                while (getline(str_loop, str_BB, ' ')) {
+                    uint64_t bb = atoi(str_BB.c_str());
+                    // insert this bb to loopbody
+                    if (bb)
+                        _loopbody.insert(bb);
+                }
+                if (!_loopbody.empty()) {
+                    // insert this loopbody to loops
+                    std::set<uint64_t>::const_iterator it = _loopbody.begin();
+                    bool found = false;
+                    foreach2(rgit, m_forkRanges.begin(), m_forkRanges.end())
+                    {
+                        if (((*it) >= (*rgit).start) && ((*it) <= (*rgit).end))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found)
+                        m_loops.insert(_loopbody); // we are only interested in loops which locates in m_forkRanges.
+                }
+            }
+        } else {
+            return false;
+        }
+    } catch (...) {
+        return false;
     }
-    es->connect(sigc::mem_fun(*this, &ForkController::slotExecuteBlockStart));
+    return true;
 }
-void ForkController::onTranslateBlockEnd(ExecutionSignal *signal,
-        S2EExecutionState* state, TranslationBlock *tb, uint64_t endPc,
-        bool staticTarget, uint64_t targetPc)
+
+void ForkController::onModuleTranslateBlockStart(ExecutionSignal* es,
+        S2EExecutionState* state, const ModuleDescriptor &mod,
+        TranslationBlock* tb, uint64_t pc)
 {
     if (!tb) {
         return;
     }
-    signal->connect(sigc::mem_fun(*this, &ForkController::slotExecuteBlockEnd));
+    if (m_mainModule == mod.Name) { // we are only interested at our main module
+        es->connect(
+        sigc::mem_fun(*this, &ForkController::slotExecuteBlockStart));
+    }
+
+}
+void ForkController::onModuleTranslateBlockEnd(ExecutionSignal *signal,
+        S2EExecutionState* state, const ModuleDescriptor &module,
+        TranslationBlock *tb, uint64_t endPc, bool staticTarget,
+        uint64_t targetPc)
+{
+    if (!tb) {
+        return;
+    }
+    if (m_mainModule == module.Name) { // we are only interested at our main module
+        signal->connect(
+        sigc::mem_fun(*this, &ForkController::slotExecuteBlockEnd));
+    }
+
 }
 /**
  */
@@ -136,7 +197,26 @@ void ForkController::slotExecuteBlockStart(S2EExecutionState *state,
             }
         }
         if (found) {
+            DECLARE_PLUGINSTATE(ForkControllerState, state);
+            if (m_controlloop) {
+                foreach2(rgit, m_loops.begin(), m_loops.end())
+                {
+                    if ((*rgit).find(pc) != (*rgit).end()) {
+                        //state->disableForking(); // we could not allow in a symbolically executed loop
+                        if (!plgState->m_inloop) {
+                            plgState->m_inloop = true;
+                            onStuckinSymLoop.emit(state, pc);
+                        }
+                        return;
+                    }
+
+                }
+            }
             state->enableForking();
+            if (plgState->m_inloop) {
+                onGetoutfromSymLoop.emit(state, pc);
+                plgState->m_inloop = false;
+            }
         }
     }
 }

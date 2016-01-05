@@ -1,7 +1,7 @@
 /*
  * S2E Selective Symbolic Execution Framework
  *
- * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ * Copyright (c) 2015, Information Security Laboratory, NUDT
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,10 +26,6 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Currently maintained by:
- *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
- *
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
@@ -40,25 +36,62 @@
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
+#include <s2e/Signals/Signals.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 namespace s2e {
 namespace plugins {
 
+class ForkController;
+
+class ForkControllerState: public PluginState
+{
+private:
+    bool m_inloop; // whether we are in a configured loop
+
+public:
+    ForkControllerState()
+    {
+        m_inloop = false;
+    }
+
+    ~ForkControllerState()
+    {
+    }
+
+    static PluginState *factory(Plugin*, S2EExecutionState*)
+    {
+        return new ForkControllerState();
+    }
+
+    ForkControllerState *clone() const
+    {
+        return new ForkControllerState(*this);
+    }
+    friend class ForkController;
+};
+
 class ForkController: public Plugin
 {
 S2E_PLUGIN
 
+    typedef std::set<uint64_t> LoopBody;
+    typedef std::set<LoopBody> Loops;
     ModuleExecutionDetector *m_detector;
     RangeEntries m_forkRanges;
+    std::string m_mainModule;   // main module name (i.e. target binary)
+    std::string m_loopfilename; // loop file name
 
+    bool m_controlloop;
+    Loops m_loops;
 public:
     virtual ~ForkController();
     ForkController(S2E* s2e) :
             Plugin(s2e)
     {
         m_detector = NULL;
+        m_controlloop = false;
     }
     void initialize();
 
@@ -66,11 +99,23 @@ public:
     void slotExecuteBlockStart(S2EExecutionState* state, uint64_t pc);
     void slotExecuteBlockEnd(S2EExecutionState* state, uint64_t pc);
 
-    void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState*,
-            TranslationBlock*, uint64_t);
-    void onTranslateBlockEnd(ExecutionSignal *signal, S2EExecutionState* state,
+    void onModuleTranslateBlockStart(ExecutionSignal*, S2EExecutionState*,
+            const ModuleDescriptor &, TranslationBlock*, uint64_t);
+    void onModuleTranslateBlockEnd(ExecutionSignal *signal,
+            S2EExecutionState* state, const ModuleDescriptor &module,
             TranslationBlock *tb, uint64_t endPc, bool staticTarget,
             uint64_t targetPc);
+
+    // Triggered when we fall into a symbolically executed loop
+    sigc::signal<void, S2EExecutionState*, /* currentState */
+    uint64_t> /* pc */
+    onStuckinSymLoop;
+    // Triggered when we get out from a symbolically executed loop
+    sigc::signal<void, S2EExecutionState*, /* currentState */
+    uint64_t> /* pc */
+    onGetoutfromSymLoop;
+
+    bool getLoopsfromFile(void);
 };
 
 } // namespace plugins
