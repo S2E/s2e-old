@@ -117,7 +117,7 @@ We need the following to debug S2E crashes:
    If you have changed the S2E source or need custom plugins, first check that
    you can reproduce the bug with vanilla S2E. Otherwise, please read point 3 and 4 below.
 
-2. A guest image that is ready to run and a script to launch it. You must build your image in such a way that it
+2. An archive containing a guest image that is ready to run and a script to launch it. You must build your image in such a way that it
    can be launched by a script. We should not have to type any commands or do any sort
    of manipulation in the guest. We will reject your image if we spend more than 10 minutes trying
    to run it.
@@ -129,6 +129,14 @@ We need the following to debug S2E crashes:
    Guest images can be quite large, feel free to use Dropbox, Gdrive, or any other
    online service that suits you. Make sure that the interface for your download service is in english.
    We should be able to download your image in a few clicks.
+
+   Before submitting, make sure that your archive (e.g., tar.gz) contains:
+
+     - The base S2E image (``image.s2e``)
+     - The ready-to-run S2E snapshot (``image.s2e.ready``)
+     - ``s2e-config.lua`` that is readable by S2E from the master branch
+     - ``run.sh`` script that starts S2E (use relative paths for images and ``s2e-config.lua``, no path prefix for the S2E binary)
+     - Contents of ``s2e-last`` + stack trace + description of the bug
 
 If we cannot reproduce the bugs with the information you gave us above, we will ask you:
 

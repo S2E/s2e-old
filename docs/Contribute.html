@@ -105,7 +105,7 @@ Make sure to use the latest revision of the master branch if possible.
 If you have changed the S2E source or need custom plugins, first check that
 you can reproduce the bug with vanilla S2E. Otherwise, please read point 3 and 4 below.</p>
 </li>
-<li><p class="first">A guest image that is ready to run and a script to launch it. You must build your image in such a way that it
+<li><p class="first">An archive containing a guest image that is ready to run and a script to launch it. You must build your image in such a way that it
 can be launched by a script. We should not have to type any commands or do any sort
 of manipulation in the guest. We will reject your image if we spend more than 10 minutes trying
 to run it.</p>
@@ -115,6 +115,16 @@ do not submit an image that uses 512 MB. We prefer minimal Debian images
 <p>Guest images can be quite large, feel free to use Dropbox, Gdrive, or any other
 online service that suits you. Make sure that the interface for your download service is in english.
 We should be able to download your image in a few clicks.</p>
+<p>Before submitting, make sure that your archive (e.g., tar.gz) contains:</p>
+<blockquote>
+<ul class="simple">
+<li>The base S2E image (<tt class="docutils literal">image.s2e</tt>)</li>
+<li>The ready-to-run S2E snapshot (<tt class="docutils literal">image.s2e.ready</tt>)</li>
+<li><tt class="docutils literal"><span class="pre">s2e-config.lua</span></tt> that is readable by S2E from the master branch</li>
+<li><tt class="docutils literal">run.sh</tt> script that starts S2E (use relative paths for images and <tt class="docutils literal"><span class="pre">s2e-config.lua</span></tt>, no path prefix for the S2E binary)</li>
+<li>Contents of <tt class="docutils literal"><span class="pre">s2e-last</span></tt> + stack trace + description of the bug</li>
+</ul>
+</blockquote>
 </li>
 </ol>
 <p>If we cannot reproduce the bugs with the information you gave us above, we will ask you:</p>
