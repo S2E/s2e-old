@@ -84,7 +84,7 @@ void cpu_state_reset(CPUX86State *env)
 
     WR_cpu(env, cc_op, CC_OP_EFLAGS);
     WR_cpu(env, cc_src, 0);
-    env->mflags = 0;
+    env->mflags = 2;
     env->df = 1;
     //WR_cpu(env, eflags, 0x2);
 

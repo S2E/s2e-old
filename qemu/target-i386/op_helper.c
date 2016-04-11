@@ -175,7 +175,7 @@ static inline void s2e_load_eflags(void *mgr, void *eflags, int update_mask)
                     s2e_expr_and(mgr, eflags, MFLAGS_MASK & update_mask)
                     );
 
-    env->mflags = (env->mflags & ~update_mask) | concrete_flags;
+    env->mflags = (env->mflags & ~update_mask) | concrete_flags | 0x2;
 }
 
 #endif
@@ -190,7 +190,7 @@ static inline void load_eflags(int eflags, int update_mask)
         (eflags & update_mask) | 0x2);
     */
     env->mflags = (env->mflags & ~update_mask) |
-                    (eflags & MFLAGS_MASK & update_mask);
+                    (eflags & MFLAGS_MASK & update_mask) | 0x2;
 
 #if 0
     //Original QEMU code
