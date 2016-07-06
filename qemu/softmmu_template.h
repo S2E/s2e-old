@@ -660,11 +660,24 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(ENV_PARAM
             S2E_TRACE_MEMORY(addr, addr+ioaddr, val, 1, 1);
         } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
 
+            target_ulong object_index_page2, index_page2, addr_page2, tlb_addr_page2;
         do_unaligned_access:
+            /* Ensure the second page is in the TLB. Note that the first page
+             * is already guaranteed to be filled into the TLB. */
+            addr_page2 = (addr + DATA_SIZE) & TARGET_PAGE_MASK;
+            object_index_page2 = addr_page2 >> S2E_RAM_OBJECT_BITS;
+            index_page2 = (object_index_page2 >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
+            tlb_addr_page2 = env->tlb_table[mmu_idx][index_page2].addr_write;
+            if ((addr_page2 & TARGET_PAGE_MASK)
+                != (tlb_addr_page2 & (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
+                tlb_fill(env, addr_page2, object_index_page2 << S2E_RAM_OBJECT_BITS,
+                    1, mmu_idx, retaddr);
+            }
+
             /* XXX: not efficient, but simple */
-            /* Note: relies on the fact that tlb_fill() does not remove the
-             * previous page from the TLB cache.  */
-            for(i = DATA_SIZE - 1; i >= 0; i--) {
+            /* This loop must go in the forward direction to avoid issues with
+             * self-modifying code in Windows 64-bit. */
+            for(i = 0; i < DATA_SIZE; i++) {
 #ifdef TARGET_WORDS_BIGENDIAN
                 glue(slow_stb, MMUSUFFIX)(ENV_VAR addr + i,
                                           val >> (((DATA_SIZE - 1) * 8) - (i * 8)),
