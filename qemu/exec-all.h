@@ -116,6 +116,7 @@ TranslationBlock *tb_gen_code(CPUArchState *env,
                               int cflags);
 void cpu_exec_init(CPUArchState *env);
 void QEMU_NORETURN cpu_loop_exit(CPUArchState *env1);
+void QEMU_NORETURN cpu_loop_exit_restore(CPUArchState *env1, uintptr_t pc);
 int page_unprotect(target_ulong address, uintptr_t pc, void *puc);
 void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
                                    int is_cpu_write_access);
