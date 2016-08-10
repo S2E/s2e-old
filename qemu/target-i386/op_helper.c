@@ -215,14 +215,6 @@ static inline void cpu_load_efer(CPUX86State *env, uint64_t val)
     }
 }
 
-#if 0
-#define raise_exception_err(a, b)\
-do {\
-    qemu_log("raise_exception line=%d\n", __LINE__);\
-    (raise_exception_err)(a, b);\
-} while (0)
-#endif
-
 static void QEMU_NORETURN raise_exception_err(int exception_index,
                                               int error_code);
 
@@ -1766,7 +1758,8 @@ static int check_exception(int intno, int *error_code)
  * is_int is TRUE.
  */
 static void QEMU_NORETURN raise_interrupt(int intno, int is_int, int error_code,
-                                          int next_eip_addend)
+                                          int next_eip_addend,
+                                          uintptr_t retaddr)
 {
     if (!is_int) {
         helper_svm_check_intercept_param(SVM_EXIT_EXCP_BASE + intno, error_code);
@@ -1779,7 +1772,7 @@ static void QEMU_NORETURN raise_interrupt(int intno, int is_int, int error_code,
     env->error_code = error_code;
     env->exception_is_int = is_int;
     env->exception_next_eip = env->eip + next_eip_addend;
-    cpu_loop_exit(env);
+    cpu_loop_exit_restore(env, retaddr);
 }
 
 /* shortcuts to generate exceptions */
@@ -1787,25 +1780,38 @@ static void QEMU_NORETURN raise_interrupt(int intno, int is_int, int error_code,
 static void QEMU_NORETURN raise_exception_err(int exception_index,
                                               int error_code)
 {
-    raise_interrupt(exception_index, 0, error_code, 0);
+    raise_interrupt(exception_index, 0, error_code, 0, 0);
 }
 
 void raise_exception_err_env(CPUX86State *nenv, int exception_index,
                              int error_code)
 {
     env = nenv;
-    raise_interrupt(exception_index, 0, error_code, 0);
+    raise_interrupt(exception_index, 0, error_code, 0, 0);
+}
+
+void raise_exception_err_ra(CPUX86State *nenv, int exception_index,
+                            int error_code, uintptr_t retaddr)
+{
+    env = nenv;
+    raise_interrupt(exception_index, 0, error_code, 0, retaddr);
 }
 
 static void QEMU_NORETURN raise_exception(int exception_index)
 {
-    raise_interrupt(exception_index, 0, 0, 0);
+    raise_interrupt(exception_index, 0, 0, 0, 0);
 }
 
 void raise_exception_env(int exception_index, CPUX86State *nenv)
 {
     env = nenv;
     raise_exception(exception_index);
+}
+
+void raise_exception_ra(CPUX86State *nenv, int exception_index, uintptr_t retaddr)
+{
+    env = nenv;
+    raise_interrupt(exception_index, 0, 0, 0, retaddr);
 }
 /* SMM support */
 
@@ -2097,11 +2103,11 @@ void helper_divb_AL(target_ulong t0)
     num = (EAX & 0xffff);
     den = (t0 & 0xff);
     if (den == 0) {
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     }
     q = (num / den);
     if (q > 0xff)
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     q &= 0xff;
     r = (num % den) & 0xff;
     EAX_W((EAX & ~0xffff) | (r << 8) | q);
@@ -2114,11 +2120,11 @@ void helper_idivb_AL(target_ulong t0)
     num = (int16_t)EAX;
     den = (int8_t)t0;
     if (den == 0) {
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     }
     q = (num / den);
     if (q != (int8_t)q)
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     q &= 0xff;
     r = (num % den) & 0xff;
     EAX_W((EAX & ~0xffff) | (r << 8) | q);
@@ -2131,11 +2137,11 @@ void helper_divw_AX(target_ulong t0)
     num = (EAX & 0xffff) | ((EDX & 0xffff) << 16);
     den = (t0 & 0xffff);
     if (den == 0) {
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     }
     q = (num / den);
     if (q > 0xffff)
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     q &= 0xffff;
     r = (num % den) & 0xffff;
     EAX_W((EAX & ~0xffff) | q);
@@ -2149,11 +2155,11 @@ void helper_idivw_AX(target_ulong t0)
     num = (EAX & 0xffff) | ((EDX & 0xffff) << 16);
     den = (int16_t)t0;
     if (den == 0) {
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     }
     q = (num / den);
     if (q != (int16_t)q)
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     q &= 0xffff;
     r = (num % den) & 0xffff;
     EAX_W((EAX & ~0xffff) | q);
@@ -2168,12 +2174,12 @@ void helper_divl_EAX(target_ulong t0)
     num = ((uint32_t)EAX) | ((uint64_t)((uint32_t)EDX) << 32);
     den = t0;
     if (den == 0) {
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     }
     q = (num / den);
     r = (num % den);
     if (q > 0xffffffff)
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     EAX_W((uint32_t)q);
     EDX_W((uint32_t)r);
 }
@@ -2186,12 +2192,12 @@ void helper_idivl_EAX(target_ulong t0)
     num = ((uint32_t)EAX) | ((uint64_t)((uint32_t)EDX) << 32);
     den = t0;
     if (den == 0) {
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     }
     q = (num / den);
     r = (num % den);
     if (q != (int32_t)q)
-        raise_exception(EXCP00_DIVZ);
+        raise_exception_ra(env, EXCP00_DIVZ, (uintptr_t)GETPC());
     EAX_W((uint32_t)q);
     EDX_W((uint32_t)r);
 }
@@ -2329,7 +2335,7 @@ void helper_into(int next_eip_addend)
     int eflags;
     eflags = helper_cc_compute_all(CC_OP);
     if (eflags & CC_O) {
-        raise_interrupt(EXCP04_INTO, 1, 0, next_eip_addend);
+        raise_interrupt(EXCP04_INTO, 1, 0, next_eip_addend, 0);
     }
 }
 
@@ -5257,7 +5263,7 @@ void helper_reset_rf(void)
 
 void helper_raise_interrupt(int intno, int next_eip_addend)
 {
-    raise_interrupt(intno, 1, 0, next_eip_addend);
+    raise_interrupt(intno, 1, 0, next_eip_addend, 0);
 }
 
 void helper_raise_exception(int exception_index)

@@ -346,7 +346,21 @@ ref<Expr> S2EExecutor::handle_ldst_mmu(Executor* executor,
         do_unaligned_access:
 
             if (isWrite) {
-                for(int i = data_size - 1; i >= 0; i--) {
+                target_ulong object_index_page2, index_page2, addr_page2, tlb_addr_page2;
+
+                addr_page2 = (addr + data_size) & TARGET_PAGE_MASK;
+                object_index_page2 = addr_page2 >> S2E_RAM_OBJECT_BITS;
+                index_page2 = (object_index_page2 >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
+                tlb_addr_page2 = env->tlb_table[mmu_idx][index_page2].addr_write;
+                if ((addr_page2 & TARGET_PAGE_MASK)
+                    != (tlb_addr_page2 & (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
+                    tlb_fill(env, addr_page2, object_index_page2 << S2E_RAM_OBJECT_BITS,
+                        1, mmu_idx, retaddr);
+                }
+
+                /* This loop must go in the forward direction to avoid issues with
+                 * self-modifying code in Windows 64-bit. */
+                for(int i = 0; i < data_size; i++) {
                     std::vector<ref<Expr> > unalignedAccessArgs;
                     #ifdef TARGET_WORDS_BIGENDIAN
                     ref<Expr> shiftCount = ConstantExpr::create((((data_size - 1) * 8) - (i * 8)), Expr::Int32);

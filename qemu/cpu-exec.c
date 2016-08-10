@@ -63,6 +63,14 @@ void cpu_loop_exit(CPUArchState *env)
     s2e_longjmp(env->jmp_env, 1);
 }
 
+void cpu_loop_exit_restore(CPUArchState *env, uintptr_t pc)
+{
+    if (pc) {
+        cpu_restore_state(env->current_tb, env, pc);
+    }
+    s2e_longjmp(env->jmp_env, 1);
+}
+
 /* exit the current TB from a signal handler. The host registers are
    restored in a state compatible with the CPU emulator
  */
