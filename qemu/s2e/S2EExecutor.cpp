@@ -696,6 +696,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
     __DEFINE_EXT_FUNCTION(cpu_abort)
     __DEFINE_EXT_FUNCTION(cpu_loop_exit)
+    __DEFINE_EXT_FUNCTION(cpu_loop_exit_restore)
 
     __DEFINE_EXT_FUNCTION(tb_find_pc)
 
