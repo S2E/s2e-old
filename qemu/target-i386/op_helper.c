@@ -1786,14 +1786,19 @@ static void QEMU_NORETURN raise_exception_err(int exception_index,
 void raise_exception_err_env(CPUX86State *nenv, int exception_index,
                              int error_code)
 {
+#ifndef S2E_LLVM_LIB
     env = nenv;
+#endif
+
     raise_interrupt(exception_index, 0, error_code, 0, 0);
 }
 
 void raise_exception_err_ra(CPUX86State *nenv, int exception_index,
                             int error_code, uintptr_t retaddr)
 {
+#ifndef S2E_LLVM_LIB
     env = nenv;
+#endif
     raise_interrupt(exception_index, 0, error_code, 0, retaddr);
 }
 
@@ -1804,13 +1809,17 @@ static void QEMU_NORETURN raise_exception(int exception_index)
 
 void raise_exception_env(int exception_index, CPUX86State *nenv)
 {
+#ifndef S2E_LLVM_LIB
     env = nenv;
+#endif
     raise_exception(exception_index);
 }
 
 void raise_exception_ra(CPUX86State *nenv, int exception_index, uintptr_t retaddr)
 {
+#ifndef S2E_LLVM_LIB
     env = nenv;
+#endif
     raise_interrupt(exception_index, 0, 0, 0, retaddr);
 }
 /* SMM support */
