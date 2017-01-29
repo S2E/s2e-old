@@ -509,10 +509,16 @@ s2eobj-y += s2e/Plugins/Searchers/CooperativeSearcher.o
 s2eobj-y += s2e/Plugins/HostFiles.o
 s2eobj-y += s2e/Plugins/LibraryCallMonitor.o
 s2eobj-y += s2e/Plugins/Searchers/MaxTbSearcher.o
-
 #sqlite database is deprecated now
 #s2eobj-y += s2e/sqlite3.o
 #s2eobj-y += s2e/Database.o
+
+#EPeius
+s2eobj-y += s2e/Plugins/FileUtil.o
+s2eobj-y += s2e/Plugins/AutoShFileGenerator.o
+s2eobj-y += s2e/Plugins/FuzzySearcher.o
+s2eobj-y += s2e/Plugins/ForkController.o
+#Epeius end
 
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o
 s2eobj-y += s2e/ConfigFile.o

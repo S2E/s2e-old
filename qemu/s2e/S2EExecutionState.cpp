@@ -116,6 +116,7 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_runningExceptionEmulationCode(false)
 {
     //XXX: make this a struct, not a pointer...
+	m_preparingstate = false;
     m_timersState = new TimersState;
     m_dirtyMaskObject = NULL;
 }

@@ -45,6 +45,18 @@
 namespace s2e {
 namespace plugins {
 
+struct Range {
+	uint64_t start;
+	uint64_t end;
+	bool operator()(const Range &p1, const Range &p2) const {
+		return p1.start < p2.start;
+	}
+	bool operator==(const Range &p1) const {
+		return p1.start == start && p1.end == end;
+	}
+};
+typedef std::set<Range, Range> RangeEntries;
+
 /**
  *  Base class for default OS actions.
  *  It provides an interface for loading/unloading modules and processes.

@@ -109,6 +109,10 @@ struct S2EPhysCacheEntry
 
 class S2EExecutionState : public klee::ExecutionState
 {
+
+public:
+	bool m_preparingstate;
+
 protected:
     friend class S2EExecutor;
 
@@ -215,6 +219,10 @@ public:
     S2EDeviceState *getDeviceState() {
         return &m_deviceState;
     }
+
+    static void resetLastSymbolicId(){
+		s_lastSymbolicId = 0;
+	}
 
     TranslationBlock *getTb() const;
 

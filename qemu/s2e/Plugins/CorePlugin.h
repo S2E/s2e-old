@@ -212,6 +212,10 @@ public:
                  S2EExecutionState*> /* nextState */
             onStateSwitch;
 
+    sigc::signal<void,
+                     S2EExecutionState*, /* currentState */
+                     S2EExecutionState*> /* nextState */
+                onStateSwitchEnd;
     /**
      * Triggered when S2E wants to generate a test case
      */

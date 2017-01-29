@@ -4,3 +4,4 @@
 /guest/init_env/init_env*.so
 /guest/s2ecmd/s2ecmd
 /guest/s2eget/s2eget
+/home/epeius/work/work4team/s2e/afl-1.96b/qemu_mode/qemu-2.3.0

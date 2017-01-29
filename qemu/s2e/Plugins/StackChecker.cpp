@@ -54,6 +54,7 @@ void StackChecker::initialize()
 
     m_memoryChecker->onPostCheck.connect(
         sigc::mem_fun(*this, &StackChecker::onMemoryAccess));
+    s2e()->getDebugStream() << "StackChecker initialized.\n";
 }
 
 void StackChecker::onMemoryAccess(S2EExecutionState *state, uint64_t address,
