@@ -750,6 +750,15 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(ldq_phys)
     __DEFINE_EXT_FUNCTION(stq_phys)
 
+    __DEFINE_EXT_FUNCTION(floatx80_to_float64)
+    __DEFINE_EXT_FUNCTION(float64_to_floatx80)
+    __DEFINE_EXT_FUNCTION(int32_to_floatx80)
+    __DEFINE_EXT_FUNCTION(int64_to_floatx80)
+    __DEFINE_EXT_FUNCTION(floatx80_mul)
+    __DEFINE_EXT_FUNCTION(floatx80_add)
+    __DEFINE_EXT_FUNCTION(floatx80_compare_quiet)
+    __DEFINE_EXT_FUNCTION(set_float_rounding_mode)
+
 #if 0
     //Implementing these functions prevents special function handler
     //from being called...
