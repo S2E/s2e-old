@@ -84,6 +84,10 @@ public:
   KInstIterator pc, prevPC;
   stack_ty stack;
   ConstraintManager constraints;
+  std::vector< ref<Expr> > inputConstraints;
+  std::vector< ref<Expr> > argsConstraints;
+  std::vector< std::string > argsConstraintsType;
+  std::vector<  std::vector< ref<Expr> > > argsConstraintsAll;
   mutable double queryCost;
   double weight;
   AddressSpace addressSpace;

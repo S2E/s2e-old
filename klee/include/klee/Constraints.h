@@ -73,7 +73,7 @@ public:
       }
   }
 
-private:
+//private:
   std::vector< ref<Expr> > constraints;
 
   // returns true iff the constraints were modified

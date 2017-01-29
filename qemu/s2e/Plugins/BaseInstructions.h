@@ -68,6 +68,8 @@ private:
     void concretize(S2EExecutionState *state, bool addConstraint);
     void sleep(S2EExecutionState *state);
     void assume(S2EExecutionState *state);
+    void printPathConstraint(S2EExecutionState *state);
+    void collectArgsConstraint(S2EExecutionState *state);
 
 #ifdef TARGET_ARM
 

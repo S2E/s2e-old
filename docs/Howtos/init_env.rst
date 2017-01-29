@@ -19,6 +19,7 @@ This library can also restrict symbolic execution to the program itself or to al
 
 The ``init_env`` library can be found in the ``guest`` folder of the S2E
 distribution. Copy the entire guest directory to your guest virtual machine, and
+run ``./guest/configure``, then
 run ``make``. This will compile ``init_env`` along with some other useful
 tools.
 

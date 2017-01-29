@@ -483,6 +483,7 @@ s2eobj-y += s2e/Plugins/BaseInstructions.o
 s2eobj-y += s2e/Plugin.o s2e/Plugins/CorePlugin.o s2e/Plugins/Example.o
 #s2eobj-y += s2e/Plugins/PluginInterface.o
 s2eobj-y += s2e/Plugins/ConsistencyModels.o
+s2eobj-y += s2e/Plugins/InputGenerator.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/ExecutionTracer.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/ModuleTracer.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/EventTracer.o

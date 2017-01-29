@@ -100,6 +100,24 @@ static inline void s2e_print_expression(const char *name, int expression)
     );
 }
 
+/** Print path constraint to the S2E log. */
+static inline void s2e_print_path_constraint(void)
+{
+    __asm__ __volatile__(
+        S2E_INSTRUCTION_SIMPLE(0d)
+    );
+}
+
+/** Collect argument constraint to the Map. */
+static inline void s2e_collect_args_constraint(const char *name)
+{
+    __s2e_touch_string(name);
+    __asm__ __volatile__(
+        S2E_INSTRUCTION_SIMPLE(0e)
+        : : "a" (name)
+    );
+}
+
 /** Enable forking on symbolic conditions. */
 static inline void s2e_enable_forking(void)
 {

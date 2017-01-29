@@ -252,6 +252,8 @@ void BaseInstructions::printExpression(S2EExecutionState *state)
         s2e()->getMessagesStream() << "SymbExpression " << nameStr << " - Value: "
                                    << concrete << '\n';
     }
+
+    state->argsConstraints.push_back(val);
 }
 
 void BaseInstructions::printMemory(S2EExecutionState *state)
@@ -469,6 +471,39 @@ void BaseInstructions::assume(S2EExecutionState *state)
 }
 #endif
 
+void BaseInstructions::printPathConstraint(S2EExecutionState *state)
+{
+    s2e()->getDebugStream() << "Path Constraint - ";
+    for (int i = 0 ; i < state->constraints.constraints.size() ; i++) {
+        s2e()->getDebugStream() << state->constraints.constraints[i];
+    }
+    s2e()->getDebugStream() << "\nPath ConstraintSize - Value: " << state->constraints.constraints.size() << "\n";
+}
+
+void BaseInstructions::collectArgsConstraint(S2EExecutionState *state)
+{
+    target_ulong name;
+    bool ok = state->readCpuRegisterConcrete(PARAM0, &name, sizeof name);
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op "
+               "print_expression opcode\n";
+        return;
+    }
+
+    std::string nameStr = "<NO NAME>";
+    if(name && !state->readString(name, nameStr)) {
+        s2e()->getWarningsStream(state)
+                << "Error reading string from the guest\n";
+    }
+
+    s2e()->getMessagesStream() << "Collect " << nameStr << " argument constraints into Vector\n";
+
+    state->argsConstraintsType.push_back(nameStr);
+    state->argsConstraintsAll.push_back(state->argsConstraints);
+    state->argsConstraints.clear();
+}
 
 /** Handle s2e_op instruction. Instructions:
 
@@ -546,6 +581,16 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 #endif
+        case 0xd: { // path constraint
+            printPathConstraint(state);
+            break;
+        }
+
+        case 0xe: { // collect argument constraint
+            collectArgsConstraint(state);
+            break;
+        }
+
         case 0xF: { // MJR
             s2e()->getExecutor()->yieldState(*state);
             break;

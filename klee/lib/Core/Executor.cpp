@@ -1366,6 +1366,7 @@ Executor::toConstant(ExecutionState &state,
       
   klee_warning_external(reason, "%s", os.str().c_str());
 
+  state.inputConstraints.push_back(EqExpr::create(e, value));
   addConstraint(state, EqExpr::create(e, value));
     
   return value;
