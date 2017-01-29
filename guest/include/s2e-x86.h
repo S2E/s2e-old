@@ -33,13 +33,27 @@
  * All contributors are listed in the S2E-AUTHORS file.
  */
 
-#define S2E_INSTRUCTION_COMPLEX(val1, val2)             \
+#ifdef S2E_INSTRUCTION_USE_NOP
+# define S2E_INSTRUCTION_COMPLEX(val1, val2)            \
+    ".byte 0x0F, 0x1F, 0x84, 0x42, "                    \
+          "0x00, 0x" #val1 ", 0x" #val2 ", 0x00\n"
+#else
+# ifdef S2E_INSTRUCTION_USE_JUMP
+#  define S2E_INSTRUCTION_COMPLEX(val1, val2)           \
+    "jmp .+0x08\n"                                      \
+    ".byte 0x0F, 0x3F\n"                                \
+    ".byte 0x00, 0x" #val1 ", 0x" #val2 ", 0x00\n"
+# else
+#  define S2E_INSTRUCTION_COMPLEX(val1, val2)           \
     ".byte 0x0F, 0x3F\n"                                \
     ".byte 0x00, 0x" #val1 ", 0x" #val2 ", 0x00\n"      \
     ".byte 0x00, 0x00, 0x00, 0x00\n"
+# endif
+#endif
 
 #define S2E_INSTRUCTION_SIMPLE(val)                     \
     S2E_INSTRUCTION_COMPLEX(val, 00)
+
 
 
 
@@ -186,7 +200,7 @@ static inline void s2e_make_concolic(void *buf, int size, const char *name)
 static inline void s2e_assume(int expression)
 {
     __asm__ __volatile__(
-        S2E_INSTRUCTION_SIMPLE(0c)
+        S2E_INSTRUCTION_SIMPLE(0C)
         : : "a" (expression)
     );
 }

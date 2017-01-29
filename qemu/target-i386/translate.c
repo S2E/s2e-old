@@ -2267,8 +2267,16 @@ static void gen_nop_modrm(DisasContext *s, int modrm)
             break;
         default:
         case 2:
-            s->pc += 4;
-            break;
+            {
+#ifdef CONFIG_S2E
+                if (code == 0x42) {
+                    uint32_t s2e_op = ldl_code(s->pc);
+                    s2e_tcg_emit_custom_instruction(g_s2e, s2e_op);
+                }
+#endif
+                s->pc += 4;
+                break;
+            }
         }
     } else {
         switch (mod) {
@@ -6462,13 +6470,24 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         }
         goto do_ljmp;
     case 0xeb: /* jmp Jb */
-        SET_TB_TYPE(TB_JMP);
-        tval = (int8_t)insn_get(s, OT_BYTE);
-        tval += s->pc - s->cs_base;
-        if (s->dflag == 0)
-            tval &= 0xffff;
-        gen_jmp(s, tval);
-        break;
+        {
+            SET_TB_TYPE(TB_JMP);
+            tval = (int8_t)insn_get(s, OT_BYTE);
+#ifdef CONFIG_S2E
+            if (tval == 0x06) {
+                uint16_t efof = lduw_code(s->pc);
+                if (efof == 0x3f0f) {
+                    uint32_t s2e_op = ldl_code(s->pc+sizeof(efof));
+                    s2e_tcg_emit_custom_instruction(g_s2e, s2e_op);
+                }
+            }
+#endif
+            tval += s->pc - s->cs_base;
+            if (s->dflag == 0)
+                tval &= 0xffff;
+            gen_jmp(s, tval);
+            break;
+        }
     case 0x70 ... 0x7f: /* jcc Jb */
         SET_TB_TYPE(TB_COND_JMP);
         tval = (int8_t)insn_get(s, OT_BYTE);
