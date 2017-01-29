@@ -1,0 +1,37 @@
+branches:
+    only:
+        - master
+        - stable-1.3
+
+language: cpp
+
+compiler:
+    # NOTE: gcc consumes too much memory and would not build
+    #       correctly. Use clang instead.
+    - clang
+
+before_install:
+    - sudo apt-get update
+
+install:
+    - sudo apt-get build-dep llvm-3.0
+    - sudo apt-get build-dep qemu
+    - sudo apt-get install clang
+    - sudo apt-get install libc6-dev-i386
+    - sudo apt-get install liblua5.1-dev
+    - sudo apt-get install libsdl1.2-dev
+    - sudo apt-get install libsigc++-2.0-dev
+    - sudo apt-get install nasm
+    - sudo apt-get install python-docutils
+
+before_script:
+    # NOTE: Default clang provided by travis-ci now is version 3.3,
+    #       which would cause failed build.
+    #       See https://github.com/dslab-epfl/s2e/issues/62
+    #       Use official clang package, which is version 3.0, instead.
+    - export CC=/usr/bin/clang CXX=/usr/bin/clang++
+
+script:
+    - mkdir build && cd build
+    - make -f ../Makefile
+
