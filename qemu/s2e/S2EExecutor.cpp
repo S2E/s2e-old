@@ -1539,6 +1539,10 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         vm_stop(RUN_STATE_SAVE_VM);
         doStateSwitch(state, newState);
         vm_start();
+        g_s2e->getCorePlugin()->onStateSwitchEnd.emit(state, newState);
+		if(newState->m_is_carry_on_state){
+			newState = selectNextState(newState);
+		}
     }
 
     //We can't free the state immediately if it is the current state.

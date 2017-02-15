@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.11: http://docutils.sourceforge.net/" />
+<title>FuzzyS2E</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="fuzzys2e">
+<h1 class="title">FuzzyS2E</h1>
+
+<p>In this documentation, we will show how to use FuzzyS2E to find bugs in software. Specifically, this documentation focuses on Linux software.</p>
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#what-is-fuzzys2e" id="id1">What is FuzzyS2E</a></li>
+<li><a class="reference internal" href="#required-plugins" id="id2">Required Plugins</a></li>
+<li><a class="reference internal" href="#autoshfilegenerator" id="id3">AutoShFileGenerator</a></li>
+<li><a class="reference internal" href="#fuzzysearcher" id="id4">FuzzySearcher</a></li>
+<li><a class="reference internal" href="#loopfuzzer" id="id5">LoopFuzzer</a></li>
+<li><a class="reference internal" href="#forkcontroller" id="id6">ForkController</a></li>
+<li><a class="reference internal" href="#a-sample-complete-configure-file" id="id7">A Sample Complete Configure File</a></li>
+<li><a class="reference internal" href="#start-testing-a-binary-software" id="id8">Start Testing a binary software</a></li>
+</ul>
+</div>
+<div class="section" id="what-is-fuzzys2e">
+<h1>What is FuzzyS2E</h1>
+<p>S2E is built on top of symbolic execution and even though it has solved the path
+explosion problem to a large extent, but because the complex constraint solving
+problem is still not well handled in its solvers, like STP, so it may get stuck in some
+cases. While fuzzing test is a great way to find GREAT seed paths, so FuzzyS2E
+utilizes this advantage to help S2E avoid this problem, and in return, fuzzing test can
+be helped with the output of S2E to promote its path discovering ability.
+FuzzyS2E is built on top of S2E and AFL, which is an open-sourced fuzzing test
+system. FuzzyS2E tries to exchange concrete testcases between S2E and AFL, when
+we start the testing procedure, S2E first starts its concolic testing procedure with a
+random concrete input testcase. Then as the testing goes on, S2E can generate several
+testcases for different paths, which can be used as the input of AFL, and then AFL
+starts its fuzzing test and generates more testcases based on these initial inputs. Note
+that during the whole procedure, AFL can dynamically exchange concrete testcases
+with S2E so that they can help each other. The detail technical documentation will be
+shown in another documentation soon.</p>
+</div>
+<div class="section" id="required-plugins">
+<h1>Required Plugins</h1>
+<pre class="literal-block">
+    BaseInstructions
+    HostFiles
+    RawMonitor
+    ModuleExecutionDetector
+    CodeSelector
+    AutoShFileGenerator
+    FuzzySearcher
+LoopFuzzer
+    ForkController
+</pre>
+<p>&quot;BaseInstructions&quot;, &quot;HostFiles&quot;, &quot;RawMonitor&quot;, &quot;ModuleExecutionDetector&quot;, and &quot;CodeSelector&quot; can be found in other documentation.</p>
+<p>Let see the detail configuration of the last three plug-in, i.e &quot;AutoShFileGenerator&quot;, &quot;FuzzySearcher&quot; and &quot;ForkController&quot;.</p>
+</div>
+<div class="section" id="autoshfilegenerator">
+<h1>AutoShFileGenerator</h1>
+<p>AutoShFileGenerator tries to generate a shell script so that the testing and its iteration
+can start automatically to avoid tedious manual work. An example configure file of
+AutoShFileGenerator is shown as followss:</p>
+<pre class="literal-block">
+command_str = '#!/bin/bash \n /guest/path/to/s2eget aa.txt &amp;&amp; cp aa.txt /tmp/aa.txt &amp;&amp; /guest/path/to/s2ecmd symbfile /tmp/aa.txt &amp;&amp; LD_PRELOAD=/guest/path/to/init_env.so /guest/path/to/app --select-process-code /tmp/aa.txt',
+command_file = &quot;/host/path/to/autostart.sh&quot;,
+</pre>
+<p>“command_str” infers the detail content of shell script. In order to exchange concrete
+testcase with AFL, which means FuzzyS2E has to exchange files with host OS
+dynamically during the testing, you have to get the testcase (“ /guest/path/to/s2eget
+aa.txt ”) and copy it to a ramdisk (“ cp aa.txt /tmp/aa.txt ”) and then mark the testcase as
+symbolic (“ /guest/path/to/s2ecmd symbfile /tmp/aa.txt ”) and finally start the binary target
+code (“ LD_PRELOAD=/guest/path/to/init_env.so /guest/path/to/app --select-process-code
+/tmp/aa.txt ”). All this has been written to a shell script file in host as
+“command_file”(“ /host/path/to/autostart.sh ”).</p>
+</div>
+<div class="section" id="fuzzysearcher">
+<h1>FuzzySearcher</h1>
+<p>FuzzySearcher is the core search plugin for FuzzyS2E, it tries to schedule all the
+execution states and communicate with AFL. An example configure of FuzzySearcher
+is shown as follows.:</p>
+<pre class="literal-block">
+symbolicfilename = &quot;aa.txt&quot;,
+inicasepool = &quot;/host/path/to/initialtestcasepool&quot;,
+curcasepool = &quot;/host/path/to/curtmp&quot;,
+aflRoot=&quot;/host/path/to/afl-1.96b&quot;,
+aflOutput=&quot;/host/path/to/afloutput&quot;,
+aflBinaryMode=true,
+aflAppArgs=&quot;/host/path/to/app &#64;&#64;&quot;,
+mainModule=&quot;app&quot;;
+autosendkey_enter = true,
+autosendkey_interval = 10,
+MaxLoops = 50,
+debugVerbose = false,
+</pre>
+<p>“symbolicfilename” infers to the testcase name in AutoShFileGenerator.</p>
+<p>“inicasepool” infers to the directory which stores the initial testcase for S2E in host OS.</p>
+<p>“curcasepool” infers to the directory which stores the current testcase for S2E in host OS.</p>
+<p>“aflRoot” infers to the root directory of AFL in host OS.</p>
+<p>“aflOutput” infers to the output directory of AFL in host OS.</p>
+<p>“aflBinaryMode” represents whether we want to test binary-only software, please set this always to be TRUE, because we focus on binary software testing.</p>
+<p>“aflAppArgs” infers to the whole command line arguments for target binary and you should replace the input file argument with “&#64;&#64;”, as documented in AFL.</p>
+<p>“mainModule” infers to our target binary name.</p>
+<p>“autosendkey_enter” will automatically send “enter” to guest OS if set to be TRUE, otherwise, you have to send this key manually before each iteration.</p>
+<p>“autosendkey_interval” infers to the time interval before we send “enter” to guest OS.</p>
+<p>“MaxLoops” specifies the stop condition, and we currently stop the testing procedure when it reaches to maximum iteration numbers.</p>
+<p>&quot;debugVerbose&quot; can be use to output more detail information when set to be true.</p>
+</div>
+<div class="section" id="loopfuzzer">
+<h1>LoopFuzzer</h1>
+<p>LoopFuzzer is inherited from FuzzySearcher, and it is used to reduce the test scale. The mechanism is that when we get stuck in a symbolic value controlled loop, LoopFuzzer will disable forking in this loop and generate a testcase for this loop, then LoopFuzzer continues forking when we get out from this loop. Notethat the generated testcase will be uploaded to AFL as what does in FuzzySearcher.</p>
+<p>LoopFuzzer's configuration is identical to LoopFuzzer, but they have different functions.</p>
+</div>
+<div class="section" id="forkcontroller">
+<h1>ForkController</h1>
+<p>S2E can control the fork in several levels of testing grain, like
+“select-process-code(target binary only)”, “select-process-user(target process in user
+mode)”, but ForkController can give a more fine grained fork control, it can restrict
+the fork in a code region, An example configure of ForkController is shown as
+follows.:</p>
+<pre class="literal-block">
+forkRanges ={
+   r01 = {0x8048000, 0x8049000},
+},
+mainModule=&quot;app&quot;,
+loopfilename=&quot;/host/path/to/loopsfile&quot;,
+</pre>
+<p>“forkRanges” infers to the code regions that you want FuzzyS2E to fork in.</p>
+<p>“mainModule” infers to our target binary name.</p>
+<p>“loopfilename” infers to the loop file which is generated from static analysis in host OS.</p>
+<p>NOTE:</p>
+<p>Static analysis component is now implemented based on <a class="reference external" href="https://github.com/programa-stic/barf-project/blob/master/documentation/papers/barf.pdf">barf: A multiplatform open source Binary Analysis and Reverse engineering Framework</a> as a plug-in of IDA pro.</p>
+<p>The loop file contains all the start addresses (in decimal) of basic blocks of a loop in a line, the sample file is listed below.</p>
+<div class="highlight"><pre><span class="c1">-- a sample loopfile</span>
+<span class="mi">134513930</span> <span class="mi">134513920</span> <span class="mi">134513930</span> <span class="mi">134513940</span> <span class="c1">-- loop0</span>
+<span class="mi">134513920</span> <span class="mi">134513930</span> <span class="c1">-- loop1</span>
+<span class="mi">134514174</span> <span class="mi">134514166</span> <span class="c1">-- loop2</span>
+<span class="mi">134514664</span> <span class="mi">134514690</span> <span class="c1">-- loop3</span>
+<span class="mi">134514643</span> <span class="mi">134514619</span> <span class="mi">134514651</span> <span class="mi">134514608</span> <span class="c1">--loop4</span>
+</pre></div>
+</div>
+<div class="section" id="a-sample-complete-configure-file">
+<h1>A Sample Complete Configure File</h1>
+<div class="highlight"><pre><span class="c1">-- File: config.lua</span>
+<span class="n">s2e</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="n">kleeArgs</span> <span class="o">=</span> <span class="p">{</span>
+      <span class="s2">&quot;</span><span class="s">--use-concolic-execution=true&quot;</span><span class="p">,</span> <span class="c1">-- FuzzyS2E should be run in concolic mode</span>
+      <span class="s2">&quot;</span><span class="s">--use-dfs-search=true&quot;</span><span class="p">,</span> <span class="c1">-- It is not very important whether to specify the searcher for S2E</span>
+   <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">plugins</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="s2">&quot;</span><span class="s">BaseInstructions&quot;</span><span class="p">,</span>
+   <span class="s2">&quot;</span><span class="s">HostFiles&quot;</span><span class="p">,</span>
+   <span class="s2">&quot;</span><span class="s">RawMonitor&quot;</span><span class="p">,</span>
+   <span class="s2">&quot;</span><span class="s">ModuleExecutionDetector&quot;</span><span class="p">,</span>
+   <span class="s2">&quot;</span><span class="s">CodeSelector&quot;</span><span class="p">,</span>
+   <span class="s2">&quot;</span><span class="s">AutoShFileGenerator&quot;</span><span class="p">,</span>
+   <span class="s2">&quot;</span><span class="s">FuzzySearcher&quot;</span><span class="p">,</span>
+   <span class="s2">&quot;</span><span class="s">ForkController&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">pluginsConfig</span> <span class="o">=</span> <span class="p">{}</span>
+
+<span class="c1">-- Enable guest OS to communicate with host OS</span>
+<span class="n">pluginsConfig</span><span class="p">.</span><span class="n">HostFiles</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="n">baseDirs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;</span><span class="s">/path/to/host &quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">/host/path to/cur&quot;</span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">pluginsConfig</span><span class="p">.</span><span class="n">CodeSelector</span> <span class="o">=</span> <span class="p">{</span>
+<span class="p">}</span>
+
+<span class="n">pluginsConfig</span><span class="p">.</span><span class="n">RawMonitor</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="n">kernelStart</span> <span class="o">=</span> <span class="mh">0xc0000000</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1">-- ModuleExecutionDetector can help us to incept the module load event</span>
+<span class="n">pluginsConfig</span><span class="p">.</span><span class="n">ModuleExecutionDetector</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="n">trackAllModules</span><span class="o">=</span><span class="kc">false</span><span class="p">,</span>
+   <span class="n">configureAllModules</span><span class="o">=</span><span class="kc">false</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1">-- Enable us to perform more fine-grained fork control</span>
+<span class="n">pluginsConfig</span><span class="p">.</span><span class="n">ForkController</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="n">forkRanges</span> <span class="o">=</span><span class="p">{</span>
+      <span class="n">r01</span> <span class="o">=</span> <span class="p">{</span><span class="mh">0x8048000</span><span class="p">,</span> <span class="mh">0x8049000</span><span class="p">},</span>
+   <span class="p">},</span>
+   <span class="n">mainModule</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">app&quot;</span><span class="p">,</span>
+   <span class="n">loopfilename</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">/host/path/to/loopsfile&quot;</span>
+<span class="p">}</span>
+
+<span class="c1">-- Core search plugin to schedule states and communication with AFL fuzzer</span>
+<span class="cm">--[[</span>
+<span class="cm">   *FuzzyS2E will start with a random concrete input file in &quot;inicasepool&quot; in host, and copy it to &quot;curcasepool&quot; in host and rename it as &quot;symbolicfilename&quot;.</span>
+<span class="cm">   *Then guest OS will get the &quot;AutoShFileGenerator.command_file&quot; from host and execute it, which will first mark the file with name of &quot;symbolicfilename&quot; as symbolic and start to execute &quot;mainModule&quot;. At a proper time stamp, \</span>
+<span class="cm">AFL will be started from &quot;aflRoot&quot; and its output directory is set to &quot;aflOutput&quot;, the target application auguments could be &quot;aflAppArgs&quot;, in which the input file is replaced with &quot;@@&quot;.</span>
+<span class="cm">   *Finally when FuzzyS2E executes for &quot;MaxLoops&quot; iterations, it stops both S2E and AFL.</span>
+<span class="cm">]]</span><span class="c1">--</span>
+<span class="n">pluginsConfig</span><span class="p">.</span><span class="n">FuzzySearcher</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="n">symbolicfilename</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">aa.txt&quot;</span><span class="p">,</span>
+   <span class="n">inicasepool</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">/host/path/to/initialtestcasepool&quot;</span><span class="p">,</span>
+   <span class="n">curcasepool</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">/host/path/to/curtmp&quot;</span><span class="p">,</span>
+   <span class="n">aflRoot</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">/host/path/to/afl-1.96b&quot;</span><span class="p">,</span>
+   <span class="n">aflOutput</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">/host/path/to/afloutput&quot;</span><span class="p">,</span>
+   <span class="n">aflBinaryMode</span><span class="o">=</span><span class="kc">true</span><span class="p">,</span>
+   <span class="n">aflAppArgs</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">/host/path/to/app @@&quot;</span><span class="p">,</span>
+   <span class="n">mainModule</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">app&quot;</span><span class="p">;</span>
+   <span class="n">autosendkey_enter</span> <span class="o">=</span> <span class="kc">true</span><span class="p">,</span>
+   <span class="n">autosendkey_interval</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+   <span class="n">MaxLoops</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span>
+   <span class="n">debugVerbose</span> <span class="o">=</span> <span class="kc">false</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1">-- Generate shell script for guest OS to avoid tedious manual work</span>
+<span class="n">pluginsConfig</span><span class="p">.</span><span class="n">AutoShFileGenerator</span><span class="o">=</span><span class="p">{</span>
+   <span class="n">command_str</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="s">#!/bin/bash </span><span class="se">\n</span><span class="s"> /guest/path/to/s2eget aa.txt &amp;&amp; cp aa.txt /tmp/aa.txt  &amp;&amp; /guest/path/to/s2ecmd symbfile /tmp/aa.txt &amp;&amp; LD_PRELOAD=/guest/path/to/init_env.so /guest/path/to/app --select-process-code /tmp/aa.txt&#39;</span><span class="p">,</span>
+   <span class="n">command_file</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">/host/path/to/autostart.sh&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="section" id="start-testing-a-binary-software">
+<h1>Start Testing a binary software</h1>
+<p>As you have configured the config-file correctly and start the FuzzyS2E. Then FuzzyS2E’s guest will get this automatically generated shell script file
+(“ /host/path/to/autostart.sh ”) though HostFiles plug-in and some command line in
+guest’s shell, after that, FuzzyS2E will automatically start the testprocedure. The guest’s shell command line is show as follows.:</p>
+<pre class="literal-block">
+guest$ $GUEST-TOOLs/s2eget autostart.sh &amp;&amp; chmod +x ./autostart.sh &amp;&amp; ./autostart.sh
+</pre>
+<p>A self-contained  VM image has been put on the Internet, and you can download it and have a try.</p>
+<ul class="simple">
+<li><a class="reference external" href="https://drive.google.com/file/d/0B6yf7Wx5zFZ7a3RKU1pXTFZBZk0/view?usp=sharing">FuzzyS2E VM Image</a>.</li>
+</ul>
+<dl class="docutils">
+<dt>The user and password for fuzzys2e is:</dt>
+<dd><p class="first">For the host OS:</p>
+<pre class="literal-block">
+User: epeius
+Pass: 1234567890
+</pre>
+<p>For the guest OS:</p>
+<pre class="last literal-block">
+User: debian
+Pass: 1234567890
+</pre>
+</dd>
+</dl>
+<p>If you have any questions, please let me know&lt;<a class="reference external" href="mailto:binzh4ng&#64;hotmail.com">binzh4ng&#64;hotmail.com</a>&gt;. Thanks.</p>
+<p>Have fun with FuzzyS2E.</p>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="FuzzyS2E.rst">View document source</a>.
+
+</div>
+</body>
+</html>

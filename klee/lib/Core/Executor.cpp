@@ -1363,7 +1363,7 @@ Executor::toConstant(ExecutionState &state,
   os << "silently concretizing (reason: " << reason << ") expression " << e 
      << " to value " << value 
      << " (" << (*(state.pc)).info->file << ":" << (*(state.pc)).info->line << ")";
-      
+  state.m_silently_concretized = true;//epeius. We add here to avoid stuck
   klee_warning_external(reason, "%s", os.str().c_str());
 
   addConstraint(state, EqExpr::create(e, value));
