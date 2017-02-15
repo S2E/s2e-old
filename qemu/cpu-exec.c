@@ -68,6 +68,7 @@ void cpu_loop_exit_restore(CPUArchState *env, uintptr_t pc)
     if (pc) {
         cpu_restore_state(env->current_tb, env, pc);
     }
+    env->current_tb = NULL;
     s2e_longjmp(env->jmp_env, 1);
 }
 
