@@ -295,6 +295,8 @@ static inline int _s2e_check_concrete(void *objectState,
 #if 1
     if(unlikely(*(uint8_t***) objectState)) {
         uint8_t* bits = **(uint8_t***) objectState;
+        if(!bits)
+        	return 0;//FIXME: Segment fault here???
         int mask = (1<<size)-1;
         if(likely((offset&7) + size <= 8)) {
             return ((((uint8_t* )(bits + (offset>>3)))[0] >> (offset&7)) & mask) == mask;
