@@ -64,7 +64,11 @@ struct StackFrame {
 
 class ExecutionState {
   friend class AddressSpace;
-
+  //epeius start
+public:
+  bool  m_is_carry_on_state; //
+  bool  m_silently_concretized;// whether this state is a silent concretized state<KLEE EROOR>
+  //epeius end
 public:
   typedef std::vector<StackFrame> stack_ty;
 
