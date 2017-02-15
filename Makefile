@@ -38,7 +38,7 @@ all: all-release guest-tools
 guest-tools: stamps/guest-tools32-make stamps/guest-tools64-make
 
 all-release all-asan-release: stamps/tools-release-make
-all-release: stamps/qemu-release-make
+all-release: stamps/afl-make stamps/qemu-release-make 
 all-asan-release: stamps/qemu-asan-release-make
 
 all-debug all-asan-debug: stamps/tools-debug-make
@@ -67,9 +67,12 @@ ifeq ($(LLVMBUILD),$(S2EBUILD))
 LLVM_DIRS = llvm-debug llvm-native llvm-release
 endif
 
+AFL_DIR:=$(S2EBUILD)/afl-1.96b
+
 clean:
 	-rm -Rf $(KLEE_QEMU_DIRS)
 	-rm -Rf stamps
+	-rm -Rf $(AFL_DIR)
 
 guestclean:
 	-rm -f stamps/guest-tools*
@@ -99,6 +102,38 @@ stamps/%-make:
 ifeq (,$(wildcard /usr/include/x86_64-linux-gnu/c++/4.8/c++config.h))
  export CPLUS_INCLUDE_PATH=/usr/include:/usr/include/x86_64-linux-gnu:/usr/include/x86_64-linux-gnu/c++/4.8
  export C_INCLUDE_PATH=/usr/include:/usr/include/x86_64-linux-gnu
+endif
+
+
+#########################
+# Download and make AFL #
+#########################
+AFL_URL = https://github.com/Epeius/afl/archive/master.zip
+ARCHIVE = AFL-1.96b.zip
+BITMAP = /tmp/aflbitmap
+BUILDQEMUSH = build_qemu_support.sh 
+AFLQEMUARCHIVE = $(AFL_DIR)/qemu_mode/qemu-2.3.0.tar.bz2
+QEMUBUILDFLAG = $(AFL_DIR)/qemu_mode/qemubuiltflag
+stamps/afl-make:
+ifneq ($(ARCHIVE), $(wildcard $(ARCHIVE)))
+	@echo "[*] Downloading afl from the web..."
+	rm -f $(ARCHIVE)
+	wget -O $(ARCHIVE) -- $(AFL_URL) || exit 1
+endif
+ifneq ($(AFL_DIR), $(wildcard $(AFL_DIR)))
+	@echo "[*] Uncompressing archive (this will take a while)..."
+	unzip $(ARCHIVE) || exit 1
+	mv "afl-master" "afl-1.96b"
+endif
+	@echo "[*] Attempting to build afl (fingers crossed!)..."
+	cd $(AFL_DIR) && touch $(BITMAP) && make || exit 1 
+	@echo "[+] Build process successful!"
+ifneq ($(QEMUBUILDFLAG), $(wildcard $(QEMUBUILDFLAG)))
+	@echo "[*] Attempting to build AFL-QEMU (fingers crossed!)..."
+	cd $(AFL_DIR)/qemu_mode && sh $(BUILDQEMUSH) && touch $(QEMUBUILDFLAG) || exit 1
+	@echo "[+] Build process successful!"
+else
+	@echo "[+] QEMU has been built, go ahead."
 endif
 
 #############

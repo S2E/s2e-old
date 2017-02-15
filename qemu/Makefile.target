@@ -510,6 +510,12 @@ s2eobj-y += s2e/Plugins/HostFiles.o
 s2eobj-y += s2e/Plugins/LibraryCallMonitor.o
 s2eobj-y += s2e/Plugins/Searchers/MaxTbSearcher.o
 
+#epeius plug-ins
+s2eobj-y += s2e/Plugins/AFLControllers/AutoShFileGenerator.o
+s2eobj-y += s2e/Plugins/AFLControllers/ForkController.o
+s2eobj-y += s2e/Plugins/AFLControllers/FuzzySearcher.o #Core plug-in so that we can exchange sth. with AFL
+#epeius end
+
 #sqlite database is deprecated now
 #s2eobj-y += s2e/sqlite3.o
 #s2eobj-y += s2e/Database.o
